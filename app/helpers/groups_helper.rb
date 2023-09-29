@@ -25,6 +25,10 @@ module GroupsHelper
     Ability.allowed?(current_user, :admin_group_member, group)
   end
 
+  def can_admin_service_accounts?(group)
+    false
+  end
+
   def group_icon_url(group, options = {})
     if group.is_a?(String)
       group = Group.find_by_full_path(group)
@@ -85,6 +89,7 @@ module GroupsHelper
     end
   end
 
+  # Overridden in EE
   def remove_group_message(group)
     _("You are going to remove %{group_name}. This will also delete all of its subgroups and projects. Removed groups CANNOT be restored! Are you ABSOLUTELY sure?") %
       { group_name: group.name }
@@ -128,18 +133,9 @@ module GroupsHelper
     {
       parent_group_url: group.parent && group_url(group.parent),
       parent_group_name: group.parent&.name,
-      import_existing_group_path: new_group_path(parent_id: group.parent_id, anchor: 'import-group-pane')
+      import_existing_group_path: new_group_path(parent_id: group.parent_id, anchor: 'import-group-pane'),
+      is_saas: Gitlab.com?.to_s
     }
-  end
-
-  def verification_for_group_creation_data
-    # overridden in EE
-    {}
-  end
-
-  def require_verification_for_namespace_creation_enabled?
-    # overridden in EE
-    false
   end
 
   def group_name_and_path_app_data
@@ -151,6 +147,7 @@ module GroupsHelper
 
   def group_overview_tabs_app_data(group)
     {
+      group_id: group.id,
       subgroups_and_projects_endpoint: group_children_path(group, format: :json),
       shared_projects_endpoint: group_shared_projects_path(group, format: :json),
       archived_projects_endpoint: group_children_path(group, format: :json, archived: 'only'),
@@ -161,10 +158,31 @@ module GroupsHelper
       new_project_path: new_project_path(namespace_id: group.id),
       new_subgroup_illustration: image_path('illustrations/subgroup-create-new-sm.svg'),
       new_project_illustration: image_path('illustrations/project-create-new-sm.svg'),
+      empty_projects_illustration: image_path('illustrations/empty-state/empty-projects-md.svg'),
       empty_subgroup_illustration: image_path('illustrations/empty-state/empty-subgroup-md.svg'),
       render_empty_state: 'true',
       can_create_subgroups: can?(current_user, :create_subgroup, group).to_s,
       can_create_projects: can?(current_user, :create_projects, group).to_s
+    }
+  end
+
+  def group_readme_app_data(group_readme)
+    {
+      web_path: group_readme.present.web_path,
+      name: group_readme.present.name
+    }
+  end
+
+  def show_group_readme?(group)
+    group.group_readme
+  end
+
+  def group_settings_readme_app_data(group)
+    {
+      group_readme_path: group.group_readme&.present&.web_path,
+      readme_project_path: group.readme_project&.present&.path_with_namespace,
+      group_path: group.full_path,
+      group_id: group.id
     }
   end
 
@@ -177,6 +195,14 @@ module GroupsHelper
     when "http"
       [[_("Only HTTP(S)"), "http"]]
     end
+  end
+
+  def new_custom_emoji_path(group)
+    return unless Feature.enabled?(:custom_emoji)
+    return unless group
+    return unless can?(current_user, :create_custom_emoji, group)
+
+    new_group_custom_emoji_path(group)
   end
 
   private

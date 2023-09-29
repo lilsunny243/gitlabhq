@@ -2,15 +2,43 @@
 
 module Gitlab
   class UrlSanitizer
+    include Gitlab::Utils::StrongMemoize
+
     ALLOWED_SCHEMES = %w[http https ssh git].freeze
     ALLOWED_WEB_SCHEMES = %w[http https].freeze
+    SCHEMIFIED_SCHEME = 'glschemelessuri'
+    SCHEMIFY_PLACEHOLDER = "#{SCHEMIFIED_SCHEME}://".freeze
+    # URI::DEFAULT_PARSER.make_regexp will only match URLs with schemes or
+    # relative URLs. This section will match schemeless URIs with userinfo
+    # e.g. user:pass@gitlab.com but will not match scp-style URIs e.g.
+    # user@server:path/to/file)
+    #
+    # The userinfo part is very loose compared to URI's implementation so we
+    # also match non-escaped userinfo e.g foo:b?r@gitlab.com which should be
+    # encoded as foo:b%3Fr@gitlab.com
+    URI_REGEXP = %r{
+    (?:
+       #{URI::DEFAULT_PARSER.make_regexp(ALLOWED_SCHEMES)}
+     |
+       (?:(?:(?!@)[%#{URI::REGEXP::PATTERN::UNRESERVED}#{URI::REGEXP::PATTERN::RESERVED}])+(?:@))
+       (?# negative lookahead ensures this isn't an SCP-style URL: [host]:[rel_path|abs_path] server:path/to/file)
+       (?!#{URI::REGEXP::PATTERN::HOST}:(?:#{URI::REGEXP::PATTERN::REL_PATH}|#{URI::REGEXP::PATTERN::ABS_PATH}))
+       #{URI::REGEXP::PATTERN::HOSTPORT}
+    )
+    }x
+    # This expression is derived from `URI::REGEXP::PATTERN::USERINFO` but with the
+    # addition of `{` and `}` in the list of allowed characters to account for the
+    # possibility of the userinfo portion of a URL containing masked segments.
+    # e.g.
+    # http://myuser:{masked_password}@{masked_domain}.com/{masked_hook}
+    MASKED_USERINFO_REGEX = %r{(?:[\\-_.!~*'()a-zA-Z\d;:&=+$,{}]|%[a-fA-F\d]{2})*}
 
     def self.sanitize(content)
-      regexp = URI::DEFAULT_PARSER.make_regexp(ALLOWED_SCHEMES)
-
-      content.gsub(regexp) { |url| new(url).masked_url }
-    rescue Addressable::URI::InvalidURIError
-      content.gsub(regexp, '')
+      content.gsub(URI_REGEXP) do |url|
+        new(url).masked_url
+      rescue Addressable::URI::InvalidURIError
+        ''
+      end
     end
 
     def self.valid?(url, allowed_schemes: ALLOWED_SCHEMES)
@@ -28,6 +56,14 @@ module Gitlab
       valid?(url, allowed_schemes: ALLOWED_WEB_SCHEMES)
     end
 
+    # The url associated with records like `WebHookLog` may contain masked
+    # portions represented by paired curly brackets in the URL. As this
+    # prohibits straightforward parsing of the URL, we can use a variation of
+    # the existing USERINFO regex for these cases.
+    def self.sanitize_masked_url(url)
+      url.gsub(%r{//#{MASKED_USERINFO_REGEX}@}o, '//*****:*****@')
+    end
+
     def initialize(url, credentials: nil)
       %i[user password].each do |symbol|
         credentials[symbol] = credentials[symbol].presence if credentials&.key?(symbol)
@@ -35,17 +71,6 @@ module Gitlab
 
       @credentials = credentials
       @url = parse_url(url)
-    end
-
-    def sanitized_url
-      @sanitized_url ||= safe_url.to_s
-    end
-
-    def masked_url
-      url = @url.dup
-      url.password = "*****" if url.password.present?
-      url.user = "*****" if url.user.present?
-      url.to_s
     end
 
     def credentials
@@ -56,15 +81,37 @@ module Gitlab
       credentials[:user]
     end
 
-    def full_url
-      @full_url ||= generate_full_url.to_s
+    def sanitized_url
+      safe_url = @url.dup
+      safe_url.password = nil
+      safe_url.user = nil
+      reverse_schemify(safe_url.to_s)
     end
+    strong_memoize_attr :sanitized_url
+
+    def masked_url
+      url = @url.dup
+      url.password = "*****" if url.password.present?
+      url.user = "*****" if url.user.present?
+      reverse_schemify(url.to_s)
+    end
+    strong_memoize_attr :masked_url
+
+    def full_url
+      return reverse_schemify(@url.to_s) unless valid_credentials?
+
+      url = @url.dup
+      url.password = encode_percent(credentials[:password]) if credentials[:password].present?
+      url.user = encode_percent(credentials[:user]) if credentials[:user].present?
+      reverse_schemify(url.to_s)
+    end
+    strong_memoize_attr :full_url
 
     private
 
     def parse_url(url)
-      url             = url.to_s.strip
-      match           = url.match(%r{\A(?:git|ssh|http(?:s?))\://(?:(.+)(?:@))?(.+)})
+      url = schemify(url.to_s.strip)
+      match = url.match(%r{\A(?:(?:#{SCHEMIFIED_SCHEME}|git|ssh|http(?:s?)):)?//(?:(.+)(?:@))?(.+)}o)
       raw_credentials = match[1] if match
 
       if raw_credentials.present?
@@ -83,24 +130,19 @@ module Gitlab
       url
     end
 
-    def generate_full_url
-      return @url unless valid_credentials?
-
-      @url.dup.tap do |generated|
-        generated.password = encode_percent(credentials[:password]) if credentials[:password].present?
-        generated.user = encode_percent(credentials[:user]) if credentials[:user].present?
-      end
+    def schemify(url)
+      # Prepend the placeholder scheme unless the URL has a scheme or is relative
+      url.prepend(SCHEMIFY_PLACEHOLDER) unless url.starts_with?(%r{(?:#{URI::REGEXP::PATTERN::SCHEME}:)?//}o)
+      url
     end
 
-    def safe_url
-      safe_url = @url.dup
-      safe_url.password = nil
-      safe_url.user = nil
-      safe_url
+    def reverse_schemify(url)
+      url.slice!(SCHEMIFY_PLACEHOLDER) if url.starts_with?(SCHEMIFY_PLACEHOLDER)
+      url
     end
 
     def valid_credentials?
-      credentials && credentials.is_a?(Hash) && credentials.any?
+      credentials.is_a?(Hash) && credentials.values.any?
     end
 
     def encode_percent(string)

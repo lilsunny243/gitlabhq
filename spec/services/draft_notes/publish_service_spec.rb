@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe DraftNotes::PublishService do
+RSpec.describe DraftNotes::PublishService, feature_category: :code_review_workflow do
   include RepoHelpers
 
   let(:merge_request) { create(:merge_request) }
@@ -172,7 +172,12 @@ RSpec.describe DraftNotes::PublishService do
         end
       end
 
-      it 'does not requests a lot from Gitaly', :request_store do
+      it 'does not request a lot from Gitaly', :request_store, :clean_gitlab_redis_cache do
+        merge_request
+        position
+
+        Gitlab::GitalyClient.reset_counts
+
         # NOTE: This should be reduced as we work on reducing Gitaly calls.
         # Gitaly requests shouldn't go above this threshold as much as possible
         # as it may add more to the Gitaly N+1 issue we are experiencing.
@@ -287,9 +292,12 @@ RSpec.describe DraftNotes::PublishService do
       other_user = create(:user)
       project.add_developer(other_user)
 
-      create(:draft_note, merge_request: merge_request,
-                          author: user,
-                          note: "thanks\n/assign #{other_user.to_reference}")
+      create(
+        :draft_note,
+        merge_request: merge_request,
+        author: user,
+        note: "thanks\n/assign #{other_user.to_reference}"
+      )
 
       expect { publish }.to change { DraftNote.count }.by(-1).and change { Note.count }.by(2)
       expect(merge_request.reload.assignees).to match_array([other_user])

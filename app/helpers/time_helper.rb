@@ -1,24 +1,20 @@
 # frozen_string_literal: true
 
 module TimeHelper
+  TIME_UNIT_TRANSLATION = {
+    seconds: ->(seconds) { n_('%d second', '%d seconds', seconds) % seconds },
+    minutes: ->(minutes) { n_('%d minute', '%d minutes', minutes) % minutes },
+    hours: ->(hours) { n_('%d hour', '%d hours', hours) % hours },
+    days: ->(days) { n_('%d day', '%d days', days) % days },
+    weeks: ->(weeks) { n_('%d week', '%d weeks', weeks) % weeks },
+    months: ->(months) { n_('%d month', '%d months', months) % months },
+    years: ->(years) { n_('%d year', '%d years', years) % years }
+  }.freeze
+
   def time_interval_in_words(interval_in_seconds)
-    interval_in_seconds = interval_in_seconds.to_i
-    minutes = interval_in_seconds / 60
-    seconds = interval_in_seconds - minutes * 60
+    time_parts = ActiveSupport::Duration.build(interval_in_seconds.to_i).parts
 
-    if minutes >= 1
-      if seconds % 60 == 0
-        n_('%d minute', '%d minutes', minutes) % minutes
-      else
-        [n_('%d minute', '%d minutes', minutes) % minutes, n_('%d second', '%d seconds', seconds) % seconds].to_sentence
-      end
-    else
-      n_('%d second', '%d seconds', seconds) % seconds
-    end
-  end
-
-  def date_from_to(from, to)
-    "#{from.to_s(:short)} - #{to.to_s(:short)}"
+    time_parts.map { |unit, value| TIME_UNIT_TRANSLATION[unit].call(value) }.to_sentence
   end
 
   def duration_in_numbers(duration_in_seconds)

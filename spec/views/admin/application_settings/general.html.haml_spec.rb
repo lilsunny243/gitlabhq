@@ -96,7 +96,10 @@ RSpec.describe 'admin/application_settings/general.html.haml' do
 
       it 'expects display token and reset token to be available' do
         expect(rendered).to have_content(app_settings.error_tracking_access_token)
-        expect(rendered).to have_button('Reset error tracking access token')
+        expect(rendered).to have_link(
+          'Reset error tracking access token',
+          href: reset_error_tracking_access_token_admin_application_settings_url
+        )
       end
     end
 
@@ -108,6 +111,33 @@ RSpec.describe 'admin/application_settings/general.html.haml' do
 
         expect(rendered).not_to have_field('application_setting_error_tracking_api_url')
       end
+    end
+  end
+
+  # for the licensed tests, refer to ee/spec/views/admin/application_settings/general.html.haml_spec.rb
+  describe 'instance-level code suggestions settings', :without_license, feature_category: :code_suggestions do
+    before do
+      allow(::Gitlab).to receive(:org_or_com?).and_return(gitlab_org_or_com?)
+
+      render
+    end
+
+    shared_examples 'does not render the form' do
+      it 'does not render the form' do
+        expect(rendered).not_to have_field('application_setting_instance_level_code_suggestions_enabled')
+      end
+    end
+
+    context 'when on .com or .org' do
+      let(:gitlab_org_or_com?) { true }
+
+      it_behaves_like 'does not render the form'
+    end
+
+    context 'when not on .com and not on .org' do
+      let(:gitlab_org_or_com?) { false }
+
+      it_behaves_like 'does not render the form'
     end
   end
 end

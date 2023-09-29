@@ -1,11 +1,16 @@
 <script>
-import { GlTooltipDirective, GlIcon, GlButton, GlDropdownItem } from '@gitlab/ui';
+import {
+  GlTooltipDirective,
+  GlButton,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownItem,
+} from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
 import Api from '~/api';
 import resolvedStatusMixin from '~/batch_comments/mixins/resolved_status';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPE_ISSUE } from '~/issues/constants';
-import { BV_HIDE_TOOLTIP } from '~/lib/utils/constants';
 import { __, sprintf } from '~/locale';
 import eventHub from '~/sidebar/event_hub';
 import UserAccessRoleBadge from '~/vue_shared/components/user_access_role_badge.vue';
@@ -21,18 +26,18 @@ export default {
     editCommentLabel: __('Edit comment'),
     deleteCommentLabel: __('Delete comment'),
     moreActionsLabel: __('More actions'),
-    reportAbuse: __('Report abuse to administrator'),
+    reportAbuse: __('Report abuse'),
   },
   name: 'NoteActions',
   components: {
-    GlIcon,
+    AbuseCategorySelector,
+    EmojiPicker: () => import('~/emoji/components/picker.vue'),
+    GlButton,
+    GlDisclosureDropdown,
+    GlDisclosureDropdownItem,
     ReplyButton,
     TimelineEventButton,
-    GlButton,
-    GlDropdownItem,
     UserAccessRoleBadge,
-    EmojiPicker: () => import('~/emoji/components/picker.vue'),
-    AbuseCategorySelector,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -216,10 +221,11 @@ export default {
     onResolve() {
       this.$emit('handleResolve');
     },
-    closeTooltip() {
-      this.$nextTick(() => {
-        this.$root.$emit(BV_HIDE_TOOLTIP);
-      });
+    onAbuse() {
+      this.toggleReportAbuseDrawer(true);
+    },
+    onCopyUrl() {
+      this.$toast.show(__('Link copied to clipboard.'));
     },
     handleAssigneeUpdate(assignees) {
       this.$emit('updateAssignees', assignees);
@@ -311,22 +317,12 @@ export default {
     />
     <emoji-picker
       v-if="canAwardEmoji"
+      v-gl-tooltip
+      :title="$options.i18n.addReactionLabel"
       toggle-class="note-action-button note-emoji-button btn-icon btn-default-tertiary"
       data-testid="note-emoji-button"
       @click="setAwardEmoji"
-    >
-      <template #button-content>
-        <gl-icon class="award-control-icon-neutral gl-button-icon gl-icon" name="slight-smile" />
-        <gl-icon
-          class="award-control-icon-positive gl-button-icon gl-icon gl-left-3!"
-          name="smiley"
-        />
-        <gl-icon
-          class="award-control-icon-super-positive gl-button-icon gl-icon gl-left-3!"
-          name="smile"
-        />
-      </template>
-    </emoji-picker>
+    />
     <reply-button
       v-if="showReply"
       ref="replyButton"
@@ -354,48 +350,61 @@ export default {
       class="note-action-button js-note-delete"
       @click="onDelete"
     />
-    <div v-else-if="shouldShowActionsDropdown" class="dropdown more-actions">
-      <!-- eslint-disable @gitlab/vue-no-data-toggle -->
-      <gl-button
+    <div v-else-if="shouldShowActionsDropdown" class="more-actions dropdown">
+      <gl-disclosure-dropdown
         v-gl-tooltip
         :title="$options.i18n.moreActionsLabel"
-        :aria-label="$options.i18n.moreActionsLabel"
+        :toggle-text="$options.i18n.moreActionsLabel"
+        text-sr-only
         icon="ellipsis_v"
         category="tertiary"
+        placement="right"
         class="note-action-button more-actions-toggle"
-        data-toggle="dropdown"
-        @click="closeTooltip"
-      />
-      <!-- eslint-enable @gitlab/vue-no-data-toggle -->
-      <ul class="dropdown-menu more-actions-dropdown dropdown-open-left">
-        <gl-dropdown-item
+        no-caret
+      >
+        <gl-disclosure-dropdown-item
           v-if="canEdit"
           class="js-note-edit gl-sm-display-none!"
-          @click.prevent="onEdit"
+          @action="onEdit"
         >
-          {{ __('Edit comment') }}
-        </gl-dropdown-item>
-        <gl-dropdown-item
+          <template #list-item>
+            {{ __('Edit comment') }}
+          </template>
+        </gl-disclosure-dropdown-item>
+        <gl-disclosure-dropdown-item
           v-if="canReportAsAbuse"
           data-testid="report-abuse-button"
-          @click="toggleReportAbuseDrawer(true)"
+          @action="onAbuse"
         >
-          {{ $options.i18n.reportAbuse }}
-        </gl-dropdown-item>
-        <gl-dropdown-item
+          <template #list-item>
+            {{ $options.i18n.reportAbuse }}
+          </template>
+        </gl-disclosure-dropdown-item>
+        <gl-disclosure-dropdown-item
           v-if="noteUrl"
           class="js-btn-copy-note-link"
           :data-clipboard-text="noteUrl"
+          @action="onCopyUrl"
         >
-          {{ __('Copy link') }}
-        </gl-dropdown-item>
-        <gl-dropdown-item v-if="canAssign" data-testid="assign-user" @click="assignUser">
-          {{ displayAssignUserText }}
-        </gl-dropdown-item>
-        <gl-dropdown-item v-if="canEdit" class="js-note-delete" @click.prevent="onDelete">
-          <span class="text-danger">{{ __('Delete comment') }}</span>
-        </gl-dropdown-item>
-      </ul>
+          <template #list-item>
+            {{ __('Copy link') }}
+          </template>
+        </gl-disclosure-dropdown-item>
+        <gl-disclosure-dropdown-item
+          v-if="canAssign"
+          data-testid="assign-user"
+          @action="assignUser"
+        >
+          <template #list-item>
+            {{ displayAssignUserText }}
+          </template>
+        </gl-disclosure-dropdown-item>
+        <gl-disclosure-dropdown-item v-if="canEdit" class="js-note-delete" @action="onDelete">
+          <template #list-item>
+            <span class="text-danger">{{ __('Delete comment') }}</span>
+          </template>
+        </gl-disclosure-dropdown-item>
+      </gl-disclosure-dropdown>
     </div>
     <!-- IMPORTANT: show this component lazily because it causes layout thrashing -->
     <!-- https://gitlab.com/gitlab-org/gitlab/-/issues/331172#note_1269378396 -->

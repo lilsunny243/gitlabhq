@@ -4,6 +4,7 @@ require 'spec_helper'
 
 RSpec.describe BlobHelper do
   include TreeHelper
+  include FakeBlobHelpers
 
   describe "#sanitize_svg_data" do
     let(:input_svg_path) { File.join(Rails.root, 'spec', 'fixtures', 'unsanitized.svg') }
@@ -57,8 +58,6 @@ RSpec.describe BlobHelper do
   end
 
   describe "#relative_raw_path" do
-    include FakeBlobHelpers
-
     let_it_be(:project) { create(:project) }
 
     before do
@@ -82,8 +81,6 @@ RSpec.describe BlobHelper do
   end
 
   context 'viewer related' do
-    include FakeBlobHelpers
-
     let_it_be(:project) { create(:project, lfs_enabled: true) }
 
     before do
@@ -109,7 +106,7 @@ RSpec.describe BlobHelper do
           let(:blob) { fake_blob(size: 10.megabytes) }
 
           it 'returns an error message' do
-            expect(helper.blob_render_error_reason(viewer)).to eq('it is larger than 5 MB')
+            expect(helper.blob_render_error_reason(viewer)).to eq('it is larger than 5 MiB')
           end
         end
 
@@ -117,7 +114,7 @@ RSpec.describe BlobHelper do
           let(:blob) { fake_blob(size: 2.megabytes) }
 
           it 'returns an error message' do
-            expect(helper.blob_render_error_reason(viewer)).to eq('it is larger than 1 MB')
+            expect(helper.blob_render_error_reason(viewer)).to eq('it is larger than 1 MiB')
           end
         end
       end
@@ -472,58 +469,24 @@ RSpec.describe BlobHelper do
     end
   end
 
-  describe '#editing_ci_config?' do
-    let(:project) { build(:project) }
+  describe '#vue_blob_app_data' do
+    let(:blob) { fake_blob(path: 'file.md', size: 2.megabytes) }
+    let(:project) { build_stubbed(:project) }
+    let(:user) { build_stubbed(:user) }
+    let(:ref) { 'main' }
 
-    subject { helper.editing_ci_config? }
+    it 'returns data related to blob app' do
+      allow(helper).to receive(:current_user).and_return(user)
+      assign(:ref, ref)
 
-    before do
-      assign(:project, project)
-      assign(:path, path)
-    end
-
-    context 'when path is nil' do
-      let(:path) { nil }
-
-      it { is_expected.to be_falsey }
-    end
-
-    context 'when path is not a ci file' do
-      let(:path) { 'some-file.txt' }
-
-      it { is_expected.to be_falsey }
-    end
-
-    context 'when path ends is gitlab-ci.yml' do
-      let(:path) { '.gitlab-ci.yml' }
-
-      it { is_expected.to be_truthy }
-    end
-
-    context 'when path ends with gitlab-ci.yml' do
-      let(:path) { 'template.gitlab-ci.yml' }
-
-      it { is_expected.to be_truthy }
-    end
-
-    context 'with custom ci paths' do
-      let(:path) { 'path/to/ci.yaml' }
-
-      before do
-        project.ci_config_path = 'path/to/ci.yaml'
-      end
-
-      it { is_expected.to be_truthy }
-    end
-
-    context 'with custom ci config and path' do
-      let(:path) { 'path/to/template.gitlab-ci.yml' }
-
-      before do
-        project.ci_config_path = 'ci/path/.gitlab-ci.yml@another-group/another-project'
-      end
-
-      it { is_expected.to be_truthy }
+      expect(helper.vue_blob_app_data(project, blob, ref)).to include({
+        blob_path: blob.path,
+        project_path: project.full_path,
+        resource_id: project.to_global_id,
+        user_id: user.to_global_id,
+        target_branch: ref,
+        original_branch: ref
+      })
     end
   end
 end

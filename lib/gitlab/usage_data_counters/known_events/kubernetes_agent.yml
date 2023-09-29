@@ -1,3 +1,0 @@
-- name: agent_users_using_ci_tunnel
-  redis_slot: agent
-  aggregation: weekly

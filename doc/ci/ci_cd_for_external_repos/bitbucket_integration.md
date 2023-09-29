@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: howto
 ---
 
-# Using GitLab CI/CD with a Bitbucket Cloud repository **(PREMIUM)**
+# Using GitLab CI/CD with a Bitbucket Cloud repository **(PREMIUM ALL)**
 
 GitLab CI/CD can be used with Bitbucket Cloud by:
 
@@ -15,7 +15,8 @@ GitLab CI/CD can be used with Bitbucket Cloud by:
 To use GitLab CI/CD with a Bitbucket Cloud repository:
 
 1. In GitLab, create a project:
-   1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **View all my projects**.
    1. On the right of the page, select **New project**.
    1. Select **Run CI/CD for external repository**.
    1. Select **Repository by URL**.
@@ -39,7 +40,7 @@ To use GitLab CI/CD with a Bitbucket Cloud repository:
    using the Personal Access Token we just generated for authentication.
 
    ```plaintext
-   https://gitlab.com/api/v4/projects/<PROJECT_ID>/mirror/pull?private_token=<PERSONAL_ACCESS_TOKEN>
+   https://gitlab.example.com/api/v4/projects/:project_id/mirror/pull?private_token=<your_personal_access_token>
    ```
 
    The web hook Trigger should be set to 'Repository Push'.

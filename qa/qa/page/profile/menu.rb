@@ -4,56 +4,26 @@ module QA
   module Page
     module Profile
       class Menu < Page::Base
-        # We need to check remote_mobile_device_name instead of mobile_layout? here
-        # since tablets have the regular top navigation bar but still close the left nav
-        prepend QA::Mobile::Page::SubMenus::Common if QA::Runtime::Env.remote_mobile_device_name
-
-        view 'app/views/layouts/nav/sidebar/_profile.html.haml' do
-          element :access_token_link, 'link_to profile_personal_access_tokens_path' # rubocop:disable QA/ElementWithPattern
-          element :access_token_title, 'Access Tokens' # rubocop:disable QA/ElementWithPattern
-          element :top_level_items, '.sidebar-top-level-items' # rubocop:disable QA/ElementWithPattern
-          element :ssh_keys, 'SSH Keys' # rubocop:disable QA/ElementWithPattern
-          element :profile_emails_link
-          element :profile_password_link
-          element :profile_account_link
-        end
-
-        def click_access_tokens
-          within_sidebar do
-            click_link('Access Tokens')
-          end
-        end
+        include SubMenus::CreateNewMenu
 
         def click_ssh_keys
-          within_sidebar do
-            click_link('SSH Keys')
-          end
+          click_element(:nav_item_link, submenu_item: 'SSH Keys')
         end
 
         def click_account
-          within_sidebar do
-            click_element(:profile_account_link)
-          end
+          click_element(:nav_item_link, submenu_item: 'Account')
         end
 
         def click_emails
-          within_sidebar do
-            click_element(:profile_emails_link)
-          end
+          click_element(:nav_item_link, submenu_item: 'Emails')
         end
 
         def click_password
-          within_sidebar do
-            click_element(:profile_password_link)
-          end
+          click_element(:nav_item_link, submenu_item: 'Password')
         end
 
-        private
-
-        def within_sidebar
-          page.within('.sidebar-top-level-items') do
-            yield
-          end
+        def click_access_tokens
+          click_element(:nav_item_link, submenu_item: 'Access Tokens')
         end
       end
     end

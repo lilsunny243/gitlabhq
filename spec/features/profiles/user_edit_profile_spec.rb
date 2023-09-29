@@ -3,11 +3,12 @@
 require 'spec_helper'
 
 RSpec.describe 'User edit profile', feature_category: :user_profile do
-  include Spec::Support::Helpers::Features::NotesHelpers
+  include Features::NotesHelpers
 
-  let_it_be(:user) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
 
   before do
+    stub_feature_flags(edit_user_profile_vue: false)
     sign_in(user)
     visit(profile_path)
   end
@@ -82,7 +83,7 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
     page.within('.rspec-full-name') do
       expect(page).to have_css '.gl-field-error-outline'
       expect(find('.gl-field-error')).not_to have_selector('.hidden')
-      expect(find('.gl-field-error')).to have_content('Using emojis in names seems fun, but please try to set a status message instead')
+      expect(find('.gl-field-error')).to have_content('Using emoji in names seems fun, but please try to set a status message instead')
     end
   end
 
@@ -97,8 +98,8 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
     expect(page).to have_content('Website url is not a valid URL')
   end
 
-  it 'validates that the dicord id has a valid length', :js do
-    valid_dicord_id = '123456789123456789'
+  it 'validates that the discord id has a valid length', :js do
+    valid_discord_id = '123456789123456789'
     too_short_discord_id = '123456'
     too_long_discord_id = '123456789abcdefghijkl'
 
@@ -108,12 +109,12 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
     fill_in 'user_discord', with: too_long_discord_id
     expect(page).to have_content('Discord ID is too long')
 
-    fill_in 'user_discord', with: valid_dicord_id
+    fill_in 'user_discord', with: valid_discord_id
 
     submit_settings
 
     expect(user.reload).to have_attributes(
-      discord: valid_dicord_id
+      discord: valid_discord_id
     )
   end
 
@@ -297,7 +298,7 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
           end
 
           page.within '.dropdown-menu-user' do
-            expect(page).to have_content("#{user.name} (Busy)")
+            expect(page).to have_content("#{user.name} Busy")
           end
         end
 
@@ -308,7 +309,7 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
           visit project_issue_path(project, issue)
           wait_for_requests
 
-          expect(page.find('.issuable-assignees')).to have_content("#{user.name} (Busy)")
+          expect(page.find('.issuable-assignees')).to have_content("#{user.name} Busy")
         end
       end
     end
@@ -477,7 +478,7 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
       end
 
       context 'Remove status button' do
-        let(:user) { create(:user) }
+        let(:user) { create(:user, :no_super_sidebar) }
 
         before do
           user.status = UserStatus.new(message: 'Eating bread', emoji: 'stuffed_flatbread')
@@ -524,22 +525,18 @@ RSpec.describe 'User edit profile', feature_category: :user_profile do
       let(:issue) { create(:issue, project: project) }
       let(:project) { create(:project) }
 
-      before do
-        stub_feature_flags(user_time_settings: true)
-      end
-
       it 'shows the user time preferences form' do
         expect(page).to have_content('Time settings')
       end
 
       it 'allows the user to select a time zone from a dropdown list of options' do
-        expect(page.find('.user-time-preferences .dropdown')).not_to have_css('.show')
+        expect(page).not_to have_selector('.user-time-preferences [data-testid="base-dropdown-menu"]')
 
-        page.find('.user-time-preferences .dropdown').click
+        page.find('.user-time-preferences .gl-new-dropdown-toggle').click
 
-        expect(page.find('.user-time-preferences .dropdown')).to have_css('.show')
+        expect(page.find('.user-time-preferences [data-testid="base-dropdown-menu"]')).to be_visible
 
-        page.find("button", text: "Arizona").click
+        page.find("li", text: "Arizona").click
 
         expect(page).to have_field(:user_timezone, with: 'America/Phoenix', type: :hidden)
       end

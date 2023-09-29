@@ -1,6 +1,6 @@
 ---
 type: reference
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -17,6 +17,8 @@ The steps below cover:
 
 - Configuring the Secure LDAP Client in the Google administrator console.
 - Required GitLab configuration.
+
+Secure LDAP is only available on specific Google Workspace editions. For more information, see the [Google Secure LDAP service documentation](https://support.google.com/a/answer/9048516).
 
 ## Configuring Google LDAP client
 
@@ -70,7 +72,7 @@ values obtained during the LDAP client configuration earlier:
 - `cert`: The `.crt` file text from the downloaded certificate bundle
 - `key`: The `.key` file text from the downloaded certificate bundle
 
-**For Omnibus installations**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -88,7 +90,7 @@ values obtained during the LDAP client configuration earlier:
        encryption: 'simple_tls'
        verify_certificates: true
        retry_empty_result_with_codes: [80]
-
+       base: "DC=example,DC=com"
        tls_options:
          cert: |
            -----BEGIN CERTIFICATE-----
@@ -138,11 +140,9 @@ values obtained during the LDAP client configuration earlier:
    EOS
    ```
 
-1. Save the file and [reconfigure](../../restart_gitlab.md#omnibus-gitlab-reconfigure) GitLab for the changes to take effect.
+1. Save the file and [reconfigure](../../restart_gitlab.md#reconfigure-a-linux-package-installation) GitLab for the changes to take effect.
 
----
-
-**For installations from source**
+For self-compiled installations:
 
 1. Edit `config/gitlab.yml`:
 
@@ -152,7 +152,7 @@ values obtained during the LDAP client configuration earlier:
      servers:
        main: # 'main' is the GitLab 'provider ID' of this LDAP server
          label: 'Google Secure LDAP'
-
+         base: "DC=example,DC=com"
          host: 'ldap.google.com'
          port: 636
          uid: 'uid'
@@ -210,7 +210,7 @@ values obtained during the LDAP client configuration earlier:
              -----END PRIVATE KEY-----
    ```
 
-1. Save the file and [restart](../../restart_gitlab.md#installations-from-source) GitLab for the changes to take effect.
+1. Save the file and [restart](../../restart_gitlab.md#self-compiled-installations) GitLab for the changes to take effect.
 
 ## Using encrypted credentials
 

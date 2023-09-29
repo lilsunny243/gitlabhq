@@ -1,17 +1,23 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
-# Deploy to AWS from GitLab CI/CD **(FREE)**
+# Deploy to AWS from GitLab CI/CD **(FREE ALL)**
 
 GitLab provides Docker images with the libraries and tools you need to deploy
 to AWS. You can reference these images in your CI/CD pipeline.
 
 If you're using GitLab.com and deploying to the [Amazon Elastic Container Service](https://aws.amazon.com/ecs/) (ECS),
 read about [deploying to ECS](ecs/deploy_to_aws_ecs.md).
+
+NOTE:
+If you are comfortable configuring a deployment yourself and just need to retrieve
+AWS credentials, consider using [ID tokens and OpenID Connect](../cloud_services/aws/index.md).
+ID tokens are more secure than storing credentials in CI/CD variables, but do not
+work with the guidance on this page.
 
 ## Authenticate GitLab with AWS
 

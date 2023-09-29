@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification, query_analyzers: false,
-  feature_category: :pods do
+  feature_category: :cell do
   let_it_be(:pipeline, refind: true) { create(:ci_pipeline) }
   let_it_be(:project, refind: true) { create(:project) }
 
@@ -57,13 +57,19 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
     end
   end
 
-  shared_examples 'cross-database modification errors' do |model:|
+  shared_examples 'cross-database modification errors' do |model:, sql_log_contains:|
     let(:model) { model }
 
     context "within #{model} transaction" do
       it 'raises error' do
         model.transaction do
-          expect { run_queries }.to raise_error /Cross-database data modification/
+          expect { run_queries }.to raise_error do |error|
+            expect(error.message).to include 'Cross-database data modification'
+
+            sql_log_contains.each do |sql_query|
+              expect(error.message).to match sql_query
+            end
+          end
         end
       end
     end
@@ -87,7 +93,8 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
 
     include_examples 'successful examples', model: Ci::Pipeline
 
-    include_examples 'cross-database modification errors', model: Project
+    include_examples 'cross-database modification errors', model: Project,
+      sql_log_contains: [/UPDATE "ci_pipelines"/]
   end
 
   context 'when other data is modified' do
@@ -98,7 +105,8 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
 
     include_examples 'successful examples', model: Project
 
-    include_examples 'cross-database modification errors', model: Ci::Pipeline
+    include_examples 'cross-database modification errors', model: Ci::Pipeline,
+      sql_log_contains: [/UPDATE "projects"/]
   end
 
   context 'when both CI and other data is modified' do
@@ -112,18 +120,32 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
     end
 
     context 'when data modification happens in a transaction' do
-      it 'raises error' do
-        Project.transaction do
-          expect { run_queries }.to raise_error /Cross-database data modification/
+      include_examples 'cross-database modification errors', model: Project,
+        sql_log_contains: [/UPDATE "projects"/, /UPDATE "ci_pipelines"/]
+
+      context 'when ci_pipelines are ignored for cross modification' do
+        it 'does not raise error' do
+          Project.transaction do
+            expect do
+              described_class.temporary_ignore_tables_in_transaction(%w[ci_pipelines], url: 'TODO') do
+                run_queries
+              end
+            end.not_to raise_error
+          end
         end
       end
 
       context 'when data modification happens in nested transactions' do
-        it 'raises error' do
+        it 'raises error, with the generated sql queries included' do
           Project.transaction(requires_new: true) do
             project.touch
             Project.transaction(requires_new: true) do
-              expect { pipeline.touch }.to raise_error /Cross-database data modification/
+              expect { pipeline.touch }.to raise_error do |error|
+                expect(error.message).to include('Cross-database data modification')
+
+                expect(error.message).to match(/UPDATE "projects"/)
+                expect(error.message).to match(/UPDATE "ci_pipelines"/)
+              end
             end
           end
         end
@@ -139,11 +161,8 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
           Marginalia::Comment.prepend_comment = prepend_comment_was
         end
 
-        it 'raises error' do
-          Project.transaction do
-            expect { run_queries }.to raise_error /Cross-database data modification/
-          end
-        end
+        include_examples 'cross-database modification errors', model: Project,
+          sql_log_contains: [/UPDATE "projects"/, /UPDATE "ci_pipelines"/]
       end
     end
 
@@ -158,11 +177,8 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
       end
 
       context 'when data modification happens in a transaction' do
-        it 'raises error' do
-          Project.transaction do
-            expect { run_queries }.to raise_error /Cross-database data modification/
-          end
-        end
+        include_examples 'cross-database modification errors', model: Project,
+          sql_log_contains: [/UPDATE "projects"/, /SELECT "ci_pipelines"."id".*FOR UPDATE/]
 
         context 'when the modification is inside a factory save! call' do
           let(:runner) { create(:ci_runner, :project, projects: [build(:project)]) }
@@ -182,7 +198,8 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
 
       include_examples 'successful examples', model: Ci::Pipeline
 
-      include_examples 'cross-database modification errors', model: Project
+      include_examples 'cross-database modification errors', model: Project,
+        sql_log_contains: [/INSERT INTO "ci_variables"/]
     end
 
     describe '.allow_cross_database_modification_within_transaction' do
@@ -209,27 +226,16 @@ RSpec.describe Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModificatio
     end
   end
 
-  context 'when some table with a defined schema and another table with undefined gitlab_schema is modified' do
-    it 'raises an error including including message about undefined schema' do
-      expect do
-        Project.transaction do
-          project.touch
-          project.connection.execute('UPDATE foo_bars_undefined_table SET a=1 WHERE id = -1')
-        end
-      end.to raise_error /Cross-database data modification.*The gitlab_schema was undefined/
-    end
-  end
-
   context 'when execution is rescued with StandardError' do
     it 'raises cross-database data modification exception' do
       expect do
         Project.transaction do
           project.touch
-          project.connection.execute('UPDATE foo_bars_undefined_table SET a=1 WHERE id = -1')
+          project.connection.execute('UPDATE ci_pipelines SET id=1 WHERE id = -1')
         end
       rescue StandardError
         # Ensures that standard rescue does not silence errors
-      end.to raise_error /Cross-database data modification.*The gitlab_schema was undefined/
+      end.to raise_error /Cross-database data modification/
     end
   end
 

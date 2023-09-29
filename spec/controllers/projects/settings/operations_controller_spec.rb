@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::Settings::OperationsController do
+RSpec.describe Projects::Settings::OperationsController, feature_category: :incident_management do
   let_it_be(:user) { create(:user) }
   let_it_be(:project, reload: true) { create(:project) }
 
@@ -124,7 +124,7 @@ RSpec.describe Projects::Settings::OperationsController do
     end
   end
 
-  context 'incident management' do
+  context 'incident management', feature_category: :incident_management do
     describe 'GET #show' do
       context 'with existing setting' do
         let!(:incident_management_setting) do
@@ -278,7 +278,7 @@ RSpec.describe Projects::Settings::OperationsController do
     end
   end
 
-  context 'error tracking' do
+  context 'error tracking', feature_category: :error_tracking do
     describe 'GET #show' do
       context 'with existing setting' do
         let!(:error_tracking_setting) do
@@ -315,36 +315,6 @@ RSpec.describe Projects::Settings::OperationsController do
               organization_slug: 'sentry-org',
               organization_name: 'Sentry Org'
             }
-          }
-        }
-      end
-
-      it_behaves_like 'PATCHable'
-    end
-  end
-
-  context 'metrics dashboard setting' do
-    describe 'PATCH #update' do
-      let(:params) do
-        {
-          metrics_setting_attributes: {
-            external_dashboard_url: 'https://gitlab.com'
-          }
-        }
-      end
-
-      it_behaves_like 'PATCHable'
-    end
-  end
-
-  context 'grafana integration' do
-    describe 'PATCH #update' do
-      let(:params) do
-        {
-          grafana_integration_attributes: {
-            grafana_url: 'https://grafana.gitlab.com',
-            token: 'eyJrIjoicDRlRTREdjhhOEZ5WjZPWXUzazJOSW0zZHJUejVOd3IiLCJuIjoiVGVzdCBLZXkiLCJpZCI6MX0=',
-            enabled: 'true'
           }
         }
       end

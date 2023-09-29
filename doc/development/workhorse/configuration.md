@@ -53,9 +53,9 @@ Options:
   -logFormat string
         Log format to use defaults to text (text, json, structured, none) (default "text")
   -pprofListenAddr string
-        pprof listening address, e.g. 'localhost:6060'
+        pprof listening address, for example, 'localhost:6060'
   -prometheusListenAddr string
-        Prometheus listening address, e.g. 'localhost:9229'
+        Prometheus listening address, for example, 'localhost:9229'
   -propagateCorrelationID X-Request-ID
         Reuse existing Correlation-ID from the incoming request header X-Request-ID if present
   -proxyHeadersTimeout duration
@@ -189,7 +189,9 @@ You can also set the `GITLAB_WORKHORSE_SENTRY_ENVIRONMENT` environment variable 
 use the Sentry environment feature to separate staging, production and
 development.
 
-Omnibus GitLab (`/etc/gitlab/gitlab.rb`):
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 ```ruby
 gitlab_workhorse['env'] = {
@@ -198,12 +200,14 @@ gitlab_workhorse['env'] = {
 }
 ```
 
-Source installations (`/etc/default/gitlab`):
+:::TabTitle Self-compiled (source)
 
 ```plaintext
 export GITLAB_WORKHORSE_SENTRY_DSN='https://foobar'
 export GITLAB_WORKHORSE_SENTRY_ENVIRONMENT='production'
 ```
+
+::EndTabs
 
 ## Distributed tracing
 
@@ -296,4 +300,4 @@ GITLAB_CONTINUOUS_PROFILING="stackdriver?service=workhorse&service_version=1.0.1
 
 ## Related topics
 
-- [LabKit monitoring documentation](https://gitlab.com/gitlab-org/labkit/-/blob/master/monitoring/doc.go).
+- [LabKit monitoring documentation](https://gitlab.com/gitlab-org/labkit/-/blob/master/monitoring/doc.go)

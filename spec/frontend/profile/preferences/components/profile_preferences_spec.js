@@ -3,7 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { useMockLocationHelper } from 'helpers/mock_window_location_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
-import { createAlert, VARIANT_DANGER, VARIANT_INFO } from '~/flash';
+import { createAlert, VARIANT_DANGER, VARIANT_INFO } from '~/alert';
 import IntegrationView from '~/profile/preferences/components/integration_view.vue';
 import ProfilePreferences from '~/profile/preferences/components/profile_preferences.vue';
 import { i18n } from '~/profile/preferences/constants';
@@ -17,7 +17,7 @@ import {
   lightModeThemeId2,
 } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 const expectedUrl = '/foo';
 
 useMockLocationHelper();
@@ -45,10 +45,6 @@ describe('ProfilePreferences component', () => {
         attachTo,
       }),
     );
-  }
-
-  function findIntegrationsDivider() {
-    return wrapper.findByTestId('profile-preferences-integrations-rule');
   }
 
   function findIntegrationsHeading() {
@@ -83,29 +79,20 @@ describe('ProfilePreferences component', () => {
     document.body.classList.add('content-wrapper');
   }
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   it('should not render Integrations section', () => {
     wrapper = createComponent();
     const views = wrapper.findAllComponents(IntegrationView);
-    const divider = findIntegrationsDivider();
     const heading = findIntegrationsHeading();
 
-    expect(divider.exists()).toBe(false);
     expect(heading.exists()).toBe(false);
     expect(views).toHaveLength(0);
   });
 
   it('should render Integration section', () => {
     wrapper = createComponent({ provide: { integrationViews } });
-    const divider = findIntegrationsDivider();
     const heading = findIntegrationsHeading();
     const views = wrapper.findAllComponents(IntegrationView);
 
-    expect(divider.exists()).toBe(true);
     expect(heading.exists()).toBe(true);
     expect(views).toHaveLength(integrationViews.length);
   });

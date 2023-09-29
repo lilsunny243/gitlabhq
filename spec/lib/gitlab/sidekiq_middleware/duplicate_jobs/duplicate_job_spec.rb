@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob, :clean_gitlab_redis_queues, :clean_gitlab_redis_shared_state do
+RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob,
+  :clean_gitlab_redis_queues, :clean_gitlab_redis_shared_state, :clean_gitlab_redis_queues_metadata,
+  feature_category: :shared do
   using RSpec::Parameterized::TableSyntax
 
   subject(:duplicate_job) do
@@ -77,12 +79,8 @@ RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob, :clean_gi
     end
   end
 
-  context 'with Redis cookies' do
-    def with_redis(&block)
-      Sidekiq.redis(&block)
-    end
-
-    let(:cookie_key) { "#{idempotency_key}:cookie:v2" }
+  shared_examples 'with Redis cookies' do
+    let(:cookie_key) { "#{Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE}:#{idempotency_key}:cookie:v2" }
     let(:cookie) { get_redis_msgpack(cookie_key) }
 
     describe '#check!' do
@@ -225,6 +223,14 @@ RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob, :clean_gi
           expect(redis_ttl(cookie_key)).to be_within(1).of(expected_ttl)
         end
 
+        it 'does not try to set an invalid ttl at the end of expiry' do
+          with_redis { |r| r.expire(cookie_key, 1) }
+
+          sleep 0.5 # sleep 500ms to redis would round the remaining ttl to 0
+
+          expect { subject }.not_to raise_error
+        end
+
         context 'and low offsets' do
           let(:existing_cookie) do
             {
@@ -238,6 +244,24 @@ RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob, :clean_gi
 
             expect(cookie['wal_locations']).to eq({ 'c1' => 'loc1', 'c2' => 'loc2old', 'c3' => 'loc3' })
             expect(cookie['offsets']).to eq({ 'c1' => 1, 'c2' => 2, 'c3' => 3 })
+          end
+        end
+
+        context 'when a WAL location is nil with existing offsets' do
+          let(:existing_cookie) do
+            {
+              'offsets' => { 'main' => 8, 'ci' => 5 },
+              'wal_locations' => { 'main' => 'loc1old', 'ci' => 'loc2old' }
+            }
+          end
+
+          let(:argv) { ['main', 9, 'loc1', 'ci', nil, 'loc2'] }
+
+          it 'only updates the main connection' do
+            subject
+
+            expect(cookie['wal_locations']).to eq({ 'main' => 'loc1', 'ci' => 'loc2old' })
+            expect(cookie['offsets']).to eq({ 'main' => 9, 'ci' => 5 })
           end
         end
       end
@@ -387,6 +411,62 @@ RSpec.describe Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob, :clean_gi
     def redis_ttl(key)
       with_redis { |redis| redis.ttl(key) }
     end
+  end
+
+  context 'with multi-store feature flags turned on' do
+    def with_redis(&block)
+      Gitlab::Redis::QueuesMetadata.with(&block)
+    end
+
+    shared_examples 'uses QueuesMetadata' do
+      it 'use Gitlab::Redis::QueuesMetadata.with' do
+        expect(Gitlab::Redis::QueuesMetadata).to receive(:with).and_call_original
+        expect(Gitlab::Redis::Queues).not_to receive(:with)
+
+        duplicate_job.check!
+      end
+    end
+
+    context 'when migration is ongoing with double-write' do
+      before do
+        stub_feature_flags(use_primary_store_as_default_for_queues_metadata: false)
+      end
+
+      it_behaves_like 'uses QueuesMetadata'
+      it_behaves_like 'with Redis cookies'
+    end
+
+    context 'when migration is completed' do
+      before do
+        stub_feature_flags(use_primary_and_secondary_stores_for_queues_metadata: false)
+      end
+
+      it_behaves_like 'uses QueuesMetadata'
+      it_behaves_like 'with Redis cookies'
+    end
+
+    it_behaves_like 'uses QueuesMetadata'
+    it_behaves_like 'with Redis cookies'
+  end
+
+  context 'when both multi-store feature flags are off' do
+    def with_redis(&block)
+      Gitlab::Redis::Queues.with(&block)
+    end
+
+    before do
+      stub_feature_flags(use_primary_and_secondary_stores_for_queues_metadata: false)
+      stub_feature_flags(use_primary_store_as_default_for_queues_metadata: false)
+    end
+
+    it 'use Gitlab::Redis::Queues' do
+      expect(Gitlab::Redis::Queues).to receive(:with).and_call_original
+      expect(Gitlab::Redis::QueuesMetadata).not_to receive(:with)
+
+      duplicate_job.check!
+    end
+
+    it_behaves_like 'with Redis cookies'
   end
 
   describe '#scheduled?' do

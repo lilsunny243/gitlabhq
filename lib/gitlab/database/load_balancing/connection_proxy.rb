@@ -17,29 +17,29 @@ module Gitlab
 
         # These methods perform writes after which we need to stick to the
         # primary.
-        STICKY_WRITES = %i(
+        STICKY_WRITES = %i[
           delete
           delete_all
           insert
           update
           update_all
           exec_insert_all
-        ).freeze
+        ].freeze
 
-        NON_STICKY_READS = %i(
+        NON_STICKY_READS = %i[
           sanitize_limit
           select
           select_one
           select_rows
           quote_column_name
-        ).freeze
+        ].freeze
 
         # hosts - The hosts to use for load balancing.
         def initialize(load_balancer)
           @load_balancer = load_balancer
         end
 
-        def select_all(arel, name = nil, binds = [], preparable: nil)
+        def select_all(arel, name = nil, binds = [], preparable: nil, async: false)
           if arel.respond_to?(:locked) && arel.locked
             # SELECT ... FOR UPDATE queries should be sent to the primary.
             current_session.write!
@@ -59,6 +59,13 @@ module Gitlab
           define_method(name) do |*args, **kwargs, &block|
             current_session.write!
             write_using_load_balancer(name, *args, **kwargs, &block)
+          end
+        end
+
+        def schema_cache(*args, **kwargs, &block)
+          # Ignore primary stickiness for schema_cache queries and always use replicas
+          @load_balancer.read do |connection|
+            connection.public_send(:schema_cache, *args, **kwargs, &block)
           end
         end
 

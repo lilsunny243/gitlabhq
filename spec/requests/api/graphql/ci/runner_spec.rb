@@ -2,15 +2,19 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
+RSpec.describe 'Query.runner(id)', :freeze_time, feature_category: :runner_fleet do
   include GraphqlHelpers
 
+  using RSpec::Parameterized::TableSyntax
+
   let_it_be(:user) { create(:user, :admin) }
-  let_it_be(:group) { create(:group) }
+  let_it_be(:another_admin) { create(:user, :admin) }
+  let_it_be_with_reload(:group) { create(:group) }
 
   let_it_be(:active_instance_runner) do
-    create(:ci_runner, :instance,
+    create(:ci_runner, :instance, :with_runner_manager,
       description: 'Runner 1',
+      creator: user,
       contacted_at: 2.hours.ago,
       active: true,
       version: 'adfe156',
@@ -28,6 +32,7 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
   let_it_be(:inactive_instance_runner) do
     create(:ci_runner, :instance,
       description: 'Runner 2',
+      creator: another_admin,
       contacted_at: 1.day.ago,
       active: false,
       version: 'adfe157',
@@ -55,7 +60,9 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
   end
 
   let_it_be(:project1) { create(:project) }
-  let_it_be(:active_project_runner) { create(:ci_runner, :project, projects: [project1]) }
+  let_it_be(:active_project_runner) do
+    create(:ci_runner, :project, :with_runner_manager, projects: [project1])
+  end
 
   shared_examples 'runner details fetch' do
     let(:query) do
@@ -69,6 +76,8 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
     end
 
     it 'retrieves expected fields' do
+      stub_commonmark_sourcepos_disabled
+
       post_graphql(query, current_user: user)
 
       runner_data = graphql_data_at(:runner)
@@ -77,6 +86,7 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
       expect(runner_data).to match a_graphql_entity_for(
         runner,
         description: runner.description,
+        created_by: runner.creator ? a_graphql_entity_for(runner.creator) : nil,
         created_at: runner.created_at&.iso8601,
         contacted_at: runner.contacted_at&.iso8601,
         version: runner.version,
@@ -85,7 +95,7 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
         locked: false,
         active: runner.active,
         paused: !runner.active,
-        status: runner.status('14.5').to_s.upcase,
+        status: runner.status.to_s.upcase,
         job_execution_status: runner.builds.running.any? ? 'RUNNING' : 'IDLE',
         maximum_timeout: runner.maximum_timeout,
         access_level: runner.access_level.to_s.upcase,
@@ -101,9 +111,9 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
           runner.maintainer_note.present? ? a_string_including('<strong>Test maintenance note</strong>') : '',
         job_count: runner.builds.count,
         jobs: a_hash_including(
-          "count" => runner.builds.count,
-          "nodes" => an_instance_of(Array),
-          "pageInfo" => anything
+          'count' => runner.builds.count,
+          'nodes' => an_instance_of(Array),
+          'pageInfo' => anything
         ),
         project_count: nil,
         admin_url: "http://localhost/admin/runners/#{runner.id}",
@@ -114,7 +124,25 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
           'updateRunner' => true,
           'deleteRunner' => true,
           'assignRunner' => true
-        }
+        },
+        managers: a_hash_including(
+          'count' => runner.runner_managers.count,
+          'nodes' => runner.runner_managers.map do |runner_manager|
+            a_graphql_entity_for(
+              runner_manager,
+              system_id: runner_manager.system_xid,
+              version: runner_manager.version,
+              revision: runner_manager.revision,
+              ip_address: runner_manager.ip_address,
+              executor_name: runner_manager.executor_type&.dasherize,
+              architecture_name: runner_manager.architecture,
+              platform_name: runner_manager.platform,
+              status: runner_manager.status.to_s.upcase,
+              job_execution_status: runner_manager.builds.running.any? ? 'RUNNING' : 'IDLE'
+            )
+          end,
+          "pageInfo" => anything
+        )
       )
       expect(runner_data['tagList']).to match_array runner.tag_list
     end
@@ -186,10 +214,18 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
     end
 
     context 'with build running' do
+      let!(:pipeline) { create(:ci_pipeline, project: project1) }
+      let!(:runner_manager) do
+        create(:ci_runner_machine,
+          runner: runner, ip_address: '127.0.0.1', version: '16.3', revision: 'a', architecture: 'arm', platform: 'osx',
+          contacted_at: 1.second.ago, executor_type: 'docker')
+      end
+
+      let!(:runner) { create(:ci_runner) }
+      let!(:build) { create(:ci_build, :running, runner: runner, pipeline: pipeline) }
+
       before do
-        project = create(:project, :repository)
-        pipeline = create(:ci_pipeline, project: project)
-        create(:ci_build, :running, runner: runner, pipeline: pipeline)
+        create(:ci_runner_machine_build, runner_manager: runner_manager, build: build)
       end
 
       it_behaves_like 'runner details fetch'
@@ -197,23 +233,25 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
   end
 
   describe 'for project runner' do
-    describe 'locked' do
-      using RSpec::Parameterized::TableSyntax
+    let_it_be_with_refind(:project_runner) do
+      create(:ci_runner, :project,
+             description: 'Runner 3',
+             contacted_at: 1.day.ago,
+             active: false,
+             locked: false,
+             version: 'adfe157',
+             revision: 'b',
+             ip_address: '10.10.10.10',
+             access_level: 1,
+             run_untagged: true)
+    end
 
+    describe 'locked' do
       where(is_locked: [true, false])
 
       with_them do
-        let(:project_runner) do
-          create(:ci_runner, :project,
-            description: 'Runner 3',
-            contacted_at: 1.day.ago,
-            active: false,
-            locked: is_locked,
-            version: 'adfe157',
-            revision: 'b',
-            ip_address: '10.10.10.10',
-            access_level: 1,
-            run_untagged: true)
+        before do
+          project_runner.update!(locked: is_locked)
         end
 
         let(:query) do
@@ -242,12 +280,13 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
       let_it_be(:build1) { create(:ci_build, :running, runner: active_project_runner, pipeline: pipeline1) }
       let_it_be(:build2) { create(:ci_build, :running, runner: active_project_runner, pipeline: pipeline2) }
 
-      let(:runner_query_fragment) { 'id jobCount' }
       let(:query) do
         %(
           query {
-            runner1: runner(id: "#{active_project_runner.to_global_id}") { #{runner_query_fragment} }
-            runner2: runner(id: "#{inactive_instance_runner.to_global_id}") { #{runner_query_fragment} }
+            runner1: runner(id: "#{active_project_runner.to_global_id}") { id jobCount(statuses: [RUNNING]) }
+            runner2: runner(id: "#{active_project_runner.to_global_id}") { id jobCount(statuses: FAILED) }
+            runner3: runner(id: "#{active_project_runner.to_global_id}") { id jobCount }
+            runner4: runner(id: "#{inactive_instance_runner.to_global_id}") { id jobCount }
           }
         )
       end
@@ -257,7 +296,9 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
 
         expect(graphql_data).to match a_hash_including(
           'runner1' => a_graphql_entity_for(active_project_runner, job_count: 2),
-          'runner2' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
+          'runner2' => a_graphql_entity_for(active_project_runner, job_count: 0),
+          'runner3' => a_graphql_entity_for(active_project_runner, job_count: 2),
+          'runner4' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
         )
       end
 
@@ -271,7 +312,9 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
 
           expect(graphql_data).to match a_hash_including(
             'runner1' => a_graphql_entity_for(active_project_runner, job_count: 1),
-            'runner2' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
+            'runner2' => a_graphql_entity_for(active_project_runner, job_count: 0),
+            'runner3' => a_graphql_entity_for(active_project_runner, job_count: 1),
+            'runner4' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
           )
         end
       end
@@ -299,6 +342,109 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
           'runner1' => a_graphql_entity_for(runner1, owner_project: a_graphql_entity_for(project2)),
           'runner2' => a_graphql_entity_for(runner2, owner_project: a_graphql_entity_for(project1))
         )
+      end
+    end
+
+    describe 'jobs' do
+      let(:query) do
+        %(
+          query {
+            runner(id: "#{project_runner.to_global_id}") { #{runner_query_fragment} }
+          }
+        )
+      end
+
+      context 'with a job from a non-owned project' do
+        let(:runner_query_fragment) do
+          %(
+            id
+            jobs {
+              nodes {
+                id status shortSha finishedAt duration queuedDuration tags webPath
+                project { id }
+                runner { id }
+              }
+            }
+          )
+        end
+
+        let_it_be(:owned_project_owner) { create(:user) }
+        let_it_be(:owned_project) { create(:project) }
+        let_it_be(:other_project) { create(:project) }
+        let_it_be(:project_runner) { create(:ci_runner, :project_type, projects: [other_project, owned_project]) }
+        let_it_be(:owned_project_pipeline) { create(:ci_pipeline, project: owned_project) }
+        let_it_be(:other_project_pipeline) { create(:ci_pipeline, project: other_project) }
+        let_it_be(:owned_build) do
+          create(:ci_build, :running, runner: project_runner, pipeline: owned_project_pipeline,
+            tag_list: %i[a b c], created_at: 1.hour.ago, started_at: 59.minutes.ago, finished_at: 30.minutes.ago)
+        end
+
+        let_it_be(:other_build) do
+          create(:ci_build, :success, runner: project_runner, pipeline: other_project_pipeline,
+            tag_list: %i[d e f], created_at: 30.minutes.ago, started_at: 19.minutes.ago, finished_at: 1.minute.ago)
+        end
+
+        before_all do
+          owned_project.add_owner(owned_project_owner)
+        end
+
+        it 'returns empty values for sensitive fields in non-owned jobs' do
+          post_graphql(query, current_user: owned_project_owner)
+
+          jobs_data = graphql_data_at(:runner, :jobs, :nodes)
+          expect(jobs_data).not_to be_nil
+          expect(jobs_data).to match([
+            a_graphql_entity_for(other_build,
+              status: other_build.status.upcase,
+              project: nil, tags: nil, web_path: nil,
+              runner: a_graphql_entity_for(project_runner),
+              short_sha: 'Unauthorized', finished_at: other_build.finished_at&.iso8601,
+              duration: a_value_within(0.001).of(other_build.duration),
+              queued_duration: a_value_within(0.001).of((other_build.started_at - other_build.queued_at).to_f)),
+            a_graphql_entity_for(owned_build,
+              status: owned_build.status.upcase,
+              project: a_graphql_entity_for(owned_project),
+              tags: owned_build.tag_list.map(&:to_s),
+              web_path: ::Gitlab::Routing.url_helpers.project_job_path(owned_project, owned_build),
+              runner: a_graphql_entity_for(project_runner),
+              short_sha: owned_build.short_sha,
+              finished_at: owned_build.finished_at&.iso8601,
+              duration: a_value_within(0.001).of(owned_build.duration),
+              queued_duration: a_value_within(0.001).of((owned_build.started_at - owned_build.queued_at).to_f))
+          ])
+        end
+      end
+    end
+
+    describe 'a query fetching all fields' do
+      let(:query) do
+        wrap_fields(query_graphql_path(query_path, all_graphql_fields_for('CiRunner')))
+      end
+
+      let(:query_path) do
+        [
+          [:runner, { id: project_runner.to_global_id.to_s }]
+        ]
+      end
+
+      it 'does not execute more queries per runner', :use_sql_query_cache, :aggregate_failures do
+        create(:ci_build, :failed, runner: project_runner)
+        create(:ci_runner_machine, runner: project_runner, version: '16.4.0')
+
+        # warm-up license cache and so on:
+        personal_access_token = create(:personal_access_token, user: user)
+        args = { current_user: user, token: { personal_access_token: personal_access_token } }
+        post_graphql(query, **args)
+        expect(graphql_data_at(:runner)).not_to be_nil
+
+        personal_access_token = create(:personal_access_token, user: another_admin)
+        args = { current_user: another_admin, token: { personal_access_token: personal_access_token } }
+        control = ActiveRecord::QueryRecorder.new(skip_cached: false) { post_graphql(query, **args) }
+
+        create(:ci_build, :failed, runner: project_runner)
+        create(:ci_runner_machine, runner: project_runner, version: '16.4.1')
+
+        expect { post_graphql(query, **args) }.not_to exceed_all_query_limit(control)
       end
     end
   end
@@ -350,24 +496,116 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
     end
   end
 
-  describe 'for runner with status' do
-    let_it_be(:stale_runner) { create(:ci_runner, description: 'Stale runner 1', created_at: 3.months.ago) }
-    let_it_be(:never_contacted_instance_runner) { create(:ci_runner, description: 'Missing runner 1', created_at: 1.month.ago, contacted_at: nil) }
-
-    let(:status_fragment) do
+  describe 'ephemeralRegisterUrl' do
+    let(:runner_args) { { registration_type: :authenticated_user, creator: creator } }
+    let(:query) do
       %(
-        status
-        legacyStatusWithExplicitVersion: status(legacyMode: "14.5")
-        newStatus: status(legacyMode: null)
+        query {
+          runner(id: "#{runner.to_global_id}") {
+            ephemeralRegisterUrl
+          }
+        }
       )
+    end
+
+    shared_examples 'has register url' do
+      it 'retrieves register url' do
+        post_graphql(query, current_user: user)
+        expect(graphql_data_at(:runner, :ephemeral_register_url)).to eq(expected_url)
+      end
+    end
+
+    shared_examples 'has no register url' do
+      it 'retrieves no register url' do
+        post_graphql(query, current_user: user)
+        expect(graphql_data_at(:runner, :ephemeral_register_url)).to eq(nil)
+      end
+    end
+
+    context 'with an instance runner', :freeze_time do
+      let(:creator) { user }
+      let(:runner) { create(:ci_runner, **runner_args) }
+
+      context 'with valid ephemeral registration' do
+        it_behaves_like 'has register url' do
+          let(:expected_url) { "http://localhost/admin/runners/#{runner.id}/register" }
+        end
+      end
+
+      context 'when runner ephemeral registration has expired' do
+        let(:runner) do
+          create(:ci_runner, created_at: (Ci::Runner::REGISTRATION_AVAILABILITY_TIME + 1.second).ago, **runner_args)
+        end
+
+        it_behaves_like 'has no register url'
+      end
+
+      context 'when runner has already been registered' do
+        let(:runner) { create(:ci_runner, :with_runner_manager, **runner_args) }
+
+        it_behaves_like 'has no register url'
+      end
+    end
+
+    context 'with a group runner' do
+      let(:creator) { user }
+      let(:runner) { create(:ci_runner, :group, groups: [group], **runner_args) }
+
+      context 'with valid ephemeral registration' do
+        it_behaves_like 'has register url' do
+          let(:expected_url) { "http://localhost/groups/#{group.path}/-/runners/#{runner.id}/register" }
+        end
+      end
+
+      context 'when request not from creator' do
+        let(:creator) { another_admin }
+
+        before do
+          group.add_owner(another_admin)
+        end
+
+        it_behaves_like 'has no register url'
+      end
+    end
+
+    context 'with a project runner' do
+      let(:creator) { user }
+      let(:runner) { create(:ci_runner, :project, projects: [project1], **runner_args) }
+
+      context 'with valid ephemeral registration' do
+        it_behaves_like 'has register url' do
+          let(:expected_url) { "http://localhost/#{project1.full_path}/-/runners/#{runner.id}/register" }
+        end
+      end
+
+      context 'when request not from creator' do
+        let(:creator) { another_admin }
+
+        before do
+          project1.add_owner(another_admin)
+        end
+
+        it_behaves_like 'has no register url'
+      end
+    end
+  end
+
+  describe 'for runner with status' do
+    let_it_be(:stale_runner) do
+      create(:ci_runner, description: 'Stale runner 1',
+             created_at: (3.months + 1.second).ago, contacted_at: (3.months + 1.second).ago)
+    end
+
+    let_it_be(:never_contacted_instance_runner) do
+      create(:ci_runner, description: 'Missing runner 1', created_at: 1.month.ago, contacted_at: nil)
     end
 
     let(:query) do
       %(
         query {
-          staleRunner: runner(id: "#{stale_runner.to_global_id}") { #{status_fragment} }
-          pausedRunner: runner(id: "#{inactive_instance_runner.to_global_id}") { #{status_fragment} }
-          neverContactedInstanceRunner: runner(id: "#{never_contacted_instance_runner.to_global_id}") { #{status_fragment} }
+          staleRunner: runner(id: "#{stale_runner.to_global_id}") { status }
+          pausedRunner: runner(id: "#{inactive_instance_runner.to_global_id}") { status }
+          neverContactedInstanceRunner: runner(id: "#{never_contacted_instance_runner.to_global_id}") { status }
         }
       )
     end
@@ -377,23 +615,17 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
 
       stale_runner_data = graphql_data_at(:stale_runner)
       expect(stale_runner_data).to match a_hash_including(
-        'status' => 'STALE',
-        'legacyStatusWithExplicitVersion' => 'STALE',
-        'newStatus' => 'STALE'
+        'status' => 'STALE'
       )
 
       paused_runner_data = graphql_data_at(:paused_runner)
       expect(paused_runner_data).to match a_hash_including(
-        'status' => 'PAUSED',
-        'legacyStatusWithExplicitVersion' => 'PAUSED',
-        'newStatus' => 'OFFLINE'
+        'status' => 'OFFLINE'
       )
 
       never_contacted_instance_runner_data = graphql_data_at(:never_contacted_instance_runner)
       expect(never_contacted_instance_runner_data).to match a_hash_including(
-        'status' => 'NEVER_CONTACTED',
-        'legacyStatusWithExplicitVersion' => 'NEVER_CONTACTED',
-        'newStatus' => 'NEVER_CONTACTED'
+        'status' => 'NEVER_CONTACTED'
       )
     end
   end
@@ -597,12 +829,12 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
         context 'with runner created in last hour' do
           let(:created_at) { (Ci::Runner::REGISTRATION_AVAILABILITY_TIME - 1.second).ago }
 
-          context 'with no runner machine registed yet' do
+          context 'with no runner manager registered yet' do
             it_behaves_like 'an ephemeral_authentication_token'
           end
 
-          context 'with first runner machine already registed' do
-            let!(:runner_machine) { create(:ci_runner_machine, runner: runner) }
+          context 'with first runner manager already registered' do
+            let!(:runner_manager) { create(:ci_runner_machine, runner: runner) }
 
             it_behaves_like 'a protected ephemeral_authentication_token'
           end
@@ -648,6 +880,12 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
       <<~SINGLE
         runner(id: "#{runner.to_global_id}") {
           #{all_graphql_fields_for('CiRunner', excluded: excluded_fields)}
+          createdBy {
+            id
+            username
+            webPath
+            webUrl
+          }
           groups {
             nodes {
               id
@@ -678,7 +916,7 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
     let(:active_group_runner2) { create(:ci_runner, :group) }
 
     # Exclude fields that are already hardcoded above
-    let(:excluded_fields) { %w[jobs groups projects ownerProject] }
+    let(:excluded_fields) { %w[createdBy jobs groups projects ownerProject] }
 
     let(:single_query) do
       <<~QUERY
@@ -711,6 +949,8 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
 
       control = ActiveRecord::QueryRecorder.new { post_graphql(single_query, **args) }
 
+      personal_access_token = create(:personal_access_token, user: another_admin)
+      args = { current_user: another_admin, token: { personal_access_token: personal_access_token } }
       expect { post_graphql(double_query, **args) }.not_to exceed_query_limit(control)
 
       expect(graphql_data.count).to eq 6
@@ -741,20 +981,20 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
   end
 
   describe 'Query limits with jobs' do
-    let!(:group1) { create(:group) }
-    let!(:group2) { create(:group) }
-    let!(:project1) { create(:project, :repository, group: group1) }
-    let!(:project2) { create(:project, :repository, group: group1) }
-    let!(:project3) { create(:project, :repository, group: group2) }
+    let_it_be(:group1) { create(:group) }
+    let_it_be(:group2) { create(:group) }
+    let_it_be(:project1) { create(:project, :repository, group: group1) }
+    let_it_be(:project2) { create(:project, :repository, group: group1) }
+    let_it_be(:project3) { create(:project, :repository, group: group2) }
 
-    let!(:merge_request1) { create(:merge_request, source_project: project1) }
-    let!(:merge_request2) { create(:merge_request, source_project: project3) }
+    let_it_be(:merge_request1) { create(:merge_request, source_project: project1) }
+    let_it_be(:merge_request2) { create(:merge_request, source_project: project3) }
 
     let(:project_runner2) { create(:ci_runner, :project, projects: [project1, project2]) }
     let!(:build1) { create(:ci_build, :success, name: 'Build One', runner: project_runner2, pipeline: pipeline1) }
-    let!(:pipeline1) do
+    let_it_be(:pipeline1) do
       create(:ci_pipeline, project: project1, source: :merge_request_event, merge_request: merge_request1, ref: 'main',
-                           target_sha: 'xxx')
+             target_sha: 'xxx')
     end
 
     let(:query) do
@@ -765,24 +1005,7 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
             jobs {
               nodes {
                 id
-                detailedStatus {
-                  id
-                  detailsPath
-                  group
-                  icon
-                  text
-                }
-                project {
-                  id
-                  name
-                  webUrl
-                }
-                shortSha
-                commitPath
-                finishedAt
-                duration
-                queuedDuration
-                tags
+                #{field}
               }
             }
           }
@@ -790,42 +1013,67 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
       QUERY
     end
 
-    it 'does not execute more queries per job', :aggregate_failures do
-      # warm-up license cache and so on:
-      personal_access_token = create(:personal_access_token, user: user)
-      args = { current_user: user, token: { personal_access_token: personal_access_token } }
-      post_graphql(query, **args)
+    context 'when requesting individual fields' do
+      where(:field) do
+        [
+          'detailedStatus { id detailsPath group icon text }',
+          'project { id name webUrl }'
+        ] + %w[
+          shortSha
+          browseArtifactsPath
+          commitPath
+          playPath
+          refPath
+          webPath
+          finishedAt
+          duration
+          queuedDuration
+          tags
+        ]
+      end
 
-      control = ActiveRecord::QueryRecorder.new(query_recorder_debug: true) { post_graphql(query, **args) }
+      with_them do
+        it 'does not execute more queries per job', :use_sql_query_cache, :aggregate_failures do
+          admin2 = create(:user, :admin) # do not reuse same user
 
-      # Add a new build to project_runner2
-      project_runner2.runner_projects << build(:ci_runner_project, runner: project_runner2, project: project3)
-      pipeline2 = create(:ci_pipeline, project: project3, source: :merge_request_event, merge_request: merge_request2,
-                                       ref: 'main', target_sha: 'xxx')
-      build2 = create(:ci_build, :success, name: 'Build Two', runner: project_runner2, pipeline: pipeline2)
+          # warm-up license cache and so on:
+          personal_access_token = create(:personal_access_token, user: user)
+          personal_access_token2 = create(:personal_access_token, user: admin2)
+          args = { current_user: user, token: { personal_access_token: personal_access_token } }
+          args2 = { current_user: admin2, token: { personal_access_token: personal_access_token2 } }
+          post_graphql(query, **args2)
 
-      args[:current_user] = create(:user, :admin) # do not reuse same user
-      expect { post_graphql(query, **args) }.not_to exceed_all_query_limit(control)
+          control = ActiveRecord::QueryRecorder.new(skip_cached: false) { post_graphql(query, **args) }
 
-      expect(graphql_data.count).to eq 1
-      expect(graphql_data).to match(
-        a_hash_including(
-          'runner' => a_graphql_entity_for(
-            project_runner2,
-            jobs: { 'nodes' => containing_exactly(a_graphql_entity_for(build1), a_graphql_entity_for(build2)) }
-          )
-        ))
+          # Add a new build to project_runner2
+          project_runner2.runner_projects << build(:ci_runner_project, runner: project_runner2, project: project3)
+          pipeline2 = create(:ci_pipeline, project: project3, source: :merge_request_event, merge_request: merge_request2,
+                                           ref: 'main', target_sha: 'xxx')
+          build2 = create(:ci_build, :success, name: 'Build Two', runner: project_runner2, pipeline: pipeline2)
+
+          expect { post_graphql(query, **args2) }.not_to exceed_all_query_limit(control)
+
+          expect(graphql_data.count).to eq 1
+          expect(graphql_data).to match(
+            a_hash_including(
+              'runner' => a_graphql_entity_for(
+                project_runner2,
+                jobs: { 'nodes' => containing_exactly(a_graphql_entity_for(build1), a_graphql_entity_for(build2)) }
+              )
+            ))
+        end
+      end
     end
   end
 
   describe 'sorting and pagination' do
     let(:query) do
       <<~GQL
-      query($id: CiRunnerID!, $projectSearchTerm: String, $n: Int, $cursor: String) {
-        runner(id: $id) {
-          #{fields}
+        query($id: CiRunnerID!, $projectSearchTerm: String, $n: Int, $cursor: String) {
+          runner(id: $id) {
+            #{fields}
+          }
         }
-      }
       GQL
     end
 
@@ -844,18 +1092,18 @@ RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
 
       let(:fields) do
         <<~QUERY
-        projects(search: $projectSearchTerm, first: $n, after: $cursor) {
-          count
-          nodes {
-            id
+          projects(search: $projectSearchTerm, first: $n, after: $cursor) {
+            count
+            nodes {
+              id
+            }
+            pageInfo {
+              hasPreviousPage
+              startCursor
+              endCursor
+              hasNextPage
+            }
           }
-          pageInfo {
-            hasPreviousPage
-            startCursor
-            endCursor
-            hasNextPage
-          }
-        }
         QUERY
       end
 

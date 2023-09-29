@@ -88,7 +88,7 @@ module DiffViewer
         {
           viewer: switcher_title,
           reason: render_error_reason,
-          options: Gitlab::Utils.to_exclusive_sentence(render_error_options)
+          options: Gitlab::Sentence.to_exclusive_sentence(render_error_options)
         }
     end
 
@@ -101,8 +101,9 @@ module DiffViewer
     def render_error_options
       options = []
 
-      blob_url = Gitlab::Routing.url_helpers.project_blob_path(diff_file.repository.project,
-                                                               File.join(diff_file.content_sha, diff_file.file_path))
+      blob_url = Gitlab::Routing.url_helpers.project_blob_path(
+        diff_file.repository.project, File.join(diff_file.content_sha, diff_file.file_path)
+      )
       options << ActionController::Base.helpers.link_to(_('view the blob'), blob_url)
 
       options

@@ -4,7 +4,7 @@ class EnvironmentEntity < Grape::Entity
   include RequestAwareEntity
 
   UNNECESSARY_ENTRIES_FOR_UPCOMING_DEPLOYMENT =
-    %i[manual_actions scheduled_actions playable_build cluster].freeze
+    %i[manual_actions scheduled_actions playable_job cluster].freeze
 
   expose :id
 
@@ -25,10 +25,6 @@ class EnvironmentEntity < Grape::Entity
   expose :upcoming_deployment, if: -> (environment) { environment.upcoming_deployment } do |environment, ops|
     DeploymentEntity.represent(environment.upcoming_deployment,
       ops.merge(except: UNNECESSARY_ENTRIES_FOR_UPCOMING_DEPLOYMENT))
-  end
-
-  expose :metrics_path, if: -> (*) { environment.has_metrics? } do |environment|
-    metrics_project_environment_path(environment.project, environment)
   end
 
   expose :environment_path do |environment|

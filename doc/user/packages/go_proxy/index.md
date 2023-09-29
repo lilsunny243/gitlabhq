@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Go proxy for GitLab **(FREE)**
+# Go proxy for GitLab **(FREE ALL EXPERIMENT)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/27376) in GitLab 13.1.
 > - It's deployed behind a feature flag, disabled by default.
@@ -74,7 +74,7 @@ go env -w GOPROXY='https://gitlab.example.com/api/v4/projects/1234/packages/go,h
 With this configuration, Go fetches dependencies in this order:
 
 1. Go attempts to fetch from the project-specific Go proxy.
-1. Go attempts to fetch from [proxy.golang.org](https://proxy.golang.org).
+1. Go attempts to fetch from [`proxy.golang.org`](https://proxy.golang.org).
 1. Go fetches directly with version control system operations (like `git clone`,
    `svn checkout`, and so on).
 

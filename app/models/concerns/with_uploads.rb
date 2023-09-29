@@ -22,9 +22,16 @@ module WithUploads
   # Currently there is no simple way how to select only not-mounted
   # uploads, it should be all FileUploaders so we select them by
   # `uploader` class
-  FILE_UPLOADERS = %w(PersonalFileUploader NamespaceFileUploader FileUploader).freeze
+  FILE_UPLOADERS = %w[PersonalFileUploader NamespaceFileUploader FileUploader].freeze
 
   included do
+    around_destroy :ignore_uploads_table_in_transaction
+
+    def ignore_uploads_table_in_transaction(&blk)
+      Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification.temporary_ignore_tables_in_transaction(
+        %w[uploads], url: "https://gitlab.com/gitlab-org/gitlab/-/issues/398199", &blk)
+    end
+
     has_many :uploads, as: :model
     has_many :file_uploads, -> { where(uploader: FILE_UPLOADERS) },
       class_name: 'Upload', as: :model,

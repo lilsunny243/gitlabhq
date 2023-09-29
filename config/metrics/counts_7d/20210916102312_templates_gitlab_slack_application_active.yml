@@ -1,11 +1,9 @@
 ---
 key_path: counts.templates_gitlab_slack_application_active
-name: count_templates_gitlab_slack_application_active
 description: Count templates with active slack application
 product_section: dev
 product_stage: manage
 product_group: integrations
-product_category: integrations
 value_type: number
 status: removed
 milestone: "14.3"
@@ -22,3 +20,4 @@ tier:
 - free
 - premium
 - ultimate
+removed_by_url:

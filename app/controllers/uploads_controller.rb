@@ -16,6 +16,7 @@ class UploadsController < ApplicationController
     "projects/topic" => Projects::Topic,
     'alert_management_metric_image' => ::AlertManagement::MetricImage,
     "achievements/achievement" => Achievements::Achievement,
+    "abuse_report" => AbuseReport,
     nil => PersonalSnippet
   }.freeze
 
@@ -28,7 +29,7 @@ class UploadsController < ApplicationController
   before_action :authorize_create_access!, only: [:create, :authorize]
   before_action :verify_workhorse_api!, only: [:authorize]
 
-  feature_category :not_owned # rubocop:todo Gitlab/AvoidFeatureCategoryNotOwned
+  feature_category :groups_and_projects
 
   def self.model_classes
     MODEL_CLASSES

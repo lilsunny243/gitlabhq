@@ -5,15 +5,17 @@ description: Unique visitors to /-/instance_statistics/dev_ops_score
 product_section: dev
 product_stage: manage
 product_group: optimize
-product_category:
 value_type: number
 status: active
 time_frame: 7d
-data_source: redis_hll
+data_source: internal_events
 instrumentation_class: RedisHLLMetric
 options:
   events:
   - i_analytics_dev_ops_score
+events:
+  - name: i_analytics_dev_ops_score
+    unique: user.id
 distribution:
 - ce
 - ee

@@ -5,7 +5,7 @@ require 'spec_helper'
 # Integration test that exports a file using the Import/Export feature
 # It looks up for any sensitive word inside the JSON, so if a sensitive word is found
 # we'll have to either include it adding the model that includes it to the +safe_list+
-# or make sure the attribute is blacklisted in the +import_export.yml+ configuration
+# or make sure the attribute is denylisted in the +import_export.yml+ configuration
 RSpec.describe 'Import/Export - project export integration test', :js, feature_category: :importers do
   include ExportFileHelper
 
@@ -38,61 +38,34 @@ RSpec.describe 'Import/Export - project export integration test', :js, feature_c
   context 'admin user' do
     before do
       sign_in(user)
+
+      # Now that we export project in batches we produce more queries than before
+      # needing to increase the default threshold
+      allow(Gitlab::QueryLimiting::Transaction).to receive(:threshold).and_return(200)
     end
 
-    context "with streaming serializer" do
-      before do
-        stub_feature_flags(project_export_as_ndjson: false)
-      end
+    it 'exports a project successfully', :sidekiq_inline do
+      export_project_and_download_file(page, project)
 
-      it 'exports a project successfully', :sidekiq_inline do
-        export_project_and_download_file(page, project)
+      in_directory_with_expanded_export(project) do |exit_status, tmpdir|
+        expect(exit_status).to eq(0)
 
-        in_directory_with_expanded_export(project) do |exit_status, tmpdir|
-          expect(exit_status).to eq(0)
+        project_json_path = File.join(tmpdir, 'tree', 'project.json')
+        expect(File).to exist(project_json_path)
 
-          project_json_path = File.join(tmpdir, 'project.json')
-          expect(File).to exist(project_json_path)
-
-          project_hash = Gitlab::Json.parse(File.read(project_json_path))
-
-          sensitive_words.each do |sensitive_word|
-            found = find_sensitive_attributes(sensitive_word, project_hash)
-
-            expect(found).to be_nil, failure_message(found.try(:key_found), found.try(:parent), sensitive_word)
+        relations = []
+        relations << Gitlab::Json.parse(File.read(project_json_path))
+        Dir.glob(File.join(tmpdir, 'tree/project', '*.ndjson')) do |rb_filename|
+          File.foreach(rb_filename) do |line|
+            relations << Gitlab::Json.parse(line)
           end
         end
-      end
-    end
 
-    context "with ndjson" do
-      before do
-        stub_feature_flags(project_export_as_ndjson: true)
-      end
+        relations.each do |relation_hash|
+          sensitive_words.each do |sensitive_word|
+            found = find_sensitive_attributes(sensitive_word, relation_hash)
 
-      it 'exports a project successfully', :sidekiq_inline do
-        export_project_and_download_file(page, project)
-
-        in_directory_with_expanded_export(project) do |exit_status, tmpdir|
-          expect(exit_status).to eq(0)
-
-          project_json_path = File.join(tmpdir, 'tree', 'project.json')
-          expect(File).to exist(project_json_path)
-
-          relations = []
-          relations << Gitlab::Json.parse(File.read(project_json_path))
-          Dir.glob(File.join(tmpdir, 'tree/project', '*.ndjson')) do |rb_filename|
-            File.foreach(rb_filename) do |line|
-              relations << Gitlab::Json.parse(line)
-            end
-          end
-
-          relations.each do |relation_hash|
-            sensitive_words.each do |sensitive_word|
-              found = find_sensitive_attributes(sensitive_word, relation_hash)
-
-              expect(found).to be_nil, failure_message(found.try(:key_found), found.try(:parent), sensitive_word)
-            end
+            expect(found).to be_nil, failure_message(found.try(:key_found), found.try(:parent), sensitive_word)
           end
         end
       end

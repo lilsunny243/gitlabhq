@@ -9,7 +9,6 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   before_action :authorize_create_pipeline_schedule!, only: [:new, :create]
   before_action :authorize_update_pipeline_schedule!, only: [:edit, :update]
   before_action :authorize_admin_pipeline_schedule!, only: [:take_ownership, :destroy]
-  before_action :push_schedule_feature_flag, only: [:index, :new, :edit]
 
   feature_category :continuous_integration
   urgency :low
@@ -21,15 +20,13 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   end
 
   def new
-    @schedule = project.pipeline_schedules.new
   end
 
   def create
-    @schedule = Ci::CreatePipelineScheduleService
-      .new(@project, current_user, schedule_params)
-      .execute
+    response = Ci::PipelineSchedules::CreateService.new(@project, current_user, schedule_params).execute
+    @schedule = response.payload
 
-    if @schedule.persisted?
+    if response.success?
       redirect_to pipeline_schedules_path(@project)
     else
       render :new
@@ -102,6 +99,15 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
         variables_attributes: [:id, :variable_type, :key, :secret_value, :_destroy])
   end
 
+  def new_schedule
+    # We need the `ref` here for `authorize_create_pipeline_schedule!`
+    @schedule ||= project.pipeline_schedules.new(ref: params.dig(:schedule, :ref))
+  end
+
+  def authorize_create_pipeline_schedule!
+    return access_denied! unless can?(current_user, :create_pipeline_schedule, new_schedule)
+  end
+
   def authorize_play_pipeline_schedule!
     return access_denied! unless can?(current_user, :play_pipeline_schedule, schedule)
   end
@@ -112,9 +118,5 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
 
   def authorize_admin_pipeline_schedule!
     return access_denied! unless can?(current_user, :admin_pipeline_schedule, schedule)
-  end
-
-  def push_schedule_feature_flag
-    push_frontend_feature_flag(:pipeline_schedules_vue, @project)
   end
 end

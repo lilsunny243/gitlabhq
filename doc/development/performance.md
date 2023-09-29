@@ -217,7 +217,7 @@ Finished in 18.19 seconds (files took 4.8 seconds to load)
 ```
 
 You can limit the specs that are run by passing any arguments `RSpec` would
-normally take.
+usually take.
 
 ### Using Stackprof in production
 
@@ -250,7 +250,7 @@ the timeout.
 
 Once profiling stops, the profile is written out to disk at
 `$STACKPROF_FILE_PREFIX/stackprof.$PID.$RAND.profile`. It can then be inspected
-further through the `stackprof` command line tool, as described in the
+further through the `stackprof` command-line tool, as described in the
 [Reading a Stackprof profile section](#reading-a-stackprof-profile).
 
 Currently supported profiling targets are:
@@ -814,6 +814,25 @@ that specifically triggers the filter, it might look like it's running incredibl
 Make sure that you have relevant test data for your filter in the
 [`spec/fixtures/markdown.md.erb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/fixtures/markdown.md.erb)
 file.
+
+### Benchmarking specific filters
+
+A specific filter can be benchmarked by specifying the filter name as an environment variable.
+For example, to benchmark the `MarkdownFilter` use
+
+```plaintext
+FILTER=MarkdownFilter bin/rake benchmark:banzai
+```
+
+which generates the output
+
+```plaintext
+--> Benchmarking MarkdownFilter for FullPipeline
+Warming up --------------------------------------
+            Markdown   271.000  i/100ms
+Calculating -------------------------------------
+            Markdown      2.584k (±16.5%) i/s -     23.848k in  10.042503s
+```
 
 ## Reading from files and other data sources
 

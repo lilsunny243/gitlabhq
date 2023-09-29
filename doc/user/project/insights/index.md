@@ -4,7 +4,7 @@ group: Optimize
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Insights for projects **(ULTIMATE)**
+# Insights for projects **(ULTIMATE ALL)**
 
 Configure project insights to explore data such as:
 
@@ -24,9 +24,16 @@ Prerequisites:
 
 To view project insights:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Insights**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Analyze > Insights**.
 1. To view a report, select the **Select report** dropdown list.
+
+### Access Insights reports with deep links
+
+You can direct users to a specific report in Insights by using the deep-linked URL.
+
+To create a deep link, append the report key to the end of the Insights report URL.
+For example, a GitLab report with the key `bugsCharts` has the deep link URL `https://gitlab.com/gitlab-org/gitlab/insights/#/bugsCharts`.
 
 ## Configure project insights
 
@@ -45,7 +52,7 @@ To configure project insights, either:
 
 - Create a `.gitlab/insights.yml` file locally in the root directory of your project, and push your changes.
 - Create a `.gitlab/insights.yml` file in the UI:
-  1. On the top bar, select **Main menu > Projects** and find your project.
+  1. On the left sidebar, select **Search or go to** and find your project.
   1. Above the file list, select the branch you want to commit to, select the plus icon, then select **New file**.
   1. In the **File name** text box, enter `.gitlab/insights.yml`.
   1. In the large text box, update the file contents.

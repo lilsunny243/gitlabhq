@@ -13,35 +13,31 @@ module MergeRequests
   class MergeToRefService < MergeRequests::MergeBaseService
     extend ::Gitlab::Utils::Override
 
-    def execute(merge_request, cache_merge_to_ref_calls = false)
+    def execute(merge_request)
       @merge_request = merge_request
 
       error_check!
 
-      commit_id = commit(cache_merge_to_ref_calls)
-
+      commit_id = extracted_merge_to_ref
       raise_error('Conflicts detected during merge') unless commit_id
 
       commit = project.commit(commit_id)
       target_id, source_id = commit.parent_ids
 
-      success(commit_id: commit.id,
-              target_id: target_id,
-              source_id: source_id)
+      success(commit_id: commit.id, target_id: target_id, source_id: source_id)
     rescue MergeError, ArgumentError => error
       error(error.message)
     end
 
     private
 
-    override :source
     def source
       merge_request.diff_head_sha
     end
 
     override :error_check!
     def error_check!
-      check_source
+      raise_error('No source for merge') unless source
     end
 
     ##
@@ -58,21 +54,9 @@ module MergeRequests
       params[:first_parent_ref] || merge_request.target_branch_ref
     end
 
-    ##
-    # The parameter `allow_conflicts` is a flag whether merge conflicts should be merged into diff
-    # Default is false
-    def allow_conflicts
-      params[:allow_conflicts] || false
-    end
-
-    def commit(cache_merge_to_ref_calls = false)
-      if cache_merge_to_ref_calls
-        Rails.cache.fetch(cache_key, expires_in: 1.day) do
-          extracted_merge_to_ref
-        end
-      else
-        extracted_merge_to_ref
-      end
+    def commit_message
+      params[:commit_message] ||
+        merge_request.default_merge_commit_message(user: current_user)
     end
 
     def extracted_merge_to_ref
@@ -81,14 +65,9 @@ module MergeRequests
         branch: merge_request.target_branch,
         target_ref: target_ref,
         message: commit_message,
-        first_parent_ref: first_parent_ref,
-        allow_conflicts: allow_conflicts)
+        first_parent_ref: first_parent_ref)
     rescue Gitlab::Git::PreReceiveError, Gitlab::Git::CommandError => error
       raise MergeError, error.message
-    end
-
-    def cache_key
-      [:merge_to_ref_service, project.full_path, merge_request.target_branch_sha, merge_request.source_branch_sha]
     end
   end
 end

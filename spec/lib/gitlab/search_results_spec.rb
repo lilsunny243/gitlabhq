@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::SearchResults do
+RSpec.describe Gitlab::SearchResults, feature_category: :global_search do
   include ProjectForksHelper
   include SearchHelpers
   using RSpec::Parameterized::TableSyntax
@@ -16,8 +16,9 @@ RSpec.describe Gitlab::SearchResults do
   let(:query) { 'foo' }
   let(:filters) { {} }
   let(:sort) { nil }
+  let(:limit_projects) { Project.order(:id) }
 
-  subject(:results) { described_class.new(user, query, Project.order(:id), sort: sort, filters: filters) }
+  subject(:results) { described_class.new(user, query, limit_projects, sort: sort, filters: filters) }
 
   context 'as a user with access' do
     before do
@@ -187,11 +188,16 @@ RSpec.describe Gitlab::SearchResults do
       end
 
       context 'filtering' do
+        let_it_be(:unarchived_project) { create(:project, :public) }
+        let_it_be(:archived_project) { create(:project, :public, :archived) }
         let!(:opened_result) { create(:merge_request, :opened, source_project: project, title: 'foo opened') }
         let!(:closed_result) { create(:merge_request, :closed, source_project: project, title: 'foo closed') }
+        let(:unarchived_result) { create(:merge_request, source_project: unarchived_project, title: 'foo unarchived') }
+        let(:archived_result) { create(:merge_request, source_project: archived_project, title: 'foo archived') }
         let(:query) { 'foo' }
 
         include_examples 'search results filtered by state'
+        include_examples 'search results filtered by archived', 'search_merge_requests_hide_archived_projects'
       end
 
       context 'ordering' do
@@ -231,9 +237,14 @@ RSpec.describe Gitlab::SearchResults do
         let_it_be(:closed_result) { create(:issue, :closed, project: project, title: 'foo closed') }
         let_it_be(:opened_result) { create(:issue, :opened, project: project, title: 'foo open') }
         let_it_be(:confidential_result) { create(:issue, :confidential, project: project, title: 'foo confidential') }
+        let_it_be(:unarchived_project) { project }
+        let_it_be(:archived_project) { create(:project, :public, :archived) }
+        let_it_be(:unarchived_result) { create(:issue, project: unarchived_project, title: 'foo unarchived') }
+        let_it_be(:archived_result) { create(:issue, project: archived_project, title: 'foo archived') }
 
         include_examples 'search results filtered by state'
         include_examples 'search results filtered by confidential'
+        include_examples 'search results filtered by archived', 'search_issues_hide_archived_projects'
       end
 
       context 'ordering' do
@@ -260,17 +271,30 @@ RSpec.describe Gitlab::SearchResults do
       end
     end
 
+    describe '#projects' do
+      let(:scope) { 'projects' }
+      let(:query) { 'Test' }
+
+      describe 'filtering' do
+        let_it_be(:group) { create(:group) }
+        let_it_be(:unarchived_result) { create(:project, :public, group: group, name: 'Test1') }
+        let_it_be(:archived_result) { create(:project, :archived, :public, group: group, name: 'Test2') }
+
+        it_behaves_like 'search results filtered by archived'
+      end
+    end
+
     describe '#users' do
       it 'does not call the UsersFinder when the current_user is not allowed to read users list' do
         allow(Ability).to receive(:allowed?).and_return(false)
 
-        expect(UsersFinder).not_to receive(:new).with(user, search: 'foo').and_call_original
+        expect(UsersFinder).not_to receive(:new).with(user, { search: 'foo', use_minimum_char_limit: false }).and_call_original
 
         results.objects('users')
       end
 
       it 'calls the UsersFinder' do
-        expect(UsersFinder).to receive(:new).with(user, search: 'foo').and_call_original
+        expect(UsersFinder).to receive(:new).with(user, { search: 'foo', use_minimum_char_limit: false }).and_call_original
 
         results.objects('users')
       end
@@ -415,26 +439,32 @@ RSpec.describe Gitlab::SearchResults do
   end
 
   context 'milestones' do
-    it 'returns correct set of milestones' do
-      private_project_1 = create(:project, :private)
-      private_project_2 = create(:project, :private)
-      internal_project = create(:project, :internal)
-      public_project_1 = create(:project, :public)
-      public_project_2 = create(:project, :public, :issues_disabled, :merge_requests_disabled)
+    let_it_be(:archived_project) { create(:project, :public, :archived) }
+    let_it_be(:private_project_1) { create(:project, :private) }
+    let_it_be(:private_project_2) { create(:project, :private) }
+    let_it_be(:internal_project) { create(:project, :internal) }
+    let_it_be(:public_project_1) { create(:project, :public) }
+    let_it_be(:public_project_2) { create(:project, :public, :issues_disabled, :merge_requests_disabled) }
+    let_it_be(:hidden_milestone_1) { create(:milestone, project: private_project_2, title: 'Private project without access milestone') }
+    let_it_be(:hidden_milestone_2) { create(:milestone, project: public_project_2, title: 'Public project with milestones disabled milestone') }
+    let_it_be(:hidden_milestone_3) { create(:milestone, project: archived_project, title: 'Milestone from an archived project') }
+    let_it_be(:milestone_1) { create(:milestone, project: private_project_1, title: 'Private project with access milestone', state: 'closed') }
+    let_it_be(:milestone_2) { create(:milestone, project: internal_project, title: 'Internal project milestone') }
+    let_it_be(:milestone_3) { create(:milestone, project: public_project_1, title: 'Public project with milestones enabled milestone') }
+    let(:unarchived_result) { milestone_1 }
+    let(:archived_result) { hidden_milestone_3 }
+    let(:limit_projects) { ProjectsFinder.new(current_user: user).execute }
+    let(:query) { 'milestone' }
+    let(:scope) { 'milestones' }
+
+    before do
       private_project_1.add_developer(user)
-      # milestones that should not be visible
-      create(:milestone, project: private_project_2, title: 'Private project without access milestone')
-      create(:milestone, project: public_project_2, title: 'Public project with milestones disabled milestone')
-      # milestones that should be visible
-      milestone_1 = create(:milestone, project: private_project_1, title: 'Private project with access milestone', state: 'closed')
-      milestone_2 = create(:milestone, project: internal_project, title: 'Internal project milestone')
-      milestone_3 = create(:milestone, project: public_project_1, title: 'Public project with milestones enabled milestone')
-      # Global search scope takes user authorized projects, internal projects and public projects.
-      limit_projects = ProjectsFinder.new(current_user: user).execute
-
-      milestones = described_class.new(user, 'milestone', limit_projects).objects('milestones')
-
-      expect(milestones).to match_array([milestone_1, milestone_2, milestone_3])
     end
+
+    it 'returns correct set of milestones' do
+      expect(results.objects(scope)).to match_array([milestone_1, milestone_2, milestone_3])
+    end
+
+    include_examples 'search results filtered by archived', 'search_milestones_hide_archived_projects'
   end
 end

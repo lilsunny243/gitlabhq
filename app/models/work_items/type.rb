@@ -19,7 +19,9 @@ module WorkItems
       requirement: 'Requirement',
       task: 'Task',
       objective: 'Objective',
-      key_result: 'Key Result'
+      key_result: 'Key Result',
+      epic: 'Epic',
+      ticket: 'Ticket'
     }.freeze
 
     # Base types need to exist on the DB on app startup
@@ -32,15 +34,15 @@ module WorkItems
       requirement: { name: TYPE_NAMES[:requirement], icon_name: 'issue-type-requirements', enum_value: 3 }, ## EE-only
       task: { name: TYPE_NAMES[:task], icon_name: 'issue-type-task', enum_value: 4 },
       objective: { name: TYPE_NAMES[:objective], icon_name: 'issue-type-objective', enum_value: 5 }, ## EE-only
-      key_result: { name: TYPE_NAMES[:key_result], icon_name: 'issue-type-keyresult', enum_value: 6 } ## EE-only
+      key_result: { name: TYPE_NAMES[:key_result], icon_name: 'issue-type-keyresult', enum_value: 6 }, ## EE-only
+      epic: { name: TYPE_NAMES[:epic], icon_name: 'issue-type-epic', enum_value: 7 }, ## EE-only
+      ticket: { name: TYPE_NAMES[:ticket], icon_name: 'issue-type-issue', enum_value: 8 }
     }.freeze
 
     # A list of types user can change between - both original and new
     # type must be included in this list. This is needed for legacy issues
     # where it's possible to switch between issue and incident.
     CHANGEABLE_BASE_TYPES = %w[issue incident test_case].freeze
-
-    WI_TYPES_WITH_CREATED_HEADER = %w[issue incident].freeze
 
     cache_markdown_field :description, pipeline: :single_line
 
@@ -79,7 +81,7 @@ module WorkItems
     end
 
     def self.allowed_types_for_issues
-      base_types.keys.excluding('task', 'objective', 'key_result')
+      base_types.keys.excluding('task', 'objective', 'key_result', 'epic', 'ticket')
     end
 
     def default?

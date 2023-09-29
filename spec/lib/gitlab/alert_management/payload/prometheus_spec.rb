@@ -178,34 +178,6 @@ RSpec.describe Gitlab::AlertManagement::Payload::Prometheus do
     end
   end
 
-  describe '#metrics_dashboard_url' do
-    include_context 'self-managed prometheus alert attributes' do
-      let(:raw_payload) { payload }
-    end
-
-    subject { parsed_payload.metrics_dashboard_url }
-
-    it { is_expected.to eq(dashboard_url_for_alert) }
-
-    context 'without environment' do
-      let(:raw_payload) { payload.except('labels') }
-
-      it { is_expected.to be_nil }
-    end
-
-    context 'without full query' do
-      let(:raw_payload) { payload.except('generatorURL') }
-
-      it { is_expected.to be_nil }
-    end
-
-    context 'without title' do
-      let(:raw_payload) { payload.except('annotations') }
-
-      it { is_expected.to be_nil }
-    end
-  end
-
   describe '#has_required_attributes?' do
     let(:starts_at) { Time.current.change(usec: 0).utc }
     let(:raw_payload) { { 'annotations' => { 'title' => 'title' }, 'startsAt' => starts_at.rfc3339 } }
@@ -295,6 +267,20 @@ RSpec.describe Gitlab::AlertManagement::Payload::Prometheus do
 
     context 'without key' do
       it { is_expected.to be_nil }
+    end
+  end
+
+  describe '#source' do
+    subject { parsed_payload.source }
+
+    it { is_expected.to eq('Prometheus') }
+
+    context 'with alerting integration provided' do
+      before do
+        parsed_payload.integration = instance_double('::AlertManagement::HttpIntegration', name: 'INTEGRATION')
+      end
+
+      it { is_expected.to eq('INTEGRATION') }
     end
   end
 end

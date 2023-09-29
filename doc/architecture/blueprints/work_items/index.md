@@ -8,6 +8,8 @@ owning-stage: "~devops::plan"
 participating-stages: []
 ---
 
+<!-- vale gitlab.FutureTense = NO -->
+
 # Work Items
 
 This document is a work-in-progress. Some aspects are not documented, though we expect to add them in the future.
@@ -28,15 +30,24 @@ Base type for issue, requirement, test case, incident and task (this list is pla
 
 A set of predefined types for different categories of work items. Currently, the available types are:
 
-- Issue
-- Incident
-- Test case
-- Requirement
-- Task
+- [Incident](/ee/operations/incident_management/incidents.md)
+- [Test case](/ee/ci/test_cases/index.md)
+- [Requirement](/ee/user/project/requirements/index.md)
+- [Task](/ee/user/tasks.md)
+- [OKRs](/ee/user/okrs.md)
+
+Work is underway to convert existing objects to Work Item Types or add new ones:
+
+- [Issue](https://gitlab.com/groups/gitlab-org/-/epics/9584)
+- [Epic](https://gitlab.com/groups/gitlab-org/-/epics/9290)
+- [Ticket](https://gitlab.com/groups/gitlab-org/-/epics/10419)
 
 #### Work Item properties
 
 Every Work Item type has the following common properties:
+
+**NOTE:**
+You can also refer to fields of [Work Item](../../../api/graphql/reference/index.md#workitem) to learn more.
 
 - `id` - a unique Work Item global identifier;
 - `iid` - internal ID of the Work Item, relative to the parent workspace (currently workspace can only be a project)
@@ -55,20 +66,25 @@ All Work Item types share the same pool of predefined widgets and are customized
 
 ### Work Item widget types (updating)
 
-| widget type  | feature flag  |
+| Widget  | Description | feature flag  |
 |---|---|---|
-| assignees  | |
-| description | |
-| hierarchy | |
-| [iteration](https://gitlab.com/gitlab-org/gitlab/-/issues/367456) | |
-| [milestone](https://gitlab.com/gitlab-org/gitlab/-/issues/367463) | |
-| labels | |
-| start and due date | |
-| status\* | |
-| weight | |
-| [notes](https://gitlab.com/gitlab-org/gitlab/-/issues/378949) | work_items_mvc |
-
-\* status is not currently a widget, but a part of the root work item, similar to title
+| [WorkItemWidgetAssignees](../../../api/graphql/reference/index.md#workitemwidgetassignees) | List of work item assignees | |
+| [WorkItemWidgetAwardEmoji](../../../api/graphql/reference/index.md#workitemwidgetawardemoji) | Emoji reactions added to work item, including support for upvote/downvote counts | |
+| [WorkItemWidgetCurrentUserTodos](../../../api/graphql/reference/index.md#workitemwidgetcurrentusertodos) | User todo state of work item | |
+| [WorkItemWidgetDescription](../../../api/graphql/reference/index.md#workitemwidgetdescription) | Description of work item, including support for edited state, timestamp, and author | |
+| [WorkItemWidgetHealthStatus](../../../api/graphql/reference/index.md#workitemwidgethealthstatus) | Health status assignment support for work item | |
+| [WorkItemWidgetHierarchy](../../../api/graphql/reference/index.md#workitemwidgethierarchy) | Hierarchy of work items, including support for boolean representing presence of children. **Note:** Hierarchy is currently available only for OKRs. | `okrs_mvc` |
+| [WorkItemWidgetIteration](../../../api/graphql/reference/index.md#workitemwidgetiteration) | Iteration assignment support for work item | |
+| [WorkItemWidgetLabels](../../../api/graphql/reference/index.md#workitemwidgetlabels) | List of labels added to work items, including support for checking whether scoped labels are supported |
+| [WorkItemWidgetLinkedItems](../../../api/graphql/reference/index.md#workitemwidgetlinkeditems) | List of work items added as related to a given work item, with possible relationship types being `relates_to`, `blocks`, and `blocked_by`. Includes support for individual counts of blocked status, blocked by, blocking, and related to. | `linked_work_items` |
+| [WorkItemWidgetMilestone](../../../api/graphql/reference/index.md#workitemwidgetmilestone) | Milestone assignment support for work item | |
+| [WorkItemWidgetNotes](../../../api/graphql/reference/index.md#workitemwidgetnotes) | List of discussions within a work item | |
+| [WorkItemWidgetNotifications](../../../api/graphql/reference/index.md#workitemwidgetnotifications) | Notifications subscription status of a work item for current user | |
+| [WorkItemWidgetProgress](../../../api/graphql/reference/index.md#workitemwidgetprogress) | Progress value of a work item. **Note:** Progress is currently available only for OKRs. | `okrs_mvc` |
+| [WorkItemWidgetStartAndDueDate](../../../api/graphql/reference/index.md#workitemwidgetstartandduedate) | Set start and due dates for a work item | |
+| [WorkItemWidgetStatus](../../../api/graphql/reference/index.md#workitemwidgetstatus) | Status of a work item when type is Requirement, with possible status types being `unverified`, `satisfied`, or `failed` | |
+| [WorkItemWidgetTestReports](../../../api/graphql/reference/index.md#workitemwidgettestreports) | Test reports associated with a work item | |
+| [WorkItemWidgetWeight](../../../api/graphql/reference/index.md#workitemwidgetweight) | Set weight of a work item | |
 
 ### Work item relationships
 
@@ -117,7 +133,7 @@ Work Items main goal is to enhance the planning toolset to become the most popul
 
 ### Scalability
 
-Currently, different entities like issues, epics, merge requests etc share many similar features but these features are implemented separately for every entity type. This makes implementing new features or refactoring existing ones problematic: for example, if we plan to add new feature to issues and incidents, we would need to implement it separately on issue and incident types respectively. With work items, any new feature is implemented via widgets for all existing types which makes the architecture more scalable.
+Currently, different entities like issues, epics, merge requests etc share many similar features but these features are implemented separately for every entity type. This makes implementing new features or refactoring existing ones problematic: for example, if we plan to add new feature to issues and incidents, we would need to implement it separately on issue and incident types. With work items, any new feature is implemented via widgets for all existing types which makes the architecture more scalable.
 
 ### Flexibility
 

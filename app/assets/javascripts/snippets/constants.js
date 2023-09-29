@@ -1,4 +1,4 @@
-import { __ } from '~/locale';
+import { __, s__ } from '~/locale';
 import {
   VISIBILITY_LEVEL_PRIVATE_STRING,
   VISIBILITY_LEVEL_INTERNAL_STRING,
@@ -21,6 +21,9 @@ export const SNIPPET_VISIBILITY = {
     label: __('Public'),
     icon: 'earth',
     description: __('The snippet can be accessed without any authentication.'),
+    description_project: __(
+      'The snippet can be accessed without any authentication. To embed snippets, a project must be public.',
+    ),
   },
 };
 
@@ -41,3 +44,5 @@ export const SNIPPET_LEVELS_RESTRICTED = __(
 export const SNIPPET_LEVELS_DISABLED = __(
   'Visibility settings have been disabled by the administrator.',
 );
+
+export const SNIPPET_LIMITATIONS = s__('Snippets|Snippets are limited to %{total} files.');

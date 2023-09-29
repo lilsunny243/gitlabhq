@@ -1,5 +1,6 @@
 <script>
 import { GlFormCheckbox, GlModal } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import csrf from '~/lib/utils/csrf';
 import { s__, __ } from '~/locale';
@@ -55,7 +56,8 @@ export default {
     actionText() {
       if (this.isAccessRequest) {
         return __('Deny access request');
-      } else if (this.isInvite) {
+      }
+      if (this.isInvite) {
         return s__('Member|Revoke invite');
       }
 
@@ -103,7 +105,6 @@ export default {
     :title="actionText"
     :visible="removeMemberModalVisible"
     data-qa-selector="remove_member_modal"
-    data-testid="remove-member-modal-content"
     @primary="submitForm"
     @hide="hideRemoveMemberModal"
   >

@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Auto DevOps **(FREE)**
+# Auto DevOps **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/38366) in GitLab 11.0.
 > - Support for the GitLab agent was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/299350) in GitLab 14.5.
@@ -37,10 +37,9 @@ Auto DevOps supports development during each of the [DevOps stages](stages.md).
 | Test | [Auto Code Intelligence](stages.md#auto-code-intelligence) |
 | Test | [Auto Code Quality](stages.md#auto-code-quality) |
 | Test | [Auto Container Scanning](stages.md#auto-container-scanning) |
-| Test | [Auto License Compliance](stages.md#auto-license-compliance) |
+| Test | [Auto License Compliance](stages.md#auto-license-compliance-deprecated) |
 | Deploy | [Auto Review Apps](stages.md#auto-review-apps) |
 | Deploy | [Auto Deploy](stages.md#auto-deploy) |
-| Monitor | [Auto Monitoring](stages.md#auto-monitoring) |
 | Secure | [Auto Dynamic Application Security Testing (DAST)](stages.md#auto-dast) |
 | Secure | [Auto Static Application Security Testing (SAST)](stages.md#auto-sast) |
 | Secure | [Auto Secret Detection](stages.md#auto-secret-detection) |
@@ -102,8 +101,8 @@ Prerequisites:
 
 To enable Auto DevOps for a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Select the **Default to Auto DevOps pipeline** checkbox.
 1. Optional but recommended. Add the [base domain](requirements.md#auto-devops-base-domain).
@@ -133,8 +132,8 @@ Prerequisites:
 
 To enable Auto DevOps for a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Select the **Default to Auto DevOps pipeline** checkbox.
 1. Select **Save changes**.
@@ -145,9 +144,9 @@ clear the **Default to Auto DevOps pipeline** checkbox.
 After enabling Auto DevOps at the group level, you can trigger the
 Auto DevOps pipeline for any project that belongs to that group:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. Make sure the project doesn't contain a `.gitlab-ci.yml` file.
-1. On the left sidebar, select **CI/CD > Pipelines**.
+1. Select **Build > Pipelines**.
 1. To trigger the Auto DevOps pipeline, select **Run pipeline**.
 
 #### At the instance level **(FREE SELF)**
@@ -165,8 +164,9 @@ Prerequisites:
 
 To enable Auto DevOps for your instance:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Select the **Default to Auto DevOps pipeline** checkbox.
 1. Optional. Add the Auto DevOps [base domain](requirements.md#auto-devops-base-domain).
@@ -174,7 +174,7 @@ To enable Auto DevOps for your instance:
 
 When enabled, Auto DevOps attempts to run pipelines in every project. If the
 pipeline fails in a particular project, it disables itself.
-GitLab administrators can change this in the [Auto DevOps settings](../../user/admin_area/settings/continuous_integration.md#auto-devops).
+GitLab administrators can change this in the [Auto DevOps settings](../../administration/settings/continuous_integration.md#auto-devops).
 
 If a [CI/CD configuration file](../../ci/yaml/index.md) is present,
 it remains unchanged and Auto DevOps does not affect it.

@@ -24,7 +24,7 @@ RSpec.describe GitlabSchema.types['Project'] do
       snippets_enabled jobs_enabled public_jobs open_issues_count import_status
       only_allow_merge_if_pipeline_succeeds request_access_enabled
       only_allow_merge_if_all_discussions_are_resolved printing_merge_request_link_enabled
-      namespace group statistics repository merge_requests merge_request issues
+      namespace group statistics statistics_details_paths repository merge_requests merge_request issues
       issue milestones pipelines removeSourceBranchAfterMerge pipeline_counts sentryDetailedError snippets
       grafanaIntegration autocloseReferencedIssues suggestion_commit_message environments
       environment boards jira_import_status jira_imports services releases release
@@ -34,11 +34,11 @@ RSpec.describe GitlabSchema.types['Project'] do
       issue_status_counts terraform_states alert_management_integrations
       container_repositories container_repositories_count
       pipeline_analytics squash_read_only sast_ci_configuration
-      cluster_agent cluster_agents agent_configurations
+      cluster_agent cluster_agents agent_configurations ci_access_authorized_agents user_access_authorized_agents
       ci_template timelogs merge_commit_template squash_commit_template work_item_types
       recent_issue_boards ci_config_path_or_default packages_cleanup_policy ci_variables
       timelog_categories fork_targets branch_rules ci_config_variables pipeline_schedules languages
-      incident_management_timeline_event_tags visible_forks
+      incident_management_timeline_event_tags visible_forks inherited_ci_variables autocomplete_users
     ]
 
     expect(described_class).to include_graphql_fields(*expected_fields)
@@ -333,6 +333,7 @@ RSpec.describe GitlabSchema.types['Project'] do
                                             :target_branches,
                                             :state,
                                             :draft,
+                                            :approved,
                                             :labels,
                                             :before,
                                             :after,
@@ -676,8 +677,8 @@ RSpec.describe GitlabSchema.types['Project'] do
     subject { GitlabSchema.execute(query, context: { current_user: user }).as_json }
 
     before do
-      allow(::Gitlab::ServiceDeskEmail).to receive(:enabled?) { true }
-      allow(::Gitlab::ServiceDeskEmail).to receive(:address_for_key) { 'address-suffix@example.com' }
+      allow(::Gitlab::Email::ServiceDeskEmail).to receive(:enabled?) { true }
+      allow(::Gitlab::Email::ServiceDeskEmail).to receive(:address_for_key) { 'address-suffix@example.com' }
     end
 
     context 'when a user can admin issues' do
@@ -891,22 +892,33 @@ RSpec.describe GitlabSchema.types['Project'] do
 
     subject { GitlabSchema.execute(query, context: { current_user: user }).as_json }
 
-    before do
+    before_all do
       fork_reporter.add_reporter(user)
       fork_developer.add_developer(user)
       fork_group_developer.group.add_developer(user)
+      fork_private.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE)
     end
 
     it 'contains all forks' do
-      expect(forks.count).to eq(5)
+      expect(forks.count).to eq(4)
     end
 
     context 'with minimum_access_level DEVELOPER' do
       let(:minimum_access_level) { '(minimumAccessLevel: DEVELOPER)' }
 
       it 'contains forks with developer access' do
-        expect(forks).to contain_exactly(a_hash_including('fullPath' => fork_developer.full_path),
-a_hash_including('fullPath' => fork_group_developer.full_path))
+        expect(forks).to contain_exactly(
+          a_hash_including('fullPath' => fork_developer.full_path),
+          a_hash_including('fullPath' => fork_group_developer.full_path)
+        )
+      end
+
+      context 'when current user is not set' do
+        let(:user) { nil }
+
+        it 'does not return any forks' do
+          expect(forks.count).to eq(0)
+        end
       end
     end
   end

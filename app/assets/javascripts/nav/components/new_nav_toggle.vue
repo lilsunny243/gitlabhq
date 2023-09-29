@@ -1,13 +1,12 @@
 <script>
-import { GlBadge, GlToggle, GlDisclosureDropdownItem } from '@gitlab/ui';
+import { GlToggle, GlDisclosureDropdownItem } from '@gitlab/ui';
 import axios from '~/lib/utils/axios_utils';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { s__ } from '~/locale';
 import Tracking from '~/tracking';
 
 export default {
   i18n: {
-    badgeLabel: s__('NorthstarNavigation|Alpha'),
     sectionTitle: s__('NorthstarNavigation|Navigation redesign'),
     toggleMenuItemLabel: s__('NorthstarNavigation|New navigation'),
     toggleLabel: s__('NorthstarNavigation|Toggle new navigation'),
@@ -16,7 +15,6 @@ export default {
     ),
   },
   components: {
-    GlBadge,
     GlToggle,
     GlDisclosureDropdownItem,
   },
@@ -51,7 +49,7 @@ export default {
 
         Tracking.event(undefined, 'click_toggle', {
           label: this.enabled ? 'disable_new_nav_beta' : 'enable_new_nav_beta',
-          property: this.enabled ? 'navigation' : 'navigation_top',
+          property: this.enabled ? 'nav_user_menu' : 'navigation_top',
         });
 
         window.location.reload();
@@ -70,10 +68,15 @@ export default {
   <gl-disclosure-dropdown-item v-if="newNavigation" @action="toggleNav">
     <div class="gl-new-dropdown-item-content">
       <div
-        class="gl-new-dropdown-item-text-wrapper gl-display-flex! gl-justify-content-space-between gl-align-items-center gl-py-2!"
+        class="gl-new-dropdown-item-text-wrapper gl-display-flex! gl-justify-content-space-between gl-align-items-center gl-py-2! gl-gap-3"
       >
         {{ $options.i18n.toggleMenuItemLabel }}
-        <gl-toggle :value="isEnabled" :label="$options.i18n.toggleLabel" label-position="hidden" />
+        <gl-toggle
+          class="gl-flex-grow-0!"
+          :value="isEnabled"
+          :label="$options.i18n.toggleLabel"
+          label-position="hidden"
+        />
       </div>
     </div>
   </gl-disclosure-dropdown-item>
@@ -83,19 +86,19 @@ export default {
       class="gl-px-4 gl-py-2 gl-display-flex gl-justify-content-space-between gl-align-items-center"
     >
       <b>{{ $options.i18n.sectionTitle }}</b>
-      <gl-badge variant="info">{{ $options.i18n.badgeLabel }}</gl-badge>
     </div>
 
     <div
-      class="menu-item gl-cursor-pointer gl-display-flex! gl-justify-content-space-between gl-align-items-center"
+      class="menu-item gl-cursor-pointer gl-display-flex! gl-justify-content-space-between gl-align-items-center gl-gap-3"
       @click.prevent.stop="toggleNav"
     >
       {{ $options.i18n.toggleMenuItemLabel }}
       <gl-toggle
+        class="gl-flex-grow-0!"
         :value="isEnabled"
         :label="$options.i18n.toggleLabel"
         label-position="hidden"
-        data-qa-selector="new_navigation_toggle"
+        data-testid="new_navigation_toggle"
       />
     </div>
   </li>

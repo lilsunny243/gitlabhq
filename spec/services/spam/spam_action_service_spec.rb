@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Spam::SpamActionService do
+RSpec.describe Spam::SpamActionService, feature_category: :instance_resiliency do
   include_context 'includes Spam constants'
 
   let(:issue) { create(:issue, project: project, author: author) }
@@ -30,26 +30,41 @@ RSpec.describe Spam::SpamActionService do
   before do
     issue.spam = false
     personal_snippet.spam = false
+
+    allow_next_instance_of(described_class) do |service|
+      allow(service).to receive(:spam_params).and_return(spam_params)
+    end
   end
 
   describe 'constructor argument validation' do
     subject do
-      described_service = described_class.new(spammable: issue, spam_params: spam_params, user: user, action: :create)
+      described_service = described_class.new(spammable: issue, user: user, action: :create)
       described_service.execute
     end
 
-    context 'when spam_params is nil' do
-      let(:spam_params) { nil }
-      let(:expected_service_params_not_present_message) do
-        /Skipped spam check because spam_params was not present/
+    context 'when user is nil' do
+      let(:spam_params) { true }
+      let(:user) { nil }
+      let(:expected_service_user_not_present_message) do
+        /Skipped spam check because user was not present/
       end
 
       it "returns success with a messaage" do
         response = subject
 
-        expect(response.message).to match(expected_service_params_not_present_message)
+        expect(response.message).to match(expected_service_user_not_present_message)
         expect(issue).not_to be_spam
       end
+    end
+  end
+
+  shared_examples 'allows user' do
+    it 'does not perform spam check' do
+      expect(Spam::SpamVerdictService).not_to receive(:new)
+
+      response = subject
+
+      expect(response.message).to match(/user was allowlisted/)
     end
   end
 
@@ -73,7 +88,6 @@ RSpec.describe Spam::SpamActionService do
   shared_examples 'execute spam action service' do |target_type|
     let(:fake_captcha_verification_service) { double(:captcha_verification_service) }
     let(:fake_verdict_service) { double(:spam_verdict_service) }
-    let(:allowlisted) { false }
 
     let(:verdict_service_opts) do
       {
@@ -99,15 +113,15 @@ RSpec.describe Spam::SpamActionService do
     let_it_be(:existing_spam_log) { create(:spam_log, user: user, recaptcha_verified: false) }
 
     subject do
-      described_service = described_class.new(spammable: target, spam_params: spam_params, extra_features:
+      described_service = described_class.new(spammable: target, extra_features:
                                               extra_features, user: user, action: :create)
-      allow(described_service).to receive(:allowlisted?).and_return(allowlisted)
       described_service.execute
     end
 
     before do
       allow(Captcha::CaptchaVerificationService).to receive(:new).with(spam_params: spam_params) { fake_captcha_verification_service }
       allow(Spam::SpamVerdictService).to receive(:new).with(verdict_service_args).and_return(fake_verdict_service)
+      allow(fake_verdict_service).to receive(:execute).and_return({})
     end
 
     context 'when captcha response verification returns true' do
@@ -158,16 +172,38 @@ RSpec.describe Spam::SpamActionService do
           target.description = 'Lovely Spam! Wonderful Spam!'
         end
 
-        context 'when allowlisted' do
-          let(:allowlisted) { true }
-
-          it 'does not perform spam check' do
-            expect(Spam::SpamVerdictService).not_to receive(:new)
-
-            response = subject
-
-            expect(response.message).to match(/user was allowlisted/)
+        context 'when captcha is not supported' do
+          before do
+            allow(target).to receive(:supports_recaptcha?).and_return(false)
           end
+
+          it "does not execute with captcha support" do
+            expect(Captcha::CaptchaVerificationService).not_to receive(:new)
+
+            subject
+          end
+
+          it "executes a spam check" do
+            expect(fake_verdict_service).to receive(:execute)
+
+            subject
+          end
+        end
+
+        context 'when user is a gitlab bot' do
+          before do
+            allow(user).to receive(:gitlab_bot?).and_return(true)
+          end
+
+          it_behaves_like 'allows user'
+        end
+
+        context 'when user is a gitlab service user' do
+          before do
+            allow(user).to receive(:gitlab_service_user?).and_return(true)
+          end
+
+          it_behaves_like 'allows user'
         end
 
         context 'when disallowed by the spam verdict service' do
@@ -186,6 +222,9 @@ RSpec.describe Spam::SpamActionService do
         end
 
         context 'spam verdict service advises to block the user' do
+          # create a fresh user to ensure it is in the unbanned state
+          let(:user) { create(:user) }
+
           before do
             allow(fake_verdict_service).to receive(:execute).and_return(BLOCK_USER)
           end
@@ -197,6 +236,14 @@ RSpec.describe Spam::SpamActionService do
 
             expect(response.message).to match(expected_service_check_response_message)
             expect(target).to be_spam
+          end
+
+          it 'bans the user' do
+            subject
+
+            custom_attribute = user.custom_attributes.by_key(UserCustomAttribute::AUTO_BANNED_BY_SPAM_LOG_ID).first
+            expect(custom_attribute.value).to eq(target.spam_log.id.to_s)
+            expect(user).to be_banned
           end
         end
 

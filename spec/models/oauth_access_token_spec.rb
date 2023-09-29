@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe OauthAccessToken do
+RSpec.describe OauthAccessToken, feature_category: :system_access do
   let(:app_one) { create(:oauth_application) }
   let(:app_two) { create(:oauth_application) }
   let(:app_three) { create(:oauth_application) }
@@ -23,6 +23,10 @@ RSpec.describe OauthAccessToken do
   end
 
   describe 'Doorkeeper secret storing' do
+    it 'does not have a prefix' do
+      expect(token.plaintext_token).not_to start_with('gl')
+    end
+
     it 'stores the token in hashed format' do
       expect(token.token).not_to eq(token.plaintext_token)
     end
@@ -32,7 +36,7 @@ RSpec.describe OauthAccessToken do
     end
 
     it 'finds a token by plaintext token' do
-      expect(described_class.by_token(token.plaintext_token)).to be_a(OauthAccessToken)
+      expect(described_class.by_token(token.plaintext_token)).to be_a(described_class)
     end
 
     context 'when the token is stored in plaintext' do
@@ -43,7 +47,7 @@ RSpec.describe OauthAccessToken do
       end
 
       it 'falls back to plaintext token comparison' do
-        expect(described_class.by_token(plaintext_token)).to be_a(OauthAccessToken)
+        expect(described_class.by_token(plaintext_token)).to be_a(described_class)
       end
     end
   end
@@ -57,7 +61,7 @@ RSpec.describe OauthAccessToken do
   describe '#expires_in' do
     context 'when token has expires_in value set' do
       it 'uses the expires_in value' do
-        token = OauthAccessToken.new(expires_in: 1.minute)
+        token = described_class.new(expires_in: 1.minute)
 
         expect(token).to be_valid
       end
@@ -65,7 +69,7 @@ RSpec.describe OauthAccessToken do
 
     context 'when token has nil expires_in' do
       it 'uses default value' do
-        token = OauthAccessToken.new(expires_in: nil)
+        token = described_class.new(expires_in: nil)
 
         expect(token).to be_invalid
       end

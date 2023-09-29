@@ -1,18 +1,16 @@
 import { GlSprintf } from '@gitlab/ui';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
-import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
-import { __, s__ } from '~/locale';
+import { createMockDirective } from 'helpers/vue_mock_directive';
 import DeleteEnvironmentModal from '~/environments/components/delete_environment_modal.vue';
 import EnvironmentsDetailHeader from '~/environments/components/environments_detail_header.vue';
 import StopEnvironmentModal from '~/environments/components/stop_environment_modal.vue';
 import TimeAgo from '~/vue_shared/components/time_ago_tooltip.vue';
-import ModalCopyButton from '~/vue_shared/components/modal_copy_button.vue';
+import DeployFreezeAlert from '~/environments/components/deploy_freeze_alert.vue';
 import { createEnvironment } from './mock_data';
 
 describe('Environments detail header component', () => {
   const cancelAutoStopPath = '/my-environment/cancel/path';
   const terminalPath = '/my-environment/terminal/path';
-  const metricsPath = '/my-environment/metrics/path';
   const updatePath = '/my-environment/edit/path';
 
   let wrapper;
@@ -22,29 +20,31 @@ describe('Environments detail header component', () => {
   const findCancelAutoStopAtButton = () => wrapper.findByTestId('cancel-auto-stop-button');
   const findCancelAutoStopAtForm = () => wrapper.findByTestId('cancel-auto-stop-form');
   const findTerminalButton = () => wrapper.findByTestId('terminal-button');
-  const findExternalUrlButton = () => wrapper.findByTestId('external-url-button');
-  const findMetricsButton = () => wrapper.findByTestId('metrics-button');
+  const findExternalUrlButton = () => wrapper.findComponentByTestId('external-url-button');
   const findEditButton = () => wrapper.findByTestId('edit-button');
   const findStopButton = () => wrapper.findByTestId('stop-button');
   const findDestroyButton = () => wrapper.findByTestId('destroy-button');
   const findStopEnvironmentModal = () => wrapper.findComponent(StopEnvironmentModal);
   const findDeleteEnvironmentModal = () => wrapper.findComponent(DeleteEnvironmentModal);
+  const findDeployFreezeAlert = () => wrapper.findComponent(DeployFreezeAlert);
 
   const buttons = [
     ['Cancel Auto Stop At', findCancelAutoStopAtButton],
     ['Terminal', findTerminalButton],
     ['External Url', findExternalUrlButton],
-    ['Metrics', findMetricsButton],
     ['Edit', findEditButton],
     ['Stop', findStopButton],
     ['Destroy', findDestroyButton],
   ];
 
-  const createWrapper = ({ props }) => {
+  const createWrapper = ({ props, glFeatures = {} }) => {
     wrapper = shallowMountExtended(EnvironmentsDetailHeader, {
       stubs: {
         GlSprintf,
         TimeAgo,
+      },
+      provide: {
+        glFeatures,
       },
       directives: {
         GlTooltip: createMockDirective('gl-tooltip'),
@@ -58,10 +58,6 @@ describe('Environments detail header component', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('default state with minimal access', () => {
     beforeEach(() => {
@@ -175,29 +171,7 @@ describe('Environments detail header component', () => {
 
     it('displays the external url button with correct path', () => {
       expect(findExternalUrlButton().attributes('href')).toBe(externalUrl);
-    });
-  });
-
-  describe('when metrics are enabled', () => {
-    beforeEach(() => {
-      createWrapper({
-        props: {
-          environment: createEnvironment({ metricsUrl: 'my metrics url' }),
-          metricsPath,
-        },
-      });
-    });
-
-    it('displays the metrics button with correct path', () => {
-      expect(findMetricsButton().attributes('href')).toBe(metricsPath);
-    });
-
-    it('uses a gl tooltip for the title', () => {
-      const button = findMetricsButton();
-      const tooltip = getBinding(button.element, 'gl-tooltip');
-
-      expect(tooltip).toBeDefined();
-      expect(button.attributes('title')).toBe('See metrics');
+      expect(findExternalUrlButton().props('isUnsafeLink')).toBe(true);
     });
   });
 
@@ -246,22 +220,12 @@ describe('Environments detail header component', () => {
     });
   });
 
-  describe('when the environment has an unsafe external url', () => {
-    const externalUrl = 'postgres://staging';
+  describe('deploy freeze alert', () => {
+    it('passes the environment name to the alert', () => {
+      const environment = createEnvironment();
+      createWrapper({ props: { environment } });
 
-    beforeEach(() => {
-      createWrapper({
-        props: {
-          environment: createEnvironment({ externalUrl }),
-        },
-      });
-    });
-
-    it('should show a copy button instead', () => {
-      const button = wrapper.findComponent(ModalCopyButton);
-      expect(button.props('title')).toBe(s__('Environments|Copy live environment URL'));
-      expect(button.props('text')).toBe(externalUrl);
-      expect(button.text()).toBe(__('Copy URL'));
+      expect(findDeployFreezeAlert().props('name')).toBe(environment.name);
     });
   });
 });

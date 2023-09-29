@@ -36,30 +36,15 @@ module Gitlab
       store.subscribe ::MergeRequests::UpdateHeadPipelineWorker, to: ::Ci::PipelineCreatedEvent
       store.subscribe ::Namespaces::UpdateRootStatisticsWorker, to: ::Projects::ProjectDeletedEvent
 
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Pages::PageDeployedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Pages::PageDeletedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Projects::ProjectDeletedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Projects::ProjectCreatedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Projects::ProjectPathChangedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Projects::ProjectArchivedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Projects::ProjectTransferedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker,
-        to: ::Projects::ProjectAttributesChangedEvent,
-        if: -> (event) { event.pages_related? }
-      store.subscribe ::Pages::InvalidateDomainCacheWorker,
-        to: ::Projects::ProjectFeaturesChangedEvent,
-        if: -> (event) { event.pages_related? }
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Groups::GroupTransferedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Groups::GroupPathChangedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::Groups::GroupDeletedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::PagesDomains::PagesDomainDeletedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::PagesDomains::PagesDomainUpdatedEvent
-      store.subscribe ::Pages::InvalidateDomainCacheWorker, to: ::PagesDomains::PagesDomainCreatedEvent
-
       store.subscribe ::MergeRequests::CreateApprovalEventWorker, to: ::MergeRequests::ApprovedEvent
       store.subscribe ::MergeRequests::CreateApprovalNoteWorker, to: ::MergeRequests::ApprovedEvent
       store.subscribe ::MergeRequests::ResolveTodosAfterApprovalWorker, to: ::MergeRequests::ApprovedEvent
       store.subscribe ::MergeRequests::ExecuteApprovalHooksWorker, to: ::MergeRequests::ApprovedEvent
+      store.subscribe ::MergeRequests::SetReviewerReviewedWorker, to: ::MergeRequests::ApprovedEvent
+      store.subscribe ::Ml::ExperimentTracking::AssociateMlCandidateToPackageWorker,
+        to: ::Packages::PackageCreatedEvent,
+        if: -> (event) { ::Ml::ExperimentTracking::AssociateMlCandidateToPackageWorker.handles_event?(event) }
+      store.subscribe ::Ci::InitializePipelinesIidSequenceWorker, to: ::Projects::ProjectCreatedEvent
     end
     private_class_method :configure!
   end

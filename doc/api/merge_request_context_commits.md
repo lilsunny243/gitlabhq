@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, api
 ---
 
-# Merge request context commits API **(FREE)**
+# Merge request context commits API **(FREE ALL)**
 
 ## List MR context commits
 
@@ -19,8 +19,8 @@ Parameters:
 
 | Attribute           | Type    | Required | Description |
 |---------------------|---------|----------|-------------|
-| `id`                | integer | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `merge_request_iid` | integer | **{check-circle}** Yes | The internal ID of the merge request. |
+| `id`                | integer | Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `merge_request_iid` | integer | Yes | The internal ID of the merge request. |
 
 ```json
 [
@@ -53,31 +53,40 @@ Parameters:
 
 | Attribute           | Type    | Required | Description |
 |---------------------|---------|----------|-------------|
-| `id`                | integer | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
-| `merge_request_iid` | integer | **{check-circle}** Yes | The internal ID of the merge request. |
+| `id`                | integer | Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `merge_request_iid` | integer | Yes | The internal ID of the merge request. |
+| `commits`           | string array | Yes | The context commits' SHAs. |
 
-```plaintext
-POST /projects/:id/merge_requests/
+Example request:
+
+```shell
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
+  --header 'Content-Type: application/json' \
+  --data '{"commits": ["51856a574ac3302a95f82483d6c7396b1e0783cb"]}' \
+  https://gitlab.example.com/api/v4/projects/15/merge_requests/12/context_commits
 ```
 
-| Attribute                  | Type    | Required | Description |
-| ---------                  | ----    | -------- | ----------- |
-| `commits`             | string array | **{check-circle}** Yes | The context commits' SHA. |
+Example response:
 
 ```json
 [
     {
-        "id": "6d394385cf567f80a8fd85055db1ab4c5295806f",
-        "message": "Added contributing guide\n\nSigned-off-by: Example User <user@example.com>\n",
+        "id": "51856a574ac3302a95f82483d6c7396b1e0783cb",
+        "short_id": "51856a57",
+        "created_at": "2014-02-27T10:05:10.000+02:00",
         "parent_ids": [
-            "1a0b36b3cdad1d2ee32457c102a8c0b7056fa863"
+            "57a82e2180507c9e12880c0747f0ea65ad489515"
         ],
-        "authored_date": "2014-02-27T10:05:10.000+02:00",
+        "title": "Commit title",
+        "message": "Commit message",
         "author_name": "Example User",
         "author_email": "user@example.com",
-        "committed_date": "2014-02-27T10:05:10.000+02:00",
+        "authored_date": "2014-02-27T10:05:10.000+02:00",
         "committer_name": "Example User",
-        "committer_email": "user@example.com"
+        "committer_email": "user@example.com",
+        "committed_date": "2014-02-27T10:05:10.000+02:00",
+        "trailers": {},
+        "web_url": "https://gitlab.example.com/project/path/-/commit/b782f6c553653ab4e16469ff34bf3a81638ac304"
     }
 ]
 ```
@@ -94,6 +103,6 @@ Parameters:
 
 | Attribute           | Type         | Required | Description  |
 |---------------------|--------------|----------|--------------|
-| `commits`           | string array | **{check-circle}** Yes | The context commits' SHA. |
-| `id`                | integer      | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `merge_request_iid` | integer      | **{check-circle}** Yes | The internal ID of the merge request. |
+| `commits`           | string array | Yes | The context commits' SHA. |
+| `id`                | integer      | Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `merge_request_iid` | integer      | Yes | The internal ID of the merge request. |

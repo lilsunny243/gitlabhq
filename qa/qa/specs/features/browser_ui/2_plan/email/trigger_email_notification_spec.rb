@@ -9,11 +9,7 @@ module QA
         Resource::User.fabricate_or_use(Runtime::Env.gitlab_qa_username_1, Runtime::Env.gitlab_qa_password_1)
       end
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'email-notification-test'
-        end
-      end
+      let(:project) { create(:project, name: 'email-notification-test') }
 
       before do
         Flow::Login.sign_in
@@ -22,7 +18,7 @@ module QA
       it 'is received by a user for project invitation', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347961' do
         project.visit!
 
-        Page::Project::Menu.perform(&:click_members)
+        Page::Project::Menu.perform(&:go_to_members)
         Page::Project::Members.perform do |member_settings|
           member_settings.add_member(user.username)
         end
@@ -38,7 +34,7 @@ module QA
 
       def mailhog_json
         Support::Retrier.retry_until(sleep_interval: 1) do
-          Runtime::Logger.debug(%Q[retrieving "#{QA::Runtime::MailHog.api_messages_url}"])
+          Runtime::Logger.debug(%[retrieving "#{QA::Runtime::MailHog.api_messages_url}"])
 
           mailhog_response = get QA::Runtime::MailHog.api_messages_url
 
@@ -47,8 +43,8 @@ module QA
           subjects = mailhog_data.dig('items')
             .map { |item| mailhog_item_subject(item) }
 
-          Runtime::Logger.debug(%Q[Total number of emails: #{total}])
-          Runtime::Logger.debug(%Q[Subjects:\n#{subjects.join("\n")}])
+          Runtime::Logger.debug(%[Total number of emails: #{total}])
+          Runtime::Logger.debug(%[Subjects:\n#{subjects.join("\n")}])
 
           # Expect at least two invitation messages: group and project
           mailhog_data if mailhog_project_message_count(subjects) >= 1

@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Store all of your packages in one GitLab project **(FREE)**
+# Store all of your packages in one GitLab project **(FREE ALL)**
 
 You can store all of your packages in one project's Package Registry. Rather than using
 a GitLab repository to store code, you can use the repository to store all your packages.
@@ -32,13 +32,19 @@ of each package management system to publish different package types to the same
 
 ## Store different package types in one GitLab project
 
-Let's take a look at how you might create a public place to hold all of your public packages.
+Let's take a look at how you might create one project to host all of your packages:
 
 1. Create a new project in GitLab. The project doesn't require any code or content.
-1. On the left sidebar, select **Project information**, and note the project ID.
-1. Create an access token. All package types in the Package Registry are accessible by using
-   [GitLab personal access tokens](../../profile/personal_access_tokens.md).
-   If you're using CI/CD, you can use CI job tokens (`CI_JOB_TOKEN`) to authenticate.
+1. On the left sidebar, select **Project overview**, and note the project ID.
+1. Create an access token for authentication. All package types in the Package Registry can be published by using:
+
+   - A [personal access token](../../profile/personal_access_tokens.md).
+   - A [CI/CD job token](../../../ci/jobs/ci_job_token.md) (`CI_JOB_TOKEN`) in a CI/CD job.
+     Any projects publishing packages to this project's registry should be listed
+     in this project's [job token allowlist](../../../ci/jobs/ci_job_token.md#allow-access-to-your-project-with-a-job-token).
+
+   If the project is private, downloading packages requires authentication as well.
+
 1. Configure your local project and publish the package.
 
 You can upload all types of packages to the same project, or

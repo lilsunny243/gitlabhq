@@ -39,6 +39,26 @@ module QA
           base.view 'app/assets/javascripts/access_tokens/components/access_token_table_app.vue' do
             element :revoke_button
           end
+
+          base.view 'app/views/profiles/personal_access_tokens/index.html.haml' do
+            element 'add-new-token-button'
+          end
+
+          base.view 'app/views/projects/settings/access_tokens/index.html.haml' do
+            element 'add-new-token-button'
+          end
+
+          base.view 'app/views/groups/settings/access_tokens/index.html.haml' do
+            element 'add-new-token-button'
+          end
+
+          base.view 'app/views/admin/impersonation_tokens/index.html.haml' do
+            element 'add-new-token-button'
+          end
+        end
+
+        def click_add_new_token_button
+          click_element('add-new-token-button')
         end
 
         def fill_token_name(name)
@@ -55,7 +75,6 @@ module QA
 
         def created_access_token
           within_element(:access_token_section) do
-            click_element(:toggle_visibility_button, wait: 30)
             find_element(:created_access_token_field).value
           end
         end

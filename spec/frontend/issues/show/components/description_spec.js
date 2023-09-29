@@ -1,18 +1,16 @@
-import $ from 'jquery';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import getIssueDetailsQuery from 'ee_else_ce/work_items/graphql/get_issue_details.query.graphql';
-import setWindowLocation from 'helpers/set_window_location_helper';
 import { TEST_HOST } from 'helpers/test_constants';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import Description from '~/issues/show/components/description.vue';
 import eventHub from '~/issues/show/event_hub';
-import workItemQuery from '~/work_items/graphql/work_item.query.graphql';
 import createWorkItemMutation from '~/work_items/graphql/create_work_item.mutation.graphql';
 import workItemTypesQuery from '~/work_items/graphql/project_work_item_types.query.graphql';
+import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
 import TaskList from '~/task_list';
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import {
@@ -20,18 +18,15 @@ import {
   createWorkItemMutationResponse,
   getIssueDetailsResponse,
   projectWorkItemTypesQueryResponse,
+  workItemByIidResponseFactory,
 } from 'jest/work_items/mock_data';
 import {
   descriptionProps as initialProps,
   descriptionHtmlWithList,
-  descriptionHtmlWithCheckboxes,
+  descriptionHtmlWithDetailsTag,
 } from '../mock_data/mock_data';
 
-jest.mock('~/flash');
-jest.mock('~/lib/utils/url_utility', () => ({
-  ...jest.requireActual('~/lib/utils/url_utility'),
-  updateHistory: jest.fn(),
-}));
+jest.mock('~/alert');
 jest.mock('~/task_list');
 jest.mock('~/behaviors/markdown/render_gfm');
 
@@ -41,18 +36,10 @@ const $toast = {
 };
 
 const issueDetailsResponse = getIssueDetailsResponse();
-const workItemQueryResponse = {
-  data: {
-    workItem: null,
-  },
-};
-
-const queryHandler = jest.fn().mockResolvedValue(workItemQueryResponse);
 const workItemTypesQueryHandler = jest.fn().mockResolvedValue(projectWorkItemTypesQueryResponse);
 
 describe('Description component', () => {
   let wrapper;
-  let originalGon;
 
   Vue.use(VueApollo);
 
@@ -67,9 +54,23 @@ describe('Description component', () => {
     issueDetailsQueryHandler = jest.fn().mockResolvedValue(issueDetailsResponse),
     createWorkItemMutationHandler,
   } = {}) {
+    const mockApollo = createMockApollo([
+      [workItemTypesQuery, workItemTypesQueryHandler],
+      [getIssueDetailsQuery, issueDetailsQueryHandler],
+      [createWorkItemMutation, createWorkItemMutationHandler],
+    ]);
+
+    mockApollo.clients.defaultClient.cache.writeQuery({
+      query: workItemByIidQuery,
+      variables: { fullPath: 'gitlab-org/gitlab-test', iid: '1' },
+      data: workItemByIidResponseFactory().data,
+    });
+
     wrapper = shallowMountExtended(Description, {
+      apolloProvider: mockApollo,
       propsData: {
         issueId: 1,
+        issueIid: 1,
         ...initialProps,
         ...props,
       },
@@ -78,12 +79,6 @@ describe('Description component', () => {
         hasIterationsFeature: true,
         ...provide,
       },
-      apolloProvider: createMockApollo([
-        [workItemQuery, queryHandler],
-        [workItemTypesQuery, workItemTypesQueryHandler],
-        [getIssueDetailsQuery, issueDetailsQueryHandler],
-        [createWorkItemMutation, createWorkItemMutationHandler],
-      ]),
       mocks: {
         $toast,
       },
@@ -91,25 +86,7 @@ describe('Description component', () => {
   }
 
   beforeEach(() => {
-    originalGon = window.gon;
     window.gon = { sprite_icons: mockSpriteIcons };
-
-    setWindowLocation(TEST_HOST);
-
-    if (!document.querySelector('.issuable-meta')) {
-      const metaData = document.createElement('div');
-      metaData.classList.add('issuable-meta');
-      metaData.innerHTML =
-        '<div class="flash-container"></div><span id="task_status"></span><span id="task_status_short"></span>';
-
-      document.body.appendChild(metaData);
-    }
-  });
-
-  afterAll(() => {
-    window.gon = originalGon;
-
-    $('.issuable-meta .flash-container').remove();
   });
 
   it('doesnt animate first description changes', async () => {
@@ -138,6 +115,19 @@ describe('Description component', () => {
     await jest.runOnlyPendingTimers();
 
     expect(findGfmContent().classes()).toContain('issue-realtime-trigger-pulse');
+  });
+
+  it('doesnt animate expand/collapse of details elements', async () => {
+    createComponent();
+
+    await wrapper.setProps({ descriptionHtml: descriptionHtmlWithDetailsTag.collapsed });
+    expect(findGfmContent().classes()).not.toContain('issue-realtime-pre-pulse');
+
+    await wrapper.setProps({ descriptionHtml: descriptionHtmlWithDetailsTag.expanded });
+    expect(findGfmContent().classes()).not.toContain('issue-realtime-pre-pulse');
+
+    await wrapper.setProps({ descriptionHtml: descriptionHtmlWithDetailsTag.collapsed });
+    expect(findGfmContent().classes()).not.toContain('issue-realtime-pre-pulse');
   });
 
   it('applies syntax highlighting and math when description changed', async () => {
@@ -174,7 +164,7 @@ describe('Description component', () => {
       expect(TaskList).toHaveBeenCalled();
     });
 
-    it('does not re-init the TaskList when canUpdate is false', async () => {
+    it('does not re-init the TaskList when canUpdate is false', () => {
       createComponent({
         props: {
           issuableType: 'issuableType',
@@ -207,46 +197,6 @@ describe('Description component', () => {
         onError: expect.any(Function),
         lockVersion: 0,
       });
-    });
-  });
-
-  describe('taskStatus', () => {
-    it('adds full taskStatus', async () => {
-      createComponent({
-        props: {
-          taskStatus: '1 of 1',
-        },
-      });
-      await nextTick();
-
-      expect(document.querySelector('.issuable-meta #task_status').textContent.trim()).toBe(
-        '1 of 1',
-      );
-    });
-
-    it('adds short taskStatus', async () => {
-      createComponent({
-        props: {
-          taskStatus: '1 of 1',
-        },
-      });
-      await nextTick();
-
-      expect(document.querySelector('.issuable-meta #task_status_short').textContent.trim()).toBe(
-        '1/1 checklist item',
-      );
-    });
-
-    it('clears task status text when no tasks are present', async () => {
-      createComponent({
-        props: {
-          taskStatus: '0 of 0',
-        },
-      });
-
-      await nextTick();
-
-      expect(document.querySelector('.issuable-meta #task_status').textContent.trim()).toBe('');
     });
   });
 
@@ -292,21 +242,6 @@ describe('Description component', () => {
 
     it('renders without error', () => {
       expect(findTaskActionButtons()).toHaveLength(0);
-    });
-  });
-
-  describe('description with checkboxes', () => {
-    beforeEach(() => {
-      createComponent({
-        props: {
-          descriptionHtml: descriptionHtmlWithCheckboxes,
-        },
-      });
-      return nextTick();
-    });
-
-    it('renders a list of hidden buttons corresponding to checkboxes in description HTML', () => {
-      expect(findTaskActionButtons()).toHaveLength(3);
     });
   });
 

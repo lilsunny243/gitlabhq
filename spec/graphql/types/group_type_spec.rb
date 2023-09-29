@@ -22,11 +22,11 @@ RSpec.describe GitlabSchema.types['Group'] do
       merge_requests container_repositories container_repositories_count
       packages dependency_proxy_setting dependency_proxy_manifests
       dependency_proxy_blobs dependency_proxy_image_count
-      dependency_proxy_blob_count dependency_proxy_total_size
+      dependency_proxy_blob_count dependency_proxy_total_size dependency_proxy_total_size_in_bytes
       dependency_proxy_image_prefix dependency_proxy_image_ttl_policy
       shared_runners_setting timelogs organization_state_counts organizations
       contact_state_counts contacts work_item_types
-      recent_issue_boards ci_variables releases
+      recent_issue_boards ci_variables releases environment_scopes work_items autocomplete_users
     ]
 
     expect(described_class).to include_graphql_fields(*expected_fields)
@@ -75,6 +75,13 @@ RSpec.describe GitlabSchema.types['Group'] do
 
     it { is_expected.to have_graphql_type(Types::ReleaseType.connection_type) }
     it { is_expected.to have_graphql_resolver(Resolvers::GroupReleasesResolver) }
+  end
+
+  describe 'work_items field' do
+    subject { described_class.fields['workItems'] }
+
+    it { is_expected.to have_graphql_type(Types::WorkItemType.connection_type) }
+    it { is_expected.to have_graphql_resolver(Resolvers::Namespaces::WorkItemsResolver) }
   end
 
   it_behaves_like 'a GraphQL type with labels' do

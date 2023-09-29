@@ -64,7 +64,7 @@ The tool ensures that all aspects of swapping a foreign key are covered. This in
 
 - Creating a migration to remove a foreign key.
 - Updating `db/structure.sql` with the new migration.
-- Updating `lib/gitlab/database/gitlab_loose_foreign_keys.yml` to add the new loose foreign key.
+- Updating `config/gitlab_loose_foreign_keys.yml` to add the new loose foreign key.
 - Creating or updating a model's specs to ensure that the loose foreign key is properly supported.
 
 The tool is located at `scripts/decomposition/generate-loose-foreign-key`:
@@ -370,7 +370,7 @@ end
 ```
 
 This endpoint still works when the parent `Project` model is deleted. This can be considered a
-a data leak which should not happen under normal circumstances:
+a data leak which should not happen under typical circumstances:
 
 ```ruby
 def show
@@ -723,7 +723,7 @@ timeout or a worker crash, the next job continues the processing.
 ### Accumulation of deleted records
 
 There can be cases where the workers need to process an unusually large amount of data. This can
-happen under normal usage, for example when a large project or group is deleted. In this scenario,
+happen under typical usage, for example when a large project or group is deleted. In this scenario,
 there can be several million rows to be deleted or nullified. Due to the limits enforced by the
 worker, processing this data takes some time.
 

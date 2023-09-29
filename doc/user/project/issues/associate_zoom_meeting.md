@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Associate a Zoom meeting with an issue **(FREE)**
+# Associate a Zoom meeting with an issue **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/16609) in GitLab 12.4.
 
@@ -36,7 +36,7 @@ You are only allowed to attach a single Zoom meeting to an issue. If you attempt
 to add a second Zoom meeting using the `/zoom` quick action, it doesn't work. You
 need to [remove it](#removing-an-existing-zoom-meeting-from-an-issue) first.
 
-Users on GitLab Premium and higher can also
+Users on GitLab Premium and Ultimate can also
 [add multiple Zoom links to incidents](../../../operations/incident_management/linked_resources.md#link-zoom-meetings-from-an-incident).
 
 ## Removing an existing Zoom meeting from an issue

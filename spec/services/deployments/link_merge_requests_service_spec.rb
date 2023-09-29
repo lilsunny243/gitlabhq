@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Deployments::LinkMergeRequestsService do
+RSpec.describe Deployments::LinkMergeRequestsService, feature_category: :continuous_delivery do
   let(:project) { create(:project, :repository) }
 
   # *   ddd0f15 Merge branch 'po-fix-test-env-path' into 'master'
@@ -158,11 +158,9 @@ RSpec.describe Deployments::LinkMergeRequestsService do
     end
 
     it "doesn't link the same merge_request twice" do
-      create(:merge_request, :merged, merge_commit_sha: mr1_merge_commit_sha,
-                                      source_project: project)
+      create(:merge_request, :merged, merge_commit_sha: mr1_merge_commit_sha, source_project: project)
 
-      picked_mr = create(:merge_request, :merged, merge_commit_sha: '123abc',
-                                                  source_project: project)
+      picked_mr = create(:merge_request, :merged, merge_commit_sha: '123abc', source_project: project)
 
       # the first MR includes c1c67abba which is a cherry-pick of the fake picked_mr merge request
       create(:track_mr_picking_note, noteable: picked_mr, project: project, commit_id: 'c1c67abbaf91f624347bb3ae96eabe3a1b742478')

@@ -4,16 +4,15 @@ module Clusters
   module Platforms
     class Kubernetes < ApplicationRecord
       include Gitlab::Kubernetes
-      include EnumWithNil
       include AfterCommitQueue
       include ReactiveCaching
       include NullifyIfBlank
 
-      RESERVED_NAMESPACES = %w(gitlab-managed-apps).freeze
+      RESERVED_NAMESPACES = %w[gitlab-managed-apps].freeze
       REQUIRED_K8S_MIN_VERSION = 23
 
       IGNORED_CONNECTION_EXCEPTIONS = [
-        Gitlab::UrlBlocker::BlockedUrlError,
+        Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError,
         Kubeclient::HttpError,
         Errno::ECONNREFUSED,
         URI::InvalidURIError,
@@ -63,7 +62,7 @@ module Clusters
 
       alias_attribute :ca_pem, :ca_cert
 
-      enum_with_nil authorization_type: {
+      enum authorization_type: {
         unknown_authorization: nil,
         rbac: 1,
         abac: 2

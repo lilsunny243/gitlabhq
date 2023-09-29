@@ -11,7 +11,7 @@ GitLab instance.
 
 General notes:
 
-- If possible, we recommend you test out the upgrade in a test environment before
+- If possible, you should test out the upgrade in a test environment before
   updating your production instance. Ideally, your test environment should mimic
   your production environment as closely as possible.
 - If [working with Support](https://about.gitlab.com/support/scheduling-upgrade-assistance/)
@@ -60,16 +60,6 @@ to ensure the major components of GitLab are working:
 
 1. If using Elasticsearch, verify that searches are successful.
 
-1. If you are using [Reply by Email](../administration/reply_by_email.md) or [Service Desk](../user/project/service_desk.md),
-   manually install the latest version of `gitlab-mail_room`:
-
-   ```shell
-   gem install gitlab-mail_room
-   ```
-
-   NOTE: This step is necessary to avoid thread deadlocks and to support the latest MailRoom features. See
-   [this explanation](../development/emails.md#mailroom-gem-updates) for more details.
-
 If in any case something goes wrong, see [how to troubleshoot](#troubleshooting).
 
 ## Rollback plan
@@ -85,25 +75,25 @@ Create a backup of GitLab and all its data (database, repositories, uploads, bui
 artifacts, LFS objects, registry, pages). This is vital for making it possible
 to roll back GitLab to a working state if there's a problem with the upgrade:
 
-- Create a [GitLab backup](../raketasks/backup_restore.md).
+- Create a [GitLab backup](../administration/backup_restore/index.md).
   Make sure to follow the instructions based on your installation method.
-  Don't forget to back up the [secrets and configuration files](../raketasks/backup_gitlab.md#storing-configuration-files).
+  Don't forget to back up the [secrets and configuration files](../administration/backup_restore/backup_gitlab.md#storing-configuration-files).
 - Alternatively, create a snapshot of your instance. If this is a multi-node
   installation, you must snapshot every node.
   **This process is out of scope for GitLab Support.**
 
 ### Restore GitLab
 
-If you have a test environment that mimics your production one, we recommend testing the restoration to ensure that everything works as you expect.
+If you have a test environment that mimics your production one, you should test the restoration to ensure that everything works as you expect.
 
 To restore your GitLab backup:
 
 - Before restoring, make sure to read about the
-  [prerequisites](../raketasks/backup_restore.md#restore-gitlab), most importantly,
+  [prerequisites](../administration/backup_restore/index.md#restore-gitlab), most importantly,
   the versions of the backed up and the new GitLab instance must be the same.
-- [Restore GitLab](../raketasks/backup_restore.md#restore-gitlab).
+- [Restore GitLab](../administration/backup_restore/index.md#restore-gitlab).
   Make sure to follow the instructions based on your installation method.
-  Confirm that the [secrets and configuration files](../raketasks/backup_gitlab.md#storing-configuration-files) are also restored.
+  Confirm that the [secrets and configuration files](../administration/backup_restore/backup_gitlab.md#storing-configuration-files) are also restored.
 - If restoring from a snapshot, know the steps to do this.
   **This process is out of scope for GitLab Support.**
 
@@ -113,11 +103,7 @@ For the upgrade plan, start by creating an outline of a plan that best applies
 to your instance and then upgrade it for any relevant features you're using.
 
 - Generate an upgrade plan by reading and understanding the relevant documentation:
-  - upgrade based on the installation method:
-    - [Linux package (Omnibus)](index.md#linux-packages-omnibus-gitlab)
-    - [Compiled from source](index.md#installation-from-source)
-    - [Docker](index.md#installation-using-docker)
-    - [Helm Charts](index.md#installation-using-helm)
+  - Upgrade based on the [installation method](index.md#upgrade-based-on-installation-method).
   - [Zero-downtime upgrades](zero_downtime.md) (if possible and desired)
   - [Convert from GitLab Community Edition to Enterprise Edition](package/convert_to_ee.md)
 - What version should you upgrade to:
@@ -132,8 +118,9 @@ to your instance and then upgrade it for any relevant features you're using.
   [turning on maintenance mode](../administration/maintenance_mode/index.md) during the
   upgrade.
 - About PostgreSQL:
-  - On the top bar, select **Main menu > Admin**, and look for the version of
-    PostgreSQL you are using.
+  1. On the left sidebar, select **Search or go to**.
+  1. Select **Admin Area**.
+  1. Look for the version of PostgreSQL you are using.
     If [a PostgreSQL upgrade is needed](../administration/package_information/postgresql_versions.md),
     account for the relevant
     [packaged](https://docs.gitlab.com/omnibus/settings/database.html#upgrade-packaged-postgresql-server)
@@ -172,8 +159,8 @@ If you have Kubernetes clusters connected with GitLab, [upgrade your GitLab agen
 
 #### Elasticsearch
 
-Before updating GitLab, confirm Advanced Search migrations are complete by
-[checking for pending advanced search migrations](background_migrations.md).
+Before updating GitLab, confirm advanced search migrations are complete by
+[checking for pending advanced search migrations](index.md#checking-for-pending-advanced-search-migrations).
 
 After updating GitLab, you may have to upgrade
 [Elasticsearch if the new version breaks compatibility](../integration/advanced_search/elasticsearch.md#version-requirements).

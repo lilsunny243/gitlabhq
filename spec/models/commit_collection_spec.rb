@@ -27,11 +27,23 @@ RSpec.describe CommitCollection, feature_category: :source_code_management do
       expect(collection.committers).to be_empty
     end
 
-    it 'excludes authors of merge commits' do
-      commit = project.commit("60ecb67744cb56576c30214ff52294f8ce2def98")
-      create(:user, email: commit.committer_email.upcase)
+    context 'when is with_merge_commits false' do
+      it 'excludes authors of merge commits' do
+        commit = project.commit("60ecb67744cb56576c30214ff52294f8ce2def98")
+        create(:user, email: commit.committer_email.upcase)
 
-      expect(collection.committers).to be_empty
+        expect(collection.committers).to be_empty
+      end
+    end
+
+    context 'when is with_merge_commits true' do
+      let(:commit) { project.commit("60ecb67744cb56576c30214ff52294f8ce2def98") }
+
+      it 'does not exclude authors of merge commits' do
+        user = create(:user, email: commit.committer_email.upcase)
+
+        expect(collection.committers(with_merge_commits: true)).to contain_exactly(user)
+      end
     end
 
     context 'when committer email is nil' do
@@ -41,6 +53,24 @@ RSpec.describe CommitCollection, feature_category: :source_code_management do
 
       it 'returns empty array when committers cannot be found' do
         expect(collection.committers).to be_empty
+      end
+    end
+  end
+
+  describe '#committer_user_ids' do
+    subject(:collection) { described_class.new(project, [commit]) }
+
+    it 'returns an array of committer user IDs' do
+      user = create(:user, email: commit.committer_email)
+
+      expect(collection.committer_user_ids).to contain_exactly(user.id)
+    end
+
+    context 'when there are no committers' do
+      subject(:collection) { described_class.new(project, []) }
+
+      it 'returns an empty array' do
+        expect(collection.committer_user_ids).to be_empty
       end
     end
   end

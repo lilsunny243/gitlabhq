@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 FactoryBot.define do
   factory :package, class: 'Packages::Package' do
     project
@@ -72,26 +73,35 @@ FactoryBot.define do
 
       transient do
         without_package_files { false }
+        with_changes_file { false }
         file_metadatum_trait { processing? ? :unknown : :keep }
         published_in { :create }
       end
 
       after :build do |package, evaluator|
         if evaluator.published_in == :create
-          create(:debian_publication, package: package)
+          build(:debian_publication, package: package)
         elsif !evaluator.published_in.nil?
           create(:debian_publication, package: package, distribution: evaluator.published_in)
         end
       end
 
       after :create do |package, evaluator|
+        if evaluator.published_in == :create
+          package.debian_publication.save!
+        end
+
         unless evaluator.without_package_files
           create :debian_package_file, :source, evaluator.file_metadatum_trait, package: package
           create :debian_package_file, :dsc, evaluator.file_metadatum_trait, package: package
           create :debian_package_file, :deb, evaluator.file_metadatum_trait, package: package
           create :debian_package_file, :deb_dev, evaluator.file_metadatum_trait, package: package
           create :debian_package_file, :udeb, evaluator.file_metadatum_trait, package: package
+          create :debian_package_file, :ddeb, evaluator.file_metadatum_trait, package: package
           create :debian_package_file, :buildinfo, evaluator.file_metadatum_trait, package: package
+        end
+
+        if evaluator.with_changes_file
           create :debian_package_file, :changes, evaluator.file_metadatum_trait, package: package
         end
       end
@@ -102,6 +112,28 @@ FactoryBot.define do
 
         transient do
           without_package_files { false }
+          file_metadatum_trait { :unknown }
+          published_in { nil }
+        end
+      end
+
+      factory :debian_temporary_with_files do
+        status { :processing }
+
+        transient do
+          without_package_files { false }
+          with_changes_file { false }
+          file_metadatum_trait { :unknown }
+          published_in { nil }
+        end
+      end
+
+      factory :debian_temporary_with_changes do
+        status { :processing }
+
+        transient do
+          without_package_files { true }
+          with_changes_file { true }
           file_metadatum_trait { :unknown }
           published_in { nil }
         end
@@ -267,6 +299,12 @@ FactoryBot.define do
           create :package_file, :generic_zip, package: package
         end
       end
+    end
+
+    factory :ml_model_package, class: 'Packages::MlModel::Package' do
+      sequence(:name) { |n| "mlmodel-package-#{n}" }
+      sequence(:version) { |n| "1.0.#{n}" }
+      package_type { :ml_model }
     end
   end
 end

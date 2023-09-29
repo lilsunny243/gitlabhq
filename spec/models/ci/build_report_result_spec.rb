@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::BuildReportResult do
+RSpec.describe Ci::BuildReportResult, feature_category: :continuous_integration do
   let_it_be_with_reload(:build_report_result) { create(:ci_build_report_result, :with_junit_success) }
 
   it_behaves_like 'cleanup by a loose foreign key' do
@@ -28,6 +28,19 @@ RSpec.describe Ci::BuildReportResult do
     context 'when data is invalid' do
       it 'returns errors' do
         build_report_result.data = { invalid: 'data' }
+
+        expect(build_report_result).to be_invalid
+        expect(build_report_result.errors.full_messages).to eq(["Data must be a valid json schema"])
+      end
+    end
+
+    context 'when data tests is invalid' do
+      it 'returns errors' do
+        build_report_result.data = {
+          'tests' => {
+            'invalid' => 'invalid'
+          }
+        }
 
         expect(build_report_result).to be_invalid
         expect(build_report_result.errors.full_messages).to eq(["Data must be a valid json schema"])

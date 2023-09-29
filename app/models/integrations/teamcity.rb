@@ -6,7 +6,7 @@ module Integrations
     include ReactivelyCached
     prepend EnableSslVerification
 
-    TEAMCITY_SAAS_HOSTNAME = /\A[^\.]+\.teamcity\.com\z/i.freeze
+    TEAMCITY_SAAS_HOSTNAME = /\A[^\.]+\.teamcity\.com\z/i
 
     field :teamcity_url,
       title: -> { s_('ProjectService|TeamCity server URL') },
@@ -22,7 +22,7 @@ module Integrations
       help: -> { s_('ProjectService|Must have permission to trigger a manual build in TeamCity.') }
 
     field :password,
-      type: 'password',
+      type: :password,
       non_empty_password_title: -> { s_('ProjectService|Enter new password') },
       non_empty_password_help: -> { s_('ProjectService|Leave blank to use your current password') }
 
@@ -43,7 +43,7 @@ module Integrations
       end
 
       def supported_events
-        %w(push merge_request)
+        %w[push merge_request]
       end
     end
 

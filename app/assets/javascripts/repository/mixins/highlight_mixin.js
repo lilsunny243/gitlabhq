@@ -1,4 +1,3 @@
-import { nextTick } from 'vue';
 import {
   LEGACY_FALLBACKS,
   EVENT_ACTION,
@@ -9,7 +8,6 @@ import { splitIntoChunks } from '~/vue_shared/components/source_viewer/workers/h
 import LineHighlighter from '~/blob/line_highlighter';
 import languageLoader from '~/content_editor/services/highlight_js_language_loader';
 import Tracking from '~/tracking';
-import { TEXT_FILE_TYPE } from '../constants';
 
 /*
  * This mixin is intended to be used as an interface between our highlight worker and Vue components
@@ -38,8 +36,8 @@ export default {
       this.trackEvent(EVENT_LABEL_FALLBACK, language);
       this?.onError();
     },
-    initHighlightWorker({ rawTextBlob, language, simpleViewer }) {
-      if (simpleViewer?.fileType !== TEXT_FILE_TYPE) return;
+    initHighlightWorker({ rawTextBlob, language, fileType }) {
+      if (language !== 'json' || !this.glFeatures.highlightJsWorker) return;
 
       if (this.isUnsupportedLanguage(language)) {
         this.handleUnsupportedLanguage(language);
@@ -72,14 +70,14 @@ export default {
       this.instructWorker(firstSeventyLines, language);
 
       // Instruct the worker to start highlighting all lines in the background.
-      this.instructWorker(rawTextBlob, language);
+      this.instructWorker(rawTextBlob, language, fileType);
     },
     handleWorkerMessage({ data }) {
       this.chunks = data;
       this.highlightHash(); // highlight the line if a line number hash is present in the URL
     },
-    instructWorker(content, language) {
-      this.highlightWorker.postMessage({ content, language });
+    instructWorker(content, language, fileType) {
+      this.highlightWorker.postMessage({ content, language, fileType });
     },
     async highlightHash() {
       const { hash } = this.$route;
@@ -97,7 +95,7 @@ export default {
       }
 
       // Line numbers in the DOM needs to update first based on changes made to `chunks`.
-      await nextTick();
+      await this.$nextTick();
 
       const lineHighlighter = new LineHighlighter({ scrollBehavior: 'auto' });
       lineHighlighter.highlightHash(hash);

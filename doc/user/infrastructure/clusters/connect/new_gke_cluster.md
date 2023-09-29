@@ -1,6 +1,6 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -41,7 +41,8 @@ Start by [importing the example project by URL](../../../project/import/repo_by_
 
 To import the project:
 
-1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. In GitLab, on the left sidebar, select **Search or go to**.
+1. Select **View all my projects**.
 1. On the right of the page, select **New project**.
 1. Select **Import project**.
 1. Select **Repository by URL**.
@@ -61,7 +62,7 @@ In GitLab 14.10, a [flag](../../../../administration/feature_flags.md) named `ce
 
 To create a GitLab agent for Kubernetes:
 
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Operate > Kubernetes clusters**.
 1. Select **Connect a cluster (agent)**.
 1. From the **Select an agent** dropdown list, select `gke-agent` and select **Register an agent**.
 1. GitLab generates a registration token for the agent. Securely store this secret token, as you will need it later.
@@ -116,20 +117,20 @@ Refer to the [Google Terraform provider](https://registry.terraform.io/providers
 
 After configuring your project, manually trigger the provisioning of your cluster. In GitLab:
 
-1. On the left sidebar, go to **CI/CD > Pipelines**.
+1. On the left sidebar, go to **Build > Pipelines**.
 1. Next to **Play** (**{play}**), select the dropdown list icon (**{chevron-lg-down}**).
 1. Select **Deploy** to manually trigger the deployment job.
 
 When the pipeline finishes successfully, you can see your new cluster:
 
 - In GCP: on your [GCP console's Kubernetes list](https://console.cloud.google.com/kubernetes/list).
-- In GitLab: from your project's sidebar, select **Infrastructure > Kubernetes clusters**.
+- In GitLab: from your project's sidebar, select **Operate > Kubernetes clusters**.
 
 ## Use your cluster
 
 After you provision the cluster, it is connected to GitLab and is ready for deployments. To check the connection:
 
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Operate > Kubernetes clusters**.
 1. In the list, view the **Connection status** column.
 
 For more information about the capabilities of the connection, see [the GitLab agent for Kubernetes documentation](../index.md).
@@ -143,19 +144,19 @@ To remove all resources:
 
 1. Add the following to your `.gitlab-ci.yml` file:
 
-    ```yaml
-    stages:
-      - init
-      - validate
-      - build
-      - test
-      - deploy
-      - cleanup
+   ```yaml
+   stages:
+     - init
+     - validate
+     - build
+     - test
+     - deploy
+     - cleanup
 
-    destroy:
-      extends: .terraform:destroy
-      needs: []
-    ```
+   destroy:
+     extends: .terraform:destroy
+     needs: []
+   ```
 
-1. On the left sidebar, select **CI/CD > Pipelines** and select the most recent pipeline.
+1. On the left sidebar, select **Build > Pipelines** and select the most recent pipeline.
 1. For the `destroy` job, select **Play** (**{play}**).

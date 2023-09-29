@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
-class Plan < ApplicationRecord
+class Plan < MainClusterwide::ApplicationRecord
   DEFAULT = 'default'
 
   has_one :limits, class_name: 'PlanLimits'
+
+  scope :by_name, ->(name) { where(name: name) }
 
   ALL_PLANS = [DEFAULT].freeze
   DEFAULT_PLANS = [DEFAULT].freeze

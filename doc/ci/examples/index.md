@@ -2,11 +2,10 @@
 stage: Verify
 group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 type: index
 ---
 
-# GitLab CI/CD Examples **(FREE)**
+# GitLab CI/CD examples **(FREE ALL)**
 
 This page contains links to a variety of examples that can help you understand how to
 implement [GitLab CI/CD](../index.md) for your specific use case.
@@ -24,11 +23,9 @@ The following table lists examples with step-by-step tutorials that are containe
 
 | Use case                      | Resource |
 |-------------------------------|----------|
-| Browser performance testing   | [Browser Performance Testing with the Sitespeed.io container](../testing/browser_performance_testing.md). |
 | Deployment with Dpl           | [Using `dpl` as deployment tool](deployment/index.md). |
 | GitLab Pages                  | See the [GitLab Pages](../../user/project/pages/index.md) documentation for a complete example of deploying a static site. |
 | End-to-end testing            | [End-to-end testing with GitLab CI/CD and WebdriverIO](end_to_end_testing_webdriverio/index.md). |
-| Load performance testing      | [Load Performance Testing with the k6 container](../testing/load_performance_testing.md). |
 | Multi project pipeline        | [Build, test deploy using multi project pipeline](https://gitlab.com/gitlab-examples/upstream-project). |
 | npm with semantic-release     | [Publish npm packages to the GitLab Package Registry using semantic-release](semantic-release.md). |
 | PHP with Laravel, Envoy       | [Test and deploy Laravel applications with GitLab CI/CD and Envoy](laravel_with_gitlab_and_envoy/index.md). |
@@ -76,7 +73,7 @@ choose one of these templates:
 - [dotNET Core (`dotNET-Core.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/dotNET-Core.gitlab-ci.yml)
 - [Elixir (`Elixir.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Elixir.gitlab-ci.yml)
 - [Flutter (`Flutter.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Flutter.gitlab-ci.yml)
-- [Golang (`Go.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Go.gitlab-ci.yml)
+- [Go (`Go.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Go.gitlab-ci.yml)
 - [Gradle (`Gradle.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Gradle.gitlab-ci.yml)
 - [Grails (`Grails.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Grails.gitlab-ci.yml)
 - [iOS with fastlane (`iOS-Fastlane.gitlab-ci.yml`)](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/iOS-Fastlane.gitlab-ci.yml)
@@ -105,7 +102,7 @@ to [the templates list](https://gitlab.com/gitlab-org/gitlab/-/tree/master/lib/g
 ### Adding templates to your GitLab installation **(PREMIUM SELF)**
 
 You can add custom examples and templates to your self-managed GitLab instance.
-Your GitLab administrator can [designate an instance template repository](../../user/admin_area/settings/instance_template_repository.md)
+Your GitLab administrator can [designate an instance template repository](../../administration/settings/instance_template_repository.md)
 that contains examples and templates specific to your organization.
 
 ## Other resources

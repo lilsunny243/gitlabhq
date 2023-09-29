@@ -1,4 +1,5 @@
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import AwardsList from '~/vue_shared/components/awards_list.vue';
@@ -8,7 +9,7 @@ export default (el) => {
   if (!el) return null;
 
   const {
-    dataset: { path },
+    dataset: { path, newCustomEmojiPath },
   } = el;
   const canAwardEmoji = parseBoolean(el.dataset.canAwardEmoji);
 
@@ -16,6 +17,9 @@ export default (el) => {
     el,
     name: 'AwardsListRoot',
     store: createstore(),
+    provide: {
+      newCustomEmojiPath,
+    },
     computed: {
       ...mapState(['currentUserId', 'canAwardEmoji', 'awards']),
     },

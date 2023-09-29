@@ -83,6 +83,13 @@ module Types
           description: 'Merge requests for projects in this group.',
           resolver: Resolvers::GroupMergeRequestsResolver
 
+    field :environment_scopes,
+          Types::Ci::GroupEnvironmentScopeType.connection_type,
+          description: 'Environment scopes of the group.',
+          null: true,
+          authorize: :admin_group,
+          resolver: Resolvers::GroupEnvironmentScopesResolver
+
     field :milestones,
           description: 'Milestones of the group.',
           extras: [:lookahead],
@@ -167,6 +174,17 @@ module Types
           null: false,
           description: 'Total size of the dependency proxy cached images.'
 
+    field :dependency_proxy_total_size_in_bytes,
+          GraphQL::Types::Int,
+          null: false,
+          deprecated: { reason: 'Use `dependencyProxyTotalSizeBytes`', milestone: '16.1' },
+          description: 'Total size of the dependency proxy cached images in bytes.'
+
+    field :dependency_proxy_total_size_bytes,
+          GraphQL::Types::BigInt,
+          null: false,
+          description: 'Total size of the dependency proxy cached images in bytes, encoded as a string.'
+
     field :dependency_proxy_image_prefix,
           GraphQL::Types::String,
           null: false,
@@ -241,8 +259,25 @@ module Types
 
     field :data_transfer, Types::DataTransfer::GroupDataTransferType,
           null: true,
-          resolver: Resolvers::DataTransferResolver.group,
+          resolver: Resolvers::DataTransfer::GroupDataTransferResolver,
           description: 'Data transfer data point for a specific period. This is mocked data under a development feature flag.'
+
+    field :work_items,
+          null: true,
+          description: 'Work items that belong to the namespace.',
+          alpha: { milestone: '16.3' },
+          resolver: ::Resolvers::Namespaces::WorkItemsResolver
+
+    field :work_item, Types::WorkItemType,
+          resolver: Resolvers::Namespaces::WorkItemResolver,
+          alpha: { milestone: '16.4' },
+          description: 'Find a work item by IID directly associated with the group. Returns `null` if the ' \
+                       '`namespace_level_work_items` feature flag is disabled.'
+
+    field :autocomplete_users,
+          null: true,
+          resolver: Resolvers::AutocompleteUsersResolver,
+          description: 'Search users for autocompletion'
 
     def label(title:)
       BatchLoader::GraphQL.for(title).batch(key: group) do |titles, loader, args|
@@ -279,8 +314,16 @@ module Types
 
     def dependency_proxy_total_size
       ActiveSupport::NumberHelper.number_to_human_size(
-        group.dependency_proxy_manifests.sum(:size) + group.dependency_proxy_blobs.sum(:size)
+        dependency_proxy_total_size_in_bytes
       )
+    end
+
+    def dependency_proxy_total_size_in_bytes
+      dependency_proxy_total_size_bytes
+    end
+
+    def dependency_proxy_total_size_bytes
+      group.dependency_proxy_manifests.sum(:size) + group.dependency_proxy_blobs.sum(:size)
     end
 
     def dependency_proxy_setting

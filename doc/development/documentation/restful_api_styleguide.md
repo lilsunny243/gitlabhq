@@ -63,7 +63,7 @@ METHOD /endpoint
 Supported attributes:
 
 | Attribute                | Type     | Required | Description           |
-|:-------------------------|:---------|:---------|:----------------------|
+|--------------------------|----------|----------|-----------------------|
 | `attribute`              | datatype | Yes      | Detailed description. |
 | `attribute` **(<tier>)** | datatype | No       | Detailed description. |
 | `attribute`              | datatype | No       | Detailed description. |
@@ -73,14 +73,15 @@ If successful, returns [`<status_code>`](rest/index.md#status-codes) and the fol
 response attributes:
 
 | Attribute                | Type     | Description           |
-|:-------------------------|:---------|:----------------------|
+|--------------------------|----------|-----------------------|
 | `attribute`              | datatype | Detailed description. |
 | `attribute` **(<tier>)** | datatype | Detailed description. |
 
 Example request:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/endpoint?parameters"
+curl --header "PRIVATE-TOKEN: <your_access_token>" \
+  --url "https://gitlab.example.com/api/v4/endpoint?parameters"
 ```
 
 Example response:
@@ -126,13 +127,13 @@ To deprecate an attribute:
 1. Add inline deprecation text to the description.
 
    ```markdown
-   | Attribute     | Type   | Required | Description                                  |
-   |:--------------|:-------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------------------|
+   | Attribute     | Type   | Required | Description |
+   |---------------|--------|----------|-------------|
    | `widget_name` | string | No       | [Deprecated](<link-to-issue>) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
    ```
 
 To widely announce a deprecation, or if it's a breaking change,
-[update the deprecations and removals documentation pages](../deprecation_guidelines/index.md#update-the-deprecations-and-removals-documentation-pages).
+[update the REST API deprecations and removals page](../../api/rest/deprecations.md).
 
 ## Method description
 
@@ -143,18 +144,18 @@ Sort the table by required attributes first, then alphabetically.
 
 ```markdown
 | Attribute                    | Type          | Required | Description                                         |
-|:-----------------------------|:--------------|:---------|:----------------------------------------------------|
+|------------------------------|---------------|----------|-----------------------------------------------------|
 | `title`                      | string        | Yes      | Title of the issue.                                 |
-| `assignee_ids` **(PREMIUM)** | integer array | No       | IDs of the users to assign the issue to.            |
+| `assignee_ids` **(PREMIUM ALL)** | integer array | No       | IDs of the users to assign the issue to.            |
 | `confidential`               | boolean       | No       | Sets the issue to confidential. Default is `false`. |
 ```
 
 Rendered example:
 
 | Attribute                    | Type          | Required | Description                                         |
-|:-----------------------------|:--------------|:---------|:----------------------------------------------------|
+|------------------------------|---------------|----------|-----------------------------------------------------|
 | `title`                      | string        | Yes      | Title of the issue.                                 |
-| `assignee_ids` **(PREMIUM)** | integer array | No       | IDs of the users to assign the issue to.            |
+| `assignee_ids` **(PREMIUM ALL)** | integer array | No       | IDs of the users to assign the issue to.            |
 | `confidential`               | boolean       | No       | Sets the issue to confidential. Default is `false`. |
 
 For information about writing attribute descriptions, see the [GraphQL API description style guide](../api_graphql_styleguide.md#description-style-guide).
@@ -179,8 +180,8 @@ Sort the table alphabetically.
 
 ```markdown
 | Attribute                    | Type          | Description                               |
-|:-----------------------------|:--------------|:------------------------------------------|
-| `assignee_ids` **(PREMIUM)** | integer array | IDs of the users to assign the issue to.  |
+|------------------------------|---------------|-------------------------------------------|
+| `assignee_ids` **(PREMIUM ALL)** | integer array | IDs of the users to assign the issue to.  |
 | `confidential`               | boolean       | Whether the issue is confidential or not. |
 | `title`                      | string        | Title of the issue.                       |
 ```
@@ -188,8 +189,8 @@ Sort the table alphabetically.
 Rendered example:
 
 | Attribute                    | Type          | Description                               |
-|:-----------------------------|:--------------|:------------------------------------------|
-| `assignee_ids` **(PREMIUM)** | integer array | IDs of the users to assign the issue to.  |
+|------------------------------|---------------|-------------------------------------------|
+| `assignee_ids` **(PREMIUM ALL)** | integer array | IDs of the users to assign the issue to.  |
 | `confidential`               | boolean       | Whether the issue is confidential or not. |
 | `title`                      | string        | Title of the issue.                       |
 
@@ -201,12 +202,16 @@ For information about writing attribute descriptions, see the [GraphQL API descr
 - Wherever needed use this personal access token: `<your_access_token>`.
 - Always put the request first. `GET` is the default so you don't have to
   include it.
-- Wrap the URL in double quotes (`"`).
+- Use long option names (`--header` instead of `-H`) for legibility. (Tested in
+  [`scripts/lint-doc.sh`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/scripts/lint-doc.sh).)
+- Declare URLs with the `--url` parameter, and wrap the URL in double quotes (`"`).
 - Prefer to use examples using the personal access token and don't pass data of
   username and password.
+- For legibility, use the <code>&#92;</code> character and indentation to break long single-line
+  commands apart into multiple lines.
 
 | Methods                                         | Description                                            |
-|:------------------------------------------------|:-------------------------------------------------------|
+|-------------------------------------------------|--------------------------------------------------------|
 | `--header "PRIVATE-TOKEN: <your_access_token>"` | Use this method as is, whenever authentication needed. |
 | `--request POST`                                | Use this method when creating new objects.             |
 | `--request PUT`                                 | Use this method when updating existing objects.        |
@@ -227,7 +232,8 @@ relevant style guide sections on [Fake user information](styleguide/index.md#fak
 Get the details of a group:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/gitlab-org"
+curl --header "PRIVATE-TOKEN: <your_access_token>" \
+  --url "https://gitlab.example.com/api/v4/groups/gitlab-org"
 ```
 
 ### cURL example with parameters passed in the URL
@@ -235,7 +241,8 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 Create a new project under the authenticated user's namespace:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects?name=foo"
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
+  --url "https://gitlab.example.com/api/v4/projects?name=foo"
 ```
 
 ### Post data using cURL's `--data`
@@ -245,7 +252,9 @@ can use cURL's `--data` option. The example below will create a new project
 `foo` under the authenticated user's namespace.
 
 ```shell
-curl --data "name=foo" --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects"
+curl --data "name=foo" \
+  --header "PRIVATE-TOKEN: <your_access_token>" \
+  --url "https://gitlab.example.com/api/v4/projects"
 ```
 
 ### Post data using JSON content
@@ -254,20 +263,23 @@ This example creates a new group. Be aware of the use of single (`'`) and double
 (`"`) quotes.
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" --header "Content-Type: application/json" \
-     --data '{"path": "my-group", "name": "My group"}' "https://gitlab.example.com/api/v4/groups"
+curl --request POST \
+  --header "PRIVATE-TOKEN: <your_access_token>" \
+  --header "Content-Type: application/json" \
+  --data '{"path": "my-group", "name": "My group"}' \
+  --url "https://gitlab.example.com/api/v4/groups"
 ```
 
 For readability, you can also set up the `--data` by using the following format:
 
 ```shell
 curl --request POST \
---url "https://gitlab.example.com/api/v4/groups" \
---header "content-type: application/json" \
---header "PRIVATE-TOKEN: <your_access_token>" \
---data '{
-  "path": "my-group",
-  "name": "My group"
+  --url "https://gitlab.example.com/api/v4/groups" \
+  --header "content-type: application/json" \
+  --header "PRIVATE-TOKEN: <your_access_token>" \
+  --data '{
+    "path": "my-group",
+    "name": "My group"
 }'
 ```
 
@@ -277,8 +289,11 @@ Instead of using JSON or URL-encoding data, you can use `multipart/form-data` wh
 properly handles data encoding:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" --form "title=ssh-key" \
-     --form "key=ssh-rsa AAAAB3NzaC1yc2EA..." "https://gitlab.example.com/api/v4/users/25/keys"
+curl --request POST \
+  --header "PRIVATE-TOKEN: <your_access_token>" \
+  --form "title=ssh-key" \
+  --form "key=ssh-rsa AAAAB3NzaC1yc2EA..." \
+  --url "https://gitlab.example.com/api/v4/users/25/keys"
 ```
 
 The above example is run by and administrator and will add an SSH public key
@@ -292,7 +307,9 @@ contains spaces in its title. Observe how spaces are escaped using the `%20`
 ASCII code.
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/42/issues?title=Hello%20GitLab"
+curl --request POST \
+  --header "PRIVATE-TOKEN: <your_access_token>" \
+  --url "https://gitlab.example.com/api/v4/projects/42/issues?title=Hello%20GitLab"
 ```
 
 Use `%2F` for slashes (`/`).
@@ -304,6 +321,9 @@ exclude specific users when requesting a list of users for a project, you would
 do something like this:
 
 ```shell
-curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" --data "skip_users[]=<user_id>" \
-     --data "skip_users[]=<user_id>" "https://gitlab.example.com/api/v4/projects/<project_id>/users"
+curl --request PUT \
+  --header "PRIVATE-TOKEN: <your_access_token>"
+  --data "skip_users[]=<user_id>" \
+  --data "skip_users[]=<user_id>" \
+  --url "https://gitlab.example.com/api/v4/projects/<project_id>/users"
 ```

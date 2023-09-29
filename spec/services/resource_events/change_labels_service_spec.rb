@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 # feature category is shared among plan(issues, epics), monitor(incidents), create(merge request) stages
-RSpec.describe ResourceEvents::ChangeLabelsService, feature_category: :shared do
+RSpec.describe ResourceEvents::ChangeLabelsService, feature_category: :team_planning do
   let_it_be(:project) { create(:project) }
   let_it_be(:author)  { create(:user) }
   let_it_be(:issue) { create(:issue, project: project) }
@@ -49,10 +49,8 @@ RSpec.describe ResourceEvents::ChangeLabelsService, feature_category: :shared do
       expect(event.action).to eq(action)
     end
 
-    it 'expires resource note etag cache' do
-      expect_any_instance_of(Gitlab::EtagCaching::Store).to receive(:touch).with(
-        "/#{resource.project.namespace.to_param}/#{resource.project.to_param}/noteable/issue/#{resource.id}/notes"
-      )
+    it 'broadcasts resource note change' do
+      expect(resource).to receive(:broadcast_notes_changed)
 
       described_class.new(resource, author).execute(added_labels: [labels[0]])
     end
@@ -126,9 +124,11 @@ RSpec.describe ResourceEvents::ChangeLabelsService, feature_category: :shared do
           change_labels
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_LABEL_CHANGED }
+        it_behaves_like 'internal event tracking' do
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_LABEL_CHANGED }
           let(:user) { author }
+          let(:namespace) { project.namespace }
+
           subject(:service_action) { change_labels }
         end
       end

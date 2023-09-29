@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe JiraConnect::RetryRequestWorker do
+RSpec.describe JiraConnect::RetryRequestWorker, feature_category: :integrations do
   describe '#perform' do
     let(:jwt) { 'some-jwt' }
     let(:event_url) { 'https://example.com/somewhere' }
@@ -11,7 +11,7 @@ RSpec.describe JiraConnect::RetryRequestWorker do
     subject(:perform) { described_class.new.perform(event_url, jwt, attempts) }
 
     it 'sends the request, with the appropriate headers' do
-      expect(JiraConnect::RetryRequestWorker).not_to receive(:perform_in)
+      expect(described_class).not_to receive(:perform_in)
 
       stub_request(:post, event_url)
 
@@ -26,7 +26,7 @@ RSpec.describe JiraConnect::RetryRequestWorker do
       end
 
       it 'arranges to retry the request' do
-        expect(JiraConnect::RetryRequestWorker).to receive(:perform_in).with(1.hour, event_url, jwt, attempts - 1)
+        expect(described_class).to receive(:perform_in).with(1.hour, event_url, jwt, attempts - 1)
 
         perform
       end
@@ -35,7 +35,7 @@ RSpec.describe JiraConnect::RetryRequestWorker do
         let(:attempts) { 0 }
 
         it 'does not retry' do
-          expect(JiraConnect::RetryRequestWorker).not_to receive(:perform_in)
+          expect(described_class).not_to receive(:perform_in)
 
           perform
         end

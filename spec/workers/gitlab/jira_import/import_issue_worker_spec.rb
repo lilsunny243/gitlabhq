@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::JiraImport::ImportIssueWorker do
+RSpec.describe Gitlab::JiraImport::ImportIssueWorker, feature_category: :importers do
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project) }
   let_it_be(:jira_issue_label_1) { create(:label, project: project) }
@@ -12,9 +12,9 @@ RSpec.describe Gitlab::JiraImport::ImportIssueWorker do
 
   describe 'modules' do
     it { expect(described_class).to include_module(ApplicationWorker) }
-    it { expect(described_class).to include_module(Gitlab::NotifyUponDeath) }
     it { expect(described_class).to include_module(Gitlab::JiraImport::QueueOptions) }
     it { expect(described_class).to include_module(Gitlab::Import::DatabaseHelpers) }
+    it { expect(described_class).to include_module(Gitlab::Import::NotifyUponDeath) }
   end
 
   subject { described_class.new }

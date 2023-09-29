@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Connect existing clusters through cluster certificates (DEPRECATED) **(FREE)**
+# Connect existing clusters through cluster certificates (deprecated) **(FREE ALL)**
 
 > [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 
@@ -66,9 +66,9 @@ to grant access.
 To add a Kubernetes cluster to your project, group, or instance:
 
 1. Navigate to your:
-   1. Project's **{cloud-gear}** **Infrastructure > Kubernetes clusters** page, for a project-level cluster.
+   1. Project's **{cloud-gear}** **Operate > Kubernetes clusters** page, for a project-level cluster.
    1. Group's **{cloud-gear}** **Kubernetes** page, for a group-level cluster.
-   1. **Main menu > Admin > Kubernetes** page, for an instance-level cluster.
+   1. The Admin Area's **Kubernetes** page, for an instance-level cluster.
 1. On the **Kubernetes clusters** page, select the **Connect with a certificate** option from the **Actions** dropdown list.
 1. On the **Connect a cluster** page, fill in the details:
    1. **Kubernetes cluster name** (required) - The name you wish to give the cluster.

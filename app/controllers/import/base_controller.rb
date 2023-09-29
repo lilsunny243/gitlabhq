@@ -18,7 +18,7 @@ class Import::BaseController < ApplicationController
         if params[:namespace_id]&.present?
           @namespace = Namespace.find_by_id(params[:namespace_id])
 
-          render_404 unless current_user.can?(:create_projects, @namespace)
+          render_404 unless current_user.can?(:import_projects, @namespace)
         end
       end
     end
@@ -82,7 +82,7 @@ class Import::BaseController < ApplicationController
 
   # rubocop: disable CodeReuse/ActiveRecord
   def find_already_added_projects(import_type)
-    current_user.created_projects.where(import_type: import_type).with_import_state
+    current_user.created_projects.inc_routes.where(import_type: import_type).with_import_state
   end
   # rubocop: enable CodeReuse/ActiveRecord
 

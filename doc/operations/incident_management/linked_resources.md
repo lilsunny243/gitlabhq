@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Linked resources in incidents **(PREMIUM)**
+# Linked resources in incidents **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/230852) in GitLab 15.3 [with a flag](../../administration/feature_flags.md) named `incident_resource_links_widget`. Disabled by default.
 > - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/364755) in GitLab 15.3.
@@ -27,8 +27,8 @@ Linked resources for an incident are listed under the **Summary** tab.
 
 To view the linked resources of an incident:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Incidents**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Incidents**.
 1. Select an incident.
 
 ## Add a linked resource
@@ -41,8 +41,8 @@ Prerequisites:
 
 To add a linked resource:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Incidents**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Incidents**.
 1. Select an incident.
 1. In the **Linked resources** section, select the plus icon (**{plus-square}**).
 1. Complete the required fields.
@@ -92,7 +92,7 @@ Prerequisites:
 
 To remove a linked resource:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Incidents**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Incidents**.
 1. Select an incident.
 1. In the **Linked resources** section, select **Remove** (**{close}**).

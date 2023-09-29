@@ -25,10 +25,6 @@ describe('Assignee component', () => {
   const findComponentTextNoUsers = () => wrapper.find('[data-testid="no-value"]');
   const findCollapsedChildren = () => wrapper.findAll('.sidebar-collapsed-icon > *');
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('No assignees/users', () => {
     it('displays no assignee icon when collapsed', () => {
       createWrapper();
@@ -149,7 +145,7 @@ describe('Assignee component', () => {
       });
 
       expect(findAllAvatarLinks()).toHaveLength(users.length);
-      expect(wrapper.find('.user-list-more').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="user-list-more"]').exists()).toBe(false);
     });
 
     it('shows sorted assignee where "can merge" users are sorted first', () => {
@@ -185,7 +181,10 @@ describe('Assignee component', () => {
       const userItems = findAllAvatarLinks();
 
       expect(userItems).toHaveLength(3);
-      expect(userItems.at(0).attributes('title')).toBe(users[2].name);
+      expect(userItems.at(0).attributes()).toMatchObject({
+        'data-user-id': `${users[2].id}`,
+        'data-username': users[2].username,
+      });
     });
 
     it('passes the sorted assignees to the collapsed-assignee-list', () => {

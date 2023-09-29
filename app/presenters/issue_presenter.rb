@@ -16,6 +16,10 @@ class IssuePresenter < Gitlab::View::Presenter::Delegated
     issue.project.emails_disabled?
   end
 
+  def project_emails_enabled?
+    issue.project.emails_enabled?
+  end
+
   delegator_override :service_desk_reply_to
   def service_desk_reply_to
     return unless super.present?
@@ -23,6 +27,9 @@ class IssuePresenter < Gitlab::View::Presenter::Delegated
 
     Gitlab::Utils::Email.obfuscated_email(super, deform: true)
   end
+
+  delegator_override :external_author
+  alias_method :external_author, :service_desk_reply_to
 
   delegator_override :issue_email_participants
   def issue_email_participants

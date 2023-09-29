@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Explore::ProjectsController, feature_category: :projects do
+RSpec.describe Explore::ProjectsController, feature_category: :groups_and_projects do
   shared_examples 'explore projects' do
     let(:expected_default_sort) { 'latest_activity_desc' }
 
@@ -119,6 +119,59 @@ RSpec.describe Explore::ProjectsController, feature_category: :projects do
 
           expect(response).to have_gitlab_http_status(:ok)
           expect(response).to render_template('topic')
+        end
+      end
+    end
+
+    describe 'GET #topic.atom' do
+      context 'when topic does not exist' do
+        it 'renders a 404 error' do
+          get :topic, format: :atom, params: { topic_name: 'topic1' }
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+
+      context 'when topic exists' do
+        let(:topic) { create(:topic, name: 'topic1') }
+        let_it_be(:older_project) { create(:project, :public, updated_at: 1.day.ago) }
+        let_it_be(:newer_project) { create(:project, :public, updated_at: 2.days.ago) }
+
+        before do
+          create(:project_topic, project: older_project, topic: topic)
+          create(:project_topic, project: newer_project, topic: topic)
+        end
+
+        it 'renders the template' do
+          get :topic, format: :atom, params: { topic_name: 'topic1' }
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to render_template('topic', layout: :xml)
+        end
+
+        it 'sorts repos by descending creation date' do
+          get :topic, format: :atom, params: { topic_name: 'topic1' }
+
+          expect(assigns(:projects)).to match_array [newer_project, older_project]
+        end
+
+        it 'finds topic by case insensitive name' do
+          get :topic, format: :atom, params: { topic_name: 'TOPIC1' }
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to render_template('topic', layout: :xml)
+        end
+
+        describe 'when topic contains more than 20 projects' do
+          before do
+            create_list(:project, 22, :public, topics: [topic])
+          end
+
+          it 'does not assigns more than 20 projects' do
+            get :topic, format: :atom, params: { topic_name: 'topic1' }
+
+            expect(assigns(:projects).count).to be(20)
+          end
         end
       end
     end
@@ -239,9 +292,14 @@ RSpec.describe Explore::ProjectsController, feature_category: :projects do
 
   context 'when user is signed in' do
     let(:user) { create(:user) }
+    let_it_be(:project) { create(:project, name: 'Project 1') }
+    let_it_be(:project2) { create(:project, name: 'Project 2') }
 
     before do
       sign_in(user)
+      project.add_developer(user)
+      project2.add_developer(user)
+      user.toggle_star(project2)
     end
 
     include_examples 'explore projects'
@@ -259,6 +317,21 @@ RSpec.describe Explore::ProjectsController, feature_category: :projects do
     describe 'GET #index' do
       let(:controller_action) { :index }
       let(:params_with_name) { { name: 'some project' } }
+
+      it 'assigns the correct all_user_projects' do
+        get :index
+        all_user_projects = assigns(:all_user_projects)
+
+        expect(all_user_projects.count).to eq(2)
+      end
+
+      it 'assigns the correct all_starred_projects' do
+        get :index
+        all_starred_projects = assigns(:all_starred_projects)
+
+        expect(all_starred_projects.count).to eq(1)
+        expect(all_starred_projects).to include(project2)
+      end
 
       context 'when disable_anonymous_project_search is enabled' do
         before do

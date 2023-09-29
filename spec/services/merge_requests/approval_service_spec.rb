@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::ApprovalService do
+RSpec.describe MergeRequests::ApprovalService, feature_category: :code_review_workflow do
   describe '#execute' do
     let(:user)          { create(:user) }
     let(:merge_request) { create(:merge_request, reviewers: [user]) }
@@ -76,6 +76,24 @@ RSpec.describe MergeRequests::ApprovalService do
           .to receive(:track_approve_mr_action).with(user: user, merge_request: merge_request)
 
         service.execute(merge_request)
+      end
+
+      context 'when generating a patch_id_sha' do
+        it 'records a value' do
+          service.execute(merge_request)
+
+          expect(merge_request.approvals.last.patch_id_sha).to eq(merge_request.current_patch_id_sha)
+        end
+
+        context 'when MergeRequest#current_patch_id_sha is nil' do
+          it 'records patch_id_sha as nil' do
+            expect(merge_request).to receive(:current_patch_id_sha).and_return(nil)
+
+            service.execute(merge_request)
+
+            expect(merge_request.approvals.last.patch_id_sha).to be_nil
+          end
+        end
       end
 
       it 'publishes MergeRequests::ApprovedEvent' do

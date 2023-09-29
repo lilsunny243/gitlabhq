@@ -20,13 +20,13 @@ module BulkImports
         end
 
         def load(_context, bundle_path)
-          Gitlab::Utils.check_path_traversal!(bundle_path)
-          Gitlab::Utils.check_allowed_absolute_path!(bundle_path, [Dir.tmpdir])
+          Gitlab::PathTraversal.check_path_traversal!(bundle_path)
+          Gitlab::PathTraversal.check_allowed_absolute_path!(bundle_path, [Dir.tmpdir])
 
           return unless portable.lfs_enabled?
           return unless File.exist?(bundle_path)
           return if File.directory?(bundle_path)
-          return if File.lstat(bundle_path).symlink?
+          return if Gitlab::Utils::FileInfo.linked?(bundle_path)
 
           portable.design_repository.create_from_bundle(bundle_path)
         end

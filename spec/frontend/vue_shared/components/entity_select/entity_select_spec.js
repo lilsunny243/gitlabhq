@@ -122,6 +122,13 @@ describe('EntitySelect', () => {
     });
 
     describe('once a group is selected', () => {
+      it('emits `input` event with the select value', async () => {
+        createComponent();
+        await selectGroup();
+
+        expect(wrapper.emitted('input')[0][0]).toMatchObject(itemMock);
+      });
+
       it(`uses the selected group's name as the toggle text`, async () => {
         createComponent();
         await selectGroup();
@@ -145,6 +152,16 @@ describe('EntitySelect', () => {
         await nextTick();
 
         expect(findListbox().props('toggleText')).toBe(defaultToggleText);
+      });
+
+      it('emits `input` event with an empty object on reset', async () => {
+        createComponent();
+        await selectGroup();
+
+        findListbox().vm.$emit('reset');
+        await nextTick();
+
+        expect(Object.keys(wrapper.emitted('input')[2][0]).length).toBe(0);
       });
     });
   });
@@ -201,7 +218,7 @@ describe('EntitySelect', () => {
   describe('pagination', () => {
     const searchString = 'searchString';
 
-    beforeEach(async () => {
+    beforeEach(() => {
       let requestCount = 0;
       fetchItemsMock.mockImplementation((searchQuery, page) => {
         requestCount += 1;

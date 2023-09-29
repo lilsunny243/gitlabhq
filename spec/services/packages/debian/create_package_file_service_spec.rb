@@ -35,7 +35,6 @@ RSpec.describe Packages::Debian::CreatePackageFileService, feature_category: :pa
           expect(::Packages::Debian::ProcessPackageFileWorker).not_to receive(:perform_async)
         end
 
-        expect(::Packages::Debian::ProcessChangesWorker).not_to receive(:perform_async)
         expect(package_file).to be_valid
         expect(package_file.file.read).to start_with('!<arch>')
         expect(package_file.size).to eq(1124)
@@ -52,12 +51,12 @@ RSpec.describe Packages::Debian::CreatePackageFileService, feature_category: :pa
 
     shared_examples 'a valid changes' do
       it 'creates a new package file', :aggregate_failures do
-        expect(::Packages::Debian::ProcessChangesWorker)
-          .to receive(:perform_async).with(an_instance_of(Integer), current_user.id)
+        expect(::Packages::Debian::ProcessPackageFileWorker)
+        .to receive(:perform_async).with(an_instance_of(Integer), nil, nil)
 
         expect(package_file).to be_valid
         expect(package_file.file.read).to start_with('Format: 1.8')
-        expect(package_file.size).to eq(2143)
+        expect(package_file.size).to eq(2422)
         expect(package_file.file_name).to eq(file_name)
         expect(package_file.file_sha1).to eq('54321')
         expect(package_file.file_sha256).to eq('543212345')

@@ -57,9 +57,7 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
         notice_now: edit_in_new_fork_notice_now
       }
 
-      project_forks_path(merge_request.project,
-                                   namespace_key: current_user.namespace.id,
-                                   continue: continue_params)
+      project_forks_path(merge_request.project, namespace_key: current_user.namespace.id, continue: continue_params)
     end
   end
 
@@ -71,9 +69,7 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
         notice_now: edit_in_new_fork_notice_now
       }
 
-      project_forks_path(project,
-                                   namespace_key: current_user.namespace.id,
-                                   continue: continue_params)
+      project_forks_path(project, namespace_key: current_user.namespace.id, continue: continue_params)
     end
   end
 
@@ -155,12 +151,12 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
 
   def assign_to_closing_issues_count
     # rubocop: disable CodeReuse/ServiceClass
-    issues = MergeRequests::AssignIssuesService.new(project: project,
-                                                    current_user: current_user,
-                                                    params: {
-                                                      merge_request: merge_request,
-                                                      closes_issues: closing_issues
-                                                    }).assignable_issues
+    issues = MergeRequests::AssignIssuesService.new(
+      project: project,
+      current_user: current_user,
+      params: { merge_request: merge_request, closes_issues: closing_issues }
+    ).assignable_issues
+
     issues.count
     # rubocop: enable CodeReuse/ServiceClass
   end
@@ -201,7 +197,7 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
 
   def source_branch_link
     if source_branch_exists?
-      link_to(source_branch, source_branch_commits_path, class: 'ref-name')
+      link_to(source_branch, source_branch_commits_path, class: 'ref-name gl-link gl-bg-blue-50 gl-rounded-base gl-px-2')
     else
       content_tag(:span, source_branch, class: 'ref-name')
     end
@@ -209,7 +205,7 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
 
   def target_branch_link
     if target_branch_exists?
-      link_to(target_branch, target_branch_commits_path, class: 'ref-name')
+      link_to(target_branch, target_branch_commits_path, class: 'ref-name gl-link gl-bg-blue-50 gl-rounded-base gl-px-2')
     else
       content_tag(:span, target_branch, class: 'ref-name')
     end
@@ -270,10 +266,15 @@ class MergeRequestPresenter < Gitlab::View::Presenter::Delegated
 
   def issues_sentence(project, issues)
     # Sorting based on the `#123` or `group/project#123` reference will sort
-    # local issues first.
-    issues.map do |issue|
+    # local issues numerically first.
+    issue_refs = issues.map do |issue|
       issue.to_reference(project)
-    end.sort.to_sentence
+    end
+
+    issue_refs.sort_by do |issue_ref|
+      path_section = issue_ref.split('#')
+      [path_section.first, path_section.last.to_i]
+    end.to_sentence
   end
 
   def user_can_fork_project?

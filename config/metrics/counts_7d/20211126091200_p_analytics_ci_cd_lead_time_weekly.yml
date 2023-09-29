@@ -4,7 +4,6 @@ description: Count of unique visits to the project level CI CD Analytics lead ti
 product_section: dev
 product_stage: manage
 product_group: optimize
-product_category:
 value_type: number
 status: active
 milestone: '14.6'
@@ -14,6 +13,9 @@ data_source: redis_hll
 data_category: optional
 instrumentation_class: RedisHLLMetric
 performance_indicator_type: []
+events:
+  - name: p_analytics_ci_cd_lead_time
+    unique: user.id
 distribution:
   - ce
   - ee

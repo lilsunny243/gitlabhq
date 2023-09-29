@@ -12,6 +12,51 @@ RSpec.describe PlanLimits do
     create_list(:project_hook, project_hooks_count, project: project)
   end
 
+  describe 'validations' do
+    it { is_expected.to validate_numericality_of(:notification_limit).only_integer.is_greater_than_or_equal_to(0) }
+    it { is_expected.to validate_numericality_of(:enforcement_limit).only_integer.is_greater_than_or_equal_to(0) }
+
+    describe 'limits_history' do
+      context 'when does not match the JSON schema' do
+        it 'does not allow invalid json' do
+          expect(subject).not_to allow_value({
+            invalid_key: {
+              enforcement_limit: [
+                {
+                  username: 'mhamda',
+                  timestamp: 1686140606000,
+                  value: 5000
+                }
+              ],
+              another_invalid: [
+                {
+                  username: 'mhamda',
+                  timestamp: 1686140606000,
+                  value: 5000
+                }
+              ]
+            }
+          }).for(:limits_history)
+        end
+      end
+
+      context 'when matches the JSON schema' do
+        it 'allows valid json' do
+          expect(subject).to allow_value({
+            enforcement_limit: [
+              {
+                user_id: 1,
+                username: 'mhamda',
+                timestamp: 1686140606000,
+                value: 5000
+              }
+            ]
+          }).for(:limits_history)
+        end
+      end
+    end
+  end
+
   describe '#exceeded?' do
     let(:alternate_limit) { double('an alternate limit value') }
 
@@ -203,12 +248,12 @@ RSpec.describe PlanLimits do
         ci_max_artifact_size_requirements_v2
         ci_max_artifact_size_coverage_fuzzing
         ci_max_artifact_size_api_fuzzing
+        ci_max_artifact_size_annotations
       ]
     end
 
     let(:columns_with_zero) do
       %w[
-        ci_active_pipelines
         ci_pipeline_size
         ci_active_jobs
         storage_size_limit
@@ -221,19 +266,25 @@ RSpec.describe PlanLimits do
         security_policy_scan_execution_schedules
         enforcement_limit
         notification_limit
+        project_access_token_limit
       ] + disabled_max_artifact_size_columns
     end
 
     let(:datetime_columns) do
-      %w[dashboard_limit_enabled_at]
+      %w[dashboard_limit_enabled_at updated_at]
     end
 
-    it "has positive values for enabled limits" do
+    let(:history_columns) do
+      %w[limits_history]
+    end
+
+    it 'has positive values for enabled limits' do
       attributes = plan_limits.attributes
       attributes = attributes.except(described_class.primary_key)
       attributes = attributes.except(described_class.reflections.values.map(&:foreign_key))
       attributes = attributes.except(*columns_with_zero)
       attributes = attributes.except(*datetime_columns)
+      attributes = attributes.except(*history_columns)
 
       expect(attributes).to all(include(be_positive))
     end
@@ -243,6 +294,145 @@ RSpec.describe PlanLimits do
       attributes = attributes.slice(*columns_with_zero)
 
       expect(attributes).to all(include(be_zero))
+    end
+  end
+
+  describe '#dashboard_storage_limit_enabled?' do
+    it 'returns false' do
+      expect(plan_limits.dashboard_storage_limit_enabled?).to be false
+    end
+  end
+
+  describe '#format_limits_history', :freeze_time do
+    let(:user) { create(:user) }
+    let(:plan_limits) { create(:plan_limits) }
+    let(:current_timestamp) { Time.current.utc.to_i }
+
+    it 'formats a single attribute change' do
+      formatted_limits_history = plan_limits.format_limits_history(user, enforcement_limit: 5_000)
+
+      expect(formatted_limits_history).to eq(
+        {
+          "enforcement_limit" => [
+            {
+              "user_id" => user.id,
+              "username" => user.username,
+              "timestamp" => current_timestamp,
+              "value" => 5000
+            }
+          ]
+        }
+      )
+    end
+
+    it 'does not format limits_history for non-allowed attributes' do
+      formatted_limits_history = plan_limits.format_limits_history(user,
+        { enforcement_limit: 20_000, pipeline_hierarchy_size: 10_000 })
+
+      expect(formatted_limits_history).to eq({
+        "enforcement_limit" => [
+          {
+            "user_id" => user.id,
+            "username" => user.username,
+            "timestamp" => current_timestamp,
+            "value" => 20_000
+          }
+        ]
+      })
+    end
+
+    it 'does not format attributes for values that do not change' do
+      plan_limits.update!(enforcement_limit: 20_000)
+      formatted_limits_history = plan_limits.format_limits_history(user, enforcement_limit: 20_000)
+
+      expect(formatted_limits_history).to eq({})
+    end
+
+    it 'formats multiple attribute changes' do
+      formatted_limits_history = plan_limits.format_limits_history(user, enforcement_limit: 10_000,
+        notification_limit: 20_000, dashboard_limit_enabled_at: current_timestamp)
+
+      expect(formatted_limits_history).to eq(
+        {
+          "notification_limit" => [
+            {
+              "user_id" => user.id,
+              "username" => user.username,
+              "timestamp" => current_timestamp,
+              "value" => 20000
+            }
+          ],
+          "enforcement_limit" => [
+            {
+              "user_id" => user.id,
+              "username" => user.username,
+              "timestamp" => current_timestamp,
+              "value" => 10000
+            }
+          ],
+          "dashboard_limit_enabled_at" => [
+            {
+              "user_id" => user.id,
+              "username" => user.username,
+              "timestamp" => current_timestamp,
+              "value" => current_timestamp
+            }
+          ]
+        }
+      )
+    end
+
+    context 'with previous history available' do
+      let(:plan_limits) do
+        create(
+          :plan_limits,
+          limits_history: {
+            'enforcement_limit' => [
+              {
+                user_id: user.id,
+                username: user.username,
+                timestamp: current_timestamp,
+                value: 20_000
+              },
+              {
+                user_id: user.id,
+                username: user.username,
+                timestamp: current_timestamp,
+                value: 50_000
+              }
+            ]
+          }
+        )
+      end
+
+      it 'appends to it' do
+        formatted_limits_history = plan_limits.format_limits_history(user, enforcement_limit: 60_000)
+
+        expect(formatted_limits_history).to eq(
+          {
+            "enforcement_limit" => [
+              {
+                "user_id" => user.id,
+                "username" => user.username,
+                "timestamp" => current_timestamp,
+                "value" => 20000
+              },
+              {
+                "user_id" => user.id,
+                "username" => user.username,
+                "timestamp" => current_timestamp,
+                "value" => 50000
+              },
+              {
+                "user_id" => user.id,
+                "username" => user.username,
+                "timestamp" => current_timestamp,
+                "value" => 60000
+              }
+            ]
+          }
+        )
+      end
     end
   end
 end

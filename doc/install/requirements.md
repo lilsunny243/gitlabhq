@@ -8,22 +8,13 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 This page includes information about the minimum requirements you need to install and use GitLab.
 
-## Software requirements
-
-### Redis versions
-
-GitLab 13.0 and later requires Redis version 5.0 or higher.
-
-Redis version 6.0 or higher is recommended, as this is what ships with
-[Omnibus GitLab](https://docs.gitlab.com/omnibus/) packages starting with GitLab 13.9.
-
 ## Hardware requirements
 
 ### Storage
 
 The necessary hard drive space largely depends on the size of the repositories you want to store in GitLab but as a *guideline* you should have at least as much free space as all your repositories combined take up.
 
-The Omnibus GitLab package requires about 2.5 GB of storage space for installation.
+The Linux package requires about 2.5 GB of storage space for installation.
 
 If you want to be flexible about growing your hard drive space in the future consider mounting it using [logical volume management (LVM)](https://en.wikipedia.org/wiki/Logical_volume_management) so you can add more hard drives when you need them.
 
@@ -59,11 +50,13 @@ The following is the recommended minimum Memory hardware guidance for a handful 
 - 8 GB RAM supports up to 1000 users
 - More users? Consult the [reference architectures page](../administration/reference_architectures/index.md)
 
-In addition to the above, we generally recommend having at least 2 GB of swap on your server,
-even if you currently have enough available RAM. Having swap helps to reduce the chance of errors occurring
-if your available memory changes. We also recommend configuring the kernel's swappiness setting
-to a low value like `10` to make the most of your RAM while still having the swap
-available when needed.
+For smaller installations, you should:
+
+- Have at least 2 GB of swap on your server, even if you have enough available RAM. Having swap helps to reduce the chance of
+  errors occurring if your available memory changes.
+- Configure the kernel's swappiness setting to a low value like `10` to make the most of your RAM while still having the swap available when needed.
+
+For larger installations that follow our reference architectures, you [shouldn't configure swap](../administration/reference_architectures/index.md#no-swap).
 
 NOTE:
 Although excessive swapping is undesired and degrades performance, it is an
@@ -75,14 +68,13 @@ process, such as PostgreSQL, which can have disastrous consequences.
 
 ## Database
 
-PostgreSQL is the only supported database, which is bundled with the Omnibus GitLab package.
+PostgreSQL is the only supported database, which is bundled with the Linux package.
 You can also use an [external PostgreSQL database](https://docs.gitlab.com/omnibus/settings/database.html#using-a-non-packaged-postgresql-database-management-server).
-Support for MySQL was removed in [GitLab 12.1](../update/index.md#1210).
 
 ### PostgreSQL Requirements
 
 The server running PostgreSQL should have _at least_ 5-10 GB of storage
-available, though the exact requirements [depend on the number of users](../administration/reference_architectures/index.md).
+available, though the exact requirements [depend on the number of users](../administration/reference_architectures/index.md). For Ultimate customers the server should have _at least_ 12 GB of storage available, as 1 GB of vulnerability data needs to be imported.
 
 We highly recommend using at least the minimum PostgreSQL versions (as specified in
 the following table) as these were used for development and testing:
@@ -90,9 +82,10 @@ the following table) as these were used for development and testing:
 | GitLab version | Minimum PostgreSQL version |
 |----------------|----------------------------|
 | 13.0           | 11                         |
-| 14.0           | 12.7                      |
+| 14.0           | 12.7                       |
 | 15.0           | 12.10                      |
-| 16.0 (planned) | 13.6                       |
+| 16.0           | 13.6                       |
+| 17.0 (planned) | 14.8                       |
 
 You must also ensure the following extensions are loaded into every
 GitLab database. [Read more about this requirement, and troubleshooting](postgresql_extensions.md).
@@ -107,7 +100,7 @@ The following managed PostgreSQL services are known to be incompatible and shoul
 
 | GitLab version | Managed service                                       |
 |----------------|-------------------------------------------------------|
-| 14.4+          | Amazon Aurora (see [14.4.0](../update/index.md#1440)) |
+| 14.4+          | Amazon Aurora (see [14.4.0](../update/versions/gitlab_14_changes.md#1440)) |
 
 NOTE:
 Support for [PostgreSQL 9.6 and 10 was removed in GitLab 13.0](https://about.gitlab.com/releases/2020/05/22/gitlab-13-0-released/#postgresql-11-is-now-the-minimum-required-version-to-install-gitlab) so that GitLab can benefit from PostgreSQL 11 improvements, such as partitioning.
@@ -115,10 +108,9 @@ Support for [PostgreSQL 9.6 and 10 was removed in GitLab 13.0](https://about.git
 #### Additional requirements for GitLab Geo
 
 If you're using [GitLab Geo](../administration/geo/index.md), we strongly
-recommend running Omnibus GitLab-managed instances, as we actively develop and
-test based on those. We try to be compatible with most external (not managed by
-Omnibus GitLab) databases (for example, [AWS Relational Database Service (RDS)](https://aws.amazon.com/rds/)),
-but we can't guarantee compatibility.
+recommend running instances installed by using the Linux package, as we actively develop and
+test based on those. We try to be compatible with most external (not managed by a Linux package installation) databases
+(for example, [AWS Relational Database Service (RDS)](https://aws.amazon.com/rds/)), but we can't guarantee compatibility.
 
 #### Operating system locale compatibility and silent index corruption
 
@@ -164,10 +156,10 @@ of GitLab Support or other GitLab engineers.
 ## Puma settings
 
 The recommended settings for Puma are determined by the infrastructure on which it's running.
-The GitLab Linux package defaults to the recommended Puma settings. Regardless of installation method, you can
+The Linux package defaults to the recommended Puma settings. Regardless of installation method, you can
 tune the Puma settings:
 
-- If you're using the GitLab Linux package, see [Puma settings](../administration/operations/puma.md)
+- If you're using the Linux package, see [Puma settings](../administration/operations/puma.md)
   for instructions on changing the Puma settings.
 - If you're using the GitLab Helm chart, see the
   [`webservice` chart](https://docs.gitlab.com/charts/charts/gitlab/webservice/index.html).
@@ -251,11 +243,19 @@ By default, each Puma worker is limited to 1.2 GB of memory.
 You can [adjust this memory setting](../administration/operations/puma.md#reducing-memory-use) and should do so
 if you must increase the number of Puma workers.
 
-## Redis and Sidekiq
+## Redis
 
 Redis stores all user sessions and the background task queue.
-The storage requirements for Redis are minimal, about 25 kB per user.
-Sidekiq processes the background jobs with a multi-threaded process.
+
+The requirements for Redis are as follows:
+
+- Redis 6.x or 7.x is required in GitLab 16.0 and later.
+- Redis Cluster mode is not supported. Redis Standalone must be used.
+- Storage requirements for Redis are minimal, about 25 kB per user on average.
+
+## Sidekiq
+
+Sidekiq processes the background jobs with a multithreaded process.
 This process starts with the entire Rails stack (200 MB+) but it can grow over time due to memory leaks.
 On a very active server (10,000 billable users) the Sidekiq process can use 1 GB+ of memory.
 

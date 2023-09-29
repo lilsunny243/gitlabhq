@@ -43,10 +43,10 @@ RSpec.describe Mutations::Ci::JobTokenScope::AddProject, feature_category: :cont
           target_project.add_guest(current_user)
         end
 
-        it 'adds target project to the outbound job token scope by default' do
+        it 'adds target project to the inbound job token scope by default' do
           expect do
             expect(subject).to include(ci_job_token_scope: be_present, errors: be_empty)
-          end.to change { Ci::JobToken::ProjectScopeLink.outbound.count }.by(1)
+          end.to change { Ci::JobToken::ProjectScopeLink.inbound.count }.by(1)
         end
 
         context 'when mutation uses the direction argument' do
@@ -55,10 +55,8 @@ RSpec.describe Mutations::Ci::JobTokenScope::AddProject, feature_category: :cont
           context 'when targeting the outbound allowlist' do
             let(:direction) { :outbound }
 
-            it 'adds the target project' do
-              expect do
-                expect(subject).to include(ci_job_token_scope: be_present, errors: be_empty)
-              end.to change { Ci::JobToken::ProjectScopeLink.outbound.count }.by(1)
+            it 'raises an error' do
+              expect { subject }.to raise_error(Gitlab::Graphql::Errors::ArgumentError)
             end
           end
 
@@ -81,7 +79,7 @@ RSpec.describe Mutations::Ci::JobTokenScope::AddProject, feature_category: :cont
               project,
               current_user
             ).and_return(service)
-            expect(service).to receive(:execute).with(target_project, direction: :outbound).and_return(ServiceResponse.error(message: 'The error message'))
+            expect(service).to receive(:execute).with(target_project, direction: :inbound).and_return(ServiceResponse.error(message: 'The error message'))
 
             expect(subject.fetch(:ci_job_token_scope)).to be_nil
             expect(subject.fetch(:errors)).to include("The error message")

@@ -65,6 +65,22 @@ RSpec.describe GraphqlController, feature_category: :integrations do
       )
       expect(response).to have_gitlab_http_status(:forbidden)
     end
+
+    it 'handles Gitlab::Git::ResourceExhaustedError', :aggregate_failures do
+      allow(controller).to receive(:execute) do
+        raise Gitlab::Git::ResourceExhaustedError.new("Upstream Gitaly has been exhausted. Try again later", 50)
+      end
+
+      post :execute
+
+      expect(json_response).to include(
+        'errors' => include(
+          a_hash_including('message' => 'Upstream Gitaly has been exhausted. Try again later')
+        )
+      )
+      expect(response).to have_gitlab_http_status(:service_unavailable)
+      expect(response.headers['Retry-After']).to be(50)
+    end
   end
 
   describe 'POST #execute' do
@@ -107,6 +123,41 @@ RSpec.describe GraphqlController, feature_category: :integrations do
             { 'data' => { '__typename' => 'Query' } },
             { 'data' => { '__typename' => 'Query' } }
           ])
+      end
+
+      it 'executes a multiplexed queries with variables with no errors' do
+        query = <<~GQL
+          mutation($a: String!, $b: String!) {
+            echoCreate(input: { messages: [$a, $b] }) { echoes }
+          }
+        GQL
+        multiplex = [
+          { query: query, variables: { a: 'A', b: 'B' } },
+          { query: query, variables: { a: 'a', b: 'b' } }
+        ]
+
+        post :execute, params: { _json: multiplex }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response).to eq(
+          [
+            { 'data' => { 'echoCreate' => { 'echoes' => %w[A B] } } },
+            { 'data' => { 'echoCreate' => { 'echoes' => %w[a b] } } }
+          ])
+      end
+
+      it 'does not allow string as _json parameter (a malformed multiplex query)' do
+        post :execute, params: { _json: 'bad' }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response).to eq({
+          "errors" => [
+            {
+              "message" => "Unexpected end of document",
+              "locations" => []
+            }
+          ]
+        })
       end
 
       it 'sets a limit on the total query size' do
@@ -173,14 +224,58 @@ RSpec.describe GraphqlController, feature_category: :integrations do
         post :execute
       end
 
-      it 'calls the track gitlab cli when trackable method' do
-        agent = 'GLab - GitLab CLI'
+      it 'calls the track jetbrains bundled third party api when trackable method' do
+        agent = 'IntelliJ-GitLab-Plugin PhpStorm/PS-232.6734.11 (JRE 17.0.7+7-b966.2; Linux 6.2.0-20-generic; amd64)'
         request.env['HTTP_USER_AGENT'] = agent
 
-        expect(Gitlab::UsageDataCounters::GitLabCliActivityUniqueCounter)
+        expect(Gitlab::UsageDataCounters::JetBrainsBundledPluginActivityUniqueCounter)
           .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
 
         post :execute
+      end
+
+      it 'calls the track visual studio extension api when trackable method' do
+        agent = 'code-completions-language-server-experiment (gl-visual-studio-extension:1.0.0.0; arch:X64;)'
+        request.env['HTTP_USER_AGENT'] = agent
+
+        expect(Gitlab::UsageDataCounters::VisualStudioExtensionActivityUniqueCounter)
+          .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+        post :execute
+      end
+
+      it 'calls the track neovim plugin api when trackable method' do
+        agent = 'code-completions-language-server-experiment (Neovim:0.9.0; gitlab.vim (v0.1.0); arch:amd64; os:darwin)'
+        request.env['HTTP_USER_AGENT'] = agent
+
+        expect(Gitlab::UsageDataCounters::NeovimPluginActivityUniqueCounter)
+          .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+        post :execute
+      end
+
+      context 'if using the GitLab CLI' do
+        it 'call trackable for the old UserAgent' do
+          agent = 'GLab - GitLab CLI'
+
+          request.env['HTTP_USER_AGENT'] = agent
+
+          expect(Gitlab::UsageDataCounters::GitLabCliActivityUniqueCounter)
+            .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+          post :execute
+        end
+
+        it 'call trackable for the current UserAgent' do
+          agent = 'glab/v1.25.3-27-g7ec258fb (built 2023-02-16), darwin'
+
+          request.env['HTTP_USER_AGENT'] = agent
+
+          expect(Gitlab::UsageDataCounters::GitLabCliActivityUniqueCounter)
+            .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+          post :execute
+        end
       end
 
       it "assigns username in ApplicationContext" do
@@ -294,6 +389,36 @@ RSpec.describe GraphqlController, feature_category: :integrations do
         subject
       end
 
+      it 'calls the track jetbrains bundled third party api when trackable method' do
+        agent = 'IntelliJ-GitLab-Plugin PhpStorm/PS-232.6734.11 (JRE 17.0.7+7-b966.2; Linux 6.2.0-20-generic; amd64)'
+        request.env['HTTP_USER_AGENT'] = agent
+
+        expect(Gitlab::UsageDataCounters::JetBrainsBundledPluginActivityUniqueCounter)
+          .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+        subject
+      end
+
+      it 'calls the track visual studio extension api when trackable method' do
+        agent = 'code-completions-language-server-experiment (gl-visual-studio-extension:1.0.0.0; arch:X64;)'
+        request.env['HTTP_USER_AGENT'] = agent
+
+        expect(Gitlab::UsageDataCounters::VisualStudioExtensionActivityUniqueCounter)
+          .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+        subject
+      end
+
+      it 'calls the track neovim plugin api when trackable method' do
+        agent = 'code-completions-language-server-experiment (Neovim:0.9.0; gitlab.vim (v0.1.0); arch:amd64; os:darwin)'
+        request.env['HTTP_USER_AGENT'] = agent
+
+        expect(Gitlab::UsageDataCounters::NeovimPluginActivityUniqueCounter)
+          .to receive(:track_api_request_when_trackable).with(user_agent: agent, user: user)
+
+        subject
+      end
+
       it 'calls the track gitlab cli when trackable method' do
         agent = 'GLab - GitLab CLI'
         request.env['HTTP_USER_AGENT'] = agent
@@ -341,6 +466,94 @@ RSpec.describe GraphqlController, feature_category: :integrations do
       post :execute, params: { remove_deprecated: '1' }
 
       expect(assigns(:context)[:remove_deprecated]).to be true
+    end
+
+    context 'when querying an IntrospectionQuery', :use_clean_rails_memory_store_caching do
+      let_it_be(:query) { File.read(Rails.root.join('spec/fixtures/api/graphql/introspection.graphql')) }
+
+      context 'in dev or test env' do
+        before do
+          allow(Gitlab).to receive(:dev_or_test_env?).and_return(true)
+        end
+
+        it 'does not cache IntrospectionQuery' do
+          expect(GitlabSchema).to receive(:execute).exactly(:twice)
+
+          post :execute, params: { query: query }
+          post :execute, params: { query: query }
+        end
+      end
+
+      context 'in env different from dev or test' do
+        before do
+          allow(Gitlab).to receive(:dev_or_test_env?).and_return(false)
+        end
+
+        it 'caches IntrospectionQuery even when operationName is not given' do
+          expect(GitlabSchema).to receive(:execute).exactly(:once)
+
+          post :execute, params: { query: query }
+          post :execute, params: { query: query }
+        end
+
+        it 'caches the IntrospectionQuery' do
+          expect(GitlabSchema).to receive(:execute).exactly(:once)
+
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+        end
+
+        it 'caches separately for both remove_deprecated set to true and false' do
+          expect(GitlabSchema).to receive(:execute).exactly(:twice)
+
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery', remove_deprecated: true }
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery', remove_deprecated: true }
+
+          # We clear this instance variable to reset remove_deprecated
+          subject.remove_instance_variable(:@context) if subject.instance_variable_defined?(:@context)
+
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery', remove_deprecated: false }
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery', remove_deprecated: false }
+        end
+
+        it 'has a different cache for each Gitlab.revision' do
+          expect(GitlabSchema).to receive(:execute).exactly(:twice)
+
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+
+          allow(Gitlab).to receive(:revision).and_return('new random value')
+
+          post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+        end
+
+        context 'when there is an unknown introspection query' do
+          let(:query) { File.read(Rails.root.join('spec/fixtures/api/graphql/fake_introspection.graphql')) }
+
+          it 'does not cache an unknown introspection query' do
+            expect(GitlabSchema).to receive(:execute).exactly(:twice)
+
+            post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+            post :execute, params: { query: query, operationName: 'IntrospectionQuery' }
+          end
+        end
+
+        it 'hits the cache even if the whitespace in the query differs' do
+          query_1 = File.read(Rails.root.join('spec/fixtures/api/graphql/introspection.graphql'))
+          query_2 = "#{query_1}  " # add a couple of spaces to change the fingerprint
+
+          expect(GitlabSchema).to receive(:execute).exactly(:once)
+
+          post :execute, params: { query: query_1, operationName: 'IntrospectionQuery' }
+          post :execute, params: { query: query_2, operationName: 'IntrospectionQuery' }
+        end
+      end
+
+      it 'fails if the GraphiQL gem version is not 1.8.0' do
+        # We cache the IntrospectionQuery based on the default IntrospectionQuery by GraphiQL. If this spec fails,
+        # GraphiQL has been updated, so we should check whether the IntropsectionQuery we cache is still valid.
+        # It is stored in `app/graphql/cached_introspection_query.rb#query_string`
+        expect(GraphiQL::Rails::VERSION).to eq("1.8.0")
+      end
     end
   end
 

@@ -36,7 +36,7 @@ module QA
         @run_untagged = nil
         @name = "qa-runner-#{SecureRandom.hex(4)}"
         @executor = :shell
-        @executor_image = 'registry.gitlab.com/gitlab-org/gitlab-build-images:gitlab-qa-alpine-ruby-2.7'
+        @executor_image = "#{QA::Runtime::Env.container_registry_host}/#{QA::Runtime::Env.runner_container_namespace}/#{QA::Runtime::Env.gitlab_qa_build_image}" # rubocop:disable Layout/LineLength
       end
 
       # Initially we only support fabricate via API
@@ -49,11 +49,17 @@ module QA
       #
       def fabricate_via_api!
         api_get
-      rescue NoValueError
+      rescue NoValueError => e
+        Runtime::Logger.info("Runner api_get exception caught and handled: #{e}")
         # Start container on initial fabrication and populate all attributes once id is known
         # see: https://docs.gitlab.com/ee/api/runners.html#get-runners-details
         start_container_and_register
-        api_get
+        # Temporary workaround for https://gitlab.com/gitlab-org/gitlab/-/issues/409089
+        Support::Retrier.retry_on_exception(max_attempts: 6, sleep_interval: 10,
+          message: "Retrying GET for runners/:id"
+        ) do
+          api_get
+        end
       end
 
       def remove_via_api!
@@ -118,6 +124,7 @@ module QA
       def populate_initial_id
         tag_list = tags ? { tag_list: tags.compact.join(',') } : {}
         runner = runner(**tag_list)
+        Runtime::Logger.debug("Details of the runner fetched using tag_list: #{runner}")
         @id = runner[:id]
       end
 

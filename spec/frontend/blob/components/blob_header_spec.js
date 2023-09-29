@@ -1,22 +1,64 @@
+import Vue from 'vue';
 import { shallowMount, mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import VueApollo from 'vue-apollo';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
 import BlobHeader from '~/blob/components/blob_header.vue';
 import DefaultActions from '~/blob/components/blob_header_default_actions.vue';
 import BlobFilepath from '~/blob/components/blob_header_filepath.vue';
 import ViewerSwitcher from '~/blob/components/blob_header_viewer_switcher.vue';
+import {
+  RICH_BLOB_VIEWER_TITLE,
+  SIMPLE_BLOB_VIEWER,
+  SIMPLE_BLOB_VIEWER_TITLE,
+} from '~/blob/components/constants';
 import TableContents from '~/blob/components/table_contents.vue';
+import createMockApollo from 'helpers/mock_apollo_helper';
+import waitForPromises from 'helpers/wait_for_promises';
+import WebIdeLink from 'ee_else_ce/vue_shared/components/web_ide_link.vue';
+import userInfoQuery from '~/blob/queries/user_info.query.graphql';
+import applicationInfoQuery from '~/blob/queries/application_info.query.graphql';
+import { Blob, userInfoMock, applicationInfoMock } from './mock_data';
 
-import { Blob } from './mock_data';
+Vue.use(VueApollo);
 
 describe('Blob Header Default Actions', () => {
   let wrapper;
 
-  function createComponent(blobProps = {}, options = {}, propsData = {}, shouldMount = false) {
-    const method = shouldMount ? mount : shallowMount;
-    const blobHash = 'foo-bar';
-    wrapper = method.call(this, BlobHeader, {
+  const defaultProvide = {
+    blobHash: 'foo-bar',
+  };
+
+  const findDefaultActions = () => wrapper.findComponent(DefaultActions);
+  const findTableContents = () => wrapper.findComponent(TableContents);
+  const findViewSwitcher = () => wrapper.findComponent(ViewerSwitcher);
+  const findBlobFilePath = () => wrapper.findComponent(BlobFilepath);
+  const findRichTextEditorBtn = () => wrapper.findByLabelText(RICH_BLOB_VIEWER_TITLE);
+  const findSimpleTextEditorBtn = () => wrapper.findByLabelText(SIMPLE_BLOB_VIEWER_TITLE);
+  const findWebIdeLink = () => wrapper.findComponent(WebIdeLink);
+
+  async function createComponent({
+    blobProps = {},
+    options = {},
+    propsData = {},
+    mountFn = shallowMount,
+  } = {}) {
+    const userInfoMockResolver = jest.fn().mockResolvedValue({
+      data: { ...userInfoMock },
+    });
+
+    const applicationInfoMockResolver = jest.fn().mockResolvedValue({
+      data: { ...applicationInfoMock },
+    });
+
+    const fakeApollo = createMockApollo([
+      [userInfoQuery, userInfoMockResolver],
+      [applicationInfoQuery, applicationInfoMockResolver],
+    ]);
+
+    wrapper = mountFn(BlobHeader, {
+      apolloProvider: fakeApollo,
       provide: {
-        blobHash,
+        ...defaultProvide,
       },
       propsData: {
         blob: { ...Blob, ...blobProps },
@@ -24,145 +66,153 @@ describe('Blob Header Default Actions', () => {
       },
       ...options,
     });
+
+    await waitForPromises();
   }
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('rendering', () => {
-    const findDefaultActions = () => wrapper.findComponent(DefaultActions);
+    describe('WebIdeLink component', () => {
+      it('renders the WebIdeLink component with the correct props', async () => {
+        const { ideEditPath, editBlobPath, gitpodBlobUrl, pipelineEditorPath } = Blob;
+        const showForkSuggestion = false;
+        await createComponent({ propsData: { showForkSuggestion } });
 
-    const slots = {
-      prepend: 'Foo Prepend',
-      actions: 'Actions Bar',
-    };
+        expect(findWebIdeLink().props()).toMatchObject({
+          showEditButton: true,
+          editUrl: editBlobPath,
+          webIdeUrl: ideEditPath,
+          needsToFork: showForkSuggestion,
+          showPipelineEditorButton: Boolean(pipelineEditorPath),
+          pipelineEditorUrl: pipelineEditorPath,
+          gitpodUrl: gitpodBlobUrl,
+          showGitpodButton: applicationInfoMock.gitpodEnabled,
+          gitpodEnabled: userInfoMock.currentUser.gitpodEnabled,
+          userPreferencesGitpodPath: userInfoMock.currentUser.preferencesGitpodPath,
+          userProfileEnableGitpodPath: userInfoMock.currentUser.profileEnableGitpodPath,
+        });
+      });
 
-    it('matches the snapshot', () => {
-      createComponent();
-      expect(wrapper.element).toMatchSnapshot();
+      it.each([[{ archived: true }], [{ editBlobPath: null }]])(
+        'does not render the WebIdeLink component when blob is archived or does not have an edit path',
+        (blobProps) => {
+          createComponent({ blobProps });
+
+          expect(findWebIdeLink().exists()).toBe(false);
+        },
+      );
     });
 
-    it('renders all components', () => {
-      createComponent();
-      expect(wrapper.findComponent(TableContents).exists()).toBe(true);
-      expect(wrapper.findComponent(ViewerSwitcher).exists()).toBe(true);
-      expect(findDefaultActions().exists()).toBe(true);
-      expect(wrapper.findComponent(BlobFilepath).exists()).toBe(true);
+    describe('default render', () => {
+      it.each`
+        findComponent         | componentName
+        ${findTableContents}  | ${'TableContents'}
+        ${findViewSwitcher}   | ${'ViewSwitcher'}
+        ${findDefaultActions} | ${'DefaultActions'}
+        ${findBlobFilePath}   | ${'BlobFilePath'}
+      `('renders $componentName component by default', ({ findComponent }) => {
+        createComponent();
+
+        expect(findComponent().exists()).toBe(true);
+      });
     });
 
     it('does not render viewer switcher if the blob has only the simple viewer', () => {
       createComponent({
-        richViewer: null,
+        blobProps: {
+          richViewer: null,
+        },
       });
-      expect(wrapper.findComponent(ViewerSwitcher).exists()).toBe(false);
+      expect(findViewSwitcher().exists()).toBe(false);
     });
 
     it('does not render viewer switcher if a corresponding prop is passed', () => {
-      createComponent(
-        {},
-        {},
-        {
+      createComponent({
+        propsData: {
           hideViewerSwitcher: true,
         },
-      );
-      expect(wrapper.findComponent(ViewerSwitcher).exists()).toBe(false);
+      });
+      expect(findViewSwitcher().exists()).toBe(false);
     });
 
     it('does not render default actions is corresponding prop is passed', () => {
-      createComponent(
-        {},
-        {},
-        {
+      createComponent({
+        propsData: {
           hideDefaultActions: true,
         },
-      );
-      expect(wrapper.findComponent(DefaultActions).exists()).toBe(false);
+      });
+      expect(findDefaultActions().exists()).toBe(false);
     });
 
-    Object.keys(slots).forEach((slot) => {
-      it('renders the slots', () => {
-        const slotContent = slots[slot];
-        createComponent(
-          {},
-          {
-            scopedSlots: {
-              [slot]: `<span>${slotContent}</span>`,
-            },
+    it.each`
+      slotContent      | key
+      ${'Foo Prepend'} | ${'prepend'}
+      ${'Actions Bar'} | ${'actions'}
+    `('renders the slot $key', ({ key, slotContent }) => {
+      createComponent({
+        options: {
+          scopedSlots: {
+            [key]: `<span>${slotContent}</span>`,
           },
-          {},
-          true,
-        );
-        expect(wrapper.text()).toContain(slotContent);
+        },
+        mountFn: mount,
       });
+      expect(wrapper.text()).toContain(slotContent);
     });
 
     it('passes information about render error down to default actions', () => {
-      createComponent(
-        {},
-        {},
-        {
+      createComponent({
+        propsData: {
           hasRenderError: true,
         },
-      );
+      });
       expect(findDefaultActions().props('hasRenderError')).toBe(true);
     });
 
     it('passes the correct isBinary value to default actions when viewing a binary file', () => {
-      createComponent({}, {}, { isBinary: true });
+      createComponent({ propsData: { isBinary: true } });
 
       expect(findDefaultActions().props('isBinary')).toBe(true);
     });
   });
 
   describe('functionality', () => {
-    const newViewer = 'Foo Bar';
-    const activeViewerType = 'Alpha Beta';
-
     const factory = (hideViewerSwitcher = false) => {
-      createComponent(
-        {},
-        {},
-        {
-          activeViewerType,
+      createComponent({
+        propsData: {
+          activeViewerType: SIMPLE_BLOB_VIEWER,
           hideViewerSwitcher,
         },
-      );
+        mountFn: mountExtended,
+      });
     };
 
-    it('by default sets viewer data based on activeViewerType', () => {
+    it('shows the correctly selected view by default', () => {
       factory();
-      expect(wrapper.vm.viewer).toBe(activeViewerType);
+
+      expect(findViewSwitcher().exists()).toBe(true);
+      expect(findRichTextEditorBtn().props().selected).toBe(false);
+      expect(findSimpleTextEditorBtn().props().selected).toBe(true);
     });
 
-    it('sets viewer to null if the viewer switcher should be hidden', () => {
+    it('Does not show the viewer switcher should be hidden', () => {
       factory(true);
-      expect(wrapper.vm.viewer).toBe(null);
+
+      expect(findViewSwitcher().exists()).toBe(false);
     });
 
     it('watches the changes in viewer data and emits event when the change is registered', async () => {
       factory();
-      jest.spyOn(wrapper.vm, '$emit');
-      wrapper.vm.viewer = newViewer;
 
-      await nextTick();
-      expect(wrapper.vm.$emit).toHaveBeenCalledWith('viewer-changed', newViewer);
-    });
+      await findRichTextEditorBtn().trigger('click');
 
-    it('does not emit event if the switcher is not rendered', async () => {
-      factory(true);
-
-      expect(wrapper.vm.showViewerSwitcher).toBe(false);
-      jest.spyOn(wrapper.vm, '$emit');
-      wrapper.vm.viewer = newViewer;
-
-      await nextTick();
-      expect(wrapper.vm.$emit).not.toHaveBeenCalled();
+      expect(wrapper.emitted('viewer-changed')).toBeDefined();
     });
 
     it('sets different icons depending on the blob file type', async () => {
       factory();
-      expect(wrapper.vm.blobSwitcherDocIcon).toBe('document');
+
+      expect(findViewSwitcher().props('docIcon')).toBe('document');
+
       await wrapper.setProps({
         blob: {
           ...Blob,
@@ -172,7 +222,8 @@ describe('Blob Header Default Actions', () => {
           },
         },
       });
-      expect(wrapper.vm.blobSwitcherDocIcon).toBe('table');
+
+      expect(findViewSwitcher().props('docIcon')).toBe('table');
     });
   });
 });

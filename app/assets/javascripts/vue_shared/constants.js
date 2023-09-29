@@ -75,8 +75,6 @@ export const timeRanges = [
 /* eslint-enable @gitlab/require-i18n-strings */
 
 export const defaultTimeRange = timeRanges.find((tr) => tr.default);
-export const getTimeWindow = (timeWindowName) =>
-  timeRanges.find((tr) => tr.name === timeWindowName);
 
 export const AVATAR_SHAPE_OPTION_CIRCLE = 'circle';
 export const AVATAR_SHAPE_OPTION_RECT = 'rect';
@@ -88,7 +86,7 @@ export const confidentialityInfoText = (workspaceType, issuableType) =>
     ),
     {
       workspaceType: workspaceType === WORKSPACE_PROJECT ? __('project') : __('group'),
-      issuableType: issuableType === TYPE_ISSUE ? __('issue') : __('epic'),
+      issuableType: issuableType.toLowerCase().replaceAll('_', ' '),
       permissions:
         issuableType === TYPE_ISSUE
           ? __('at least the Reporter role, the author, and assignees')
@@ -96,5 +94,7 @@ export const confidentialityInfoText = (workspaceType, issuableType) =>
     },
   );
 
+export const EDITING_MODE_KEY = 'gl-markdown-editor-mode';
 export const EDITING_MODE_MARKDOWN_FIELD = 'markdownField';
 export const EDITING_MODE_CONTENT_EDITOR = 'contentEditor';
+export const CLEAR_AUTOSAVE_ENTRY_EVENT = 'markdown_clear_autosave_entry';

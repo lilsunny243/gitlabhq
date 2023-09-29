@@ -3,13 +3,16 @@
 require 'spec_helper'
 
 RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
-  :reestablished_active_record_base, :delete, query_analyzers: false, feature_category: :pods do
+  :reestablished_active_record_base, :delete, query_analyzers: false, feature_category: :cell do
   using RSpec::Parameterized::TableSyntax
 
   let(:schema_class) { Class.new(Gitlab::Database::Migration[2.1]) }
   let(:skip_automatic_lock_on_writes) { false }
   let(:gitlab_main_table_name) { :_test_gitlab_main_table }
+  let(:gitlab_main_clusterwide_table_name) { :_test_gitlab_main_clusterwide_table }
+  let(:gitlab_main_cell_table_name) { :_test_gitlab_main_cell_table }
   let(:gitlab_ci_table_name) { :_test_gitlab_ci_table }
+  let(:gitlab_pm_table_name) { :_test_gitlab_pm_table }
   let(:gitlab_geo_table_name) { :_test_gitlab_geo_table }
   let(:gitlab_shared_table_name) { :_test_table }
 
@@ -24,8 +27,11 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
   # Drop the created test tables, because we use non-transactional tests
   after do
     drop_table_if_exists(gitlab_main_table_name)
+    drop_table_if_exists(gitlab_main_clusterwide_table_name)
+    drop_table_if_exists(gitlab_main_cell_table_name)
     drop_table_if_exists(gitlab_ci_table_name)
     drop_table_if_exists(gitlab_geo_table_name)
+    drop_table_if_exists(gitlab_pm_table_name)
     drop_table_if_exists(gitlab_shared_table_name)
     drop_table_if_exists(renamed_gitlab_main_table_name)
     drop_table_if_exists(renamed_gitlab_ci_table_name)
@@ -82,31 +88,41 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
     context 'when single database' do
       let(:config_model) { Gitlab::Database.database_base_models[:main] }
       let(:create_gitlab_main_table_migration_class) { create_table_migration(gitlab_main_table_name) }
+      let(:create_gitlab_main_cell_table_migration_class) { create_table_migration(gitlab_main_cell_table_name) }
       let(:create_gitlab_ci_table_migration_class) { create_table_migration(gitlab_ci_table_name) }
       let(:create_gitlab_shared_table_migration_class) { create_table_migration(gitlab_shared_table_name) }
+      let(:create_gitlab_main_clusterwide_table_migration_class) do
+        create_table_migration(gitlab_main_clusterwide_table_name)
+      end
 
       before do
-        skip_if_multiple_databases_are_setup(:ci)
+        skip_if_database_exists(:ci)
       end
 
       it 'does not lock any newly created tables' do
         expect(Gitlab::Database::LockWritesManager).not_to receive(:new)
 
         create_gitlab_main_table_migration_class.migrate(:up)
+        create_gitlab_main_cell_table_migration_class.migrate(:up)
+        create_gitlab_main_clusterwide_table_migration_class.migrate(:up)
         create_gitlab_ci_table_migration_class.migrate(:up)
         create_gitlab_shared_table_migration_class.migrate(:up)
 
         expect do
           create_gitlab_main_table_migration_class.connection.execute("DELETE FROM #{gitlab_main_table_name}")
+          create_gitlab_main_cell_table_migration_class.connection.execute("DELETE FROM #{gitlab_main_cell_table_name}")
           create_gitlab_ci_table_migration_class.connection.execute("DELETE FROM #{gitlab_ci_table_name}")
           create_gitlab_shared_table_migration_class.connection.execute("DELETE FROM #{gitlab_shared_table_name}")
+          create_gitlab_main_clusterwide_table_migration_class.connection.execute(
+            "DELETE FROM #{gitlab_main_clusterwide_table_name}"
+          )
         end.not_to raise_error
       end
     end
 
     context 'when multiple databases' do
       before do
-        skip_if_multiple_databases_not_setup(:ci)
+        skip_if_shared_database(:ci)
       end
 
       let(:migration_class) { create_table_migration(table_name, skip_automatic_lock_on_writes) }
@@ -161,6 +177,27 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
 
           it_behaves_like 'does not lock writes on table', Gitlab::Database.database_base_models[:ci]
         end
+      end
+
+      context 'for creating a gitlab_main_clusterwide table' do
+        let(:table_name) { gitlab_main_clusterwide_table_name }
+
+        it_behaves_like 'does not lock writes on table', Gitlab::Database.database_base_models[:main]
+        it_behaves_like 'locks writes on table', Gitlab::Database.database_base_models[:ci]
+      end
+
+      context 'for creating a gitlab_main_cell table' do
+        let(:table_name) { gitlab_main_cell_table_name }
+
+        it_behaves_like 'does not lock writes on table', Gitlab::Database.database_base_models[:main]
+        it_behaves_like 'locks writes on table', Gitlab::Database.database_base_models[:ci]
+      end
+
+      context 'for creating a gitlab_pm table' do
+        let(:table_name) { gitlab_pm_table_name }
+
+        it_behaves_like 'does not lock writes on table', Gitlab::Database.database_base_models[:main]
+        it_behaves_like 'locks writes on table', Gitlab::Database.database_base_models[:ci]
       end
 
       context 'for creating a gitlab_ci table' do
@@ -224,13 +261,12 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
         let(:config_model) { Gitlab::Database.database_base_models[:main] }
 
         it "raises an error about undefined gitlab_schema" do
-          expected_error_message = <<~ERROR
-              No gitlab_schema is defined for the table #{table_name}. Please consider
-              adding it to the database dictionary.
-              More info: https://docs.gitlab.com/ee/development/database/database_dictionary.html
-          ERROR
-
-          expect { run_migration }.to raise_error(expected_error_message)
+          expect { run_migration }.to raise_error(
+            Gitlab::Database::GitlabSchema::UnknownSchemaError,
+            "Could not find gitlab schema for table foobar: " \
+            "Any new or deleted tables must be added to the database dictionary " \
+            "See https://docs.gitlab.com/ee/development/database/database_dictionary.html"
+          )
         end
       end
     end
@@ -238,7 +274,7 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
 
   context 'when renaming a table' do
     before do
-      skip_if_multiple_databases_not_setup(:ci)
+      skip_if_shared_database(:ci)
       create_table_migration(old_table_name).migrate(:up) # create the table first before renaming it
     end
 
@@ -277,7 +313,7 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
       let(:config_model) { Gitlab::Database.database_base_models[:main] }
 
       before do
-        skip_if_multiple_databases_are_setup(:ci)
+        skip_if_database_exists(:ci)
       end
 
       it 'does not lock any newly created tables' do
@@ -305,7 +341,7 @@ RSpec.describe Gitlab::Database::MigrationHelpers::AutomaticLockWritesOnTables,
 
     context 'when multiple databases' do
       before do
-        skip_if_multiple_databases_not_setup(:ci)
+        skip_if_shared_database(:ci)
         migration_class.connection.execute("CREATE TABLE #{table_name}()")
         migration_class.migrate(:up)
       end

@@ -5,39 +5,42 @@ module Gitlab
     class Config
       module External
         class Rules
-          ALLOWED_KEYS = Entry::Include::Rules::Rule::ALLOWED_KEYS
-
           InvalidIncludeRulesError = Class.new(Mapper::Error)
 
           def initialize(rule_hashes)
-            validate(rule_hashes)
+            return unless rule_hashes
 
-            @rule_list = Build::Rules::Rule.fabricate_list(rule_hashes)
+            # We must compose the include rules entry here because included
+            # files are expanded before `@root.compose!` runs in Ci::Config.
+            rules_entry = Entry::Include::Rules.new(rule_hashes)
+            rules_entry.compose!
+
+            raise InvalidIncludeRulesError, "include:#{rules_entry.errors.first}" unless rules_entry.valid?
+
+            @rule_list = Build::Rules::Rule.fabricate_list(rules_entry.value)
           end
 
           def evaluate(context)
-            Result.new(@rule_list.nil? || match_rule(context))
+            if @rule_list.nil?
+              Result.new('always')
+            elsif matched_rule = match_rule(context)
+              Result.new(matched_rule.attributes[:when])
+            else
+              Result.new('never')
+            end
+          rescue Build::Rules::Rule::Clause::ParseError => e
+            raise InvalidIncludeRulesError, "include:#{e.message}"
           end
 
           private
 
           def match_rule(context)
-            @rule_list.find { |rule| rule.matches?(nil, context) }
+            @rule_list.find { |rule| rule.matches?(context.pipeline, context) }
           end
 
-          def validate(rule_hashes)
-            return unless rule_hashes.is_a?(Array)
-
-            rule_hashes.each do |rule_hash|
-              next if (rule_hash.keys - ALLOWED_KEYS).empty?
-
-              raise InvalidIncludeRulesError, "invalid include rule: #{rule_hash}"
-            end
-          end
-
-          Result = Struct.new(:result) do
+          Result = Struct.new(:when) do
             def pass?
-              !!result
+              self.when != 'never'
             end
           end
         end

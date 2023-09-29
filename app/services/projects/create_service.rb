@@ -5,7 +5,7 @@ module Projects
     include ValidatesClassificationLabel
 
     ImportSourceDisabledError = Class.new(StandardError)
-    INTERNAL_IMPORT_SOURCES = %w[bare_repository gitlab_custom_project_template gitlab_project_migration].freeze
+    INTERNAL_IMPORT_SOURCES = %w[gitlab_custom_project_template gitlab_project_migration].freeze
 
     def initialize(user, params)
       @current_user = user
@@ -24,7 +24,7 @@ module Projects
     def execute
       params[:wiki_enabled] = params[:wiki_access_level] if params[:wiki_access_level]
       params[:builds_enabled] = params[:builds_access_level] if params[:builds_access_level]
-      params[:snippets_enabled] = params[:builds_access_level] if params[:snippets_access_level]
+      params[:snippets_enabled] = params[:snippets_access_level] if params[:snippets_access_level]
       params[:merge_requests_enabled] = params[:merge_requests_access_level] if params[:merge_requests_access_level]
       params[:issues_enabled] = params[:issues_access_level] if params[:issues_access_level]
 
@@ -58,6 +58,7 @@ module Projects
       return @project if @project.errors.any?
 
       validate_create_permissions
+      validate_import_permissions
       return @project if @project.errors.any?
 
       @relations_block&.call(@project)
@@ -98,6 +99,13 @@ module Projects
       @project.errors.add(:namespace, "is not valid")
     end
 
+    def validate_import_permissions
+      return unless @project.import?
+      return if current_user.can?(:import_projects, parent_namespace)
+
+      @project.errors.add(:user, 'is not allowed to import projects')
+    end
+
     def after_create_actions
       log_info("#{current_user.name} created a new project \"#{@project.full_name}\"")
 
@@ -136,6 +144,8 @@ module Projects
     end
 
     def create_project_settings
+      Gitlab::Pages.add_unique_domain_to(project)
+
       @project.project_setting.save if @project.project_setting.changed?
     end
 
@@ -144,8 +154,10 @@ module Projects
     # completes), and any other affected users in the background
     def setup_authorizations
       if @project.group
-        group_access_level = @project.group.max_member_access_for_user(current_user,
-                                                                       only_concrete_membership: true)
+        group_access_level = @project.group.max_member_access_for_user(
+          current_user,
+          only_concrete_membership: true
+        )
 
         if group_access_level > GroupMember::NO_ACCESS
           current_user.project_authorizations.safe_find_or_create_by!(
@@ -187,7 +199,7 @@ module Projects
 
     def create_readme
       commit_attrs = {
-        branch_name: @default_branch.presence || @project.default_branch_or_main,
+        branch_name: default_branch,
         commit_message: 'Initial commit',
         file_path: 'README.md',
         file_content: readme_content
@@ -201,7 +213,11 @@ module Projects
     end
 
     def readme_content
-      @readme_template.presence || ReadmeRendererService.new(@project, current_user).execute
+      readme_attrs = {
+        default_branch: default_branch
+      }
+
+      @readme_template.presence || ReadmeRendererService.new(@project, current_user, readme_attrs).execute
     end
 
     def skip_wiki?
@@ -209,16 +225,26 @@ module Projects
     end
 
     def save_project_and_import_data
-      Project.transaction do
-        @project.create_or_update_import_data(data: @import_data[:data], credentials: @import_data[:credentials]) if @import_data
+      Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification.temporary_ignore_tables_in_transaction(
+        %w[routes redirect_routes], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424281'
+      ) do
+        ApplicationRecord.transaction do
+          @project.create_or_update_import_data(data: @import_data[:data], credentials: @import_data[:credentials]) if @import_data
 
-        if @project.save
-          Integration.create_from_active_default_integrations(@project, :project_id)
+          # Avoid project callbacks being triggered multiple times by saving the parent first.
+          # See https://github.com/rails/rails/issues/41701.
+          Namespaces::ProjectNamespace.create_from_project!(@project) if @project.valid?
 
-          @project.create_labels unless @project.gitlab_project_import?
+          if @project.saved?
+            Integration.create_from_active_default_integrations(@project, :project_id)
 
-          unless @project.import?
-            raise 'Failed to create repository' unless @project.create_repository
+            @project.create_labels unless @project.gitlab_project_import?
+
+            next if @project.import?
+
+            unless @project.create_repository(default_branch: default_branch)
+              raise 'Failed to create repository'
+            end
           end
         end
       end
@@ -267,12 +293,19 @@ module Projects
 
     private
 
+    def default_branch
+      @default_branch.presence || @project.default_branch_or_main
+    end
+
     def validate_import_source_enabled!
       return unless @params[:import_type]
 
       import_type = @params[:import_type].to_s
 
       return if INTERNAL_IMPORT_SOURCES.include?(import_type)
+
+      # Skip validation when creating project from a built in template
+      return if @params[:import_export_upload].present? && import_type == 'gitlab_project'
 
       unless ::Gitlab::CurrentSettings.import_sources&.include?(import_type)
         raise ImportSourceDisabledError, "#{import_type} import source is disabled"
@@ -289,7 +322,7 @@ module Projects
 
     def import_schedule
       if @project.errors.empty?
-        @project.import_state.schedule if @project.import? && !@project.bare_repository_import? && !@project.gitlab_project_migration?
+        @project.import_state.schedule if @project.import? && !@project.gitlab_project_migration?
       else
         fail(error: @project.errors.full_messages.join(', '))
       end

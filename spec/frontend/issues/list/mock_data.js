@@ -154,6 +154,22 @@ export const setSortPreferenceMutationResponseWithErrors = {
   },
 };
 
+export const setIdTypePreferenceMutationResponse = {
+  data: {
+    userPreferencesUpdate: {
+      errors: [],
+    },
+  },
+};
+
+export const setIdTypePreferenceMutationResponseWithErrors = {
+  data: {
+    userPreferencesUpdate: {
+      errors: ['oh no!'],
+    },
+  },
+};
+
 export const locationSearch = [
   '?search=find+issues',
   'author_username=homer',
@@ -216,6 +232,7 @@ export const locationSearchWithSpecialValues = [
 ].join('&');
 
 export const filteredTokens = [
+  { type: FILTERED_SEARCH_TERM, value: { data: 'find issues', operator: 'undefined' } },
   { type: TOKEN_TYPE_AUTHOR, value: { data: 'homer', operator: OPERATOR_IS } },
   { type: TOKEN_TYPE_AUTHOR, value: { data: 'marge', operator: OPERATOR_NOT } },
   { type: TOKEN_TYPE_AUTHOR, value: { data: 'burns', operator: OPERATOR_OR } },
@@ -260,8 +277,6 @@ export const filteredTokens = [
   { type: TOKEN_TYPE_ORGANIZATION, value: { data: '456', operator: OPERATOR_IS } },
   { type: TOKEN_TYPE_HEALTH, value: { data: 'atRisk', operator: OPERATOR_IS } },
   { type: TOKEN_TYPE_HEALTH, value: { data: 'onTrack', operator: OPERATOR_NOT } },
-  { type: FILTERED_SEARCH_TERM, value: { data: 'find' } },
-  { type: FILTERED_SEARCH_TERM, value: { data: 'issues' } },
 ];
 
 export const filteredTokensWithSpecialValues = [
@@ -278,6 +293,7 @@ export const filteredTokensWithSpecialValues = [
 ];
 
 export const apiParams = {
+  search: 'find issues',
   authorUsername: 'homer',
   assigneeUsernames: ['bart', 'lisa', '5'],
   milestoneTitle: ['season 3', 'season 4'],
@@ -326,6 +342,7 @@ export const apiParamsWithSpecialValues = {
 };
 
 export const urlParams = {
+  search: 'find issues',
   author_username: 'homer',
   'not[author_username]': 'marge',
   'or[author_username]': ['burns', 'smithers'],

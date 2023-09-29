@@ -126,8 +126,8 @@ module Gitlab
                 compare_key: data['cve'] || '',
                 location: location,
                 evidence: evidence,
-                severity: parse_severity_level(data['severity']),
-                confidence: parse_confidence_level(data['confidence']),
+                severity: ::Enums::Vulnerability.parse_severity_level(data['severity']),
+                confidence: ::Enums::Vulnerability.parse_confidence_level(data['confidence']),
                 scanner: create_scanner(top_level_scanner_data || data['scanner']),
                 scan: report&.scan,
                 identifiers: identifiers,
@@ -139,6 +139,7 @@ module Gitlab
                 details: data['details'] || {},
                 signatures: signatures,
                 project_id: @project.id,
+                found_by_pipeline: report.pipeline,
                 vulnerability_finding_signatures_enabled: @signatures_enabled))
           end
 
@@ -259,14 +260,6 @@ module Gitlab
             ::Gitlab::Ci::Reports::Security::Link.new(name: link['name'], url: link['url'])
           end
 
-          def parse_severity_level(input)
-            input&.downcase.then { |value| ::Enums::Vulnerability.severity_levels.key?(value) ? value : 'unknown' }
-          end
-
-          def parse_confidence_level(input)
-            input&.downcase.then { |value| ::Enums::Vulnerability.confidence_levels.key?(value) ? value : 'unknown' }
-          end
-
           def create_location(location_data)
             raise NotImplementedError
           end
@@ -278,7 +271,6 @@ module Gitlab
           end
 
           def finding_name(data, identifiers, location)
-            return data['message'] if data['message'].present?
             return data['name'] if data['name'].present?
 
             identifier = identifiers.find(&:cve?) || identifiers.find(&:cwe?) || identifiers.first

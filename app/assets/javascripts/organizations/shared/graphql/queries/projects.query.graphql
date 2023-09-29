@@ -1,0 +1,25 @@
+query getOrganizationProjects {
+  organization @client {
+    id
+    projects {
+      nodes {
+        id
+        nameWithNamespace
+        webUrl
+        topics
+        forksCount
+        avatarUrl
+        starCount
+        visibility
+        openIssuesCount
+        descriptionHtml
+        issuesAccessLevel
+        forkingAccessLevel
+        isForked
+        accessLevel {
+          integerValue
+        }
+      }
+    }
+  }
+}

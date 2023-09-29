@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::Namespaces::PackageSettings::UpdateService do
+RSpec.describe ::Namespaces::PackageSettings::UpdateService, feature_category: :package_registry do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be_with_reload(:namespace) { create(:group) }
@@ -38,6 +38,8 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
           maven_duplicate_exception_regex: 'SNAPSHOT',
           generic_duplicates_allowed: true,
           generic_duplicate_exception_regex: 'foo',
+          nuget_duplicates_allowed: true,
+          nuget_duplicate_exception_regex: 'foo',
           maven_package_requests_forwarding: true,
           lock_maven_package_requests_forwarding: false,
           npm_package_requests_forwarding: nil,
@@ -49,6 +51,8 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
           maven_duplicate_exception_regex: 'RELEASE',
           generic_duplicates_allowed: false,
           generic_duplicate_exception_regex: 'bar',
+          nuget_duplicates_allowed: false,
+          nuget_duplicate_exception_regex: 'bar',
           maven_package_requests_forwarding: true,
           lock_maven_package_requests_forwarding: true,
           npm_package_requests_forwarding: true,
@@ -81,6 +85,15 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
       end
     end
 
+    # To be removed when raise_group_admin_package_permission_to_owner FF is removed
+    shared_examples 'disabling admin_package feature flag' do |action:|
+      before do
+        stub_feature_flags(raise_group_admin_package_permission_to_owner: false)
+      end
+
+      it_behaves_like "#{action} the namespace package setting"
+    end
+
     context 'with existing namespace package setting' do
       let_it_be(:package_settings) { create(:namespace_package_setting, namespace: namespace) }
       let_it_be(:params) do
@@ -89,6 +102,8 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
           maven_duplicate_exception_regex: 'RELEASE',
           generic_duplicates_allowed: false,
           generic_duplicate_exception_regex: 'bar',
+          nuget_duplicates_allowed: false,
+          nuget_duplicate_exception_regex: 'bar',
           maven_package_requests_forwarding: true,
           lock_maven_package_requests_forwarding: true,
           npm_package_requests_forwarding: true,
@@ -99,7 +114,8 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
       end
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'updating the namespace package setting'
+        :owner      | 'updating the namespace package setting'
+        :maintainer | 'denying access to namespace package setting'
         :developer  | 'denying access to namespace package setting'
         :reporter   | 'denying access to namespace package setting'
         :guest      | 'denying access to namespace package setting'
@@ -112,6 +128,7 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :updating if params[:user_role] == :maintainer
       end
     end
 
@@ -119,7 +136,8 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
       let_it_be(:package_settings) { namespace.package_settings }
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'creating the namespace package setting'
+        :owner      | 'creating the namespace package setting'
+        :maintainer | 'denying access to namespace package setting'
         :developer  | 'denying access to namespace package setting'
         :reporter   | 'denying access to namespace package setting'
         :guest      | 'denying access to namespace package setting'
@@ -132,6 +150,7 @@ RSpec.describe ::Namespaces::PackageSettings::UpdateService do
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :creating if params[:user_role] == :maintainer
       end
     end
   end

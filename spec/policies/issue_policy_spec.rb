@@ -18,8 +18,8 @@ RSpec.describe IssuePolicy, feature_category: :team_planning do
   let(:group) { create(:group, :public) }
   let(:reporter_from_group_link) { create(:user) }
   let(:non_member) { create(:user) }
-  let(:support_bot) { User.support_bot }
-  let(:alert_bot) { User.alert_bot }
+  let(:support_bot) { Users::Internal.support_bot }
+  let(:alert_bot) { Users::Internal.alert_bot }
 
   def permissions(user, issue)
     described_class.new(user, issue)
@@ -27,8 +27,8 @@ RSpec.describe IssuePolicy, feature_category: :team_planning do
 
   shared_examples 'support bot with service desk enabled' do
     before do
-      allow(::Gitlab::IncomingEmail).to receive(:enabled?) { true }
-      allow(::Gitlab::IncomingEmail).to receive(:supports_wildcard?) { true }
+      allow(::Gitlab::Email::IncomingEmail).to receive(:enabled?) { true }
+      allow(::Gitlab::Email::IncomingEmail).to receive(:supports_wildcard?) { true }
 
       project.update!(service_desk_enabled: true)
     end

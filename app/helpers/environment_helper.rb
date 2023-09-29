@@ -62,7 +62,7 @@ module EnvironmentHelper
     klass = "ci-status ci-#{status.dasherize} #{ci_icon_utilities}"
     text = "#{ci_icon_for_status(status)} <span class=\"gl-ml-2\">#{status_text}</span>".html_safe
 
-    if deployment.deployable
+    if deployment.deployable.instance_of?(::Ci::Build)
       link_to(text, deployment_path(deployment), class: klass)
     else
       content_tag(:span, text, class: klass)
@@ -79,7 +79,6 @@ module EnvironmentHelper
       can_destroy_environment: can_destroy_environment?(environment),
       can_stop_environment: can?(current_user, :stop_environment, environment),
       can_admin_environment: can?(current_user, :admin_environment, project),
-      environment_metrics_path: project_metrics_dashboard_path(project, environment: environment),
       environments_fetch_path: project_environments_path(project, format: :json),
       environment_edit_path: edit_project_environment_path(project, environment),
       environment_stop_path: stop_project_environment_path(project, environment),
@@ -88,7 +87,8 @@ module EnvironmentHelper
       environment_terminal_path: terminal_project_environment_path(project, environment),
       has_terminals: environment.has_terminals?,
       is_environment_available: environment.available?,
-      auto_stop_at: environment.auto_stop_at
+      auto_stop_at: environment.auto_stop_at,
+      graphql_etag_key: environment.etag_cache_key
     }
   end
 

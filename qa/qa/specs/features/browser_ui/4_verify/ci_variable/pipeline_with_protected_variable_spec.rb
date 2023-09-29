@@ -1,17 +1,11 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner, product_group: :pipeline_authoring do
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_security do
     describe 'Pipeline with protected variable' do
       let(:executor) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(number: 8)}" }
       let(:protected_value) { Faker::Alphanumeric.alphanumeric(number: 8) }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-ci-variables'
-          project.description = 'project with CI variables'
-        end
-      end
+      let(:project) { create(:project, name: 'project-with-ci-vars', description: 'project with CI vars') }
 
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
@@ -88,12 +82,7 @@ module QA
       private
 
       def add_ci_variable
-        Resource::CiVariable.fabricate_via_api! do |ci_variable|
-          ci_variable.project = project
-          ci_variable.key = 'PROTECTED_VARIABLE'
-          ci_variable.value = protected_value
-          ci_variable.protected = true
-        end
+        create(:ci_variable, :protected, project: project, key: 'PROTECTED_VARIABLE', value: protected_value)
       end
 
       def create_protected_branch

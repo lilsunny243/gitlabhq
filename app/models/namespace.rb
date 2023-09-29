@@ -16,6 +16,13 @@ class Namespace < ApplicationRecord
   include EachBatch
   include BlocksUnsafeSerialization
   include Ci::NamespaceSettings
+  include Referable
+  include CrossDatabaseIgnoredTables
+  include IgnorableColumns
+
+  ignore_column :unlock_membership_to_ldap, remove_with: '16.7', remove_after: '2023-11-16'
+
+  cross_database_ignore_tables %w[routes redirect_routes], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424277'
 
   # Tells ActiveRecord not to store the full class name, in order to save some space
   # https://gitlab.com/gitlab-org/gitlab/-/merge_requests/69794
@@ -35,12 +42,6 @@ class Namespace < ApplicationRecord
   SHARED_RUNNERS_SETTINGS = [SR_DISABLED_AND_UNOVERRIDABLE, SR_DISABLED_WITH_OVERRIDE, SR_DISABLED_AND_OVERRIDABLE, SR_ENABLED].freeze
   URL_MAX_LENGTH = 255
 
-  # This date is just a placeholder until namespace storage enforcement timeline is confirmed at which point
-  # this should be replaced, see https://about.gitlab.com/pricing/faq-efficient-free-tier/#user-limits-on-gitlab-saas-free-tier
-  MIN_STORAGE_ENFORCEMENT_DATE = 3.months.from_now.to_date
-  # https://gitlab.com/gitlab-org/gitlab/-/issues/367531
-  MIN_STORAGE_ENFORCEMENT_USAGE = 5.gigabytes
-
   cache_markdown_field :description, pipeline: :description
 
   has_many :projects, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
@@ -51,7 +52,6 @@ class Namespace < ApplicationRecord
   has_one :namespace_statistics
   has_one :namespace_route, foreign_key: :namespace_id, autosave: false, inverse_of: :namespace, class_name: 'Route'
   has_many :namespace_members, foreign_key: :member_namespace_id, inverse_of: :member_namespace, class_name: 'Member'
-  has_many :member_roles
 
   has_one :namespace_ldap_settings, inverse_of: :namespace, class_name: 'Namespaces::LdapSetting', autosave: true
 
@@ -63,6 +63,7 @@ class Namespace < ApplicationRecord
   # This should _not_ be `inverse_of: :namespace`, because that would also set
   # `user.namespace` when this user creates a group with themselves as `owner`.
   belongs_to :owner, class_name: 'User'
+  belongs_to :organization, class_name: 'Organizations::Organization'
 
   belongs_to :parent, class_name: "Namespace"
   has_many :children, -> { where(type: Group.sti_name) }, class_name: "Namespace", foreign_key: :parent_id
@@ -99,7 +100,10 @@ class Namespace < ApplicationRecord
   validates :path,
     presence: true,
     length: { maximum: URL_MAX_LENGTH }
-  validate :container_registry_namespace_path_validation
+
+  validates :path,
+    format: { with: Gitlab::Regex.oci_repository_path_regex, message: Gitlab::Regex.oci_repository_path_regex_message },
+    if: :path_changed?
 
   validates :path, namespace_path: true, if: ->(n) { !n.project_namespace? }
   # Project path validator is used for project namespaces for now to assure
@@ -130,19 +134,19 @@ class Namespace < ApplicationRecord
   delegate :name, to: :owner, allow_nil: true, prefix: true
   delegate :avatar_url, to: :owner, allow_nil: true
   delegate :prevent_sharing_groups_outside_hierarchy, :prevent_sharing_groups_outside_hierarchy=,
-           to: :namespace_settings, allow_nil: true
+    to: :namespace_settings, allow_nil: true
   delegate :show_diff_preview_in_email, :show_diff_preview_in_email?, :show_diff_preview_in_email=,
-           to: :namespace_settings
+    to: :namespace_settings
   delegate :runner_registration_enabled, :runner_registration_enabled?, :runner_registration_enabled=,
-           to: :namespace_settings
+    to: :namespace_settings
   delegate :allow_runner_registration_token,
-           :allow_runner_registration_token?,
-           :allow_runner_registration_token=,
-           to: :namespace_settings
+    :allow_runner_registration_token=,
+    to: :namespace_settings
   delegate :maven_package_requests_forwarding,
-           :pypi_package_requests_forwarding,
-           :npm_package_requests_forwarding,
-           to: :package_settings
+    :pypi_package_requests_forwarding,
+    :npm_package_requests_forwarding,
+    to: :package_settings
+  delegate :default_branch_protection_defaults, to: :namespace_settings, allow_nil: true
 
   before_save :update_new_emails_created_column, if: -> { emails_disabled_changed? }
   before_create :sync_share_with_group_lock_with_parent
@@ -150,7 +154,6 @@ class Namespace < ApplicationRecord
   after_update :force_share_with_group_lock_on_descendants, if: -> { saved_change_to_share_with_group_lock? && share_with_group_lock? }
   after_update :expire_first_auto_devops_config_cache, if: -> { saved_change_to_auto_devops_enabled? }
   after_update :move_dir, if: :saved_change_to_path_or_parent?, unless: -> { is_a?(Namespaces::ProjectNamespace) }
-  after_destroy :rm_dir
 
   after_save :reload_namespace_details
 
@@ -160,7 +163,6 @@ class Namespace < ApplicationRecord
 
   # Legacy Storage specific hooks
 
-  before_destroy(prepend: true) { prepare_for_destroy }
   after_commit :expire_child_caches, on: :update, if: -> {
     Feature.enabled?(:cached_route_lookups, self, type: :ops) &&
       saved_change_to_name? || saved_change_to_path? || saved_change_to_parent_id?
@@ -171,7 +173,9 @@ class Namespace < ApplicationRecord
   scope :sort_by_type, -> { order(arel_table[:type].asc.nulls_first) }
   scope :include_route, -> { includes(:route) }
   scope :by_parent, -> (parent) { where(parent_id: parent) }
+  scope :by_root_id, -> (root_id) { where('traversal_ids[1] IN (?)', root_id) }
   scope :filter_by_path, -> (query) { where('lower(path) = :query', query: query.downcase) }
+  scope :in_organization, -> (organization) { where(organization: organization) }
 
   scope :with_statistics, -> do
     joins('LEFT JOIN project_statistics ps ON ps.namespace_id = namespaces.id')
@@ -236,11 +240,26 @@ class Namespace < ApplicationRecord
     # query - The search query as a String.
     #
     # Returns an ActiveRecord::Relation.
-    def search(query, include_parents: false)
+    def search(query, include_parents: false, use_minimum_char_limit: true, exact_matches_first: false)
       if include_parents
-        without_project_namespaces.where(id: Route.for_routable_type(Namespace.name).fuzzy_search(query, [Route.arel_table[:path], Route.arel_table[:name]]).select(:source_id))
+        route_columns = [Route.arel_table[:path], Route.arel_table[:name]]
+        namespaces = without_project_namespaces
+          .where(id: Route.for_routable_type(Namespace.name)
+          .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/420046")
+            .fuzzy_search(query, route_columns,
+              use_minimum_char_limit: use_minimum_char_limit)
+            .select(:source_id))
+
+        if exact_matches_first
+          namespaces = namespaces
+            .joins(:route)
+            .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/420046")
+            .order(exact_matches_first_sql(query, route_columns))
+        end
+
+        namespaces
       else
-        without_project_namespaces.fuzzy_search(query, [:path, :name])
+        without_project_namespaces.fuzzy_search(query, [:path, :name], use_minimum_char_limit: use_minimum_char_limit, exact_matches_first: exact_matches_first)
       end
     end
 
@@ -254,25 +273,26 @@ class Namespace < ApplicationRecord
       value.scan(Gitlab::Regex.group_name_regex_chars).join(' ')
     end
 
-    def find_by_pages_host(host)
-      gitlab_host = "." + Settings.pages.host.downcase
-      host = host.downcase
-      return unless host.ends_with?(gitlab_host)
-
-      name = host.delete_suffix(gitlab_host)
-      Namespace.top_most.by_path(name)
-    end
-
     def top_most
       by_parent(nil)
     end
+
+    def reference_prefix
+      User.reference_prefix
+    end
+
+    def reference_pattern
+      User.reference_pattern
+    end
   end
 
-  def container_registry_namespace_path_validation
-    return if Feature.disabled?(:restrict_special_characters_in_namespace_path, self)
-    return if !path_changed? || path.match?(Gitlab::Regex.oci_repository_path_regex)
+  def to_reference_base(from = nil, full: false)
+    return full_path if full || cross_namespace_reference?(from)
+    return path if cross_project_reference?(from)
+  end
 
-    errors.add(:path, Gitlab::Regex.oci_repository_path_regex_message)
+  def to_reference(*)
+    "#{self.class.reference_prefix}#{full_path}"
   end
 
   def package_settings
@@ -300,7 +320,7 @@ class Namespace < ApplicationRecord
   end
 
   def first_project_with_container_registry_tags
-    if Gitlab.com? && Feature.enabled?(:use_sub_repositories_api)
+    if Gitlab.com_except_jh? && ContainerRegistry::GitlabApiClient.supports_gitlab_api?
       ContainerRegistry::GitlabApiClient.one_project_with_container_registry_tag(full_path)
     else
       all_projects.includes(:container_repositories).find(&:has_container_registry_tags?)
@@ -395,12 +415,14 @@ class Namespace < ApplicationRecord
   # Includes projects from this namespace and projects from all subgroups
   # that belongs to this namespace
   def all_projects
-    if Feature.enabled?(:recursive_approach_for_all_projects)
-      namespace = user_namespace? ? self : self_and_descendant_ids
-      Project.where(namespace: namespace)
-    else
-      Project.inside_path(full_path)
-    end
+    namespace = user_namespace? ? self : self_and_descendant_ids
+    Project.where(namespace: namespace)
+  end
+
+  # Includes projects from this namespace and projects from all subgroups
+  # that belongs to this namespace, except the ones that are soft deleted
+  def all_projects_except_soft_deleted
+    all_projects.not_aimed_for_deletion
   end
 
   def has_parent?
@@ -414,6 +436,10 @@ class Namespace < ApplicationRecord
   # Overridden on EE module
   def multiple_issue_boards_available?
     false
+  end
+
+  def all_project_ids
+    all_projects.pluck(:id)
   end
 
   def all_project_ids_except(ids)
@@ -451,7 +477,7 @@ class Namespace < ApplicationRecord
     return { scope: :group, status: auto_devops_enabled } unless auto_devops_enabled.nil?
 
     strong_memoize(:first_auto_devops_config) do
-      if has_parent?
+      if parent.present?
         Rails.cache.fetch(first_auto_devops_config_cache_key_for(id), expires_in: 1.day) do
           parent.first_auto_devops_config
         end
@@ -471,7 +497,7 @@ class Namespace < ApplicationRecord
 
   def container_repositories_size
     strong_memoize(:container_repositories_size) do
-      next unless Gitlab.com?
+      next unless Gitlab.com_except_jh?
       next unless root?
       next unless ContainerRegistry::GitlabApiClient.supports_gitlab_api?
       next 0 if all_container_repositories.empty?
@@ -485,22 +511,6 @@ class Namespace < ApplicationRecord
 
   def all_container_repositories
     ContainerRepository.for_project_id(all_projects)
-  end
-
-  def pages_virtual_domain
-    cache = if Feature.enabled?(:cache_pages_domain_api, root_ancestor)
-              ::Gitlab::Pages::CacheControl.for_namespace(root_ancestor.id)
-            end
-
-    Pages::VirtualDomain.new(
-      trim_prefix: full_path,
-      cache: cache,
-      projects: all_projects_with_pages.includes(
-        :route,
-        :project_setting,
-        :project_feature,
-        pages_metadatum: :pages_deployment)
-    )
   end
 
   def any_project_with_pages_deployed?
@@ -547,8 +557,8 @@ class Namespace < ApplicationRecord
   def changing_allow_descendants_override_disabled_shared_runners_is_allowed
     return unless new_record? || changes.has_key?(:allow_descendants_override_disabled_shared_runners)
 
-    if shared_runners_enabled && !new_record?
-      errors.add(:allow_descendants_override_disabled_shared_runners, _('cannot be changed if shared runners are enabled'))
+    if shared_runners_enabled && allow_descendants_override_disabled_shared_runners
+      errors.add(:allow_descendants_override_disabled_shared_runners, _('can not be true if shared runners are enabled'))
     end
 
     if allow_descendants_override_disabled_shared_runners && has_parent? && parent.shared_runners_setting == SR_DISABLED_AND_UNOVERRIDABLE
@@ -595,12 +605,6 @@ class Namespace < ApplicationRecord
     Feature.enabled?(:block_issue_repositioning, self, type: :ops)
   end
 
-  def storage_enforcement_date
-    return Date.current if Feature.enabled?(:namespace_storage_limit_bypass_date_check, self)
-
-    MIN_STORAGE_ENFORCEMENT_DATE
-  end
-
   def certificate_based_clusters_enabled?
     cluster_enabled_granted? || certificate_based_clusters_enabled_ff?
   end
@@ -617,7 +621,47 @@ class Namespace < ApplicationRecord
     namespace_settings&.all_ancestors_have_runner_registration_enabled?
   end
 
+  def allow_runner_registration_token?
+    !!namespace_settings&.allow_runner_registration_token?
+  end
+
+  def all_projects_with_pages
+    all_projects.with_pages_deployed.includes(
+      :route,
+      :project_setting,
+      :project_feature,
+      pages_metadatum: :pages_deployment
+    )
+  end
+
   private
+
+  def cross_namespace_reference?(from)
+    return false if from == self
+
+    comparable_namespace_id = project_namespace? ? parent_id : id
+
+    case from
+    when Project
+      from.namespace_id != comparable_namespace_id
+    when Namespaces::ProjectNamespace
+      from.parent_id != comparable_namespace_id
+    when Namespace
+      parent != from
+    when User
+      true
+    end
+  end
+
+  # Check if a reference is being done cross-project
+  def cross_project_reference?(from)
+    case from
+    when Project
+      from.project_namespace_id != id
+    else
+      from && self != from
+    end
+  end
 
   def update_new_emails_created_column
     return if namespace_settings.nil?
@@ -646,10 +690,6 @@ class Namespace < ApplicationRecord
     all_projects.each_batch do |projects|
       projects.touch_all
     end
-  end
-
-  def all_projects_with_pages
-    all_projects.with_pages_deployed
   end
 
   def parent_changed?
@@ -723,7 +763,7 @@ class Namespace < ApplicationRecord
   end
 
   def reload_namespace_details
-    return unless !project_namespace? && (previous_changes.keys & %w(description description_html cached_markdown_version)).any? && namespace_details.present?
+    return unless !project_namespace? && (previous_changes.keys & %w[description description_html cached_markdown_version]).any? && namespace_details.present?
 
     namespace_details.reset
   end

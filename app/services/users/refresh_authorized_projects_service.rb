@@ -67,8 +67,10 @@ module Users
     def update_authorizations(remove = [], add = [])
       log_refresh_details(remove, add)
 
-      ProjectAuthorization.delete_all_in_batches_for_user(user: user, project_ids: remove) if remove.any?
-      ProjectAuthorization.insert_all_in_batches(add) if add.any?
+      ProjectAuthorizations::Changes.new do |changes|
+        changes.add(add)
+        changes.remove_projects_for_user(user, remove)
+      end.apply!
 
       # Since we batch insert authorization rows, Rails' associations may get
       # out of sync. As such we force a reload of the User object.
@@ -80,15 +82,17 @@ module Users
     attr_reader :incorrect_auth_found_callback, :missing_auth_found_callback
 
     def log_refresh_details(remove, add)
-      Gitlab::AppJsonLogger.info(event: 'authorized_projects_refresh',
-                                 user_id: user.id,
-                                 'authorized_projects_refresh.source': source,
-                                 'authorized_projects_refresh.rows_deleted_count': remove.length,
-                                 'authorized_projects_refresh.rows_added_count': add.length,
-                                 # most often there's only a few entries in remove and add, but limit it to the first 5
-                                 # entries to avoid flooding the logs
-                                 'authorized_projects_refresh.rows_deleted_slice': remove.first(5),
-                                 'authorized_projects_refresh.rows_added_slice': add.first(5).map(&:values))
+      Gitlab::AppJsonLogger.info(
+        event: 'authorized_projects_refresh',
+        user_id: user.id,
+        'authorized_projects_refresh.source': source,
+        'authorized_projects_refresh.rows_deleted_count': remove.length,
+        'authorized_projects_refresh.rows_added_count': add.length,
+        # most often there's only a few entries in remove and add, but limit it to the first 5
+        # entries to avoid flooding the logs
+        'authorized_projects_refresh.rows_deleted_slice': remove.first(5),
+        'authorized_projects_refresh.rows_added_slice': add.first(5).map(&:values)
+      )
     end
   end
 end

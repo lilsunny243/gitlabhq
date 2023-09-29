@@ -1,6 +1,6 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -24,11 +24,12 @@ brew services start jenkins
 GitLab does not allow requests to localhost or the local network by default. When running Jenkins on your local machine, you need to enable local access.
 
 1. Log into your GitLab instance as an administrator.
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Settings > Network**.
-1. Expand **Outbound requests** and check the following checkboxes:
+1. Expand **Outbound requests**, and select the following checkboxes:
 
-   - **Allow requests to the local network from web hooks and services**
+   - **Allow requests to the local network from webhooks and integrations**
    - **Allow requests to the local network from system hooks**
 
   For more details about GitLab webhooks, see [Webhooks and insecure internal web services](../../security/webhooks.md).
@@ -54,8 +55,8 @@ To set up the Jenkins project you intend to run your build on, read
 
 You can configure your integration between Jenkins and GitLab:
 
-- With the [recommended approach for Jenkins integration](../../integration/jenkins.md#configure-a-jenkins-integration-recommended).
-- [Using a webhook](../../integration/jenkins.md#configure-a-webhook).
+- With the [recommended approach for Jenkins integration](../../integration/jenkins.md#with-a-jenkins-server-url).
+- [Using a webhook](../../integration/jenkins.md#with-a-webhook).
 
 ## Test your setup
 

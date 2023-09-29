@@ -21,44 +21,7 @@ RSpec.describe API::Metrics::UserStarredDashboards, feature_category: :metrics d
     end
 
     context 'with correct permissions' do
-      context 'with valid parameters' do
-        context 'dashboard_path as url param url escaped' do
-          it 'creates a new user starred metrics dashboard', :aggregate_failures do
-            post api(url, user), params: params
-
-            expect(response).to have_gitlab_http_status(:created)
-            expect(json_response['project_id']).to eq(project.id)
-            expect(json_response['user_id']).to eq(user.id)
-            expect(json_response['dashboard_path']).to eq(dashboard)
-          end
-        end
-
-        context 'dashboard_path in request body unescaped' do
-          let(:params) do
-            {
-              dashboard_path: dashboard
-            }
-          end
-
-          it 'creates a new user starred metrics dashboard', :aggregate_failures do
-            post api(url, user), params: params
-
-            expect(response).to have_gitlab_http_status(:created)
-            expect(json_response['project_id']).to eq(project.id)
-            expect(json_response['user_id']).to eq(user.id)
-            expect(json_response['dashboard_path']).to eq(dashboard)
-          end
-        end
-      end
-
       context 'with invalid parameters' do
-        it 'returns error message' do
-          post api(url, user), params: { dashboard_path: '' }
-
-          expect(response).to have_gitlab_http_status(:bad_request)
-          expect(json_response['error']).to eq('dashboard_path is empty')
-        end
-
         context 'user is missing' do
           it 'returns 404 not found' do
             post api(url, nil), params: params
@@ -84,57 +47,22 @@ RSpec.describe API::Metrics::UserStarredDashboards, feature_category: :metrics d
         expect(response).to have_gitlab_http_status(:not_found)
       end
     end
+
+    context 'when metrics dashboard feature is unavailable' do
+      it 'returns 404 not found' do
+        post api(url, user), params: params
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
   end
 
   describe 'DELETE /projects/:id/metrics/user_starred_dashboards' do
-    let_it_be(:user_starred_dashboard_1) { create(:metrics_users_starred_dashboard, user: user, project: project, dashboard_path: dashboard) }
-    let_it_be(:user_starred_dashboard_2) { create(:metrics_users_starred_dashboard, user: user, project: project) }
-    let_it_be(:other_user_starred_dashboard) { create(:metrics_users_starred_dashboard, project: project) }
-    let_it_be(:other_project_starred_dashboard) { create(:metrics_users_starred_dashboard, user: user) }
-
     before do
       project.add_reporter(user)
     end
 
     context 'with correct permissions' do
-      context 'with valid parameters' do
-        context 'dashboard_path as url param url escaped' do
-          it 'deletes given user starred metrics dashboard', :aggregate_failures do
-            delete api(url, user), params: params
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response['deleted_rows']).to eq(1)
-            expect(::Metrics::UsersStarredDashboard.all.pluck(:dashboard_path)).not_to include(dashboard)
-          end
-        end
-
-        context 'dashboard_path in request body unescaped' do
-          let(:params) do
-            {
-              dashboard_path: dashboard
-            }
-          end
-
-          it 'deletes given user starred metrics dashboard', :aggregate_failures do
-            delete api(url, user), params: params
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response['deleted_rows']).to eq(1)
-            expect(::Metrics::UsersStarredDashboard.all.pluck(:dashboard_path)).not_to include(dashboard)
-          end
-        end
-
-        context 'dashboard_path has not been specified' do
-          it 'deletes all starred dashboards for that user within given project', :aggregate_failures do
-            delete api(url, user), params: {}
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response['deleted_rows']).to eq(2)
-            expect(::Metrics::UsersStarredDashboard.all).to contain_exactly(other_user_starred_dashboard, other_project_starred_dashboard)
-          end
-        end
-      end
-
       context 'with invalid parameters' do
         context 'user is missing' do
           it 'returns 404 not found' do
@@ -157,6 +85,14 @@ RSpec.describe API::Metrics::UserStarredDashboards, feature_category: :metrics d
     context 'without correct permissions' do
       it 'returns 404 not found' do
         post api(url, create(:user)), params: params
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
+
+    context 'when metrics dashboard feature is unavailable' do
+      it 'returns 404 not found' do
+        delete api(url, user), params: params
 
         expect(response).to have_gitlab_http_status(:not_found)
       end

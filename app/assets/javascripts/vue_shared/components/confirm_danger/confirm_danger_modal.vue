@@ -38,7 +38,16 @@ export default {
       default: CONFIRM_DANGER_MODAL_CANCEL,
     },
   },
+  model: {
+    prop: 'visible',
+    event: 'change',
+  },
   props: {
+    visible: {
+      type: Boolean,
+      required: false,
+      default: null,
+    },
     modalId: {
       type: String,
       required: true,
@@ -60,13 +69,11 @@ export default {
     actionPrimary() {
       return {
         text: this.confirmButtonText,
-        attributes: [
-          {
-            variant: 'danger',
-            disabled: !this.isValid,
-            'data-qa-selector': 'confirm_danger_modal_button',
-          },
-        ],
+        attributes: {
+          variant: 'danger',
+          disabled: !this.isValid,
+          'data-qa-selector': 'confirm_danger_modal_button',
+        },
       };
     },
     actionCancel() {
@@ -91,12 +98,15 @@ export default {
 <template>
   <gl-modal
     ref="modal"
+    :visible="visible"
     :modal-id="modalId"
     :data-testid="modalId"
     :title="$options.i18n.CONFIRM_DANGER_MODAL_TITLE"
     :action-primary="actionPrimary"
     :action-cancel="actionCancel"
+    size="sm"
     @primary="$emit('confirm')"
+    @change="$emit('change', $event)"
   >
     <gl-alert
       v-if="confirmDangerMessage"

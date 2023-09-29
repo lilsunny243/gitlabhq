@@ -30,8 +30,8 @@ Before we can switch any features to using the new instance, we have to support
 configuring it and referring to it in the codebase. We must support the
 main installation types:
 
-- Source installs (including development environments) - [example MR](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/62767)
-- Omnibus - [example MR](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5316)
+- Self-compiled installations (including development environments) - [example MR](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/62767)
+- Linux package installations - [example MR](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5316)
 - Helm charts - [example MR](https://gitlab.com/gitlab-org/charts/gitlab/-/merge_requests/2031)
 
 ### Fallback instance
@@ -119,7 +119,7 @@ Migration Requirements:
 
 - No downtime.
 - No loss of stored data until the TTL for storing data expires.
-- Partial rollout using Feature Flags or ENV vars or combinations of both.
+- Partial rollout using feature flags or ENV vars or combinations of both.
 - Monitoring of the switch.
 - Prometheus metrics in place.
 - Easy rollback without downtime in case the new instance or logic does not behave as expected.
@@ -202,44 +202,44 @@ MultiStore implements read and write Redis commands separately.
 - `smembers`
 - `scard`
 
-- 'exists'
-- 'exists?'
-- 'get'
-- 'hexists'
-- 'hget'
-- 'hgetall'
-- 'hlen'
-- 'hmget'
-- 'hscan_each'
-- 'mapped_hmget'
-- 'mget'
-- 'scan_each'
-- 'scard'
-- 'sismember'
-- 'smembers'
-- 'sscan'
-- 'sscan_each'
-- 'ttl'
-- 'zscan_each'
+- `exists`
+- `exists?`
+- `get`
+- `hexists`
+- `hget`
+- `hgetall`
+- `hlen`
+- `hmget`
+- `hscan_each`
+- `mapped_hmget`
+- `mget`
+- `scan_each`
+- `scard`
+- `sismember`
+- `smembers`
+- `sscan`
+- `sscan_each`
+- `ttl`
+- `zscan_each`
 
 ##### Write commands
 
-- 'del'
-- 'eval'
-- 'expire'
-- 'flushdb'
-- 'hdel'
-- 'hset'
-- 'incr'
-- 'incrby'
-- 'mapped_hmset'
-- 'rpush'
-- 'sadd'
-- 'set'
-- 'setex'
-- 'setnx'
-- 'srem'
-- 'unlink'
+- `del`
+- `eval`
+- `expire`
+- `flushdb`
+- `hdel`
+- `hset`
+- `incr`
+- `incrby`
+- `mapped_hmset`
+- `rpush`
+- `sadd`
+- `set`
+- `setex`
+- `setnx`
+- `srem`
+- `unlink`
 
 ##### `pipelined` commands
 

@@ -51,6 +51,8 @@ module Gitlab
         end,
         'description' => ->(merge_request, _, _) { merge_request.description },
         'reference' => ->(merge_request, _, _) { merge_request.to_reference(full: true) },
+        'local_reference' => ->(merge_request, _, _) { merge_request.to_reference(full: false) },
+        'source_project_id' => ->(merge_request, _, _) { merge_request.source_project.id.to_s },
         'first_commit' => -> (merge_request, _, _) {
           return unless merge_request.persisted? || merge_request.compare_commits.present?
 
@@ -109,7 +111,7 @@ module Gitlab
         all_commits
       ].freeze
 
-      PLACEHOLDERS_COMBINED_REGEX = /%{(#{Regexp.union(PLACEHOLDERS.keys)})}/.freeze
+      PLACEHOLDERS_COMBINED_REGEX = /%{(#{Regexp.union(PLACEHOLDERS.keys)})}/
 
       def replace_placeholders(message, allowed_placeholders: [], squash: false, keep_carriage_return: false)
         # Convert CRLF to LF.

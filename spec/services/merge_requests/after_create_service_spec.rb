@@ -4,6 +4,7 @@ require 'spec_helper'
 
 RSpec.describe MergeRequests::AfterCreateService, feature_category: :code_review_workflow do
   let_it_be(:merge_request) { create(:merge_request) }
+  let(:project) { merge_request.project }
 
   subject(:after_create_service) do
     described_class.new(project: merge_request.target_project, current_user: merge_request.author)
@@ -64,6 +65,18 @@ RSpec.describe MergeRequests::AfterCreateService, feature_category: :code_review
       expect(after_create_service)
         .to receive(:create_pipeline_for).with(merge_request, merge_request.author)
       expect(merge_request).to receive(:update_head_pipeline)
+
+      execute_service
+    end
+
+    it 'executes hooks with default action' do
+      expect(project).to receive(:execute_hooks)
+
+      execute_service
+    end
+
+    it 'calls GroupMentionWorker' do
+      expect(Integrations::GroupMentionWorker).to receive(:perform_async)
 
       execute_service
     end
@@ -141,22 +154,6 @@ RSpec.describe MergeRequests::AfterCreateService, feature_category: :code_review
       counter = Gitlab::UsageDataCounters::MergeRequestCounter
 
       expect { execute_service }.to change { counter.read(:create) }.by(1)
-    end
-
-    context 'with a milestone' do
-      let(:milestone) { create(:milestone, project: merge_request.target_project) }
-
-      before do
-        merge_request.update!(milestone_id: milestone.id)
-      end
-
-      it 'deletes the cache key for milestone merge request counter', :use_clean_rails_memory_store_caching do
-        expect_next_instance_of(Milestones::MergeRequestsCountService, milestone) do |service|
-          expect(service).to receive(:delete_cache).and_call_original
-        end
-
-        execute_service
-      end
     end
 
     context 'todos' do
@@ -239,6 +236,31 @@ RSpec.describe MergeRequests::AfterCreateService, feature_category: :code_review
       execute_service
 
       expect(service).to have_received(:execute).with(merge_request)
+    end
+
+    describe 'logging' do
+      it 'logs specific events' do
+        ::Gitlab::ApplicationContext.push(caller_id: 'NewMergeRequestWorker')
+
+        allow(Gitlab::AppLogger).to receive(:info).and_call_original
+
+        [
+          'Executing hooks',
+          'Executed hooks',
+          'Creating pipeline',
+          'Pipeline created'
+        ].each do |message|
+          expect(Gitlab::AppLogger).to receive(:info).with(
+            hash_including(
+              'meta.caller_id' => 'NewMergeRequestWorker',
+              message: message,
+              merge_request_id: merge_request.id
+            )
+          ).and_call_original
+        end
+
+        execute_service
+      end
     end
   end
 end

@@ -2,22 +2,19 @@
 stage: Verify
 group: Pipeline Authoring
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 type: index, howto
 ---
 
-# Migrating from CircleCI **(FREE)**
+# Migrating from CircleCI **(FREE ALL)**
 
 If you are currently using CircleCI, you can migrate your CI/CD pipelines to [GitLab CI/CD](../introduction/index.md),
-and start making use of all its powerful features. Check out our
-[CircleCI vs GitLab](https://about.gitlab.com/devops-tools/circle-ci-vs-gitlab/)
-comparison to see what's different.
+and start making use of all its powerful features.
 
 We have collected several resources that you may find useful before starting to migrate.
 
 The [Quick Start Guide](../quick_start/index.md) is a good overview of how GitLab CI/CD works. You may also be interested in [Auto DevOps](../../topics/autodevops/index.md) which can be used to build, test, and deploy your applications with little to no configuration needed at all.
 
-For advanced CI/CD teams, [custom project templates](../../user/admin_area/custom_project_templates.md) can enable the reuse of pipeline configurations.
+For advanced CI/CD teams, [custom project templates](../../administration/custom_project_templates.md) can enable the reuse of pipeline configurations.
 
 If you have questions that are not answered here, the [GitLab community forum](https://forum.gitlab.com/) can be a great resource.
 
@@ -250,18 +247,14 @@ jobs:
 Example of the same pipeline using `cache` in GitLab CI/CD:
 
 ```yaml
-image: node:latest
-
-# Cache modules in between jobs
-cache:
-  key: $CI_COMMIT_REF_SLUG
-  paths:
-    - .npm/
-
-before_script:
-  - npm ci --cache .npm --prefer-offline
-
 test_async:
+  image: node:latest
+  cache:  # Cache modules in between jobs
+    key: $CI_COMMIT_REF_SLUG
+    paths:
+      - .npm/
+  before_script:
+    - npm ci --cache .npm --prefer-offline
   script:
     - node ./specs/start.js ./specs/async.spec.js
 ```
@@ -292,8 +285,8 @@ Self-managed runners:
 GitLab.com shared runners:
 
 - Linux
-- [Windows](../runners/saas/windows_saas_runner.md) ([Beta](../../policy/alpha-beta-support.md#beta-features)).
-- [macOS](../runners/saas/macos_saas_runner.md) ([Beta](../../policy/alpha-beta-support.md#beta-features)).
+- [Windows](../runners/saas/windows_saas_runner.md) ([Beta](../../policy/experiment-beta-support.md#beta)).
+- [macOS](../runners/saas/macos_saas_runner.md) ([Beta](../../policy/experiment-beta-support.md#beta)).
 
 ### Machine and specific build environments
 
@@ -321,16 +314,14 @@ Example of the same job using `tags` in GitLab CI/CD:
 
 ```yaml
 windows job:
-  stage:
-    - build
+  stage: build
   tags:
     - windows
   script:
     - echo Hello, %USERNAME%!
 
 osx job:
-  stage:
-    - build
+  stage: build
   tags:
     - osx
   script:

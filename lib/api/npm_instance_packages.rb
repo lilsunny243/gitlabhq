@@ -6,8 +6,14 @@ module API
     feature_category :package_registry
     urgency :low
 
-    rescue_from ActiveRecord::RecordInvalid do |e|
-      render_api_error!(e.message, 400)
+    helpers do
+      def endpoint_scope
+        :instance
+      end
+
+      def group_or_namespace
+        top_namespace_from(params[:package_name])
+      end
     end
 
     namespace 'packages/npm' do

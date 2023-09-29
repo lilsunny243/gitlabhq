@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Badges, feature_category: :projects do
+RSpec.describe API::Badges, feature_category: :groups_and_projects do
   let(:maintainer) { create(:user, username: 'maintainer_user') }
   let(:developer) { create(:user) }
   let(:access_requester) { create(:user) }
@@ -72,9 +72,9 @@ RSpec.describe API::Badges, feature_category: :projects do
 
       context 'when authenticated as a non-member' do
         %i[maintainer developer access_requester stranger].each do |type|
-          let(:badge) { source.badges.first }
-
           context "as a #{type}" do
+            let(:badge) { source.badges.first }
+
             it 'returns 200', :quarantine do
               user = public_send(type)
 

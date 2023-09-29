@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project Jobs Permissions', feature_category: :projects do
+RSpec.describe 'Project Jobs Permissions', feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be_with_reload(:group) { create(:group, name: 'some group') }
@@ -88,7 +88,7 @@ RSpec.describe 'Project Jobs Permissions', feature_category: :projects do
 
         it_behaves_like 'recent job page details responds with status', 200 do
           it 'renders job details', :js do
-            expect(page).to have_content "Job #{job.name}"
+            expect(page).to have_content(job.name)
             expect(page).to have_css '.log-line'
           end
         end
@@ -149,109 +149,44 @@ RSpec.describe 'Project Jobs Permissions', feature_category: :projects do
     end
   end
 
-  context 'with CI_DEBUG_TRACE' do
-    let_it_be(:ci_instance_variable) { create(:ci_instance_variable, key: 'CI_DEBUG_TRACE') }
+  describe 'debug_mode' do
+    let(:job) { create(:ci_build, :trace_artifact, pipeline: pipeline) }
 
-    describe 'trace endpoint' do
-      let_it_be(:job) { create(:ci_build, :trace_artifact, pipeline: pipeline) }
-
-      where(:public_builds, :user_project_role, :ci_debug_trace, :expected_status_code) do
-        true         | 'developer'      | true  | 200
-        true         | 'guest'          | true  | 403
-        true         | 'developer'      | false | 200
-        true         | 'guest'          | false | 200
-        false        | 'developer'      | true  | 200
-        false        | 'guest'          | true  | 403
-        false        | 'developer'      | false | 200
-        false        | 'guest'          | false | 403
-      end
-
-      with_them do
-        before do
-          ci_instance_variable.update!(value: ci_debug_trace)
-          project.update!(public_builds: public_builds)
-          project.add_role(user, user_project_role)
-        end
-
-        it 'renders trace to authorized users' do
-          visit trace_project_job_path(project, job)
-
-          expect(status_code).to eq(expected_status_code)
-        end
-      end
+    where(:public_builds, :user_project_role, :debug_mode, :expected_status_code, :expected_msg) do
+      true         | 'developer'      | true  | 200 | ''
+      true         | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
+      true         | nil              | true  | 404 | 'Page Not Found Make sure the address is correct'
+      true         | 'developer'      | false | 200 | ''
+      true         | 'guest'          | false | 200 | ''
+      true         | nil              | false | 404 | 'Page Not Found Make sure the address is correct'
+      false        | 'developer'      | true  | 200 | ''
+      false        | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
+      false        | nil              | true  | 404 | 'Page Not Found Make sure the address is correct'
+      false        | 'developer'      | false | 200 | ''
+      false        | 'guest'          | false | 403 | 'The current user is not authorized to access the job log'
+      false        | nil              | false | 404 | 'Page Not Found Make sure the address is correct'
     end
 
-    describe 'raw page' do
-      let_it_be(:job) { create(:ci_build, :running, :coverage, :trace_artifact, pipeline: pipeline) }
-
-      where(:public_builds, :user_project_role, :ci_debug_trace, :expected_status_code, :expected_msg) do
-        true         | 'developer'      | true  | 200 | nil
-        true         | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
-        true         | 'developer'      | false | 200 | nil
-        true         | 'guest'          | false | 200 | nil
-        false        | 'developer'      | true  | 200 | nil
-        false        | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
-        false        | 'developer'      | false | 200 | nil
-        false        | 'guest'          | false | 403 | 'The current user is not authorized to access the job log'
-      end
-
-      with_them do
-        before do
-          ci_instance_variable.update!(value: ci_debug_trace)
-          project.update!(public_builds: public_builds)
-          project.add_role(user, user_project_role)
-        end
-
-        it 'renders raw trace to authorized users' do
-          visit raw_project_job_path(project, job)
-
-          expect(status_code).to eq(expected_status_code)
-          expect(page).to have_content(expected_msg)
+    with_them do
+      before do
+        project.update!(public_builds: public_builds)
+        user_project_role && project.add_role(user, user_project_role)
+        allow_next_found_instance_of(Ci::Build) do |build|
+          allow(build).to receive(:debug_mode?).and_return(debug_mode)
         end
       end
-    end
-  end
 
-  context 'with CI_DEBUG_SERVICES' do
-    let_it_be(:ci_instance_variable) { create(:ci_instance_variable, key: 'CI_DEBUG_SERVICES') }
+      it 'renders trace to authorized users' do
+        visit trace_project_job_path(project, job)
 
-    describe 'trace endpoint and raw page' do
-      let_it_be(:job) { create(:ci_build, :running, :coverage, :trace_artifact, pipeline: pipeline) }
-
-      where(:public_builds, :user_project_role, :ci_debug_services, :expected_status_code, :expected_msg) do
-        true         | 'developer'      | true  | 200 | nil
-        true         | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
-        true         | nil              | true  | 404 | 'Page Not Found Make sure the address is correct'
-        true         | 'developer'      | false | 200 | nil
-        true         | 'guest'          | false | 200 | nil
-        true         | nil              | false | 404 | 'Page Not Found Make sure the address is correct'
-        false        | 'developer'      | true  | 200 | nil
-        false        | 'guest'          | true  | 403 | 'You must have developer or higher permissions'
-        false        | nil              | true  | 404 | 'Page Not Found Make sure the address is correct'
-        false        | 'developer'      | false | 200 | nil
-        false        | 'guest'          | false | 403 | 'The current user is not authorized to access the job log'
-        false        | nil              | false | 404 | 'Page Not Found Make sure the address is correct'
+        expect(status_code).to eq(expected_status_code)
       end
 
-      with_them do
-        before do
-          ci_instance_variable.update!(value: ci_debug_services)
-          project.update!(public_builds: public_builds)
-          user_project_role && project.add_role(user, user_project_role)
-        end
+      it 'renders raw trace to authorized users' do
+        visit raw_project_job_path(project, job)
 
-        it 'renders trace to authorized users' do
-          visit trace_project_job_path(project, job)
-
-          expect(status_code).to eq(expected_status_code)
-        end
-
-        it 'renders raw trace to authorized users' do
-          visit raw_project_job_path(project, job)
-
-          expect(status_code).to eq(expected_status_code)
-          expect(page).to have_content(expected_msg)
-        end
+        expect(status_code).to eq(expected_status_code)
+        expect(page).to have_content(expected_msg)
       end
     end
   end

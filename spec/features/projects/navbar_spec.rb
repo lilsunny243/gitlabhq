@@ -2,26 +2,24 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project navbar', :with_license, feature_category: :projects do
+RSpec.describe 'Project navbar', :with_license, feature_category: :groups_and_projects do
   include NavbarStructureHelper
   include WaitForRequests
 
   include_context 'project navbar structure'
 
-  let_it_be(:project) { create(:project, :repository) }
-
-  let(:user) { project.first_owner }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:project) { create(:project, :repository, namespace: user.namespace) }
 
   before do
     sign_in(user)
 
-    stub_feature_flags(show_pages_in_deployments_menu: false)
-
     stub_config(registry: { enabled: false })
-    stub_feature_flags(harbor_registry_integration: false)
+    stub_feature_flags(ml_experiment_tracking: false)
     insert_package_nav(_('Deployments'))
     insert_infrastructure_registry_nav
     insert_infrastructure_google_cloud_nav
+    insert_infrastructure_aws_nav
   end
 
   it_behaves_like 'verified navigation bar' do
@@ -51,8 +49,8 @@ RSpec.describe 'Project navbar', :with_license, feature_category: :projects do
       stub_config(pages: { enabled: true })
 
       insert_after_sub_nav_item(
-        _('Packages and registries'),
-        within: _('Settings'),
+        _('Releases'),
+        within: _('Deployments'),
         new_sub_nav_item_name: _('Pages')
       )
 
@@ -88,9 +86,19 @@ RSpec.describe 'Project navbar', :with_license, feature_category: :projects do
     let_it_be(:harbor_integration) { create(:harbor_integration, project: project) }
 
     before do
-      stub_feature_flags(harbor_registry_integration: true)
+      insert_harbor_registry_nav(_('Terraform modules'))
 
-      insert_harbor_registry_nav(_('Infrastructure Registry'))
+      visit project_path(project)
+    end
+
+    it_behaves_like 'verified navigation bar'
+  end
+
+  context 'when models experiments is available' do
+    before do
+      stub_feature_flags(ml_experiment_tracking: true)
+
+      insert_model_experiments_nav(_('Terraform modules'))
 
       visit project_path(project)
     end

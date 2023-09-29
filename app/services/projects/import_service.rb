@@ -20,6 +20,8 @@ module Projects
 
       add_repository_to_project
 
+      validate_repository_size!
+
       download_lfs_objects
 
       import_data
@@ -27,7 +29,7 @@ module Projects
       after_execute_hook
 
       success
-    rescue Gitlab::UrlBlocker::BlockedUrlError, StandardError => e
+    rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError, StandardError => e
       Gitlab::Import::ImportFailureService.track(
         project_id: project.id,
         error_source: self.class.name,
@@ -36,8 +38,11 @@ module Projects
       )
 
       message = Projects::ImportErrorFilter.filter_message(e.message)
-      error(s_("ImportProjects|Error importing repository %{project_safe_import_url} into %{project_full_path} - %{message}") %
-              { project_safe_import_url: project.safe_import_url, project_full_path: project.full_path, message: message })
+      error(
+        s_(
+          "ImportProjects|Error importing repository %{project_safe_import_url} into %{project_full_path} - %{message}"
+        ) % { project_safe_import_url: project.safe_import_url, project_full_path: project.full_path, message: message }
+      )
     end
 
     protected
@@ -55,6 +60,10 @@ module Projects
 
     attr_reader :resolved_address
 
+    def validate_repository_size!
+      # Defined in EE::Projects::ImportService
+    end
+
     def after_execute_hook
       # Defined in EE::Projects::ImportService
     end
@@ -67,7 +76,7 @@ module Projects
       if project.external_import? && !unknown_url?
         begin
           @resolved_address = get_resolved_address
-        rescue Gitlab::UrlBlocker::BlockedUrlError => e
+        rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError => e
           raise e, s_("ImportProjects|Blocked import URL: %{message}") % { message: e.message }
         end
       end

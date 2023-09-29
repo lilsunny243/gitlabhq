@@ -4,24 +4,21 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Working with the GitHub importer
+# GitHub importer developer documentation
 
-In GitLab 10.2 a new version of the GitHub importer was introduced. This new
-importer performs its work in parallel using Sidekiq, greatly reducing the time
-necessary to import GitHub projects into a GitLab instance.
+The GitHub importer offers two different types of importers:
 
-The GitHub importer offers two different types of importers: a sequential
-importer and a parallel importer. The Rake task `import:github` uses the
-sequential importer, while everything else uses the parallel importer. The
-difference between these two importers is quite simple: the sequential importer
-does all work in a single thread, making it more useful for debugging purposes
-or Rake tasks. The parallel importer, on the other hand, uses Sidekiq.
+- A sequential importer. Used by the `import:github` Rake task.
+- A parallel importer. Used by everything else.
 
-## Requirements
+The difference between these two importers is:
 
-- GitLab CE 10.2.0 or newer.
-- Sidekiq workers that process the `github_importer` and
-  `github_importer_advance_stage` queues (this is enabled by default).
+- The sequential importer does all the work in a single thread, so it's more suited for debugging purposes or Rake tasks.
+- The parallel importer uses Sidekiq.
+
+## Prerequisites
+
+- Sidekiq workers that process the `github_importer` and `github_importer_advance_stage` queues (enabled by default).
 - Octokit (used for interacting with the GitHub API).
 
 ## Code structure
@@ -69,30 +66,38 @@ don't need to perform this work in parallel.
 This worker imports all pull requests. For every pull request a job for the
 `Gitlab::GithubImport::ImportPullRequestWorker` worker is scheduled.
 
-### 5. Stage::ImportPullRequestsMergedByWorker
+### 5. Stage::ImportCollaboratorsWorker
+
+This worker imports only direct repository collaborators who are not outside collaborators.
+For every collaborator, we schedule a job for the `Gitlab::GithubImport::ImportCollaboratorWorker` worker.
+
+NOTE:
+This stage is optional (controlled by `Gitlab::GithubImport::Settings`) and is selected by default.
+
+### 6. Stage::ImportPullRequestsMergedByWorker
 
 This worker imports the pull requests' _merged-by_ user information. The
 [_List pull requests_](https://docs.github.com/en/rest/pulls#list-pull-requests)
 API doesn't provide this information. Therefore, this stage must fetch each merged pull request
 individually to import this information. A
-`Gitlab::GithubImport::ImportPullRequestMergedByWorker` job is scheduled for each fetched pull
+`Gitlab::GithubImport::PullRequests::ImportMergedByWorker` job is scheduled for each fetched pull
 request.
 
-### 6. Stage::ImportPullRequestsReviewRequestsWorker
+### 7. Stage::ImportPullRequestsReviewRequestsWorker
 
 This worker imports assigned reviewers of pull requests. For each pull request, this worker:
 
 - Fetches all assigned review requests.
 - Schedules a `Gitlab::GithubImport::PullRequests::ImportReviewRequestWorker` job for each fetched review request.
 
-### 7. Stage::ImportPullRequestsReviewsWorker
+### 8. Stage::ImportPullRequestsReviewsWorker
 
 This worker imports reviews of pull requests. For each pull request, this worker:
 
 - Fetches all the pages of reviews.
-- Schedules a `Gitlab::GithubImport::ImportPullRequestReviewWorker` job for each fetched review.
+- Schedules a `Gitlab::GithubImport::PullRequests::ImportReviewWorker` job for each fetched review.
 
-### 8. Stage::ImportIssuesAndDiffNotesWorker
+### 9. Stage::ImportIssuesAndDiffNotesWorker
 
 This worker imports all issues and pull request comments. For every issue, we
 schedule a job for the `Gitlab::GithubImport::ImportIssueWorker` worker. For
@@ -108,7 +113,7 @@ label links in the same worker removes the need for performing a separate crawl
 through the API data, reducing the number of API calls necessary to import a
 project.
 
-### 9. Stage::ImportIssueEventsWorker
+### 10. Stage::ImportIssueEventsWorker
 
 This worker imports all issues and pull request events. For every event, we
 schedule a job for the `Gitlab::GithubImport::ImportIssueEventWorker` worker.
@@ -124,7 +129,7 @@ Therefore, both issues and pull requests have a common API for most related thin
 NOTE:
 This stage is optional and can consume significant extra import time (controlled by `Gitlab::GithubImport::Settings`).
 
-### 10. Stage::ImportNotesWorker
+### 11. Stage::ImportNotesWorker
 
 This worker imports regular comments for both issues and pull requests. For
 every comment, we schedule a job for the
@@ -135,15 +140,15 @@ returns comments for both issues and pull requests. This means we have to wait
 for all issues and pull requests to be imported before we can import regular
 comments.
 
-### 11. Stage::ImportAttachmentsWorker
+### 12. Stage::ImportAttachmentsWorker
 
 This worker imports note attachments that are linked inside Markdown.
 For each entity with Markdown text in the project, we schedule a job of:
 
-- `Gitlab::GithubImport::ImportReleaseAttachmentsWorker` for every release.
-- `Gitlab::GithubImport::ImportNoteAttachmentsWorker` for every note.
-- `Gitlab::GithubImport::ImportIssueAttachmentsWorker` for every issue.
-- `Gitlab::GithubImport::ImportMergeRequestAttachmentsWorker` for every merge request.
+- `Gitlab::GithubImport::Importer::Attachments::ReleasesImporter` for every release.
+- `Gitlab::GithubImport::Importer::Attachments::NotesImporter` for every note.
+- `Gitlab::GithubImport::Importer::Attachments::IssuesImporter` for every issue.
+- `Gitlab::GithubImport::Importer::Attachments::MergeRequestsImporter` for every merge request.
 
 Each job:
 
@@ -154,7 +159,7 @@ Each job:
 NOTE:
 It's an optional stage that could consume significant extra import time (controlled by `Gitlab::GithubImport::Settings`).
 
-### 12. Stage::ImportProtectedBranchesWorker
+### 13. Stage::ImportProtectedBranchesWorker
 
 This worker imports protected branch rules.
 For every rule that exists on GitHub, we schedule a job of
@@ -163,7 +168,7 @@ For every rule that exists on GitHub, we schedule a job of
 Each job compares the branch protection rules from GitHub and GitLab and applies
 the strictest of the rules to the branches in GitLab.
 
-### 13. Stage::FinishImportWorker
+### 14. Stage::FinishImportWorker
 
 This worker completes the import process by performing some housekeeping
 (such as flushing any caches) and by marking the import as completed.
@@ -179,10 +184,10 @@ Advancing stages is done in one of two ways:
 The first approach should only be used by workers that perform all their work in
 a single thread, while `AdvanceStageWorker` should be used for everything else.
 
-The way `AdvanceStageWorker` works is fairly simple. When scheduling a job it
+When you schedule a job, `AdvanceStageWorker`
 is given a project ID, a list of Redis keys, and the name of the next
 stage. The Redis keys (produced by `Gitlab::JobWaiter`) are used to check if the
-currently running stage has been completed or not. If the stage has not yet been
+running stage has been completed or not. If the stage has not yet been
 completed `AdvanceStageWorker` reschedules itself. After a stage finishes
 `AdvanceStageworker` refreshes the import JID (more on this below) and
 schedule the worker of the next stage.
@@ -196,7 +201,7 @@ also reduces pressure on the system as a whole.
 
 GitLab includes a worker called `Gitlab::Import::StuckProjectImportJobsWorker`
 that periodically runs and marks project imports as failed if they have been
-running for more than 15 hours. For GitHub projects, this poses a bit of a
+running for more than 24 hours. For GitHub projects, this poses a bit of a
 problem: importing large projects could take several hours depending on how
 often we hit the GitHub rate limit (more on this below), but we don't want
 `Gitlab::Import::StuckProjectImportJobsWorker` to mark our import as failed because of this.
@@ -212,14 +217,14 @@ long we're still performing work.
 
 GitHub has a rate limit of 5,000 API calls per hour. The number of requests
 necessary to import a project is largely dominated by the number of unique users
-involved in a project (for example, issue authors). Other data such as issue pages
-and comments typically only requires a few dozen requests to import. This is
-because we need the Email address of users to map them to GitLab users.
+involved in a project (for example, issue authors), because we need the email address of users to map
+them to GitLab users. Other data such as issue pages and comments typically only requires a few dozen requests to import.
 
-We handle this by doing the following:
+We handle the rate limit by doing the following:
 
-1. After we hit the rate limit all jobs automatically reschedule themselves
-   in such a way that they are not executed until the rate limit has been reset.
+1. After we hit the rate limit, we either:
+   - Automatically reschedule jobs in such a way that they are not executed until the rate limit has been reset.
+   - Move onto another GitHub access token if multiple GitHub access tokens were passed to the API.
 1. We cache the mapping of GitHub users to GitLab users in Redis.
 
 More information on user caching can be found below.
@@ -238,13 +243,15 @@ To avoid mismatching users, the search by GitHub user ID is not done when import
 Enterprise.
 
 Because this process is quite expensive we cache the result of these lookups in
-Redis. For every user looked up we store three keys:
+Redis. For every user looked up we store five keys:
 
 - A Redis key mapping GitHub usernames to their Email addresses.
 - A Redis key mapping a GitHub Email addresses to a GitLab user ID.
 - A Redis key mapping a GitHub user ID to GitLab user ID.
+- A Redis key mapping a GitHub username to an ETAG header.
+- A Redis key indicating whether an email lookup has been done for a project.
 
-There are two types of lookups we cache:
+We cache two types of lookups:
 
 - A positive lookup, meaning we found a GitLab user ID.
 - A negative lookup, meaning we didn't find a GitLab user ID. Caching this
@@ -255,9 +262,12 @@ The expiration time of these keys is 24 hours. When retrieving the cache of a
 positive lookup, we refresh the TTL automatically. The TTL of false lookups is
 never refreshed.
 
+If a lookup for email returns an empty or negative lookup, a [Conditional Request](https://docs.github.com/en/rest/overview/resources-in-the-rest-api#conditional-requests) is made with a cached ETAG in the header once for every project.
+Conditional Requests do not count towards the GitHub API rate limit.
+
 Because of this caching layer, it's possible newly registered GitLab accounts
 aren't linked to their corresponding GitHub accounts. This, however, is resolved
-after the cached keys expire.
+after the cached keys expire or if a new project is imported.
 
 The user cache lookup is shared across projects. This means that the greater the number of
 projects that are imported, fewer GitHub API calls are needed.
@@ -282,7 +292,7 @@ The code for this resides in:
 
 - `lib/gitlab/github_import/label_finder.rb`
 - `lib/gitlab/github_import/milestone_finder.rb`
-- `lib/gitlab/github_import/caching.rb`
+- `lib/gitlab/cache/import/caching.rb`
 
 ## Logs
 
@@ -323,14 +333,6 @@ The last log entry reports the number of objects fetched and imported:
   "import_stage": "Gitlab::GithubImport::Stage::FinishImportWorker"
 }
 ```
-
-## Errors when importing large projects
-
-The GitHub importer may encounter errors when importing large projects. For help with this, see the
-documentation for the following use cases:
-
-- [Alternative way to import notes and diff notes](../user/project/import/github.md#alternative-way-to-import-notes-and-diff-notes)
-- [Reduce GitHub API request objects per page](../user/project/import/github.md#reduce-github-api-request-objects-per-page)
 
 ## Metrics dashboards
 

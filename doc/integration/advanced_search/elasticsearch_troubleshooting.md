@@ -17,7 +17,7 @@ See [Starting a Rails console session](../../administration/operations/rails_con
 
 To list all available attributes:
 
-1. Open the Rails console (`gitlab rails c`).
+1. Open the Rails console (`sudo gitlab-rails console`).
 1. Run the following command:
 
 ```ruby
@@ -101,12 +101,12 @@ Here are some common pitfalls and how to overcome them.
 There are a couple of ways to achieve that:
 
 - When you perform a search, in the upper-right corner of the search results page,
-  **Advanced search functionality is enabled** is displayed.
+  **Advanced search is enabled** is displayed.
   This is always correctly identifying whether the current project/namespace
   being searched is using Elasticsearch.
 
 - From the Admin Area under **Settings > Advanced Search** check that the
-  Advanced Search settings are checked.
+  advanced search settings are checked.
 
   Those same settings there can be obtained from the Rails console if necessary:
 
@@ -212,7 +212,7 @@ More [complex Elasticsearch API calls](https://www.elastic.co/guide/en/elasticse
 
 If the results:
 
-- Sync up, check that you are using [supported syntax](../../user/search/advanced_search.md#syntax). Advanced Search does not support [exact substring matching](https://gitlab.com/gitlab-org/gitlab/-/issues/325234).
+- Sync up, check that you are using [supported syntax](../../user/search/advanced_search.md#syntax). Advanced search does not support [exact substring matching](https://gitlab.com/gitlab-org/gitlab/-/issues/325234).
 - Do not match up, this indicates a problem with the documents generated from the project. It is best to [re-index that project](../advanced_search/elasticsearch.md#indexing-a-range-of-projects-or-a-specific-project).
 
 NOTE:
@@ -247,7 +247,7 @@ sudo gitlab-rake gitlab:elastic:clear_locked_projects
 
 If `ElasticCommitIndexerWorker` Sidekiq workers are failing with this error during indexing, it usually means that Elasticsearch is unable to keep up with the concurrency of indexing request. To address change the following settings:
 
-- To decrease the indexing throughput you can decrease `Bulk request concurrency` (see [Advanced Search settings](elasticsearch.md#advanced-search-configuration)). This is set to `10` by default, but you change it to as low as 1 to reduce the number of concurrent indexing operations.
+- To decrease the indexing throughput you can decrease `Bulk request concurrency` (see [Advanced search settings](elasticsearch.md#advanced-search-configuration)). This is set to `10` by default, but you change it to as low as 1 to reduce the number of concurrent indexing operations.
 - If changing `Bulk request concurrency` didn't help, you can use the [routing rules](../../administration/sidekiq/processing_specific_job_classes.md#routing-rules) option to [limit indexing jobs only to specific Sidekiq nodes](elasticsearch.md#index-large-instances-with-dedicated-sidekiq-nodes-or-processes), which should reduce the number of indexing requests.
 
 ### Indexing is very slow or fails with `rejected execution of coordinating operation` messages
@@ -256,6 +256,24 @@ Bulk requests getting rejected by the Elasticsearch nodes are likely due to load
 Ensure that your Elasticsearch cluster meets the [system requirements](elasticsearch.md#system-requirements) and has enough resources
 to perform bulk operations. See also the error ["429 (Too Many Requests)"](#indexing-fails-with-error-elastic-error-429-too-many-requests).
 
+### Indexing fails with `strict_dynamic_mapping_exception`
+
+Indexing might fail if all [advanced search migrations were not finished before doing a major upgrade](elasticsearch.md#all-migrations-must-be-finished-before-doing-a-major-upgrade).
+A large Sidekiq backlog might accompany this error. To fix the indexing failures, you must re-index the database, repositories, and wikis.
+
+1. Pause indexing so Sidekiq can catch up:
+
+   ```shell
+   sudo gitlab-rake gitlab:elastic:pause_indexing
+   ```
+
+1. [Recreate the index from scratch](#last-resort-to-recreate-an-index).
+1. Resume indexing:
+
+   ```shell
+   sudo gitlab-rake gitlab:elastic:resume_indexing
+   ```
+
 ### Last resort to recreate an index
 
 There may be cases where somehow data never got indexed and it's not in the
@@ -263,30 +281,34 @@ queue, or the index is somehow in a state where migrations just cannot
 proceed. It is always best to try to troubleshoot the root cause of the problem
 by [viewing the logs](#view-logs).
 
-If there are no other options, then you always have the option of recreating the
-entire index from scratch. If you have a small GitLab installation, this can
-sometimes be a quick way to resolve a problem, but if you have a large GitLab
-installation, then this might take a very long time to complete. Until the
-index is fully recreated, your index does not serve correct search results,
-so you may want to disable **Search with Elasticsearch** while it is running.
+As a last resort, you can recreate the index from scratch. For small GitLab installations,
+recreating the index can be a quick way to resolve some issues. For large GitLab
+installations, however, this method might take a very long time. Your index
+does not show correct search results until the indexing is complete. You might
+want to clear the **Search with Elasticsearch enabled** checkbox
+while the indexing is running.
 
 If you are sure you've read the above caveats and want to proceed, then you
-should run the following Rake task to recreate the entire index from scratch:
+should run the following Rake task to recreate the entire index from scratch.
 
-**For Omnibus installations**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 ```shell
 # WARNING: DO NOT RUN THIS UNTIL YOU READ THE DESCRIPTION ABOVE
 sudo gitlab-rake gitlab:elastic:index
 ```
 
-**For installations from source**
+:::TabTitle Self-compiled (source)
 
 ```shell
 # WARNING: DO NOT RUN THIS UNTIL YOU READ THE DESCRIPTION ABOVE
 cd /home/git/gitlab
 sudo -u git -H bundle exec rake gitlab:elastic:index
 ```
+
+::EndTabs
 
 ### Troubleshooting performance
 
@@ -385,7 +407,7 @@ There is also an easy way to check it automatically with `sudo gitlab-rake gitla
 
 This exception is seen when your Elasticsearch cluster is configured to reject requests above a certain size (10MiB in this case). This corresponds to the `http.max_content_length` setting in `elasticsearch.yml`. Increase it to a larger size and restart your Elasticsearch cluster.
 
-AWS has [fixed limits](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/limits.html#network-limits) for this setting ("Maximum size of HTTP request payloads"), based on the size of the underlying instance.
+AWS has [network limits](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/limits.html#network-limits) on the maximum size of HTTP request payloads based on the size of the underlying instance. Set the maximum bulk request size to a value lower than 10 MiB.
 
 ## `Faraday::TimeoutError (execution expired)` error when using a proxy
 
@@ -437,11 +459,11 @@ Improvements to the `code_analyzer` pattern and filters are being discussed in [
 
 In GitLab 13.9, a change was made where [binary file names are being indexed](https://gitlab.com/gitlab-org/gitlab/-/issues/301083). However, without indexing all projects' data from scratch, only binary files that are added or updated after the GitLab 13.9 release are searchable.
 
-## How does Advanced Search handle private projects?
+## How does advanced search handle private projects?
 
-Advanced Search stores all the projects in the same Elasticsearch indices,
+Advanced search stores all the projects in the same Elasticsearch indices,
 however, searches only surface results that can be viewed by the user.
-Advanced Search honors all permission checks in the application by
+Advanced search honors all permission checks in the application by
 filtering out projects that a user does not have access to at search time.
 
 ### Role mapping when using fine-grained access control with AWS Elasticsearch or OpenSearch
@@ -453,3 +475,47 @@ When using fine-grained access control with an IAM role or a role created using 
 ```
 
 To fix this, you need to [map the roles to users](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html#fgac-mapping) in Kibana.
+
+## Elasticsearch workers overload Sidekiq
+
+In some cases, Elasticsearch cannot connect to GitLab anymore because:
+
+- The Elasticsearch password has been updated on one side only (`Unauthorized [401] ... unable to authenticate user` errors).
+- A firewall or network issue impairs connectivity (`Failed to open TCP connection to <ip>:9200` errors).
+
+These errors are logged in [`gitlab-rails/elasticsearch.log`](../../administration/logs/index.md#elasticsearchlog). To retrieve the errors, use [`jq`](../../administration/logs/log_parsing.md):
+
+```shell
+$ jq --raw-output 'select(.severity == "ERROR") | [.error_class, .error_message] | @tsv' \
+    gitlab-rails/elasticsearch.log |
+  sort | uniq -c
+```
+
+`Elastic` workers and [Sidekiq jobs](../../administration/admin_area.md#background-jobs) could also appear much more often
+because Elasticsearch frequently attempts to reindex if a previous job fails.
+You can use [`fast-stats`](https://gitlab.com/gitlab-com/support/toolbox/fast-stats#usage)
+or `jq` to count workers in the [Sidekiq logs](../../administration/logs/index.md#sidekiq-logs):
+
+```shell
+$ fast-stats --print-fields=count,score sidekiq/current
+WORKER                            COUNT   SCORE
+ElasticIndexBulkCronWorker          234  123456
+ElasticIndexInitialBulkCronWorker   345   12345
+Some::OtherWorker                    12     123
+...
+
+$ jq '.class' sidekiq/current | sort | uniq -c | sort -nr
+ 234 "ElasticIndexInitialBulkCronWorker"
+ 345 "ElasticIndexBulkCronWorker"
+  12 "Some::OtherWorker"
+...
+```
+
+In this case, `free -m` on the overloaded GitLab node would also show
+unexpectedly high `buff/cache` usage.
+
+## `Couldn't load task status` error when reindexing
+
+When you reindex, you might get a `Couldn't load task status` error. A `sliceId must be greater than 0 but was [-1]` error might also appear on the Elasticsearch host. As a workaround, consider [reindexing from scratch](../../integration/advanced_search/elasticsearch_troubleshooting.md#last-resort-to-recreate-an-index) or upgrading to GitLab 16.3.
+
+For more information, see [issue 422938](https://gitlab.com/gitlab-org/gitlab/-/issues/422938).

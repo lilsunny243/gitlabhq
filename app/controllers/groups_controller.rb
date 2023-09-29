@@ -32,16 +32,15 @@ class GroupsController < Groups::ApplicationController
 
   before_action :check_export_rate_limit!, only: [:export, :download_export]
 
-  before_action :track_experiment_event, only: [:new]
-
   before_action only: :issues do
     push_frontend_feature_flag(:or_issuable_queries, group)
     push_frontend_feature_flag(:frontend_caching, group)
     push_force_frontend_feature_flag(:work_items, group.work_items_feature_flag_enabled?)
+    push_frontend_feature_flag(:issues_grid_view)
   end
 
-  before_action only: :show do
-    push_frontend_feature_flag(:show_group_readme, group)
+  before_action only: :merge_requests do
+    push_frontend_feature_flag(:mr_approved_filter, type: :ops)
   end
 
   helper_method :captcha_required?
@@ -53,14 +52,12 @@ class GroupsController < Groups::ApplicationController
 
   layout :determine_layout
 
-  feature_category :subgroups, [
+  feature_category :groups_and_projects, [
     :index, :new, :create, :show, :edit, :update,
-    :destroy, :details, :transfer, :activity
+    :destroy, :details, :transfer, :activity, :projects
   ]
-
   feature_category :team_planning, [:issues, :issues_calendar, :preview_markdown]
   feature_category :code_review_workflow, [:merge_requests, :unfoldered_environment_names]
-  feature_category :projects, [:projects]
   feature_category :importers, [:export, :download_export]
   urgency :low, [:export, :download_export]
 
@@ -221,8 +218,8 @@ class GroupsController < Groups::ApplicationController
     return super unless html_request?
 
     @has_issues = IssuesFinder.new(current_user, group_id: group.id, include_subgroups: true).execute
-      .non_archived
-      .exists?
+                              .non_archived
+                              .exists?
 
     @has_projects = group_projects.exists?
 
@@ -296,6 +293,7 @@ class GroupsController < Groups::ApplicationController
       :project_creation_level,
       :subgroup_creation_level,
       :default_branch_protection,
+      { default_branch_protection_defaults: [:allow_force_push, { allowed_to_merge: [:access_level], allowed_to_push: [:access_level] }] },
       :default_branch_name,
       :allow_mfa_for_subgroups,
       :resource_access_token_creation_allowed,
@@ -312,13 +310,13 @@ class GroupsController < Groups::ApplicationController
 
     options = { include_subgroups: true }
     projects = GroupProjectsFinder.new(params: params, group: group, options: options, current_user: current_user)
-                 .execute
-                 .includes(:namespace)
+                                  .execute
+                                  .includes(:namespace)
 
     @events = EventCollection
-      .new(projects, offset: params[:offset].to_i, filter: event_filter, groups: groups)
-      .to_a
-      .map(&:present)
+                .new(projects, offset: params[:offset].to_i, filter: event_filter, groups: groups)
+                .to_a
+                .map(&:present)
 
     Events::RenderService
       .new(current_user)
@@ -400,12 +398,6 @@ class GroupsController < Groups::ApplicationController
 
   def captcha_required?
     captcha_enabled? && !params[:parent_id]
-  end
-
-  def track_experiment_event
-    return if params[:parent_id]
-
-    experiment(:require_verification_for_namespace_creation, user: current_user).track(:start_create_group)
   end
 
   def group_feature_attributes

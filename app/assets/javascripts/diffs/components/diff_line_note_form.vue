@@ -1,27 +1,32 @@
 <script>
+import { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapGetters, mapActions } from 'vuex';
-import { s__, __ } from '~/locale';
+import { s__, __, sprintf } from '~/locale';
+import { createAlert } from '~/alert';
 import diffLineNoteFormMixin from '~/notes/mixins/diff_line_note_form';
+import { clearDraft } from '~/lib/utils/autosave';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import { ignoreWhilePending } from '~/lib/utils/ignore_while_pending';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import MultilineCommentForm from '~/notes/components/multiline_comment_form.vue';
 import { commentLineOptions, formatLineRange } from '~/notes/components/multiline_comment_utils';
 import NoteForm from '~/notes/components/note_form.vue';
-import autosave from '~/notes/mixins/autosave';
+import { capitalizeFirstCharacter } from '~/lib/utils/text_utility';
 import {
   DIFF_NOTE_TYPE,
   INLINE_DIFF_LINES_KEY,
   PARALLEL_DIFF_VIEW_TYPE,
   OLD_LINE_TYPE,
 } from '../constants';
+import { SAVING_THE_COMMENT_FAILED, SOMETHING_WENT_WRONG } from '../i18n';
 
 export default {
   components: {
     NoteForm,
     MultilineCommentForm,
   },
-  mixins: [autosave, diffLineNoteFormMixin, glFeatureFlagsMixin()],
+  mixins: [diffLineNoteFormMixin, glFeatureFlagsMixin()],
   props: {
     diffFileHash: {
       type: String,
@@ -146,6 +151,27 @@ export default {
 
       return lines;
     },
+    autosaveKey() {
+      if (!this.isLoggedIn) return '';
+
+      const {
+        id,
+        noteable_type: noteableTypeUnderscored,
+        noteableType,
+        diff_head_sha: diffHeadSha,
+        source_project_id: sourceProjectId,
+      } = this.noteableData;
+
+      return [
+        s__('Autosave|Note'),
+        capitalizeFirstCharacter(noteableTypeUnderscored || noteableType),
+        id,
+        diffHeadSha,
+        DIFF_NOTE_TYPE,
+        sourceProjectId,
+        this.line.line_code,
+      ].join('/');
+    },
   },
   created() {
     if (this.range) {
@@ -155,17 +181,6 @@ export default {
     }
   },
   mounted() {
-    if (this.isLoggedIn) {
-      const keys = [
-        this.noteableData.diff_head_sha,
-        DIFF_NOTE_TYPE,
-        this.noteableData.source_project_id,
-        this.line.line_code,
-      ];
-
-      this.initAutoSave(this.noteableData, keys);
-    }
-
     if (this.selectedCommentPosition) {
       this.commentLineStart = this.selectedCommentPosition.start;
     }
@@ -196,14 +211,26 @@ export default {
         lineCode: this.line.line_code,
         fileHash: this.diffFileHash,
       });
-      this.$nextTick(() => {
-        this.resetAutoSave();
+      nextTick(() => {
+        clearDraft(this.autosaveKey);
       });
     }),
-    handleSaveNote(note) {
-      return this.saveDiffDiscussion({ note, formData: this.formData }).then(() =>
-        this.handleCancelCommentForm(),
-      );
+    handleSaveNote(note, parentElement, errorCallback) {
+      return this.saveDiffDiscussion({ note, formData: this.formData })
+        .then(() => this.handleCancelCommentForm())
+        .catch((e) => {
+          const reason = e.response?.data?.errors;
+          const errorMessage = reason
+            ? sprintf(SAVING_THE_COMMENT_FAILED, { reason })
+            : SOMETHING_WENT_WRONG;
+
+          createAlert({
+            message: errorMessage,
+            parent: parentElement,
+          });
+
+          errorCallback();
+        });
     },
     updateStartLine(line) {
       this.commentLineStart = line;
@@ -232,6 +259,8 @@ export default {
       :diff-file="diffFile"
       :show-suggest-popover="showSuggestPopover"
       :save-button-title="__('Comment')"
+      :autosave-key="autosaveKey"
+      :autofocus="false"
       class="diff-comment-form gl-mt-3"
       @handleFormUpdateAddToReview="addToReview"
       @cancelForm="handleCancelCommentForm"

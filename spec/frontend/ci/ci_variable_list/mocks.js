@@ -51,9 +51,53 @@ export const mockVariables = (kind) => {
   ];
 };
 
+export const mockInheritedVariables = [
+  {
+    id: 'gid://gitlab/Ci::GroupVariable/120',
+    key: 'INHERITED_VAR_1',
+    variableType: 'ENV_VAR',
+    environmentScope: '*',
+    masked: true,
+    protected: true,
+    raw: false,
+    groupName: 'group-name',
+    groupCiCdSettingsPath: '/groups/group-name/-/settings/ci_cd',
+    __typename: 'InheritedCiVariable',
+  },
+  {
+    id: 'gid://gitlab/Ci::GroupVariable/121',
+    key: 'INHERITED_VAR_2',
+    variableType: 'ENV_VAR',
+    environmentScope: 'staging',
+    masked: false,
+    protected: false,
+    raw: true,
+    groupName: 'subgroup-name',
+    groupCiCdSettingsPath: '/groups/group-name/subgroup-name/-/settings/ci_cd',
+    __typename: 'InheritedCiVariable',
+  },
+  {
+    id: 'gid://gitlab/Ci::GroupVariable/122',
+    key: 'INHERITED_VAR_3',
+    variableType: 'FILE',
+    environmentScope: 'production',
+    masked: false,
+    protected: true,
+    raw: true,
+    groupName: 'subgroup-name',
+    groupCiCdSettingsPath: '/groups/group-name/subgroup-name/-/settings/ci_cd',
+    __typename: 'InheritedCiVariable',
+  },
+];
+
 export const mockVariablesWithScopes = (kind) =>
   mockVariables(kind).map((variable) => {
     return { ...variable, environmentScope: '*' };
+  });
+
+export const mockVariablesWithUniqueScopes = (kind) =>
+  mockVariables(kind).map((variable) => {
+    return { ...variable, environmentScope: variable.value };
   });
 
 const createDefaultVars = ({ withScope = true, kind } = {}) => {
@@ -145,6 +189,7 @@ export const createProjectProps = () => {
     componentName: 'ProjectVariable',
     entity: 'project',
     fullPath: '/namespace/project/',
+    hasEnvScopeQuery: true,
     id: 'gid://gitlab/Project/20',
     mutationData: {
       [ADD_MUTATION_ACTION]: addProjectVariable,
@@ -169,6 +214,7 @@ export const createGroupProps = () => {
     componentName: 'GroupVariable',
     entity: 'group',
     fullPath: '/my-group',
+    hasEnvScopeQuery: false,
     id: 'gid://gitlab/Group/20',
     mutationData: {
       [ADD_MUTATION_ACTION]: addGroupVariable,
@@ -187,6 +233,7 @@ export const createGroupProps = () => {
 export const createInstanceProps = () => {
   return {
     componentName: 'InstanceVariable',
+    hasEnvScopeQuery: false,
     entity: '',
     mutationData: {
       [ADD_MUTATION_ACTION]: addAdminVariable,

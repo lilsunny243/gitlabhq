@@ -31,6 +31,14 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         expect(json_response.first).not_to have_key('last_deployment')
       end
 
+      it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: user)
+
+        get api("/projects/#{project.id}/environments"), params: { job_token: job.token }
+
+        expect(response).to have_gitlab_http_status(:ok)
+      end
+
       context 'when filtering' do
         let_it_be(:stopped_environment) { create(:environment, :stopped, project: project) }
 
@@ -72,30 +80,11 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         end
 
         context "when params[:search] is less than #{described_class::MIN_SEARCH_LENGTH} characters" do
-          before do
-            stub_feature_flags(environment_search_api_min_chars: false)
-          end
-
-          it 'returns a normal response' do
+          it 'returns with status 400' do
             get api("/projects/#{project.id}/environments?search=ab", user)
 
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(response).to include_pagination_headers
-            expect(json_response).to be_an Array
-            expect(json_response.size).to eq(0)
-          end
-
-          context 'and environment_search_api_min_chars flag is enabled for the project' do
-            before do
-              stub_feature_flags(environment_search_api_min_chars: project)
-            end
-
-            it 'returns with status 400' do
-              get api("/projects/#{project.id}/environments?search=ab", user)
-
-              expect(response).to have_gitlab_http_status(:bad_request)
-              expect(json_response['message']).to include("Search query is less than #{described_class::MIN_SEARCH_LENGTH} characters")
-            end
+            expect(response).to have_gitlab_http_status(:bad_request)
+            expect(json_response['message']).to include("Search query is less than #{described_class::MIN_SEARCH_LENGTH} characters")
           end
         end
 
@@ -151,6 +140,14 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         expect(json_response['external']).to be nil
       end
 
+      it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: user)
+
+        post api("/projects/#{project.id}/environments"), params: { name: "mepmep", job_token: job.token }
+
+        expect(response).to have_gitlab_http_status(:created)
+      end
+
       it 'requires name to be passed' do
         post api("/projects/#{project.id}/environments", user), params: { external_url: 'test.gitlab.com' }
 
@@ -192,6 +189,15 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         expect(response).to have_gitlab_http_status(:ok)
       end
 
+      it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: user)
+
+        post api("/projects/#{project.id}/environments/stop_stale"),
+             params: { before: 1.week.ago.to_date.to_s, job_token: job.token }
+
+        expect(response).to have_gitlab_http_status(:ok)
+      end
+
       it 'returns a 400 for bad input date' do
         post api("/projects/#{project.id}/environments/stop_stale", user), params: { before: 1.day.ago.to_date.to_s }
 
@@ -229,14 +235,13 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
   end
 
   describe 'PUT /projects/:id/environments/:environment_id' do
-    it 'returns a 200 if name and external_url are changed' do
+    it 'returns a 200 if external_url is changed' do
       url = 'https://mepmep.whatever.ninja'
       put api("/projects/#{project.id}/environments/#{environment.id}", user),
-          params: { name: 'Mepmep', external_url: url }
+          params: { external_url: url }
 
       expect(response).to have_gitlab_http_status(:ok)
       expect(response).to match_response_schema('public_api/v4/environment')
-      expect(json_response['name']).to eq('Mepmep')
       expect(json_response['external_url']).to eq(url)
     end
 
@@ -249,6 +254,15 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
       expect(json_response['tier']).to eq('production')
     end
 
+    it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+      job = create(:ci_build, :running, project: project, user: user)
+
+      put api("/projects/#{project.id}/environments/#{environment.id}"),
+          params: { tier: 'production', job_token: job.token }
+
+      expect(response).to have_gitlab_http_status(:ok)
+    end
+
     it "won't allow slug to be changed" do
       slug = environment.slug
       api_url = api("/projects/#{project.id}/environments/#{environment.id}", user)
@@ -256,16 +270,6 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
 
       expect(response).to have_gitlab_http_status(:bad_request)
       expect(json_response["error"]).to eq("slug is automatically generated and cannot be changed")
-    end
-
-    it "won't update the external_url if only the name is passed" do
-      url = environment.external_url
-      put api("/projects/#{project.id}/environments/#{environment.id}", user),
-          params: { name: 'Mepmep' }
-
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(json_response['name']).to eq('Mepmep')
-      expect(json_response['external_url']).to eq(url)
     end
 
     it 'returns a 404 if the environment does not exist' do
@@ -287,6 +291,17 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         environment.stop
 
         delete api("/projects/#{project.id}/environments/#{environment.id}", user)
+
+        expect(response).to have_gitlab_http_status(:no_content)
+      end
+
+      it 'returns 204 HTTP status when using JOB-TOKEN auth' do
+        environment.stop
+
+        job = create(:ci_build, :running, project: project, user: user)
+
+        delete api("/projects/#{project.id}/environments/#{environment.id}"),
+               params: { job_token: job.token }
 
         expect(response).to have_gitlab_http_status(:no_content)
       end
@@ -321,17 +336,23 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
       context 'with a stoppable environment' do
         before do
           environment.update!(state: :available)
-
-          post api("/projects/#{project.id}/environments/#{environment.id}/stop", user)
         end
 
         it 'returns a 200' do
+          post api("/projects/#{project.id}/environments/#{environment.id}/stop", user)
+
           expect(response).to have_gitlab_http_status(:ok)
           expect(response).to match_response_schema('public_api/v4/environment')
+          expect(environment.reload).to be_stopped
         end
 
-        it 'actually stops the environment' do
-          expect(environment.reload).to be_stopped
+        it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+          job = create(:ci_build, :running, project: project, user: user)
+
+          post api("/projects/#{project.id}/environments/#{environment.id}/stop"),
+               params: { job_token: job.token }
+
+          expect(response).to have_gitlab_http_status(:ok)
         end
       end
 
@@ -362,6 +383,15 @@ RSpec.describe API::Environments, feature_category: :continuous_delivery do
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to match_response_schema('public_api/v4/environment')
         expect(json_response['last_deployment']).to be_present
+      end
+
+      it 'returns 200 HTTP status when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: user)
+
+        get api("/projects/#{project.id}/environments/#{environment.id}"),
+            params: { job_token: job.token }
+
+        expect(response).to have_gitlab_http_status(:ok)
       end
     end
 

@@ -1,6 +1,7 @@
 import { GlSorting, GlSortingItem } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import * as urlUtilities from '~/lib/utils/url_utility';
@@ -46,7 +47,7 @@ describe('SortDropdown', () => {
   const findSortingComponent = () => wrapper.findComponent(GlSorting);
   const findSortDirectionToggle = () =>
     findSortingComponent().find('button[title^="Sort direction"]');
-  const findDropdownToggle = () => wrapper.find('button[aria-haspopup="true"]');
+  const findDropdownToggle = () => wrapper.find('button[aria-haspopup="menu"]');
   const findDropdownItemByText = (text) =>
     wrapper
       .findAllComponents(GlSortingItem)

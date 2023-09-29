@@ -190,7 +190,7 @@ RSpec.describe API::Ci::JobArtifacts, feature_category: :build_artifacts do
         end
 
         context 'when project is public with artifacts that are non public' do
-          let(:job) { create(:ci_build, :artifacts, :non_public_artifacts, pipeline: pipeline) }
+          let(:job) { create(:ci_build, :artifacts, :with_private_artifacts_config, pipeline: pipeline) }
 
           it 'rejects access to artifacts' do
             project.update_column(:visibility_level,
@@ -439,7 +439,7 @@ RSpec.describe API::Ci::JobArtifacts, feature_category: :build_artifacts do
 
         context 'when public project guest and artifacts are non public' do
           let(:api_user) { guest }
-          let(:job) { create(:ci_build, :artifacts, :non_public_artifacts, pipeline: pipeline) }
+          let(:job) { create(:ci_build, :artifacts, :with_private_artifacts_config, pipeline: pipeline) }
 
           before do
             project.update_column(:visibility_level,
@@ -541,7 +541,7 @@ RSpec.describe API::Ci::JobArtifacts, feature_category: :build_artifacts do
           let(:download_headers) do
             { 'Content-Transfer-Encoding' => 'binary',
               'Content-Disposition' =>
-              %Q(attachment; filename="#{job_with_artifacts.artifacts_file.filename}"; filename*=UTF-8''#{job.artifacts_file.filename}) }
+              %(attachment; filename="#{job_with_artifacts.artifacts_file.filename}"; filename*=UTF-8''#{job.artifacts_file.filename}) }
           end
 
           it { expect(response).to have_gitlab_http_status(:ok) }
@@ -644,7 +644,7 @@ RSpec.describe API::Ci::JobArtifacts, feature_category: :build_artifacts do
         end
 
         context 'when project is public with non public artifacts' do
-          let(:job) { create(:ci_build, :artifacts, :non_public_artifacts, pipeline: pipeline, user: api_user) }
+          let(:job) { create(:ci_build, :artifacts, :with_private_artifacts_config, pipeline: pipeline, user: api_user) }
           let(:visibility_level) { Gitlab::VisibilityLevel::PUBLIC }
           let(:public_builds) { true }
 

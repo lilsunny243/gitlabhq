@@ -1,0 +1,9 @@
+mutation updateWorkItemNotificationsWidget($input: IssueSetSubscriptionInput!) {
+  updateWorkItemNotificationsSubscription: issueSetSubscription(input: $input) {
+    issue {
+      id
+      subscribed
+    }
+    errors
+  }
+}

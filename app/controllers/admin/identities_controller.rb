@@ -4,7 +4,7 @@ class Admin::IdentitiesController < Admin::ApplicationController
   before_action :user
   before_action :identity, except: [:index, :new, :create]
 
-  feature_category :authentication_and_authorization
+  feature_category :system_access
 
   def new
     @identity = Identity.new
@@ -23,6 +23,8 @@ class Admin::IdentitiesController < Admin::ApplicationController
 
   def index
     @identities = @user.identities
+    @can_impersonate = helpers.can_impersonate_user(user, impersonation_in_progress?)
+    @impersonation_error_text = @can_impersonate ? nil : helpers.impersonation_error_text(user, impersonation_in_progress?)
   end
 
   def edit
@@ -61,6 +63,6 @@ class Admin::IdentitiesController < Admin::ApplicationController
   end
 
   def identity_params
-    params.require(:identity).permit(:provider, :extern_uid)
+    params.require(:identity).permit(:provider, :extern_uid, :saml_provider_id)
   end
 end

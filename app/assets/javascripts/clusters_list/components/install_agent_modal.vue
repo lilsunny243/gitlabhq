@@ -13,10 +13,9 @@ import {
   MODAL_TYPE_EMPTY,
   MODAL_TYPE_REGISTER,
 } from '../constants';
-import { addAgentToStore, addAgentConfigToStore } from '../graphql/cache_update';
+import { addAgentConfigToStore } from '../graphql/cache_update';
 import createAgent from '../graphql/mutations/create_agent.mutation.graphql';
 import createAgentToken from '../graphql/mutations/create_agent_token.mutation.graphql';
-import getAgentsQuery from '../graphql/queries/get_agents.query.graphql';
 import agentConfigurations from '../graphql/queries/agent_configurations.query.graphql';
 import AvailableAgentsDropdown from './available_agents_dropdown.vue';
 import AgentToken from './agent_token.vue';
@@ -33,6 +32,10 @@ export default {
   registerAgentPath: helpPagePath('user/clusters/agent/install/index', {
     anchor: 'register-the-agent-with-gitlab',
   }),
+  terraformDocsLink:
+    'https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/resources/cluster_agent_token',
+  minAgentsForTerraform: 10,
+  maxAgents: 100,
   components: {
     AvailableAgentsDropdown,
     AgentToken,
@@ -81,6 +84,7 @@ export default {
       clusterAgent: null,
       availableAgents: [],
       kasDisabled: false,
+      configuredAgentsCount: 0,
     };
   },
   computed: {
@@ -114,6 +118,12 @@ export default {
     modalSize() {
       return this.kasDisabled ? 'sm' : 'md';
     },
+    showTerraformSuggestionAlert() {
+      return this.configuredAgentsCount >= this.$options.minAgentsForTerraform;
+    },
+    showMaxAgentsAlert() {
+      return this.configuredAgentsCount >= this.$options.maxAgents;
+    },
   },
   methods: {
     setAgentName(name) {
@@ -136,6 +146,7 @@ export default {
       const configuredAgents =
         data?.project?.agentConfigurations?.nodes.map((config) => config.agentName) ?? [];
 
+      this.configuredAgentsCount = configuredAgents.length;
       this.availableAgents = configuredAgents.filter((agent) => !installedAgents.includes(agent));
     },
     createAgentMutation() {
@@ -147,14 +158,6 @@ export default {
               name: this.agentName,
               projectPath: this.projectPath,
             },
-          },
-          update: (store, { data: { createClusterAgent } }) => {
-            addAgentToStore(
-              store,
-              createClusterAgent,
-              getAgentsQuery,
-              this.getAgentsQueryVariables,
-            );
           },
         })
         .then(({ data: { createClusterAgent } }) => {
@@ -241,6 +244,22 @@ export default {
             </template>
           </gl-sprintf>
         </p>
+
+        <gl-alert
+          v-if="showTerraformSuggestionAlert"
+          :dismissible="false"
+          variant="warning"
+          class="gl-my-4"
+        >
+          <span v-if="showMaxAgentsAlert">{{ $options.i18n.maxAgentsSupport }}</span>
+          <span>
+            <gl-sprintf :message="$options.i18n.useTerraformText">
+              <template #link="{ content }">
+                <gl-link :href="$options.terraformDocsLink">{{ content }}</gl-link>
+              </template>
+            </gl-sprintf>
+          </span>
+        </gl-alert>
 
         <form>
           <gl-form-group label-for="agent-name">

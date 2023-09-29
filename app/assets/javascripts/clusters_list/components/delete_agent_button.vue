@@ -39,11 +39,6 @@ export default {
       required: false,
       type: String,
     },
-    maxAgents: {
-      default: null,
-      required: false,
-      type: Number,
-    },
   },
   data() {
     return {
@@ -64,8 +59,6 @@ export default {
     getAgentsQueryVariables() {
       return {
         defaultBranchName: this.defaultBranchName,
-        first: this.maxAgents,
-        last: null,
         projectPath: this.projectPath,
       };
     },
@@ -77,16 +70,17 @@ export default {
     primaryModalProps() {
       return {
         text: this.$options.i18n.modalAction,
-        attributes: [
-          { disabled: this.loading || this.disableModalSubmit, loading: this.loading },
-          { variant: 'danger' },
-        ],
+        attributes: {
+          disabled: this.loading || this.disableModalSubmit,
+          loading: this.loading,
+          variant: 'danger',
+        },
       };
     },
     cancelModalProps() {
       return {
         text: this.$options.i18n.modalCancel,
-        attributes: [],
+        attributes: {},
       };
     },
     disableModalSubmit() {

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owned do
+RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :shared do
   let_it_be(:admin) { create(:admin) }
   let_it_be(:plan) { create(:plan, name: 'default') }
   let_it_be(:path) { '/application/plan_limits' }
@@ -18,7 +18,6 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
           expect(json_response).to be_an Hash
           expect(json_response['ci_pipeline_size']).to eq(Plan.default.actual_limits.ci_pipeline_size)
           expect(json_response['ci_active_jobs']).to eq(Plan.default.actual_limits.ci_active_jobs)
-          expect(json_response['ci_active_pipelines']).to eq(Plan.default.actual_limits.ci_active_pipelines)
           expect(json_response['ci_project_subscriptions']).to eq(Plan.default.actual_limits.ci_project_subscriptions)
           expect(json_response['ci_pipeline_schedules']).to eq(Plan.default.actual_limits.ci_pipeline_schedules)
           expect(json_response['ci_needs_size_limit']).to eq(Plan.default.actual_limits.ci_needs_size_limit)
@@ -27,6 +26,7 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
           expect(json_response['conan_max_file_size']).to eq(Plan.default.actual_limits.conan_max_file_size)
           expect(json_response['generic_packages_max_file_size']).to eq(Plan.default.actual_limits.generic_packages_max_file_size)
           expect(json_response['helm_max_file_size']).to eq(Plan.default.actual_limits.helm_max_file_size)
+          expect(json_response['limits_history']).to eq(Plan.default.actual_limits.limits_history)
           expect(json_response['maven_max_file_size']).to eq(Plan.default.actual_limits.maven_max_file_size)
           expect(json_response['npm_max_file_size']).to eq(Plan.default.actual_limits.npm_max_file_size)
           expect(json_response['nuget_max_file_size']).to eq(Plan.default.actual_limits.nuget_max_file_size)
@@ -49,7 +49,6 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
           expect(json_response).to be_an Hash
           expect(json_response['ci_pipeline_size']).to eq(Plan.default.actual_limits.ci_pipeline_size)
           expect(json_response['ci_active_jobs']).to eq(Plan.default.actual_limits.ci_active_jobs)
-          expect(json_response['ci_active_pipelines']).to eq(Plan.default.actual_limits.ci_active_pipelines)
           expect(json_response['ci_project_subscriptions']).to eq(Plan.default.actual_limits.ci_project_subscriptions)
           expect(json_response['ci_pipeline_schedules']).to eq(Plan.default.actual_limits.ci_pipeline_schedules)
           expect(json_response['ci_needs_size_limit']).to eq(Plan.default.actual_limits.ci_needs_size_limit)
@@ -84,25 +83,30 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
   end
 
   describe 'PUT /application/plan_limits' do
-    it_behaves_like 'PUT request permissions for admin mode', { 'plan_name': 'default' }
+    it_behaves_like 'PUT request permissions for admin mode' do
+      let(:params) { { 'plan_name': 'default' } }
+    end
 
-    context 'as an admin user' do
+    context 'as an admin user', :freeze_time do
+      let(:current_timestamp) { Time.current.utc.to_i }
+
       context 'correct params' do
         it 'updates multiple plan limits', :aggregate_failures do
           put api(path, admin, admin_mode: true), params: {
             'plan_name': 'default',
             'ci_pipeline_size': 101,
             'ci_active_jobs': 102,
-            'ci_active_pipelines': 103,
             'ci_project_subscriptions': 104,
             'ci_pipeline_schedules': 105,
             'ci_needs_size_limit': 106,
             'ci_registered_group_runners': 107,
             'ci_registered_project_runners': 108,
             'conan_max_file_size': 10,
+            'enforcement_limit': 100,
             'generic_packages_max_file_size': 20,
             'helm_max_file_size': 25,
             'maven_max_file_size': 30,
+            'notification_limit': 90,
             'npm_max_file_size': 40,
             'nuget_max_file_size': 50,
             'pypi_max_file_size': 60,
@@ -114,16 +118,22 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
           expect(json_response).to be_an Hash
           expect(json_response['ci_pipeline_size']).to eq(101)
           expect(json_response['ci_active_jobs']).to eq(102)
-          expect(json_response['ci_active_pipelines']).to eq(103)
           expect(json_response['ci_project_subscriptions']).to eq(104)
           expect(json_response['ci_pipeline_schedules']).to eq(105)
           expect(json_response['ci_needs_size_limit']).to eq(106)
           expect(json_response['ci_registered_group_runners']).to eq(107)
           expect(json_response['ci_registered_project_runners']).to eq(108)
           expect(json_response['conan_max_file_size']).to eq(10)
+          expect(json_response['enforcement_limit']).to eq(100)
           expect(json_response['generic_packages_max_file_size']).to eq(20)
           expect(json_response['helm_max_file_size']).to eq(25)
+          expect(json_response['limits_history']).to eq(
+            { "enforcement_limit" => [{ "user_id" => admin.id, "username" => admin.username, "timestamp" => current_timestamp, "value" => 100 }],
+              "notification_limit" => [{ "user_id" => admin.id, "username" => admin.username, "timestamp" => current_timestamp, "value" => 90 }],
+              "storage_size_limit" => [{ "user_id" => admin.id, "username" => admin.username, "timestamp" => current_timestamp, "value" => 80 }] }
+          )
           expect(json_response['maven_max_file_size']).to eq(30)
+          expect(json_response['notification_limit']).to eq(90)
           expect(json_response['npm_max_file_size']).to eq(40)
           expect(json_response['nuget_max_file_size']).to eq(50)
           expect(json_response['pypi_max_file_size']).to eq(60)
@@ -159,16 +169,17 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
             'plan_name': 'default',
             'ci_pipeline_size': 'z',
             'ci_active_jobs': 'y',
-            'ci_active_pipelines': 'x',
             'ci_project_subscriptions': 'w',
             'ci_pipeline_schedules': 'v',
             'ci_needs_size_limit': 'u',
             'ci_registered_group_runners': 't',
             'ci_registered_project_runners': 's',
             'conan_max_file_size': 'a',
+            'enforcement_limit': 'e',
             'generic_packages_max_file_size': 'b',
             'helm_max_file_size': 'h',
             'maven_max_file_size': 'c',
+            'notification_limit': 'n',
             'npm_max_file_size': 'd',
             'nuget_max_file_size': 'e',
             'pypi_max_file_size': 'f',
@@ -181,16 +192,17 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owne
           expect(json_response['error']).to include(
             'ci_pipeline_size is invalid',
             'ci_active_jobs is invalid',
-            'ci_active_pipelines is invalid',
             'ci_project_subscriptions is invalid',
             'ci_pipeline_schedules is invalid',
             'ci_needs_size_limit is invalid',
             'ci_registered_group_runners is invalid',
             'ci_registered_project_runners is invalid',
             'conan_max_file_size is invalid',
+            'enforcement_limit is invalid',
             'generic_packages_max_file_size is invalid',
             'helm_max_file_size is invalid',
             'maven_max_file_size is invalid',
+            'notification_limit is invalid',
             'npm_max_file_size is invalid',
             'nuget_max_file_size is invalid',
             'pypi_max_file_size is invalid',

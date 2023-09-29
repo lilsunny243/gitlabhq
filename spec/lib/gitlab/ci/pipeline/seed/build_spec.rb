@@ -109,6 +109,104 @@ RSpec.describe Gitlab::Ci::Pipeline::Seed::Build, feature_category: :pipeline_co
       end
     end
 
+    context 'with job:rules:[needs:]' do
+      context 'with a single rule' do
+        let(:job_needs_attributes) { [{ name: 'rspec' }] }
+
+        context 'when job has needs set' do
+          context 'when rule evaluates to true' do
+            let(:attributes) do
+              { name: 'rspec',
+                ref: 'master',
+                needs_attributes: job_needs_attributes,
+                rules: [{ if: '$VAR == null', needs: { job: [{ name: 'build-job' }] } }] }
+            end
+
+            it 'overrides the job needs' do
+              expect(subject).to include(needs_attributes: [{ name: 'build-job' }])
+            end
+          end
+
+          context 'when rule evaluates to false' do
+            let(:attributes) do
+              { name: 'rspec',
+                ref: 'master',
+                needs_attributes: job_needs_attributes,
+                rules: [{ if: '$VAR == true', needs: { job: [{ name: 'build-job' }] } }] }
+            end
+
+            it 'keeps the job needs' do
+              expect(subject).to include(needs_attributes: job_needs_attributes)
+            end
+          end
+
+          context 'with subkeys: artifacts, optional' do
+            let(:attributes) do
+              { name: 'rspec',
+                ref: 'master',
+                rules:
+                [
+                  { if: '$VAR == null',
+                    needs: {
+                      job: [{
+                        name: 'build-job',
+                        optional: false,
+                        artifacts: true
+                      }]
+                    } }
+                ] }
+            end
+
+            context 'when rule evaluates to true' do
+              it 'sets the job needs as well as the job subkeys' do
+                expect(subject[:needs_attributes]).to match_array([{ name: 'build-job', optional: false, artifacts: true }])
+              end
+
+              it 'sets the scheduling type to dag' do
+                expect(subject[:scheduling_type]).to eq(:dag)
+              end
+            end
+          end
+        end
+
+        context 'with multiple rules' do
+          context 'when a rule evaluates to true' do
+            let(:attributes) do
+              { name: 'rspec',
+                ref: 'master',
+                needs_attributes: job_needs_attributes,
+                rules: [
+                  { if: '$VAR == true', needs: { job: [{ name: 'rspec-1' }] } },
+                  { if: '$VAR2 == true', needs: { job: [{ name: 'rspec-2' }] } },
+                  { if: '$VAR3 == null', needs: { job: [{ name: 'rspec' }, { name: 'lint' }] } }
+                ] }
+            end
+
+            it 'overrides the job needs' do
+              expect(subject).to include(needs_attributes: [{ name: 'rspec' }, { name: 'lint' }])
+            end
+          end
+
+          context 'when all rules evaluates to false' do
+            let(:attributes) do
+              { name: 'rspec',
+                ref: 'master',
+                needs_attributes: job_needs_attributes,
+                rules: [
+                  { if: '$VAR == true', needs: { job: [{ name: 'rspec-1' }] }  },
+                  { if: '$VAR2 == true', needs: { job: [{ name: 'rspec-2' }] } },
+                  { if: '$VAR3 == true', needs: { job: [{ name: 'rspec-3' }] } }
+                ] }
+            end
+
+            it 'keeps the job needs' do
+              expect(subject).to include(needs_attributes: job_needs_attributes)
+            end
+          end
+        end
+      end
+    end
+
     context 'with job:tags' do
       let(:attributes) do
         {
@@ -152,7 +250,7 @@ RSpec.describe Gitlab::Ci::Pipeline::Seed::Build, feature_category: :pipeline_co
         it 'includes cache options' do
           cache_options = {
             options: {
-              cache: [a_hash_including(key: '0-f155568ad0933d8358f66b846133614f76dd0ca4')]
+              cache: [a_hash_including(key: '0_VERSION-f155568ad0933d8358f66b846133614f76dd0ca4')]
             }
           }
 
@@ -798,7 +896,7 @@ RSpec.describe Gitlab::Ci::Pipeline::Seed::Build, feature_category: :pipeline_co
             [
               [[{ if: '$CI_JOB_NAME == "rspec" && $VAR == null', when: 'on_failure' }]],
               [[{ if: '$VARIABLE != null',              when: 'delayed', start_in: '1 day' }, { if: '$CI_JOB_NAME   == "rspec"', when: 'on_failure' }]],
-              [[{ if: '$VARIABLE == "the wrong value"', when: 'delayed', start_in: '1 day' }, { if: '$CI_BUILD_NAME == "rspec"', when: 'on_failure' }]]
+              [[{ if: '$VARIABLE == "the wrong value"', when: 'delayed', start_in: '1 day' }, { if: '$CI_JOB_NAME == "rspec"', when: 'on_failure' }]]
             ]
           end
 
@@ -975,6 +1073,126 @@ RSpec.describe Gitlab::Ci::Pipeline::Seed::Build, feature_category: :pipeline_co
         end
 
         context 'when environment:name is not set' do
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+      end
+
+      context 'with a rule using CI_ENVIRONMENT_ACTION variable' do
+        let(:rule_set) do
+          [{ if: '$CI_ENVIRONMENT_ACTION == "start"' }]
+        end
+
+        context 'when environment:action satisfies the rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { action: 'start' } } }
+          end
+
+          it { is_expected.to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'on_success')
+          end
+        end
+
+        context 'when environment:action does not satisfy rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { action: 'stop' } } }
+          end
+
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+
+        context 'when environment:action is not set' do
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+      end
+
+      context 'with a rule using CI_ENVIRONMENT_TIER variable' do
+        let(:rule_set) do
+          [{ if: '$CI_ENVIRONMENT_TIER == "production"' }]
+        end
+
+        context 'when environment:deployment_tier satisfies the rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { deployment_tier: 'production' } } }
+          end
+
+          it { is_expected.to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'on_success')
+          end
+        end
+
+        context 'when environment:deployment_tier does not satisfy rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { deployment_tier: 'development' } } }
+          end
+
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+
+        context 'when environment:action is not set' do
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+      end
+
+      context 'with a rule using CI_ENVIRONMENT_URL variable' do
+        let(:rule_set) do
+          [{ if: '$CI_ENVIRONMENT_URL == "http://gitlab.com"' }]
+        end
+
+        context 'when environment:url satisfies the rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { url: 'http://gitlab.com' } } }
+          end
+
+          it { is_expected.to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'on_success')
+          end
+        end
+
+        context 'when environment:url does not satisfy rule' do
+          let(:attributes) do
+            { name: 'rspec', rules: rule_set, environment: 'test', when: 'on_success',
+              options: { environment: { url: 'http://staging.gitlab.com' } } }
+          end
+
+          it { is_expected.not_to be_included }
+
+          it 'correctly populates when:' do
+            expect(seed_build.attributes).to include(when: 'never')
+          end
+        end
+
+        context 'when environment:action is not set' do
           it { is_expected.not_to be_included }
 
           it 'correctly populates when:' do

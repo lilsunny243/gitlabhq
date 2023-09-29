@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
+require_relative 'wait_helpers'
+
 module WaitForRequests
+  include WaitHelpers
   extend self
 
   # This is inspired by http://www.salsify.com/blog/engineering/tearing-capybara-ajax-tests
@@ -24,6 +27,17 @@ module WaitForRequests
     Gitlab::Testing::RequestBlockerMiddleware.allow_requests!
   end
 
+  def block_and_wait_for_action_cable_requests_complete
+    block_action_cable_requests { wait_for_action_cable_requests }
+  end
+
+  def block_action_cable_requests
+    Gitlab::Testing::ActionCableBlocker.block_requests!
+    yield
+  ensure
+    Gitlab::Testing::ActionCableBlocker.allow_requests!
+  end
+
   # Wait for client-side AJAX requests
   def wait_for_requests
     wait_for('JS requests complete', max_wait_time: 2 * Capybara.default_max_wait_time) do
@@ -36,6 +50,12 @@ module WaitForRequests
     wait_for('pending requests complete') do
       finished_all_rack_requests? &&
         finished_all_js_requests?
+    end
+  end
+
+  def wait_for_action_cable_requests
+    wait_for('Action Cable requests complete') do
+      Gitlab::Testing::ActionCableBlocker.num_active_requests == 0
     end
   end
 

@@ -1,18 +1,18 @@
-import { GlLoadingIcon, GlLink } from '@gitlab/ui';
+import { GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
-import CiIcon from '~/vue_shared/components/ci_icon.vue';
+import { createAlert } from '~/alert';
+import CiBadgeLink from '~/vue_shared/components/ci_badge_link.vue';
 import CommitBoxPipelineStatus from '~/projects/commit_box/info/components/commit_box_pipeline_status.vue';
 import {
   COMMIT_BOX_POLL_INTERVAL,
   PIPELINE_STATUS_FETCH_ERROR,
 } from '~/projects/commit_box/info/constants';
 import getLatestPipelineStatusQuery from '~/projects/commit_box/info/graphql/queries/get_latest_pipeline_status.query.graphql';
-import * as graphQlUtils from '~/pipelines/components/graph/utils';
+import * as sharedGraphQlUtils from '~/graphql_shared/utils';
 import { mockPipelineStatusResponse } from '../mock_data';
 
 const mockProvide = {
@@ -23,7 +23,7 @@ const mockProvide = {
 
 Vue.use(VueApollo);
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('Commit box pipeline status', () => {
   let wrapper;
@@ -32,8 +32,7 @@ describe('Commit box pipeline status', () => {
   const failedHandler = jest.fn().mockRejectedValue(new Error('GraphQL error'));
 
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
-  const findStatusIcon = () => wrapper.findComponent(CiIcon);
-  const findPipelineLink = () => wrapper.findComponent(GlLink);
+  const findCiBadgeLink = () => wrapper.findComponent(CiBadgeLink);
 
   const advanceToNextFetch = () => {
     jest.advanceTimersByTime(COMMIT_BOX_POLL_INTERVAL);
@@ -50,20 +49,19 @@ describe('Commit box pipeline status', () => {
       provide: {
         ...mockProvide,
       },
+      stubs: {
+        CiBadgeLink,
+      },
       apolloProvider: createMockApolloProvider(handler),
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('loading state', () => {
     it('should display loading state when loading', () => {
       createComponent();
 
       expect(findLoadingIcon().exists()).toBe(true);
-      expect(findStatusIcon().exists()).toBe(false);
+      expect(findCiBadgeLink().exists()).toBe(false);
     });
   });
 
@@ -74,8 +72,8 @@ describe('Commit box pipeline status', () => {
       await waitForPromises();
     });
 
-    it('should display pipeline status after the query is resolved successfully', async () => {
-      expect(findStatusIcon().exists()).toBe(true);
+    it('should display pipeline status after the query is resolved successfully', () => {
+      expect(findCiBadgeLink().exists()).toBe(true);
 
       expect(findLoadingIcon().exists()).toBe(false);
       expect(createAlert).toHaveBeenCalledTimes(0);
@@ -92,7 +90,7 @@ describe('Commit box pipeline status', () => {
         },
       } = mockPipelineStatusResponse;
 
-      expect(findPipelineLink().attributes('href')).toBe(detailsPath);
+      expect(findCiBadgeLink().attributes('href')).toBe(detailsPath);
     });
   });
 
@@ -136,13 +134,13 @@ describe('Commit box pipeline status', () => {
     });
 
     it('toggles pipelineStatus polling with visibility check', async () => {
-      jest.spyOn(graphQlUtils, 'toggleQueryPollingByVisibility');
+      jest.spyOn(sharedGraphQlUtils, 'toggleQueryPollingByVisibility');
 
       createComponent();
 
       await waitForPromises();
 
-      expect(graphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
+      expect(sharedGraphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
         wrapper.vm.$apollo.queries.pipelineStatus,
       );
     });

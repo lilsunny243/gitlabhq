@@ -1,22 +1,23 @@
-import { GlButton, GlLink, GlModal, GlPopover } from '@gitlab/ui';
-import { nextTick } from 'vue';
+import { GlModal, GlDisclosureDropdown, GlDisclosureDropdownItem } from '@gitlab/ui';
+import { omit } from 'lodash';
+import Vue, { nextTick } from 'vue';
+import VueApollo from 'vue-apollo';
 
-import ActionsButton from '~/vue_shared/components/actions_button.vue';
-import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
-import WebIdeLink, {
-  i18n,
-  PREFERRED_EDITOR_RESET_KEY,
-  PREFERRED_EDITOR_KEY,
-} from '~/vue_shared/components/web_ide_link.vue';
-import ConfirmForkModal from '~/vue_shared/components/confirm_fork_modal.vue';
-import UserCalloutDismisser from '~/vue_shared/components/user_callout_dismisser.vue';
-import { KEY_WEB_IDE } from '~/vue_shared/components/constants';
+import getWritableForksResponse from 'test_fixtures/graphql/vue_shared/components/web_ide/get_writable_forks.query.graphql_none.json';
+import WebIdeLink, { i18n } from '~/vue_shared/components/web_ide_link.vue';
+import ConfirmForkModal from '~/vue_shared/components/web_ide/confirm_fork_modal.vue';
 
+import createMockApollo from 'helpers/mock_apollo_helper';
 import { stubComponent } from 'helpers/stub_component';
-import { shallowMountExtended, mountExtended } from 'helpers/vue_test_utils_helper';
-import { useLocalStorageSpy } from 'helpers/local_storage_helper';
+import { mockTracking } from 'helpers/tracking_helper';
+import {
+  shallowMountExtended,
+  mountExtended,
+  extendedWrapper,
+} from 'helpers/vue_test_utils_helper';
 
 import { visitUrl } from '~/lib/utils/url_utility';
+import getWritableForksQuery from '~/vue_shared/components/web_ide/get_writable_forks.query.graphql';
 
 jest.mock('~/lib/utils/url_utility');
 
@@ -30,14 +31,15 @@ const forkPath = '/some/fork/path';
 
 const ACTION_EDIT = {
   href: TEST_EDIT_URL,
-  key: 'edit',
-  text: 'Edit',
+  handle: undefined,
+  text: 'Edit single file',
   secondaryText: 'Edit this file only.',
-  tooltip: '',
   attrs: {
-    'data-qa-selector': 'edit_button',
-    'data-track-action': 'click_consolidated_edit',
-    'data-track-label': 'edit',
+    'data-qa-selector': 'edit_menu_item',
+  },
+  tracking: {
+    action: 'click_consolidated_edit',
+    label: 'single_file',
   },
 };
 const ACTION_EDIT_CONFIRM_FORK = {
@@ -46,32 +48,34 @@ const ACTION_EDIT_CONFIRM_FORK = {
   handle: expect.any(Function),
 };
 const ACTION_WEB_IDE = {
-  href: TEST_WEB_IDE_URL,
-  key: 'webide',
   secondaryText: i18n.webIdeText,
-  tooltip: i18n.webIdeTooltip,
   text: 'Web IDE',
   attrs: {
-    'data-qa-selector': 'web_ide_button',
-    'data-track-action': 'click_consolidated_edit_ide',
-    'data-track-label': 'web_ide',
+    'data-qa-selector': 'webide_menu_item',
   },
+  href: undefined,
   handle: expect.any(Function),
+  tracking: {
+    action: 'click_consolidated_edit',
+    label: 'web_ide',
+  },
 };
 const ACTION_WEB_IDE_CONFIRM_FORK = {
   ...ACTION_WEB_IDE,
-  href: '#modal-confirm-fork-webide',
   handle: expect.any(Function),
 };
 const ACTION_WEB_IDE_EDIT_FORK = { ...ACTION_WEB_IDE, text: 'Edit fork in Web IDE' };
 const ACTION_GITPOD = {
   href: TEST_GITPOD_URL,
-  key: 'gitpod',
+  handle: undefined,
   secondaryText: 'Launch a ready-to-code development environment for your project.',
-  tooltip: 'Launch a ready-to-code development environment for your project.',
   text: 'Gitpod',
   attrs: {
-    'data-qa-selector': 'gitpod_button',
+    'data-qa-selector': 'gitpod_menu_item',
+  },
+  tracking: {
+    action: 'click_consolidated_edit',
+    label: 'gitpod',
   },
 };
 const ACTION_GITPOD_ENABLE = {
@@ -81,28 +85,27 @@ const ACTION_GITPOD_ENABLE = {
 };
 const ACTION_PIPELINE_EDITOR = {
   href: TEST_PIPELINE_EDITOR_URL,
-  key: 'pipeline_editor',
   secondaryText: 'Edit, lint, and visualize your pipeline.',
-  tooltip: 'Edit, lint, and visualize your pipeline.',
   text: 'Edit in pipeline editor',
   attrs: {
-    'data-qa-selector': 'pipeline_editor_button',
+    'data-qa-selector': 'pipeline_editor_menu_item',
+  },
+  tracking: {
+    action: 'click_consolidated_edit',
+    label: 'pipeline_editor',
   },
 };
 
-describe('Web IDE link component', () => {
-  useLocalStorageSpy();
+describe('vue_shared/components/web_ide_link', () => {
+  Vue.use(VueApollo);
 
   let wrapper;
+  let trackingSpy;
 
-  function createComponent(
-    props,
-    {
-      mountFn = shallowMountExtended,
-      glFeatures = {},
-      userCalloutDismisserSlotProps = { dismiss: jest.fn() },
-    } = {},
-  ) {
+  function createComponent(props, { mountFn = shallowMountExtended, slots = {} } = {}) {
+    const fakeApollo = createMockApollo([
+      [getWritableForksQuery, jest.fn().mockResolvedValue(getWritableForksResponse)],
+    ]);
     wrapper = mountFn(WebIdeLink, {
       propsData: {
         editUrl: TEST_EDIT_URL,
@@ -112,9 +115,7 @@ describe('Web IDE link component', () => {
         forkPath,
         ...props,
       },
-      provide: {
-        glFeatures,
-      },
+      slots,
       stubs: {
         GlModal: stubComponent(GlModal, {
           template: `
@@ -124,36 +125,37 @@ describe('Web IDE link component', () => {
               <slot name="modal-footer"></slot>
             </div>`,
         }),
-        UserCalloutDismisser: stubComponent(UserCalloutDismisser, {
-          render() {
-            return this.$scopedSlots.default(userCalloutDismisserSlotProps);
-          },
-        }),
+        GlDisclosureDropdownItem,
       },
+      apolloProvider: fakeApollo,
     });
+
+    trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
   }
 
-  beforeEach(() => {
-    localStorage.setItem(PREFERRED_EDITOR_RESET_KEY, 'true');
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
-  const findActionsButton = () => wrapper.findComponent(ActionsButton);
-  const findLocalStorageSync = () => wrapper.findComponent(LocalStorageSync);
+  const findDisclosureDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
+  const findDisclosureDropdownItems = () => wrapper.findAllComponents(GlDisclosureDropdownItem);
   const findModal = () => wrapper.findComponent(GlModal);
   const findForkConfirmModal = () => wrapper.findComponent(ConfirmForkModal);
-  const findUserCalloutDismisser = () => wrapper.findComponent(UserCalloutDismisser);
-  const findNewWebIdeCalloutPopover = () => wrapper.findComponent(GlPopover);
-  const findTryItOutLink = () =>
-    wrapper
-      .findAllComponents(GlLink)
-      .filter((link) => link.text().includes('Try it out'))
-      .at(0);
+  const getDropdownItemsAsData = () =>
+    findDisclosureDropdownItems().wrappers.map((item) => {
+      const extendedWrapperItem = extendedWrapper(item);
+      const attributes = extendedWrapperItem.attributes();
+      const props = extendedWrapperItem.props();
 
-  it.each([
+      return {
+        text: extendedWrapperItem.findByTestId('action-primary-text').text(),
+        secondaryText: extendedWrapperItem.findByTestId('action-secondary-text').text(),
+        href: props.item.href,
+        handle: props.item.handle,
+        attrs: {
+          'data-qa-selector': attributes['data-qa-selector'],
+        },
+      };
+    });
+  const omitTrackingParams = (actions) => actions.map((action) => omit(action, 'tracking'));
+
+  describe.each([
     {
       props: {},
       expectedActions: [ACTION_WEB_IDE, ACTION_EDIT],
@@ -243,10 +245,48 @@ describe('Web IDE link component', () => {
       props: { showEditButton: false },
       expectedActions: [ACTION_WEB_IDE],
     },
-  ])('renders actions with appropriately for given props', ({ props, expectedActions }) => {
-    createComponent(props);
+  ])('for a set of props', ({ props, expectedActions }) => {
+    beforeEach(() => {
+      createComponent(props);
+    });
 
-    expect(findActionsButton().props('actions')).toEqual(expectedActions);
+    it('renders the appropiate actions', () => {
+      // omit tracking property because it is not included in the dropdown item
+      expect(getDropdownItemsAsData()).toEqual(omitTrackingParams(expectedActions));
+    });
+
+    describe('when an action is clicked', () => {
+      it('tracks event', () => {
+        expectedActions.forEach((action, index) => {
+          findDisclosureDropdownItems().at(index).vm.$emit('action');
+
+          expect(trackingSpy).toHaveBeenCalledWith(undefined, action.tracking.action, {
+            label: action.tracking.label,
+          });
+        });
+      });
+    });
+  });
+
+  it('bubbles up shown and hidden events triggered by actions button component', () => {
+    createComponent();
+
+    expect(wrapper.emitted('shown')).toBe(undefined);
+    expect(wrapper.emitted('hidden')).toBe(undefined);
+
+    findDisclosureDropdown().vm.$emit('shown');
+    findDisclosureDropdown().vm.$emit('hidden');
+
+    expect(wrapper.emitted('shown')).toHaveLength(1);
+    expect(wrapper.emitted('hidden')).toHaveLength(1);
+  });
+
+  it.each(['before-actions', 'after-actions'])('exposes a %s slot', (slot) => {
+    const slotContent = 'slot content';
+
+    createComponent({}, { slots: { [slot]: slotContent } });
+
+    expect(wrapper.text()).toContain(slotContent);
   });
 
   describe('when pipeline editor action is available', () => {
@@ -262,64 +302,16 @@ describe('Web IDE link component', () => {
       });
     });
 
-    it('selected Pipeline Editor by default', () => {
-      expect(findActionsButton().props()).toMatchObject({
-        actions: [ACTION_PIPELINE_EDITOR, ACTION_WEB_IDE, ACTION_GITPOD],
-        selectedKey: ACTION_PIPELINE_EDITOR.key,
-      });
+    it('displays Pipeline Editor as the first action', () => {
+      expect(getDropdownItemsAsData()).toEqual(
+        omitTrackingParams([ACTION_PIPELINE_EDITOR, ACTION_WEB_IDE, ACTION_GITPOD]),
+      );
     });
 
     it('when web ide button is clicked it opens in a new tab', async () => {
-      findActionsButton().props('actions')[1].handle({
-        preventDefault: jest.fn(),
-      });
+      findDisclosureDropdownItems().at(1).props().item.handle();
       await nextTick();
-      expect(visitUrl).toHaveBeenCalledWith(ACTION_WEB_IDE.href, true);
-    });
-  });
-
-  describe('with multiple actions', () => {
-    beforeEach(() => {
-      createComponent({
-        showEditButton: false,
-        showWebIdeButton: true,
-        showGitpodButton: true,
-        showPipelineEditorButton: false,
-        userPreferencesGitpodPath: TEST_USER_PREFERENCES_GITPOD_PATH,
-        userProfileEnableGitpodPath: TEST_USER_PROFILE_ENABLE_GITPOD_PATH,
-        gitpodEnabled: true,
-      });
-    });
-
-    it('selected Web IDE by default', () => {
-      expect(findActionsButton().props()).toMatchObject({
-        actions: [ACTION_WEB_IDE, ACTION_GITPOD],
-        selectedKey: ACTION_WEB_IDE.key,
-      });
-    });
-
-    it('should set selection with local storage value', async () => {
-      expect(findActionsButton().props('selectedKey')).toBe(ACTION_WEB_IDE.key);
-
-      findLocalStorageSync().vm.$emit('input', ACTION_GITPOD.key);
-
-      await nextTick();
-
-      expect(findActionsButton().props('selectedKey')).toBe(ACTION_GITPOD.key);
-    });
-
-    it('should update local storage when selection changes', async () => {
-      expect(findLocalStorageSync().props()).toMatchObject({
-        asString: true,
-        value: ACTION_WEB_IDE.key,
-      });
-
-      findActionsButton().vm.$emit('select', ACTION_GITPOD.key);
-
-      await nextTick();
-
-      expect(findActionsButton().props('selectedKey')).toBe(ACTION_GITPOD.key);
-      expect(findLocalStorageSync().props('value')).toBe(ACTION_GITPOD.key);
+      expect(visitUrl).toHaveBeenCalledWith(TEST_WEB_IDE_URL, true);
     });
   });
 
@@ -349,16 +341,16 @@ describe('Web IDE link component', () => {
 
     it.each(testActions)(
       'emits the correct event when an action handler is called',
-      async ({ props, expectedEventPayload }) => {
+      ({ props, expectedEventPayload }) => {
         createComponent({ ...props, needsToFork: true, disableForkModal: true });
 
-        findActionsButton().props('actions')[0].handle();
+        findDisclosureDropdownItems().at(0).props().item.handle();
 
         expect(wrapper.emitted('edit')).toEqual([[expectedEventPayload]]);
       },
     );
 
-    it.each(testActions)('renders the fork confirmation modal', async ({ props }) => {
+    it.each(testActions)('renders the fork confirmation modal', ({ props }) => {
       createComponent({ ...props, needsToFork: true });
 
       expect(findForkConfirmModal().exists()).toBe(true);
@@ -372,7 +364,10 @@ describe('Web IDE link component', () => {
     it.each(testActions)('opens the modal when the button is clicked', async ({ props }) => {
       createComponent({ ...props, needsToFork: true }, { mountFn: mountExtended });
 
-      await findActionsButton().findComponent(GlButton).trigger('click');
+      findDisclosureDropdownItems().at(0).props().item.handle();
+
+      await nextTick();
+      await wrapper.findByRole('button', { name: /Web IDE|Edit/im }).trigger('click');
 
       expect(findForkConfirmModal().props()).toEqual({
         visible: true,
@@ -428,10 +423,8 @@ describe('Web IDE link component', () => {
         { mountFn: mountExtended },
       );
 
-      findLocalStorageSync().vm.$emit('input', ACTION_GITPOD.key);
-
       await nextTick();
-      await wrapper.findByRole('button', { name: gitpodText }).trigger('click');
+      await wrapper.findByRole('button', { name: new RegExp(gitpodText, 'm') }).trigger('click');
 
       expect(findModal().props('visible')).toBe(true);
     });
@@ -447,186 +440,6 @@ describe('Web IDE link component', () => {
       });
 
       expect(findModal().exists()).toBe(false);
-    });
-  });
-
-  describe('Web IDE callout', () => {
-    describe('vscode_web_ide feature flag is enabled and the edit button is not shown', () => {
-      let dismiss;
-
-      beforeEach(() => {
-        dismiss = jest.fn();
-        createComponent(
-          {
-            showEditButton: false,
-          },
-          {
-            glFeatures: { vscodeWebIde: true },
-            userCalloutDismisserSlotProps: { dismiss },
-          },
-        );
-      });
-      it('does not skip the user_callout_dismisser query', () => {
-        expect(findUserCalloutDismisser().props()).toEqual(
-          expect.objectContaining({
-            skipQuery: false,
-            featureName: 'vscode_web_ide_callout',
-          }),
-        );
-      });
-
-      it('mounts new web ide callout popover', () => {
-        expect(findNewWebIdeCalloutPopover().props()).toEqual(
-          expect.objectContaining({
-            showCloseButton: '',
-            target: 'web-ide-link',
-            triggers: 'manual',
-            boundaryPadding: 80,
-          }),
-        );
-      });
-
-      describe.each`
-        calloutStatus | shouldShowCallout | popoverVisibility | tooltipVisibility
-        ${'show'}     | ${true}           | ${true}           | ${false}
-        ${'hide'}     | ${false}          | ${false}          | ${true}
-      `(
-        'when should $calloutStatus web ide callout',
-        ({ shouldShowCallout, popoverVisibility, tooltipVisibility }) => {
-          beforeEach(() => {
-            createComponent(
-              {
-                showEditButton: false,
-              },
-              {
-                glFeatures: { vscodeWebIde: true },
-                userCalloutDismisserSlotProps: { shouldShowCallout, dismiss },
-              },
-            );
-          });
-
-          it(`popover visibility = ${popoverVisibility}`, () => {
-            expect(findNewWebIdeCalloutPopover().props().show).toBe(popoverVisibility);
-          });
-
-          it(`action button tooltip visibility = ${tooltipVisibility}`, () => {
-            expect(findActionsButton().props().showActionTooltip).toBe(tooltipVisibility);
-          });
-        },
-      );
-
-      it('dismisses the callout when popover close button is clicked', () => {
-        findNewWebIdeCalloutPopover().vm.$emit('close-button-clicked');
-
-        expect(dismiss).toHaveBeenCalled();
-      });
-
-      it('dismisses the callout when try it now link is clicked', () => {
-        findTryItOutLink().vm.$emit('click');
-
-        expect(dismiss).toHaveBeenCalled();
-      });
-
-      it('dismisses the callout when action button is clicked', () => {
-        findActionsButton().vm.$emit('actionClicked');
-
-        expect(dismiss).toHaveBeenCalled();
-      });
-    });
-
-    describe.each`
-      featureFlag | showEditButton
-      ${false}    | ${true}
-      ${true}     | ${false}
-      ${false}    | ${false}
-    `(
-      'when vscode_web_ide=$featureFlag and showEditButton = $showEditButton',
-      ({ vscodeWebIde, showEditButton }) => {
-        let dismiss;
-
-        beforeEach(() => {
-          dismiss = jest.fn();
-
-          createComponent(
-            {
-              showEditButton,
-            },
-            { glFeatures: { vscodeWebIde }, userCalloutDismisserSlotProps: { dismiss } },
-          );
-        });
-
-        it('skips the user_callout_dismisser query', () => {
-          expect(findUserCalloutDismisser().props().skipQuery).toBe(true);
-        });
-
-        it('displays actions button tooltip', () => {
-          expect(findActionsButton().props().showActionTooltip).toBe(true);
-        });
-
-        it('mounts new web ide callout popover', () => {
-          expect(findNewWebIdeCalloutPopover().exists()).toBe(false);
-        });
-
-        it('does not dismiss the callout when action button is clicked', () => {
-          findActionsButton().vm.$emit('actionClicked');
-
-          expect(dismiss).not.toHaveBeenCalled();
-        });
-      },
-    );
-  });
-
-  describe('when vscode_web_ide feature flag is enabled', () => {
-    describe('when is not showing edit button', () => {
-      describe(`when ${PREFERRED_EDITOR_RESET_KEY} is unset`, () => {
-        beforeEach(() => {
-          localStorage.setItem.mockReset();
-          localStorage.getItem.mockReturnValueOnce(null);
-          createComponent({ showEditButton: false }, { glFeatures: { vscodeWebIde: true } });
-        });
-
-        it(`sets ${PREFERRED_EDITOR_KEY} local storage key to ${KEY_WEB_IDE}`, () => {
-          expect(localStorage.getItem).toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY);
-          expect(localStorage.setItem).toHaveBeenCalledWith(PREFERRED_EDITOR_KEY, KEY_WEB_IDE);
-        });
-
-        it(`sets ${PREFERRED_EDITOR_RESET_KEY} local storage key to true`, () => {
-          expect(localStorage.setItem).toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY, true);
-        });
-
-        it(`selects ${KEY_WEB_IDE} as the preferred editor`, () => {
-          expect(findActionsButton().props().selectedKey).toBe(KEY_WEB_IDE);
-        });
-      });
-
-      describe(`when ${PREFERRED_EDITOR_RESET_KEY} is set to true`, () => {
-        beforeEach(() => {
-          localStorage.setItem.mockReset();
-          localStorage.getItem.mockReturnValueOnce('true');
-          createComponent({ showEditButton: false }, { glFeatures: { vscodeWebIde: true } });
-        });
-
-        it(`does not update the persisted preferred editor`, () => {
-          expect(localStorage.getItem).toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY);
-          expect(localStorage.setItem).not.toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY);
-        });
-      });
-    });
-
-    describe('when is showing the edit button', () => {
-      it(`does not try to reset the ${PREFERRED_EDITOR_KEY}`, () => {
-        createComponent({ showEditButton: true }, { glFeatures: { vscodeWebIde: true } });
-
-        expect(localStorage.getItem).not.toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY);
-      });
-    });
-  });
-
-  describe('when vscode_web_ide feature flag is disabled', () => {
-    it(`does not try to reset the ${PREFERRED_EDITOR_KEY}`, () => {
-      createComponent({}, { glFeatures: { vscodeWebIde: false } });
-
-      expect(localStorage.getItem).not.toHaveBeenCalledWith(PREFERRED_EDITOR_RESET_KEY);
     });
   });
 });

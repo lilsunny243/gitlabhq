@@ -1,6 +1,6 @@
 ---
 type: reference, howto
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -20,8 +20,9 @@ limit the allowed SSH key algorithms.
 GitLab allows you to restrict the allowed SSH key technology as well as specify
 the minimum key length for each technology:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Settings > General** (`/admin/application_settings/general`).
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. On the left sidebar, select **Settings > General** .
 1. Expand the **Visibility and access controls** section:
 
    ![SSH keys restriction Admin Area settings](img/ssh_keys_restrictions_settings.png)
@@ -48,7 +49,7 @@ By default, the GitLab.com and self-managed settings for the
 - ECDSA_SK SSH keys are allowed (GitLab 14.8 and later).
 - ED25519_SK SSH keys are allowed (GitLab 14.8 and later).
 
-## Block banned or compromised keys **(FREE)**
+## Block banned or compromised keys **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24614) in GitLab 15.1 [with a flag](../administration/feature_flags.md) named `ssh_banned_key`. Enabled by default.
 > - Generally available in GitLab 15.2. [Feature flag `ssh_banned_key`](https://gitlab.com/gitlab-org/gitlab/-/issues/363410) removed.

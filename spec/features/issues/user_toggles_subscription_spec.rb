@@ -10,6 +10,7 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
 
   context 'user is not logged in' do
     before do
+      stub_feature_flags(moved_mr_sidebar: false)
       visit(project_issue_path(project, issue))
     end
 
@@ -20,9 +21,9 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
 
   context 'user is logged in' do
     before do
+      stub_feature_flags(moved_mr_sidebar: false)
       project.add_developer(user)
       sign_in(user)
-
       visit(project_issue_path(project, issue))
     end
 
@@ -33,7 +34,7 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
       expect(subscription_button).to have_css("button.is-checked")
 
       # Toggle subscription.
-      find('[data-testid="subscription-toggle"]').click
+      subscription_button.find('button').click
       wait_for_requests
 
       # Check we're unsubscribed.
@@ -41,7 +42,7 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
     end
 
     context 'when project emails are disabled' do
-      let(:project) { create(:project_empty_repo, :public, emails_disabled: true) }
+      let_it_be(:project) { create(:project_empty_repo, :public, emails_enabled: false) }
 
       it 'is disabled' do
         expect(page).to have_content('Disabled by project owner')
@@ -52,6 +53,7 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
 
   context 'user is logged in without edit permission' do
     before do
+      stub_feature_flags(moved_mr_sidebar: false)
       sign_in(user2)
 
       visit(project_issue_path(project, issue))
@@ -64,7 +66,7 @@ RSpec.describe "User toggles subscription", :js, feature_category: :team_plannin
       expect(subscription_button).to have_css("button:not(.is-checked)")
 
       # Toggle subscription.
-      find('[data-testid="subscription-toggle"]').click
+      subscription_button.find('button').click
       wait_for_requests
 
       # Check we're subscribed.

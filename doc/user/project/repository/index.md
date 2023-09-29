@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Repository **(FREE)**
+# Repository **(FREE ALL)**
 
 A [repository](https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository)
 is where you store your code and make changes to it. Your changes are tracked with version control.
@@ -15,7 +15,7 @@ Each [project](../index.md) contains a repository.
 
 To create a repository, you can:
 
-- [Create a project](../../../user/project/index.md#create-a-project) or
+- [Create a project](../../../user/project/index.md) or
 - [Fork an existing project](forking_workflow.md).
 
 ## Add files to a repository
@@ -25,7 +25,7 @@ You can add files to a repository:
 - When you create a project.
 - After you create a project:
   - By using [the web editor](web_editor.md).
-  - [From the command line](../../../gitlab-basics/command-line-commands.md).
+  - From the command line.
 
 ## Commit changes to a repository
 
@@ -55,7 +55,7 @@ to a branch in the repository. When you use the command line, you can commit mul
   [Revert a commit](../merge_requests/revert_changes.md#revert-a-commit)
   from the UI to a selected branch.
 - **Sign a commit:**
-  Use GPG to [sign your commits](gpg_signed_commits/index.md).
+  Add extra security by [signing your commits](signed_commits/index.md).
 
 ## Clone a repository
 
@@ -73,7 +73,7 @@ into Xcode on macOS.
 1. Select **Xcode**.
 
 The project is cloned onto your computer and you are
-prompted to open XCode.
+prompted to open Xcode.
 
 ### Clone and open in Visual Studio Code
 
@@ -100,7 +100,7 @@ from the GitLab user interface.
 
 Prerequisites:
 
-- The [Jetbrains Toolbox App](https://www.jetbrains.com/toolbox-app/) must be also be installed.
+- The [JetBrains Toolbox App](https://www.jetbrains.com/toolbox-app/) must be also be installed.
 
 To do this:
 
@@ -132,7 +132,7 @@ change. This can occur, for example, if Git or a third-party library that GitLab
 ## Repository languages
 
 For the default branch of each repository, GitLab determines which programming languages
-are used. This information is displayed on the **Project information** page.
+are used. This information is displayed on the **Project overview** page.
 
 ![Repository Languages bar](img/repository_languages_v15_2.png)
 
@@ -140,7 +140,7 @@ When new files are added, this information can take up to five minutes to update
 
 ### Add repository languages
 
-Not all files are detected and listed on the **Project information** page. Documentation,
+Not all files are detected and listed on the **Project overview** page. Documentation,
 vendor code, and most markup languages are excluded.
 
 You can change this behavior by overriding the default settings.
@@ -216,6 +216,11 @@ To render an OpenAPI file:
 1. Go to the OpenAPI file in your repository.
 1. Between the **Display source** and **Edit** buttons, select **Display OpenAPI**. When an OpenAPI file is found, it replaces the
    **Display rendered file** button.
+1. To display the `operationId` in the operations list, add `displayOperationId=true` to the query string.
+
+NOTE:
+When `displayOperationId` is present in the query string and has _any_ value, it
+evaluates to `true`. This behavior matches the default behavior of Swagger.
 
 ## Repository size
 
@@ -224,10 +229,10 @@ To render an OpenAPI file:
 FLAG:
 On self-managed GitLab, by default GitLab uses the `du -sk` command to determine the size of a repository. GitLab can use either
 `git-rev-list` (enabled with feature flag `gitaly_revlist_for_repo_size`) or `git-cat-file` (enabled with feature flag
-`gitaly_catfile_repo_size`) instead. To switch between different calculation methods, ask an administrator to
+`gitaly_catfile_repo_size`) instead. To switch between different calculation methods, an administrator can
 [enable or disable](../../../administration/feature_flags.md) these feature flags.
 
-The **Project information** page shows the size of all files in the repository. The size is
+The **Project overview** page shows the size of all files in the repository. The size is
 updated, at most, every 15 minutes. The file size includes repository files, artifacts, and LFS.
 
 The size can differ slightly from one instance to another due to compression, housekeeping, and other factors.
@@ -235,20 +240,16 @@ The size can differ slightly from one instance to another due to compression, ho
 Administrators can set a [repository size limit](../../admin_area/settings/account_and_limit_settings.md).
 [GitLab sets the size limits for GitLab.com](../../gitlab_com/index.md#account-and-limit-settings).
 
-## Repository contributor graph
+## Repository contributor statistics
 
-All code contributors are displayed under your project's **Repository > Contributors**.
-
-The graph shows the contributor with the most commits to the fewest.
-
-![contributors to code](img/contributors_graph.png)
+You can view a list and charts of commits made by project members in [Contributor statistics](../../analytics/contributor_statistics.md).
 
 ## Repository history graph
 
 A repository graph displays a visual history of the repository network, including branches and merges.
 This graph can help you visualize the Git flow strategy used in the repository.
 
-Go to your project's **Repository > Graph**.
+Go to your project's **Code > Repository graph**.
 
 ![repository Git flow](img/repo_graph.png)
 
@@ -277,15 +278,15 @@ to fetch configuration from a project that is renamed or moved.
 
 ## Related topics
 
-- [GitLab Workflow VS Code extension](vscode.md).
-- To lock files and prevent change conflicts, use [file locking](../file_lock.md).
-- [Repository API](../../../api/repositories.md).
-- [Find files](file_finder.md) in a repository.
-- [Branches](branches/index.md).
-- [Create a directory](web_editor.md#create-a-directory).
-- [Find file history](git_history.md).
-- [Identify changes by line (Git blame)](git_blame.md).
-- [Use Jupyter notebooks with GitLab](jupyter_notebooks/index.md).
+- [GitLab Workflow VS Code extension](vscode.md)
+- [Lock files and prevent change conflicts](../file_lock.md)
+- [Repository API](../../../api/repositories.md)
+- [Find files](file_finder.md)
+- [Branches](branches/index.md)
+- [Create a directory](web_editor.md#create-a-directory)
+- [Find file history](git_history.md)
+- [Identify changes by line (Git blame)](git_blame.md)
+- [Use Jupyter notebooks with GitLab](jupyter_notebooks/index.md)
 
 ## Troubleshooting
 

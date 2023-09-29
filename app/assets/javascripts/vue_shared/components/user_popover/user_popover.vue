@@ -1,5 +1,6 @@
 <script>
 import {
+  GlBadge,
   GlPopover,
   GlLink,
   GlSkeletonLoader,
@@ -10,7 +11,7 @@ import {
 } from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { glEmojiTag } from '~/emoji';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { followUser, unfollowUser } from '~/rest_api';
 import { isUserBusy } from '~/set_status_modal/utils';
 import Tracking from '~/tracking';
@@ -35,6 +36,7 @@ export default {
   I18N_USER_LEARN,
   USER_POPOVER_DELAY,
   components: {
+    GlBadge,
     GlIcon,
     GlLink,
     GlPopover,
@@ -81,13 +83,18 @@ export default {
 
       if (this.user.status.emoji && this.user.status.message_html) {
         return `${glEmojiTag(this.user.status.emoji)} ${this.user.status.message_html}`;
-      } else if (this.user.status.message_html) {
+      }
+      if (this.user.status.message_html) {
         return this.user.status.message_html;
-      } else if (this.user.status.emoji) {
+      }
+      if (this.user.status.emoji) {
         return glEmojiTag(this.user.status.emoji);
       }
 
       return '';
+    },
+    userCannotMerge() {
+      return this.target.dataset.cannotMerge;
     },
     userIsLoading() {
       return !this.user?.loaded;
@@ -120,6 +127,15 @@ export default {
     },
     username() {
       return `@${this.user?.username}`;
+    },
+    cssClasses() {
+      const classList = ['user-popover', 'gl-max-w-48', 'gl-overflow-hidden'];
+
+      if (this.userCannotMerge) {
+        classList.push('user-popover-cannot-merge');
+      }
+
+      return classList;
     },
   },
   methods: {
@@ -179,7 +195,7 @@ export default {
 <template>
   <!-- Delayed so not every mouseover triggers Popover -->
   <gl-popover
-    :css-classes="['gl-max-w-48']"
+    :css-classes="cssClasses"
     :show="show"
     :target="target"
     :delay="$options.USER_POPOVER_DELAY"
@@ -188,6 +204,12 @@ export default {
     triggers="hover focus manual"
     data-testid="user-popover"
   >
+    <template v-if="userCannotMerge" #title>
+      <div class="gl-pb-3 gl-display-flex gl-align-items-center" data-testid="cannot-merge">
+        <gl-icon name="warning-solid" class="gl-mr-2 gl-text-orange-400" />
+        <span class="gl-font-weight-normal">{{ __('Cannot merge') }}</span>
+      </div>
+    </template>
     <div class="gl-mb-3">
       <div v-if="userIsLoading" class="gl-w-20">
         <gl-skeleton-loader :width="160" :height="64">
@@ -202,6 +224,7 @@ export default {
         :src="user.avatarUrl"
         :label="user.name"
         :sub-label="username"
+        class="gl-w-full"
       >
         <template v-if="isBlocked">
           <span class="gl-mt-4 gl-font-style-italic">{{ $options.I18N_USER_BLOCKED }}</span>
@@ -226,9 +249,9 @@ export default {
             data-testid="user-popover-pronouns"
             >({{ user.pronouns }})</span
           >
-          <span v-if="isBusy" class="gl-text-gray-500 gl-font-sm gl-font-weight-normal gl-p-1"
-            >({{ $options.I18N_USER_BUSY }})</span
-          >
+          <gl-badge v-if="isBusy" size="sm" variant="warning" class="gl-ml-1">
+            {{ $options.I18N_USER_BUSY }}
+          </gl-badge>
         </template>
       </gl-avatar-labeled>
     </div>
@@ -269,7 +292,7 @@ export default {
             <span v-safe-html:[$options.safeHtmlConfig]="statusHtml"></span>
           </div>
           <div v-if="user.bot && user.websiteUrl" class="gl-text-blue-500">
-            <gl-icon name="question" />
+            <gl-icon name="question-o" />
             <gl-link data-testid="user-popover-bot-docs-link" :href="user.websiteUrl">
               <gl-sprintf :message="$options.I18N_USER_LEARN">
                 <template #name>{{ user.name }}</template>

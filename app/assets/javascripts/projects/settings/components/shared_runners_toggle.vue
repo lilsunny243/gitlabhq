@@ -1,5 +1,5 @@
 <script>
-import { GlAlert, GlToggle, GlTooltip } from '@gitlab/ui';
+import { GlAlert, GlLink, GlToggle, GlSprintf } from '@gitlab/ui';
 import axios from '~/lib/utils/axios_utils';
 import { __, s__ } from '~/locale';
 import { CC_VALIDATION_REQUIRED_ERROR } from '../constants';
@@ -15,8 +15,9 @@ export default {
   },
   components: {
     GlAlert,
+    GlLink,
     GlToggle,
-    GlTooltip,
+    GlSprintf,
     CcValidationRequiredAlert: () =>
       import('ee_component/billings/components/cc_validation_required_alert.vue'),
   },
@@ -36,6 +37,16 @@ export default {
     updatePath: {
       type: String,
       required: true,
+    },
+    groupName: {
+      type: String,
+      required: false,
+      default: null,
+    },
+    groupSettingsPath: {
+      type: String,
+      required: false,
+      default: null,
     },
   },
   data() {
@@ -57,6 +68,9 @@ export default {
         this.errorMessage !== CC_VALIDATION_REQUIRED_ERROR &&
         !this.ccAlertDismissed
       );
+    },
+    isGroupSettingsAvailable() {
+      return this.groupSettingsPath && this.groupName;
     },
   },
   methods: {
@@ -94,7 +108,13 @@ export default {
         @dismiss="ccAlertDismissed = true"
       />
 
-      <gl-alert v-if="genericError" class="gl-mb-3" variant="danger" :dismissible="false">
+      <gl-alert
+        v-if="genericError"
+        data-testid="error-alert"
+        variant="danger"
+        :dismissible="false"
+        class="gl-mb-5"
+      >
         {{ errorMessage }}
       </gl-alert>
 
@@ -106,11 +126,19 @@ export default {
         :value="isSharedRunnerEnabled"
         data-testid="toggle-shared-runners"
         @change="toggleSharedRunners"
-      />
-
-      <gl-tooltip v-if="isDisabledAndUnoverridable" :target="() => $refs.sharedRunnersToggle">
-        {{ __('Shared runners are disabled on group level') }}
-      </gl-tooltip>
+      >
+        <template v-if="isDisabledAndUnoverridable" #help>
+          {{ s__('Runners|Shared runners are disabled in the group settings.') }}
+          <gl-sprintf
+            v-if="isGroupSettingsAvailable"
+            :message="s__('Runners|Go to %{groupLink} to enable them.')"
+          >
+            <template #groupLink>
+              <gl-link :href="groupSettingsPath">{{ groupName }}</gl-link>
+            </template>
+          </gl-sprintf>
+        </template>
+      </gl-toggle>
     </section>
   </div>
 </template>

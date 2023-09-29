@@ -1,7 +1,5 @@
 import { s__ } from '~/locale';
 
-export const BROADCAST_MESSAGES_PATH = '/admin/broadcast_messages';
-
 export const TYPE_BANNER = 'banner';
 export const TYPE_NOTIFICATION = 'notification';
 
@@ -23,6 +21,27 @@ export const THEMES = [
   { value: 'light', text: s__('BroadcastMessages|Light') },
 ];
 
+export const TARGET_ALL = 'target_all';
+export const TARGET_ALL_MATCHING_PATH = 'target_all_matching_path';
+export const TARGET_ROLES = 'target_roles';
+
+export const TARGET_OPTIONS = [
+  {
+    value: TARGET_ALL,
+    text: s__('BroadcastMessages|Show to all users on all pages'),
+  },
+  {
+    value: TARGET_ALL_MATCHING_PATH,
+    text: s__('BroadcastMessages|Show to all users on specific matching pages'),
+  },
+  {
+    value: TARGET_ROLES,
+    text: s__(
+      'BroadcastMessages|Show only to users who have specific roles on groups/project pages',
+    ),
+  },
+];
+
 export const NEW_BROADCAST_MESSAGE = {
   message: '',
   broadcastType: TYPES[0].value,
@@ -32,4 +51,5 @@ export const NEW_BROADCAST_MESSAGE = {
   targetAccessLevels: [],
   startsAt: new Date(),
   endsAt: new Date(),
+  showInCli: true,
 };

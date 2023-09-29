@@ -1,6 +1,7 @@
 <script>
-import { GlTooltipDirective, GlLink } from '@gitlab/ui';
+import { GlBadge, GlTooltipDirective } from '@gitlab/ui';
 import CiIcon from './ci_icon.vue';
+
 /**
  * Renders CI Badge link with CI icon and status text based on
  * API response shared between all places where it is used.
@@ -24,10 +25,16 @@ import CiIcon from './ci_icon.vue';
  * - On-demand scans list
  */
 
+const badgeSizeOptions = {
+  sm: 'sm',
+  md: 'md',
+  lg: 'lg',
+};
+
 export default {
   components: {
-    GlLink,
     CiIcon,
+    GlBadge,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -42,8 +49,19 @@ export default {
       required: false,
       default: true,
     },
+    size: {
+      type: String,
+      required: false,
+      default: badgeSizeOptions.md,
+      validator(value) {
+        return badgeSizeOptions[value] !== undefined;
+      },
+    },
   },
   computed: {
+    isNotLargeBadgeSize() {
+      return this.badgeSize !== badgeSizeOptions.lg;
+    },
     title() {
       return !this.showText ? this.status?.text : '';
     },
@@ -51,27 +69,76 @@ export default {
       // For now, this can either come from graphQL with camelCase or REST API in snake_case
       return this.status.detailsPath || this.status.details_path;
     },
-    cssClass() {
-      const className = this.status.group;
-      return className ? `ci-status ci-${className}` : 'ci-status';
+    badgeStyles() {
+      switch (this.status.icon) {
+        case 'status_success':
+          return {
+            textColor: 'gl-text-green-700',
+            variant: 'success',
+          };
+        case 'status_warning':
+          return {
+            textColor: 'gl-text-orange-700',
+            variant: 'warning',
+          };
+        case 'status_failed':
+          return {
+            textColor: 'gl-text-red-700',
+            variant: 'danger',
+          };
+        case 'status_running':
+          return {
+            textColor: 'gl-text-blue-700',
+            variant: 'info',
+          };
+        case 'status_pending':
+          return {
+            textColor: 'gl-text-orange-700',
+            variant: 'warning',
+          };
+        case 'status_canceled':
+          return {
+            textColor: 'gl-text-gray-700',
+            variant: 'neutral',
+          };
+        case 'status_manual':
+          return {
+            textColor: 'gl-text-gray-700',
+            variant: 'neutral',
+          };
+        // default covers the styles for the remainder of CI
+        // statuses that are not explicitly stated here
+        default:
+          return {
+            textColor: 'gl-text-gray-600',
+            variant: 'muted',
+          };
+      }
     },
   },
 };
 </script>
 <template>
-  <gl-link
+  <gl-badge
     v-gl-tooltip
-    class="gl-display-inline-flex gl-align-items-center gl-line-height-0 gl-px-3 gl-py-2 gl-rounded-base"
-    :class="cssClass"
+    :class="{ 'gl-px-2': !showText && isNotLargeBadgeSize }"
     :title="title"
-    data-qa-selector="status_badge_link"
     :href="detailsPath"
+    :size="size"
+    :variant="badgeStyles.variant"
+    data-testid="ci-badge-link"
     @click="$emit('ciStatusBadgeClick')"
   >
     <ci-icon :status="status" />
 
     <template v-if="showText">
-      <span class="gl-ml-2">{{ status.text }}</span>
+      <span
+        class="gl-ml-2 gl-white-space-nowrap"
+        :class="badgeStyles.textColor"
+        data-testid="ci-badge-text"
+      >
+        {{ status.text }}
+      </span>
     </template>
-  </gl-link>
+  </gl-badge>
 </template>

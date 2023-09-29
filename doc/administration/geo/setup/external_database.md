@@ -6,17 +6,18 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 # Geo with external PostgreSQL instances **(PREMIUM SELF)**
 
-This document is relevant if you are using a PostgreSQL instance that is *not
-managed by Omnibus*. This includes cloud-managed instances like Amazon RDS, or
-manually installed and configured PostgreSQL instances.
+This document is relevant if you are using a PostgreSQL instance that is not
+managed by the Linux package. This includes
+[cloud-managed instances](../../reference_architectures/index.md#recommendation-notes-for-the-database-services),
+or manually installed and configured PostgreSQL instances.
 
 Ensure that you are using one of the PostgreSQL versions that
-[Omnibus ships with](../../package_information/postgresql_versions.md)
+the [Linux package ships with](../../package_information/postgresql_versions.md)
 to [avoid version mismatches](../index.md#requirements-for-running-geo)
 in case a Geo site has to be rebuilt.
 
 NOTE:
-We strongly recommend running Omnibus-managed instances as they are actively
+We strongly recommend running instances installed using the Linux package as they are actively
 developed and tested. We aim to be compatible with most external
 (not managed by Omnibus) databases but we do not guarantee compatibility.
 
@@ -39,7 +40,7 @@ developed and tested. We aim to be compatible with most external
 
    ##
    ## The unique identifier for the Geo site. See
-   ## https://docs.gitlab.com/ee/user/admin_area/geo_nodes.html#common-settings
+   ## https://docs.gitlab.com/ee/administration/geo_sites.html#common-settings
    ##
    gitlab_rails['geo_node_name'] = '<site_name_here>'
    ```
@@ -62,8 +63,8 @@ developed and tested. We aim to be compatible with most external
 
 To set up an external database, you can either:
 
-- Set up [streaming replication](https://www.postgresql.org/docs/12/warm-standby.html#STREAMING-REPLICATION-SLOTS) yourself (for example Amazon RDS, or bare metal not managed by Omnibus).
-- Perform the Omnibus configuration manually as follows.
+- Set up [streaming replication](https://www.postgresql.org/docs/12/warm-standby.html#STREAMING-REPLICATION-SLOTS) yourself (for example Amazon RDS, or bare metal not managed by the Linux package).
+- Manually perform the configuration of your Linux package installations as follows.
 
 #### Leverage your cloud provider's tools to replicate the primary database
 
@@ -142,7 +143,7 @@ hot_standby = on
 
 ### Configure **secondary** site to use the external read-replica
 
-With Omnibus, the
+With Linux package installations, the
 [`geo_secondary_role`](https://docs.gitlab.com/omnibus/roles/#gitlab-geo-roles)
 has three main functions:
 
@@ -179,15 +180,17 @@ To configure the connection to the external read-replica database and enable Log
    postgresql['enable'] = false
    ```
 
-1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
 
 ### Configure the tracking database
 
 **Secondary** sites use a separate PostgreSQL installation as a tracking
 database to keep track of replication status and automatically recover from
-potential replication issues. Omnibus automatically configures a tracking database
+potential replication issues. The Linux package automatically configures a tracking database
 when `roles ['geo_secondary_role']` is set.
-If you want to run this database external to Omnibus GitLab, use the following instructions.
+If you want to run this database external to your Linux package installation, use the following instructions.
+
+#### Cloud-managed database services
 
 If you are using a cloud-managed service for the tracking database, you may need
 to grant additional roles to your tracking database user (by default, this is
@@ -200,8 +203,6 @@ to grant additional roles to your tracking database user (by default, this is
 This is for the installation of extensions during installation and upgrades. As an alternative,
 [ensure the extensions are installed manually, and read about the problems that may arise during future GitLab upgrades](../../../install/postgresql_extensions.md).
 
-To setup an external tracking database, follow the instructions below:
-
 NOTE:
 If you want to use Amazon RDS as a tracking database, make sure it has access to
 the secondary database. Unfortunately, just assigning the same security group is not enough as
@@ -209,22 +210,31 @@ outbound rules do not apply to RDS PostgreSQL databases. Therefore, you need to 
 rule to the read-replica's security group allowing any TCP traffic from
 the tracking database on port 5432.
 
+#### Create the tracking database
+
+Create and configure the tracking database in your PostgreSQL instance:
+
 1. Set up PostgreSQL according to the
    [database requirements document](../../../install/requirements.md#database).
-1. Set up a `gitlab_geo` user with a password of your choice, create the `gitlabhq_geo_production` database, and make the user an owner of the database. You can see an example of this setup in the [installation from source documentation](../../../install/installation.md#6-database).
+1. Set up a `gitlab_geo` user with a password of your choice, create the `gitlabhq_geo_production` database, and make the user an owner of the database.
+   You can see an example of this setup in the [self-compiled installation documentation](../../../install/installation.md#7-database).
 1. If you are **not** using a cloud-managed PostgreSQL database, ensure that your secondary
    site can communicate with your tracking database by manually changing the
    `pg_hba.conf` that is associated with your tracking database.
    Remember to restart PostgreSQL afterwards for the changes to take effect:
 
-    ```plaintext
-    ##
-    ## Geo Tracking Database Role
-    ## - pg_hba.conf
-    ##
-    host    all         all               <trusted tracking IP>/32      md5
-    host    all         all               <trusted secondary IP>/32     md5
-    ```
+   ```plaintext
+   ##
+   ## Geo Tracking Database Role
+   ## - pg_hba.conf
+   ##
+   host    all         all               <trusted tracking IP>/32      md5
+   host    all         all               <trusted secondary IP>/32     md5
+   ```
+
+#### Configure GitLab
+
+Configure GitLab to use this database. These steps are for Linux package and Docker deployments.
 
 1. SSH into a GitLab **secondary** server and login as root:
 
@@ -244,16 +254,21 @@ the tracking database on port 5432.
    geo_postgresql['enable'] = false     # don't use internal managed instance
    ```
 
-1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
 
-1. The reconfigure should automatically create the database. If needed, you can perform this task manually. This task (whether run by itself or during reconfigure) requires the database user to be a superuser.
+#### Set up the database schema
+
+The reconfigure in the [steps above](#configure-gitlab) for Linux package and Docker deployments should handle these steps automatically.
+
+1. This task creates the database schema. It requires the database user to be a superuser.
 
    ```shell
-   gitlab-rake db:create:geo
+   sudo gitlab-rake db:create:geo
    ```
 
-1. The reconfigure should automatically migrate the database. You can migrate the database manually if needed, for example if `geo_secondary['auto_migrate'] = false`:
+1. Applying Rails database migrations (schema and data updates) is also performed by reconfigure. If `geo_secondary['auto_migrate'] = false` is set, or
+   the schema was created manually, this step will be required:
 
    ```shell
-   gitlab-rake db:migrate:geo
+   sudo gitlab-rake db:migrate:geo
    ```

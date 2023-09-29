@@ -1,5 +1,9 @@
 import Vue from 'vue';
+import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState, mapGetters } from 'vuex';
+import { apolloProvider } from '~/graphql_shared/issuable_client';
+
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import store from '~/mr_notes/stores';
@@ -22,6 +26,8 @@ export default () => {
     return;
   }
 
+  Vue.use(VueApollo);
+
   const notesFilterProps = getNotesFilterData(el);
   const notesDataset = el.dataset;
 
@@ -33,8 +39,12 @@ export default () => {
       NotesApp,
     },
     store,
+    apolloProvider,
     provide: {
       reportAbusePath: notesDataset.reportAbusePath,
+      newCommentTemplatePath: notesDataset.newCommentTemplatePath,
+      mrFilter: true,
+      newCustomEmojiPath: notesDataset.newCustomEmojiPath,
     },
     data() {
       const noteableData = JSON.parse(notesDataset.noteableData);

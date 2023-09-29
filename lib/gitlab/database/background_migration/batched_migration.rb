@@ -25,6 +25,7 @@ module Gitlab
 
         scope :queue_order, -> { order(id: :asc) }
         scope :queued, -> { with_statuses(:active, :paused) }
+        scope :finalizing, -> { with_status(:finalizing) }
         scope :ordered_by_created_at_desc, -> { order(created_at: :desc) }
 
         # on_hold_until is a temporary runtime status which puts execution "on hold"
@@ -78,12 +79,14 @@ module Gitlab
             transition any => :finalizing
           end
 
+          before_transition any => :finished do |migration|
+            migration.finished_at = Time.current if migration.respond_to?(:finished_at)
+          end
+
           before_transition any => :active do |migration|
             migration.started_at = Time.current if migration.respond_to?(:started_at)
           end
         end
-
-        attribute :pause_ms, :integer, default: 100
 
         def self.valid_status
           state_machine.states.map(&:name)
@@ -91,10 +94,6 @@ module Gitlab
 
         def self.find_for_configuration(gitlab_schema, job_class_name, table_name, column_name, job_arguments)
           for_configuration(gitlab_schema, job_class_name, table_name, column_name, job_arguments).first
-        end
-
-        def self.active_migration(connection:)
-          active_migrations_distinct_on_table(connection: connection, limit: 1).first
         end
 
         def self.find_executable(id, connection:)
@@ -221,7 +220,12 @@ module Gitlab
         end
 
         def health_context
-          HealthStatus::Context.new(connection, [table_name])
+          @health_context ||= Gitlab::Database::HealthStatus::Context.new(
+            self,
+            connection,
+            [table_name],
+            gitlab_schema.to_sym
+          )
         end
 
         def hold!(until_time: 10.minutes.from_now)

@@ -76,7 +76,7 @@ const namespaceError = () => document.querySelector('.js-group-namespace-error')
 
 const validateGroupNamespaceDropdown = (e) => {
   if (selectedNamespaceId() && !selectedNamespaceId().attributes.value) {
-    document.querySelector('input[data-qa-selector="project_name"]').reportValidity();
+    document.querySelector('#project_name').reportValidity();
     e.preventDefault();
     dropdownButton().classList.add(invalidDropdownClass);
     namespaceButton().classList.add(invalidDropdownClass);
@@ -295,7 +295,7 @@ const bindEvents = () => {
   });
 
   $newProjectForm.on('submit', () => {
-    $projectPath.val($projectPath.val().trim());
+    $projectPath.value = $projectPath.value.trim();
   });
 
   const updateUrlPathWarningVisibility = async () => {

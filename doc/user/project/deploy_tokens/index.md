@@ -1,12 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Deploy tokens **(FREE)**
-
-> [Added](https://gitlab.com/gitlab-org/gitlab/-/issues/213566) package registry scopes in GitLab 13.0.
+# Deploy tokens **(FREE ALL)**
 
 You can use a deploy token to enable authentication of deployment tasks, independent of a user
 account. In most cases you use a deploy token from an external host, like a build server or CI/CD
@@ -92,11 +90,10 @@ Prerequisites:
 
 - You must have at least the Maintainer role for the project or group.
 
-1. On the top bar, select **Main menu**, and:
-   - For a project deploy token, select **Projects** and find your project.
-   - For a group deploy token, select **Groups** and find your group.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Settings > Repository**.
 1. Expand **Deploy tokens**.
+1. Select **Add token**.
 1. Complete the fields, and select the desired [scopes](#scope).
 1. Select **Create deploy token**.
 
@@ -113,10 +110,8 @@ Prerequisites:
 
 To revoke a deploy token:
 
-1. On the top bar, select **Main menu**, and:
-   - For a project deploy token, select **Projects** and find your project.
-   - For a group deploy token, select **Groups** and find your group.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Settings > Repository**.
 1. Expand **Deploy tokens**.
 1. In the **Active Deploy Tokens** section, by the token you want to revoke, select **Revoke**.
 

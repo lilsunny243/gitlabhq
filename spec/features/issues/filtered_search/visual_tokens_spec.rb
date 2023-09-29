@@ -6,8 +6,8 @@ RSpec.describe 'Visual tokens', :js, feature_category: :team_planning do
   include FilteredSearchHelpers
 
   let_it_be(:project) { create(:project) }
-  let_it_be(:user) { create(:user, name: 'administrator', username: 'root') }
-  let_it_be(:user_rock) { create(:user, name: 'The Rock', username: 'rock') }
+  let_it_be(:user) { create(:user, :no_super_sidebar, name: 'administrator', username: 'root') }
+  let_it_be(:user_rock) { create(:user, :no_super_sidebar, name: 'The Rock', username: 'rock') }
   let_it_be(:milestone_nine) { create(:milestone, title: '9.0', project: project) }
   let_it_be(:milestone_ten) { create(:milestone, title: '10.0', project: project) }
   let_it_be(:label) { create(:label, project: project, title: 'abc') }
@@ -79,10 +79,10 @@ RSpec.describe 'Visual tokens', :js, feature_category: :team_planning do
   describe 'editing a search term while editing another filter token' do
     before do
       click_filtered_search_bar
-      send_keys 'foo '
+      send_keys 'foo', :enter
       select_tokens 'Assignee', '='
       click_token_segment 'foo'
-      send_keys ' '
+      send_keys :enter
     end
 
     it 'opens author dropdown' do
@@ -95,44 +95,6 @@ RSpec.describe 'Visual tokens', :js, feature_category: :team_planning do
 
       expect_suggestion(user.name)
       expect_suggestion(user_rock.name)
-    end
-  end
-
-  describe 'add new token after editing existing token' do
-    before do
-      select_tokens 'Assignee', '=', user.username, 'Label', '=', 'None'
-      click_token_segment(user.name)
-      send_keys ' '
-    end
-
-    describe 'opens dropdowns' do
-      it 'opens hint dropdown' do
-        expect_visible_suggestions_list
-      end
-
-      it 'opens token dropdown' do
-        click_on 'Author'
-
-        expect_visible_suggestions_list
-      end
-    end
-
-    describe 'visual tokens' do
-      it 'creates visual token' do
-        click_on 'Author'
-        click_on '= is'
-        click_on 'The Rock'
-
-        expect_author_token 'The Rock'
-      end
-    end
-
-    it 'does not tokenize incomplete token' do
-      click_on 'Author'
-      find('.js-navbar').click
-
-      expect_empty_search_term
-      expect_token_segment 'Assignee'
     end
   end
 

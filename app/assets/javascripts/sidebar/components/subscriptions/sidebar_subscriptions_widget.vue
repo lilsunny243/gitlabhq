@@ -1,12 +1,20 @@
 <script>
-import { GlDropdownForm, GlIcon, GlLoadingIcon, GlToggle, GlTooltipDirective } from '@gitlab/ui';
-import { createAlert } from '~/flash';
-import { IssuableType, TYPE_EPIC } from '~/issues/constants';
+import {
+  GlDisclosureDropdownItem,
+  GlDropdownForm,
+  GlIcon,
+  GlLoadingIcon,
+  GlToggle,
+  GlTooltipDirective,
+} from '@gitlab/ui';
+import { createAlert } from '~/alert';
+import { TYPE_ISSUE, TYPE_EPIC, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import { isLoggedIn } from '~/lib/utils/common_utils';
 import { __, sprintf } from '~/locale';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import toast from '~/vue_shared/plugins/global_toast';
-import { subscribedQueries, Tracking } from '../../constants';
+import { Tracking } from '../../constants';
+import { subscribedQueries } from '../../queries/constants';
 import SidebarEditableItem from '../sidebar_editable_item.vue';
 
 const ICON_ON = 'notifications';
@@ -22,6 +30,7 @@ export default {
     GlTooltip: GlTooltipDirective,
   },
   components: {
+    GlDisclosureDropdownItem,
     GlDropdownForm,
     GlIcon,
     GlLoadingIcon,
@@ -86,8 +95,11 @@ export default {
     },
   },
   computed: {
-    isMergeRequest() {
-      return this.issuableType === IssuableType.MergeRequest && this.glFeatures.movedMrSidebar;
+    isMovedMrSidebar() {
+      return this.glFeatures.movedMrSidebar;
+    },
+    isIssuable() {
+      return this.issuableType === TYPE_ISSUE;
     },
     isLoading() {
       return this.$apollo.queries?.subscribed?.loading || this.loading;
@@ -109,7 +121,7 @@ export default {
     },
     subscribeDisabledDescription() {
       return sprintf(__('Disabled by %{parent} owner'), {
-        parent: this.parentIsGroup ? 'group' : 'project',
+        parent: this.parentIsGroup ? WORKSPACE_GROUP : WORKSPACE_PROJECT,
       });
     },
     isLoggedIn() {
@@ -143,7 +155,7 @@ export default {
               });
             }
 
-            if (this.isMergeRequest) {
+            if (this.isMovedMrSidebar) {
               toast(subscribed ? __('Notifications turned on.') : __('Notifications turned off.'));
             }
           },
@@ -182,18 +194,32 @@ export default {
 </script>
 
 <template>
-  <gl-dropdown-form v-if="isMergeRequest" class="gl-dropdown-item">
+  <gl-dropdown-form v-if="isMovedMrSidebar && isIssuable" class="gl-dropdown-item">
     <div class="gl-px-5 gl-pb-2 gl-pt-1">
+      <gl-toggle
+        :value="subscribed"
+        :label="$options.i18n.notifications"
+        class="merge-request-notification-toggle"
+        label-position="left"
+        data-testid="notification-toggle"
+        @change="toggleSubscribed"
+      />
+    </div>
+  </gl-dropdown-form>
+  <gl-disclosure-dropdown-item
+    v-else-if="isMovedMrSidebar"
+    data-testid="notification-toggle"
+    @action="toggleSubscribed"
+  >
+    <template #list-item>
       <gl-toggle
         :value="subscribed"
         :label="__('Notifications')"
         class="merge-request-notification-toggle"
         label-position="left"
-        data-testid="notifications-toggle"
-        @change="toggleSubscribed"
       />
-    </div>
-  </gl-dropdown-form>
+    </template>
+  </gl-disclosure-dropdown-item>
   <sidebar-editable-item
     v-else
     ref="editable"

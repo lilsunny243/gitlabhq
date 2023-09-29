@@ -1,14 +1,15 @@
 <script>
-import createFromTemplateIllustration from '@gitlab/svgs/dist/illustrations/project-create-from-template-sm.svg';
-import blankProjectIllustration from '@gitlab/svgs/dist/illustrations/project-create-new-sm.svg';
-import importProjectIllustration from '@gitlab/svgs/dist/illustrations/project-import-sm.svg';
-import ciCdProjectIllustration from '@gitlab/svgs/dist/illustrations/project-run-CICD-pipelines-sm.svg';
+import PROJECT_CREATE_FROM_TEMPLATE_SVG_URL from '@gitlab/svgs/dist/illustrations/project-create-from-template-sm.svg?url';
+import PROJECT_CREATE_NEW_SVG_URL from '@gitlab/svgs/dist/illustrations/project-create-new-sm.svg?url';
+import PROJECT_IMPORT_SVG_URL from '@gitlab/svgs/dist/illustrations/project-import-sm.svg?url';
+import PROJECT_RUN_CICD_PIPELINES_SVG_URL from '@gitlab/svgs/dist/illustrations/project-run-CICD-pipelines-sm.svg?url';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { s__ } from '~/locale';
 import NewNamespacePage from '~/vue_shared/new_namespace/new_namespace_page.vue';
 import NewProjectPushTipPopover from './new_project_push_tip_popover.vue';
 
 const CI_CD_PANEL = 'cicd_for_external_repo';
+const IMPORT_PROJECT_PANEL = 'import_project';
 const PANELS = [
   {
     key: 'blank',
@@ -18,7 +19,7 @@ const PANELS = [
     description: s__(
       'ProjectsNew|Create a blank project to store your files, plan your work, and collaborate on code, among other things.',
     ),
-    illustration: blankProjectIllustration,
+    imageSrc: PROJECT_CREATE_NEW_SVG_URL,
   },
   {
     key: 'template',
@@ -28,17 +29,17 @@ const PANELS = [
     description: s__(
       'ProjectsNew|Create a project pre-populated with the necessary files to get you started quickly.',
     ),
-    illustration: createFromTemplateIllustration,
+    imageSrc: PROJECT_CREATE_FROM_TEMPLATE_SVG_URL,
   },
   {
     key: 'import',
-    name: 'import_project',
+    name: IMPORT_PROJECT_PANEL,
     selector: '#import-project-pane',
     title: s__('ProjectsNew|Import project'),
     description: s__(
       'ProjectsNew|Migrate your data from an external source like GitHub, Bitbucket, or another instance of GitLab.',
     ),
-    illustration: importProjectIllustration,
+    imageSrc: PROJECT_IMPORT_SVG_URL,
   },
   {
     key: 'ci',
@@ -46,7 +47,7 @@ const PANELS = [
     selector: '#ci-cd-project-pane',
     title: s__('ProjectsNew|Run CI/CD for external repository'),
     description: s__('ProjectsNew|Connect your external repository to GitLab CI/CD.'),
-    illustration: ciCdProjectIllustration,
+    imageSrc: PROJECT_RUN_CICD_PIPELINES_SVG_URL,
   },
 ];
 
@@ -59,6 +60,14 @@ export default {
     SafeHtml,
   },
   props: {
+    rootPath: {
+      type: String,
+      required: true,
+    },
+    projectsUrl: {
+      type: String,
+      required: true,
+    },
     parentGroupUrl: {
       type: String,
       required: false,
@@ -84,17 +93,40 @@ export default {
       required: false,
       default: '',
     },
+    canImportProjects: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
 
   computed: {
     initialBreadcrumbs() {
-      return [
-        this.parentGroupUrl && { text: this.parentGroupName, href: this.parentGroupUrl },
-        { text: s__('ProjectsNew|New project'), href: '#' },
-      ].filter(Boolean);
+      const breadcrumbs = this.parentGroupUrl
+        ? [{ text: this.parentGroupName, href: this.parentGroupUrl }]
+        : [
+            { text: s__('Navigation|Your work'), href: this.rootPath },
+            { text: s__('ProjectsNew|Projects'), href: this.projectsUrl },
+          ];
+      breadcrumbs.push({ text: s__('ProjectsNew|New project'), href: '#' });
+      return breadcrumbs;
     },
     availablePanels() {
-      return this.isCiCdAvailable ? PANELS : PANELS.filter((p) => p.name !== CI_CD_PANEL);
+      if (this.isCiCdAvailable && this.canImportProjects) {
+        return PANELS;
+      }
+
+      return PANELS.filter((panel) => {
+        if (!this.canImportProjects && panel.name === IMPORT_PROJECT_PANEL) {
+          return false;
+        }
+
+        if (!this.isCiCdAvailable && panel.name === CI_CD_PANEL) {
+          return false;
+        }
+
+        return true;
+      });
     },
   },
 

@@ -309,7 +309,7 @@ RSpec.describe Gitlab::SidekiqLogging::StructuredLogger do
       end
 
       shared_examples 'performs database queries' do
-        it 'logs the database time', :aggregate_errors do
+        it 'logs the database time', :aggregate_failures do
           expect(logger).to receive(:info).with(expected_start_payload).ordered
           expect(logger).to receive(:info).with(expected_end_payload_with_db).ordered
 
@@ -318,7 +318,7 @@ RSpec.describe Gitlab::SidekiqLogging::StructuredLogger do
           end
         end
 
-        it 'prevents database time from leaking to the next job', :aggregate_errors do
+        it 'prevents database time from leaking to the next job', :aggregate_failures do
           expect(logger).to receive(:info).with(expected_start_payload).ordered
           expect(logger).to receive(:info).with(expected_end_payload_with_db).ordered
           expect(logger).to receive(:info).with(expected_start_payload).ordered
@@ -421,6 +421,61 @@ RSpec.describe Gitlab::SidekiqLogging::StructuredLogger do
           call_subject(job, 'test_queue') do
             ::Gitlab::SidekiqMiddleware::SizeLimiter::Compressor.decompress(job)
           end
+        end
+      end
+    end
+
+    context 'when the job is deferred' do
+      it 'logs start and end of job with "deferred" job_status' do
+        travel_to(timestamp) do
+          expect(logger).to receive(:info).with(start_payload).ordered
+          expect(logger).to receive(:info).with(deferred_payload).ordered
+          expect(subject).to receive(:log_job_start).and_call_original
+          expect(subject).to receive(:log_job_done).and_call_original
+
+          call_subject(job, 'test_queue') do
+            job['deferred'] = true
+            job['deferred_by'] = :feature_flag
+            job['deferred_count'] = 1
+          end
+        end
+      end
+    end
+
+    context 'when the job is dropped' do
+      it 'logs start and end of job with "dropped" job_status' do
+        travel_to(timestamp) do
+          expect(logger).to receive(:info).with(start_payload).ordered
+          expect(logger).to receive(:info).with(dropped_payload).ordered
+          expect(subject).to receive(:log_job_start).and_call_original
+          expect(subject).to receive(:log_job_done).and_call_original
+
+          call_subject(job, 'test_queue') do
+            job['dropped'] = true
+          end
+        end
+      end
+    end
+
+    context 'with a real worker' do
+      let(:worker_class) { AuthorizedKeysWorker.name }
+
+      let(:expected_end_payload) do
+        end_payload.merge(
+          'urgency' => 'high',
+          'target_duration_s' => 10,
+          'target_scheduling_latency_s' => 10
+        )
+      end
+
+      it 'logs job done with urgency, target_duration_s and target_scheduling_latency_s fields' do
+        travel_to(timestamp) do
+          expect(logger).to receive(:info).with(start_payload).ordered
+          expect(logger).to receive(:info).with(expected_end_payload).ordered
+          expect(subject).to receive(:log_job_start).and_call_original
+          expect(subject).to receive(:log_job_done).and_call_original
+
+          call_subject(job, 'test_queue') {}
         end
       end
     end

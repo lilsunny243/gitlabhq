@@ -5,8 +5,10 @@ module Terraform
     include UsageStatistics
     include AfterCommitQueue
 
-    HEX_REGEXP = %r{\A\h+\z}.freeze
+    HEX_REGEXP = %r{\A\h+\z}
     UUID_LENGTH = 32
+
+    self.locking_column = :activerecord_lock_version
 
     belongs_to :project
     belongs_to :locked_by_user, class_name: 'User'
@@ -26,7 +28,7 @@ module Terraform
 
     validates :project_id, :name, presence: true
     validates :uuid, presence: true, uniqueness: true, length: { is: UUID_LENGTH },
-                     format: { with: HEX_REGEXP, message: 'only allows hex characters' }
+      format: { with: HEX_REGEXP, message: 'only allows hex characters' }
 
     attribute :uuid, default: -> { SecureRandom.hex(UUID_LENGTH / 2) }
 

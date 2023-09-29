@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe LooseForeignKeys::BatchCleanerService do
+RSpec.describe LooseForeignKeys::BatchCleanerService, feature_category: :database do
   include MigrationsHelpers
 
   def create_table_structure
@@ -50,7 +50,7 @@ RSpec.describe LooseForeignKeys::BatchCleanerService do
   let(:parent_record_1) { loose_fk_parent_table.create! }
   let(:other_parent_record) { loose_fk_parent_table.create! }
 
-  before(:all) do
+  before_all do
     create_table_structure
   end
 
@@ -88,10 +88,11 @@ RSpec.describe LooseForeignKeys::BatchCleanerService do
       expect(loose_fk_child_table_1.count).to eq(4)
       expect(loose_fk_child_table_2.count).to eq(4)
 
-      described_class.new(parent_table: '_test_loose_fk_parent_table',
-                          loose_foreign_key_definitions: loose_foreign_key_definitions,
-                          deleted_parent_records: LooseForeignKeys::DeletedRecord.load_batch_for_table('public._test_loose_fk_parent_table', 100)
-                         ).execute
+      described_class.new(
+        parent_table: '_test_loose_fk_parent_table',
+        loose_foreign_key_definitions: loose_foreign_key_definitions,
+        deleted_parent_records: LooseForeignKeys::DeletedRecord.load_batch_for_table('public._test_loose_fk_parent_table', 100)
+      ).execute
     end
 
     it 'cleans up the child records' do
@@ -125,11 +126,12 @@ RSpec.describe LooseForeignKeys::BatchCleanerService do
       let(:deleted_records_incremented_counter) { Gitlab::Metrics.registry.get(:loose_foreign_key_incremented_deleted_records) }
 
       let(:cleaner) do
-        described_class.new(parent_table: '_test_loose_fk_parent_table',
-                            loose_foreign_key_definitions: loose_foreign_key_definitions,
-                            deleted_parent_records: LooseForeignKeys::DeletedRecord.load_batch_for_table('public._test_loose_fk_parent_table', 100),
-                            modification_tracker: modification_tracker
-                           )
+        described_class.new(
+          parent_table: '_test_loose_fk_parent_table',
+          loose_foreign_key_definitions: loose_foreign_key_definitions,
+          deleted_parent_records: LooseForeignKeys::DeletedRecord.load_batch_for_table('public._test_loose_fk_parent_table', 100),
+          modification_tracker: modification_tracker
+        )
       end
 
       before do

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Packages::Composer::CreatePackageService do
+RSpec.describe Packages::Composer::CreatePackageService, feature_category: :package_registry do
   include PackagesManagerApiSpecHelpers
 
   let_it_be(:package_name) { 'composer-package-name' }
@@ -50,7 +50,7 @@ RSpec.describe Packages::Composer::CreatePackageService do
       context 'with a tag' do
         let(:tag) { project.repository.find_tag('v1.2.3') }
 
-        before(:all) do
+        before_all do
           project.repository.add_tag(user, 'v1.2.3', 'master')
         end
 

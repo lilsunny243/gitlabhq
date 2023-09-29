@@ -80,6 +80,7 @@ class ProjectTeam
   # so we filter out only members of project or project's group
   def members_in_project_and_ancestors
     members.where(id: member_user_ids)
+      .allow_cross_joins_across_databases(url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/422405')
   end
 
   def members_with_access_levels(access_levels = [])
@@ -117,11 +118,13 @@ class ProjectTeam
     owners.include?(user)
   end
 
-  def import(source_project, current_user = nil)
+  def import(source_project, current_user)
     target_project = project
 
-    source_members = source_project.project_members.to_a
-    target_user_ids = target_project.project_members.pluck(:user_id)
+    source_members = source_members_for_import(source_project)
+    target_user_ids = target_project.project_members.pluck_user_ids
+
+    importer_access_level = max_member_access(current_user.id)
 
     source_members.reject! do |member|
       # Skip if user already present in team
@@ -132,17 +135,17 @@ class ProjectTeam
       new_member = member.dup
       new_member.id = nil
       new_member.source = target_project
+      # So that a maintainer cannot import a member with owner access
+      new_member.access_level = [new_member.access_level, importer_access_level].min
       new_member.created_by = current_user
       new_member
     end
 
     ProjectMember.transaction do
-      source_members.each do |member|
-        member.save
-      end
+      source_members.each(&:save)
     end
 
-    true
+    source_members
   rescue StandardError
     false
   end
@@ -179,9 +182,11 @@ class ProjectTeam
   #
   # Returns a Hash mapping user ID -> maximum access level.
   def max_member_access_for_user_ids(user_ids)
-    Gitlab::SafeRequestLoader.execute(resource_key: project.max_member_access_for_resource_key(User),
-                                      resource_ids: user_ids,
-                                      default_value: Gitlab::Access::NO_ACCESS) do |user_ids|
+    Gitlab::SafeRequestLoader.execute(
+      resource_key: project.max_member_access_for_resource_key(User),
+      resource_ids: user_ids,
+      default_value: Gitlab::Access::NO_ACCESS
+    ) do |user_ids|
       project.project_authorizations
              .where(user: user_ids)
              .group(:user_id)
@@ -202,9 +207,11 @@ class ProjectTeam
   end
 
   def contribution_check_for_user_ids(user_ids)
-    Gitlab::SafeRequestLoader.execute(resource_key: "contribution_check_for_users:#{project.id}",
-                                      resource_ids: user_ids,
-                                      default_value: false) do |user_ids|
+    Gitlab::SafeRequestLoader.execute(
+      resource_key: "contribution_check_for_users:#{project.id}",
+      resource_ids: user_ids,
+      default_value: false
+    ) do |user_ids|
       project.merge_requests
              .merged
              .where(author_id: user_ids, target_branch: project.default_branch.to_s)
@@ -234,6 +241,10 @@ class ProjectTeam
 
   def member_user_ids
     Member.on_project_and_ancestors(project).select(:user_id)
+  end
+
+  def source_members_for_import(source_project)
+    source_project.project_members.to_a
   end
 end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::CommitController do
+RSpec.describe Projects::CommitController, feature_category: :source_code_management do
   include ProjectForksHelper
 
   let_it_be(:project)  { create(:project, :repository) }
@@ -82,22 +82,6 @@ RSpec.describe Projects::CommitController do
       go(id: TestEnv::BRANCH_SHA['binary-encoding'], format: 'html')
 
       expect(response).to be_successful
-    end
-
-    it 'only loads blobs in the current page' do
-      stub_feature_flags(async_commit_diff_files: false)
-      stub_const('Projects::CommitController::COMMIT_DIFFS_PER_PAGE', 1)
-
-      commit = project.commit('1a0b36b3cdad1d2ee32457c102a8c0b7056fa863')
-
-      expect_next_instance_of(Repository) do |repository|
-        # This commit contains 3 changed files but we expect only the blobs for the first one to be loaded
-        expect(repository).to receive(:blobs_at).with([[commit.id, '.gitignore']], anything).and_call_original
-      end
-
-      go(id: commit.id)
-
-      expect(response).to be_ok
     end
 
     shared_examples "export as" do |format|
@@ -254,7 +238,45 @@ RSpec.describe Projects::CommitController do
         post :revert, params: { namespace_id: project.namespace, project_id: project, start_branch: 'master', id: commit.id }
 
         expect(response).to redirect_to project_commit_path(project, commit.id)
-        expect(flash[:alert]).to match('Sorry, we cannot revert this commit automatically.')
+        expect(flash[:alert]).to match('Commit revert failed:')
+      end
+    end
+
+    context 'in the context of a merge_request' do
+      let(:merge_request) { create(:merge_request, :merged, source_project: project) }
+      let(:repository) { project.repository }
+
+      before do
+        merge_commit_id = repository.merge(user,
+          merge_request.diff_head_sha,
+          merge_request,
+          'Test message')
+
+        repository.commit(merge_commit_id)
+        merge_request.update!(merge_commit_sha: merge_commit_id)
+      end
+
+      context 'when the revert was successful' do
+        it 'redirects to the merge request page' do
+          post :revert, params: { namespace_id: project.namespace, project_id: project, start_branch: 'master', id: merge_request.merge_commit_sha }
+
+          expect(response).to redirect_to project_merge_request_path(project, merge_request)
+          expect(flash[:notice]).to eq('The merge request has been successfully reverted.')
+        end
+      end
+
+      context 'when the revert failed' do
+        before do
+          post :revert, params: { namespace_id: project.namespace, project_id: project, start_branch: 'master', id: merge_request.merge_commit_sha }
+        end
+
+        it 'redirects to the merge request page' do
+          # Reverting a merge request that has been already reverted.
+          post :revert, params: { namespace_id: project.namespace, project_id: project, start_branch: 'master', id: merge_request.merge_commit_sha }
+
+          expect(response).to redirect_to project_merge_request_path(project, merge_request)
+          expect(flash[:alert]).to match('Merge request revert failed:')
+        end
       end
     end
   end
@@ -297,7 +319,44 @@ RSpec.describe Projects::CommitController do
         post :cherry_pick, params: { namespace_id: project.namespace, project_id: project, start_branch: 'master', id: master_pickable_commit.id }
 
         expect(response).to redirect_to project_commit_path(project, master_pickable_commit.id)
-        expect(flash[:alert]).to match('Sorry, we cannot cherry-pick this commit automatically.')
+        expect(flash[:alert]).to match('Commit cherry-pick failed:')
+      end
+    end
+
+    context 'in the context of a merge_request' do
+      let(:merge_request) { create(:merge_request, :merged, source_project: project) }
+      let(:repository) { project.repository }
+
+      before do
+        merge_commit_id = repository.merge(user,
+          merge_request.diff_head_sha,
+          merge_request,
+          'Test message')
+        repository.commit(merge_commit_id)
+        merge_request.update!(merge_commit_sha: merge_commit_id)
+      end
+
+      context 'when the cherry_pick was successful' do
+        it 'redirects to the merge request page' do
+          post :cherry_pick, params: { namespace_id: project.namespace, project_id: project, start_branch: 'merge-test', id: merge_request.merge_commit_sha }
+
+          expect(response).to redirect_to project_merge_request_path(project, merge_request)
+          expect(flash[:notice]).to eq('The merge request has been successfully cherry-picked into merge-test.')
+        end
+      end
+
+      context 'when the cherry_pick failed' do
+        before do
+          post :cherry_pick, params: { namespace_id: project.namespace, project_id: project, start_branch: 'merge-test', id: merge_request.merge_commit_sha }
+        end
+
+        it 'redirects to the merge request page' do
+          # Reverting a merge request that has been already cherry-picked.
+          post :cherry_pick, params: { namespace_id: project.namespace, project_id: project, start_branch: 'merge-test', id: merge_request.merge_commit_sha }
+
+          expect(response).to redirect_to project_merge_request_path(project, merge_request)
+          expect(flash[:alert]).to match('Merge request cherry-pick failed:')
+        end
       end
     end
 
@@ -307,13 +366,21 @@ RSpec.describe Projects::CommitController do
       let(:target_project) { project }
       let(:create_merge_request) { nil }
 
+      let(:commit_id) do
+        forked_project.repository.commit_files(
+          user,
+          branch_name: 'feature', message: 'Commit to feature',
+          actions: [{ action: :create, file_path: 'encoding/CHANGELOG', content: 'New content' }]
+        )
+      end
+
       def send_request
         post :cherry_pick, params: {
           namespace_id: forked_project.namespace,
           project_id: forked_project,
           target_project_id: target_project.id,
           start_branch: 'feature',
-          id: forked_project.commit.id,
+          id: commit_id,
           create_merge_request: create_merge_request
         }
       end
@@ -338,19 +405,19 @@ RSpec.describe Projects::CommitController do
 
         expect(response).to redirect_to project_commits_path(project, 'feature')
         expect(flash[:notice]).to eq('The commit has been successfully cherry-picked into feature.')
-        expect(project.commit('feature').message).to include(forked_project.commit.id)
+        expect(project.commit('feature').message).to include(commit_id)
       end
 
       context 'when the cherry pick is performed via merge request' do
         let(:create_merge_request) { true }
 
         it 'successfully cherry picks a commit from fork to a cherry pick branch' do
-          branch = forked_project.commit.cherry_pick_branch_name
+          branch = forked_project.commit(commit_id).cherry_pick_branch_name
           send_request
 
           expect(response).to redirect_to merge_request_url(project, branch)
           expect(flash[:notice]).to start_with("The commit has been successfully cherry-picked into #{branch}")
-          expect(project.commit(branch).message).to include(forked_project.commit.id)
+          expect(project.commit(branch).message).to include(commit_id)
         end
       end
 
@@ -362,13 +429,13 @@ RSpec.describe Projects::CommitController do
         end
 
         it 'cherry picks a commit to the fork' do
-          branch = forked_project.commit.cherry_pick_branch_name
+          branch = forked_project.commit(commit_id).cherry_pick_branch_name
           send_request
 
           expect(response).to redirect_to merge_request_url(forked_project, branch)
           expect(flash[:notice]).to start_with("The commit has been successfully cherry-picked into #{branch}")
-          expect(project.commit('feature').message).not_to include(forked_project.commit.id)
-          expect(forked_project.commit(branch).message).to include(forked_project.commit.id)
+          expect(project.commit('feature').message).not_to include(commit_id)
+          expect(forked_project.commit(branch).message).to include(commit_id)
         end
       end
 
@@ -380,6 +447,37 @@ RSpec.describe Projects::CommitController do
 
           expect(response).to have_gitlab_http_status(:not_found)
         end
+      end
+    end
+  end
+
+  describe 'GET #diff_files' do
+    subject(:send_request) { get :diff_files, params: params }
+
+    let(:format) { :html }
+    let(:params) do
+      {
+        namespace_id: project.namespace,
+        project_id: project,
+        id: commit.id,
+        format: format
+      }
+    end
+
+    it 'renders diff files' do
+      send_request
+
+      expect(assigns(:diffs)).to be_a(Gitlab::Diff::FileCollection::Commit)
+      expect(assigns(:environment)).to be_nil
+    end
+
+    context 'when format is not html' do
+      let(:format) { :json }
+
+      it 'returns 404 page' do
+        send_request
+
+        expect(response).to have_gitlab_http_status(:not_found)
       end
     end
   end

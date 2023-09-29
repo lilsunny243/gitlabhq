@@ -1,8 +1,5 @@
-/* eslint-disable no-new */
-
 import $ from 'jquery';
-import initPopover from '~/blob/suggest_gitlab_ci_yml';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { setCookie } from '~/lib/utils/common_utils';
 import Tracking from '~/tracking';
 import NewCommitForm from '../new_commit_form';
@@ -12,9 +9,6 @@ const initPopovers = () => {
 
   if (suggestEl) {
     const commitButton = document.querySelector('#commit-changes');
-
-    initPopover(suggestEl);
-
     if (commitButton) {
       const { dismissKey, humanAccess } = suggestEl.dataset;
       const urlParams = new URLSearchParams(window.location.search);
@@ -54,6 +48,7 @@ export default () => {
 
     import('./edit_blob')
       .then(({ default: EditBlob } = {}) => {
+        // eslint-disable-next-line no-new
         new EditBlob({
           assetsPath: `${urlRoot}${assetsPath}`,
           filePath,
@@ -80,7 +75,7 @@ export default () => {
       window.onbeforeunload = null;
     });
 
-    new NewCommitForm(editBlobForm);
+    new NewCommitForm(editBlobForm); // eslint-disable-line no-new
 
     // returning here blocks page navigation
     window.onbeforeunload = () => '';

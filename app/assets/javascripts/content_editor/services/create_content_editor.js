@@ -9,13 +9,15 @@ import Bold from '../extensions/bold';
 import BulletList from '../extensions/bullet_list';
 import Code from '../extensions/code';
 import CodeBlockHighlight from '../extensions/code_block_highlight';
+import CodeSuggestion from '../extensions/code_suggestion';
 import ColorChip from '../extensions/color_chip';
-import Comment from '../extensions/comment';
+import CopyPaste from '../extensions/copy_paste';
 import DescriptionItem from '../extensions/description_item';
 import DescriptionList from '../extensions/description_list';
 import Details from '../extensions/details';
 import DetailsContent from '../extensions/details_content';
 import Diagram from '../extensions/diagram';
+import DrawioDiagram from '../extensions/drawio_diagram';
 import Document from '../extensions/document';
 import Dropcursor from '../extensions/dropcursor';
 import Emoji from '../extensions/emoji';
@@ -43,10 +45,10 @@ import Loading from '../extensions/loading';
 import MathInline from '../extensions/math_inline';
 import OrderedList from '../extensions/ordered_list';
 import Paragraph from '../extensions/paragraph';
-import PasteMarkdown from '../extensions/paste_markdown';
 import Reference from '../extensions/reference';
 import ReferenceLabel from '../extensions/reference_label';
 import ReferenceDefinition from '../extensions/reference_definition';
+import Selection from '../extensions/selection';
 import Sourcemap from '../extensions/sourcemap';
 import Strike from '../extensions/strike';
 import Subscript from '../extensions/subscript';
@@ -63,20 +65,15 @@ import Text from '../extensions/text';
 import Video from '../extensions/video';
 import WordBreak from '../extensions/word_break';
 import { ContentEditor } from './content_editor';
-import createMarkdownSerializer from './markdown_serializer';
+import MarkdownSerializer from './markdown_serializer';
 import createGlApiMarkdownDeserializer from './gl_api_markdown_deserializer';
 import createRemarkMarkdownDeserializer from './remark_markdown_deserializer';
-import createAssetResolver from './asset_resolver';
+import AssetResolver from './asset_resolver';
 import trackInputRulesAndShortcuts from './track_input_rules_and_shortcuts';
 
 const createTiptapEditor = ({ extensions = [], ...options } = {}) =>
   new Editor({
     extensions: [...extensions],
-    editorProps: {
-      attributes: {
-        class: 'gl-outline-0!',
-      },
-    },
     ...options,
   });
 
@@ -86,12 +83,23 @@ export const createContentEditor = ({
   extensions = [],
   serializerConfig = { marks: {}, nodes: {} },
   tiptapOptions,
+  drawioEnabled = false,
+  enableAutocomplete,
+  autocompleteDataSources = {},
+  codeSuggestionsConfig = {},
 } = {}) => {
   if (!isFunction(renderMarkdown)) {
     throw new Error(PROVIDE_SERIALIZER_OR_RENDERER_ERROR);
   }
 
   const eventHub = eventHubFactory();
+  const assetResolver = new AssetResolver({ renderMarkdown });
+  const serializer = new MarkdownSerializer({ serializerConfig });
+  const deserializer = window.gon?.features?.preserveUnchangedMarkdown
+    ? createRemarkMarkdownDeserializer()
+    : createGlApiMarkdownDeserializer({
+        render: renderMarkdown,
+      });
 
   const builtInContentEditorExtensions = [
     Attachment.configure({ uploadsPath, renderMarkdown, eventHub }),
@@ -101,8 +109,8 @@ export const createContentEditor = ({
     BulletList,
     Code,
     ColorChip,
-    Comment,
     CodeBlockHighlight,
+    CodeSuggestion.configure({ config: codeSuggestionsConfig }),
     DescriptionItem,
     DescriptionList,
     Details,
@@ -135,14 +143,14 @@ export const createContentEditor = ({
     MathInline,
     OrderedList,
     Paragraph,
-    PasteMarkdown.configure({ eventHub, renderMarkdown }),
-    Reference,
+    CopyPaste.configure({ eventHub, renderMarkdown, serializer }),
+    Reference.configure({ assetResolver }),
     ReferenceLabel,
     ReferenceDefinition,
+    Selection,
     Sourcemap,
     Strike,
     Subscript,
-    Suggestions,
     Superscript,
     TableCell,
     TableHeader,
@@ -157,15 +165,12 @@ export const createContentEditor = ({
   ];
 
   const allExtensions = [...builtInContentEditorExtensions, ...extensions];
+
+  if (enableAutocomplete) allExtensions.push(Suggestions.configure({ autocompleteDataSources }));
+  if (drawioEnabled) allExtensions.push(DrawioDiagram.configure({ uploadsPath, assetResolver }));
+
   const trackedExtensions = allExtensions.map(trackInputRulesAndShortcuts);
   const tiptapEditor = createTiptapEditor({ extensions: trackedExtensions, ...tiptapOptions });
-  const serializer = createMarkdownSerializer({ serializerConfig });
-  const deserializer = window.gon?.features?.preserveUnchangedMarkdown
-    ? createRemarkMarkdownDeserializer()
-    : createGlApiMarkdownDeserializer({
-        render: renderMarkdown,
-      });
-  const assetResolver = createAssetResolver({ renderMarkdown });
 
   return new ContentEditor({
     tiptapEditor,
@@ -173,5 +178,7 @@ export const createContentEditor = ({
     eventHub,
     deserializer,
     assetResolver,
+    drawioEnabled,
+    codeSuggestionsConfig,
   });
 };

@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# NuGet packages in the Package Registry **(FREE)**
+# NuGet packages in the Package Registry **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/20050) in GitLab 12.8.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/221259) from GitLab Premium to GitLab Free in 13.3.
@@ -39,6 +39,8 @@ Some features such as [publishing](#publish-a-nuget-package) a package are only 
 
 When asking for versions of a given NuGet package name, the GitLab Package Registry returns a maximum of 300 most recent versions.
 
+Do not use authentication methods other than the methods documented here. Undocumented authentication methods might be removed in the future.
+
 WARNING:
 Because of how NuGet handles credentials, the Package Registry rejects anonymous requests on the group-level endpoint.
 To work around this limitation, set up [authentication](#add-the-package-registry-as-a-source-for-nuget-packages).
@@ -68,6 +70,7 @@ You can now add a new source to NuGet with:
 - [Visual Studio](#add-a-source-with-visual-studio)
 - [.NET CLI](#add-a-source-with-the-net-cli)
 - [Configuration file](#add-a-source-with-a-configuration-file)
+- [Chocolatey CLI](#add-a-source-with-chocolatey-cli)
 
 ### Add a source with the NuGet CLI
 
@@ -279,6 +282,22 @@ To use the [group-level](#use-the-gitlab-endpoint-for-nuget-packages) Package Re
    export GITLAB_PACKAGE_REGISTRY_PASSWORD=<gitlab_personal_access_token or deploy_token>
    ```
 
+### Add a source with Chocolatey CLI
+
+You can add a source feed with the Chocolatey CLI. If you use Chocolatey CLI v1.x, you can add only a NuGet v2 source feed.
+
+#### Configure a project-level endpoint
+
+You need a project-level endpoint to publish NuGet packages to the Package Registry.
+
+To use the [project-level](#use-the-gitlab-endpoint-for-nuget-packages) Package Registry as a source for Chocolatey:
+
+- Add the Package Registry as a source with `choco`:
+
+  ```shell
+  choco source add -n=gitlab -s "'https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/v2'" -u=<gitlab_username or deploy_token_username> -p=<gitlab_personal_access_token or deploy_token>
+  ```
+
 ## Publish a NuGet package
 
 Prerequisite:
@@ -314,6 +333,8 @@ nuget push <package_file> -Source <source_name>
 
 ### Publish a package with the .NET CLI
 
+> Publishing a package with `--api-key` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/214674) in GitLab 16.1.
+
 Prerequisites:
 
 - [A NuGet package created with .NET CLI](https://learn.microsoft.com/en-us/nuget/create-packages/creating-a-package-dotnet-cli).
@@ -332,6 +353,21 @@ For example:
 
 ```shell
 dotnet nuget push MyPackage.1.0.0.nupkg --source gitlab
+```
+
+You can publish a package using the `--api-key` option instead of `username` and `password`:
+
+```shell
+dotnet nuget push <package_file> --source <source_url> --api-key <gitlab_personal_access_token, deploy_token or job token>
+```
+
+- `<package_file>` is your package filename, ending in `.nupkg`.
+- `<source_url>` is the URL of the NuGet Package Registry.
+
+For example:
+
+```shell
+dotnet nuget push MyPackage.1.0.0.nupkg --source https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/index.json --api-key <gitlab_personal_access_token, deploy_token or job token>
 ```
 
 ### Publish a NuGet package by using CI/CD
@@ -366,10 +402,50 @@ updated:
 
 1. Commit the changes and push it to your GitLab repository to trigger a new CI/CD build.
 
+### Publish a NuGet package with Chocolatey CLI
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/416404) in GitLab 16.2.
+
+Prerequisite:
+
+- The project-level Package Registry is a source for Chocolatey.
+
+To publish a package with the Chocolatey CLI:
+
+```shell
+choco push <package_file> --source <source_url> --api-key <gitlab_personal_access_token, deploy_token or job token>
+```
+
+In this command:
+
+- `<package_file>` is your package filename and ends with `.nupkg`.
+- `<source_url>` is the URL of the NuGet v2 feed Package Registry.
+
+For example:
+
+```shell
+choco push MyPackage.1.0.0.nupkg --source "https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/v2" --api-key <gitlab_personal_access_token, deploy_token or job token>
+```
+
 ### Publishing a package with the same name or version
 
 When you publish a package with the same name or version as an existing package,
 the existing package is overwritten.
+
+### Do not allow duplicate NuGet packages
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/293748) in GitLab 16.3 [with a flag](../../../administration/feature_flags.md) named `nuget_duplicates_option`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available,
+an administrator can [enable the feature flag](../../../administration/feature_flags.md) named `nuget_duplicates_option`.
+The feature is not ready for production use.
+
+To prevent users from publishing duplicate NuGet packages, you can use the [GraphQl API](../../../api/graphql/reference/index.md#packagesettings).
+
+WARNING:
+If the .nuspec file isn't located in the root of the package, the package might
+not be recognized as a duplicate.
 
 ## Install packages
 
@@ -415,6 +491,55 @@ dotnet add package <package_id> \
 
 - `<package_id>` is the package ID.
 - `<package_version>` is the package version. Optional.
+
+### Install a package using NuGet v2 feed
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/416405) in GitLab 16.5.
+
+Prerequisites:
+
+- The project-level Package Registry is a [v2 feed source](#add-a-source-with-chocolatey-cli) for Chocolatey.
+- A version must be provided when installing or upgrading a package using NuGet v2 feed.
+
+To install a package with the Chocolatey CLI:
+
+```shell
+choco install <package_id> -Source <source_url> -Version <package_version>
+```
+
+In this command:
+
+- `<package_id>` is the package ID.
+- `<source_url>` is the URL or name of the NuGet v2 feed Package Registry.
+- `<package_version>` is the package version.
+
+For example:
+
+```shell
+choco install MyPackage -Source gitlab -Version 1.0.2
+
+# or
+
+choco install MyPackage -Source "https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/v2" -u <username> -p <gitlab_personal_access_token, deploy_token or job token> -Version 1.0.2
+```
+
+To upgrade a package with the Chocolatey CLI:
+
+```shell
+choco upgrade <package_id> -Source <source_url> -Version <package_version>
+```
+
+In this command:
+
+- `<package_id>` is the package ID.
+- `<source_url>` is the URL or name of the NuGet v2 feed Package Registry.
+- `<package_version>` is the package version.
+
+For example:
+
+```shell
+choco upgrade MyPackage -Source gitlab -Version 1.0.3
+```
 
 ## Symbol packages
 
@@ -472,4 +597,4 @@ nuget locals all -clear
 
 ### `Error publishing` or `Invalid Package: Failed metadata extraction error` messages when trying to publish NuGet packages in a Docker-based GitLab installation
 
-Webhook requests to local network addresses are blocked to prevent the exploitation of internal web services. If you get `Error publishing` or `Invalid Package` messages when you try to publish NuGet packages, change your network settings to [allow webhook and service requests to the local network](../../../security/webhooks.md#allow-webhook-and-service-requests-to-local-network).
+Webhook requests to local network addresses are blocked to prevent exploitation of internal web services. If you get `Error publishing` or `Invalid Package` messages when you try to publish NuGet packages, change your network settings to [allow webhook and integration requests to the local network](../../../security/webhooks.md#allow-requests-to-the-local-network-from-webhooks-and-integrations).

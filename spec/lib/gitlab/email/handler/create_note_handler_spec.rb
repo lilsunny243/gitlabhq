@@ -68,7 +68,7 @@ RSpec.describe Gitlab::Email::Handler::CreateNoteHandler do
     end
 
     context 'when the issue is a Service Desk issue' do
-      let(:original_recipient) { User.support_bot }
+      let(:original_recipient) { Users::Internal.support_bot }
 
       it 'does not raise a UserNotFoundError' do
         expect { receiver.execute }.not_to raise_error
@@ -205,5 +205,27 @@ RSpec.describe Gitlab::Email::Handler::CreateNoteHandler do
     let(:note) { create(:note_on_merge_request, project: project) }
 
     it_behaves_like 'a reply to existing comment'
+  end
+
+  context 'when note is authored from external author for service desk' do
+    before do
+      SentNotification.find_by(reply_key: mail_key).update!(recipient: Users::Internal.support_bot)
+    end
+
+    context 'when email contains text, quoted text and quick commands' do
+      let(:email_raw) { fixture_file('emails/commands_in_reply.eml') }
+
+      it 'creates a discussion' do
+        expect { receiver.execute }.to change { noteable.notes.count }.by(1)
+      end
+
+      it 'links external participant' do
+        receiver.execute
+
+        new_note = noteable.notes.last
+
+        expect(new_note.note_metadata.external_author).to eq('jake@adventuretime.ooo')
+      end
+    end
   end
 end

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+# host file can't be modified during docker build because it is created on container start
+# this makes for a more portable solution as other alternative is to use `--add-host` option for 'docker run' command
+# We want a non-loopback ip otherwise some services (maybe just workhorse?) bind to localhost and can't be accessed
+# from outside the container
+echo "$(hostname -i) gdk.test" | sudo tee -a /etc/hosts > /dev/null
+
+gdk start
+
+exec "$@" | tee -a ${HOME}/gitlab-development-kit/gitlab/log/gdk.log

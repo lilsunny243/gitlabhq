@@ -5,12 +5,17 @@ module MergeRequests
     def execute(merge_request)
       return unless eligible_for_approval?(merge_request)
 
-      approval = merge_request.approvals.new(user: current_user)
+      approval = merge_request.approvals.new(
+        user: current_user,
+        patch_id_sha: merge_request.current_patch_id_sha
+      )
 
       return success unless save_approval(approval)
 
       reset_approvals_cache(merge_request)
+
       merge_request_activity_counter.track_approve_mr_action(user: current_user, merge_request: merge_request)
+
       trigger_merge_request_merge_status_updated(merge_request)
       trigger_merge_request_reviewers_updated(merge_request)
       trigger_merge_request_approval_state_updated(merge_request)

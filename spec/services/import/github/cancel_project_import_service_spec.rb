@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Import::Github::CancelProjectImportService do
+RSpec.describe Import::Github::CancelProjectImportService, feature_category: :importers do
   subject(:import_cancel) { described_class.new(project, project.owner) }
 
   let_it_be(:user) { create(:user) }
@@ -22,7 +22,7 @@ RSpec.describe Import::Github::CancelProjectImportService do
             .to receive(:new)
             .with(:github_importer, project)
             .and_return(metrics_double)
-          expect(metrics_double).to receive(:track_import_state)
+          expect(metrics_double).to receive(:track_canceled_import)
 
           import_cancel.execute
         end

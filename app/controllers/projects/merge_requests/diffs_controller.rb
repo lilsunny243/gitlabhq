@@ -13,7 +13,7 @@ class Projects::MergeRequests::DiffsController < Projects::MergeRequests::Applic
 
   around_action :allow_gitaly_ref_name_caching
 
-  after_action :track_viewed_diffs_events, only: [:diffs_batch]
+  after_action :track_viewed_diffs_events, only: [:diffs_batch, :diff_for_path]
 
   urgency :low, [
     :show,
@@ -49,7 +49,8 @@ class Projects::MergeRequests::DiffsController < Projects::MergeRequests::Applic
       pagination_data: diffs.pagination_data
     }
 
-    # NOTE: Any variables that would affect the resulting json needs to be added to the cache_context to avoid stale cache issues.
+    # NOTE: Any variables that would affect the resulting json needs to be added to the cache_context
+    #   to avoid stale cache issues.
     cache_context = [
       current_user&.cache_key,
       unfoldable_positions.map(&:to_h),
@@ -130,7 +131,8 @@ class Projects::MergeRequests::DiffsController < Projects::MergeRequests::Applic
   # rubocop: disable CodeReuse/ActiveRecord
   def commit
     return unless commit_id = params[:commit_id].presence
-    return unless @merge_request.all_commits.exists?(sha: commit_id) || @merge_request.recent_context_commits.map(&:id).include?(commit_id)
+    return unless @merge_request.all_commits.exists?(sha: commit_id) ||
+      @merge_request.recent_context_commits.map(&:id).include?(commit_id)
 
     @commit ||= @project.commit(commit_id)
   end
@@ -160,7 +162,10 @@ class Projects::MergeRequests::DiffsController < Projects::MergeRequests::Applic
       end
     end
 
-    return @merge_request.context_commits_diff if show_only_context_commits? && !@merge_request.context_commits_diff.empty?
+    if show_only_context_commits? && !@merge_request.context_commits_diff.empty?
+      return @merge_request.context_commits_diff
+    end
+
     return @merge_request.merge_head_diff if render_merge_ref_head_diff?
 
     if @start_sha
@@ -196,7 +201,7 @@ class Projects::MergeRequests::DiffsController < Projects::MergeRequests::Applic
     @use_legacy_diff_notes = !@merge_request.has_complete_diff_refs?
 
     @grouped_diff_discussions = @merge_request.grouped_diff_discussions(@compare.diff_refs)
-    @notes = prepare_notes_for_rendering(@grouped_diff_discussions.values.flatten.flat_map(&:notes), @merge_request)
+    @notes = prepare_notes_for_rendering(@grouped_diff_discussions.values.flatten.flat_map(&:notes))
   end
 
   def render_merge_ref_head_diff?

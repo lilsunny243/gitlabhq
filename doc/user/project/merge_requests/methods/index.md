@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, concepts
 ---
 
-# Merge methods **(FREE)**
+# Merge methods **(FREE ALL)**
 
 The merge method you select for your project determines how the changes in your
 merge requests are merged into an existing branch.
@@ -26,8 +26,8 @@ gitGraph
 
 ## Configure a project's merge method
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
 1. Select your desired **Merge method** from these options:
    - Merge commit
    - Merge commit with semi-linear history
@@ -228,5 +228,4 @@ workflow that requires frequent rebases.
 
 ## Related topics
 
-- [Commits history](../commits.md)
 - [Squash and merge](../squash_and_merge.md)

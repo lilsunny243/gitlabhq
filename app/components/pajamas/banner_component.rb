@@ -27,7 +27,7 @@ module Pajamas
       @svg_path = svg_path.to_s
       @banner_options = banner_options
       @button_options = button_options
-      @close_options = close_options
+      @close_options = format_options(options: close_options, css_classes: %w[js-close gl-banner-close])
     end
 
     VARIANT_OPTIONS = [:introduction, :promotion].freeze
@@ -41,15 +41,15 @@ module Pajamas
       classes.join(' ')
     end
 
-    def close_class
+    def close_button_variant
       if introduction?
-        'btn-confirm btn-confirm-tertiary'
+        :confirm
       else
-        'btn-default btn-default-tertiary'
+        :default
       end
     end
 
-    delegate :sprite_icon, to: :helpers
+    delegate :sprite_icon, :link_button_to, to: :helpers
 
     renders_one :title
     renders_one :illustration

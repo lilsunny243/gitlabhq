@@ -16,6 +16,8 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper::Matcher, feature_category: 
   subject(:matcher) { described_class.new(context) }
 
   describe '#process' do
+    subject(:process) { matcher.process(locations) }
+
     let(:locations) do
       [
         { local: 'file.yml' },
@@ -26,8 +28,6 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper::Matcher, feature_category: 
         { artifact: 'generated.yml', job: 'test' }
       ]
     end
-
-    subject(:process) { matcher.process(locations) }
 
     it 'returns an array of file objects' do
       is_expected.to contain_exactly(

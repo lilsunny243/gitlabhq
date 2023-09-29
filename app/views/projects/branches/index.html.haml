@@ -7,7 +7,7 @@
 -#   @mode   - overview|active|stale|all (default:overview)
 -#   @sort   - name_asc|updated_asc|updated_desc
 
-.top-area.gl-border-0
+.top-area
   = gl_tabs_nav({ class: 'gl-flex-grow-1 gl-border-b-0' }) do
     = gl_tab_link_to s_('Branches|Overview'), project_branches_path(@project), { item_active: @mode == 'overview', title: s_('Branches|Show overview of the branches') }
     = gl_tab_link_to s_('Branches|Active'), project_branches_filtered_path(@project, state: 'active'), { title: s_('Branches|Show active branches') }
@@ -22,15 +22,22 @@
         sorted_by: @sort }
     }
 
-    - if can? current_user, :push_code, @project
-      .js-delete-merged-branches{ data: {
+    - if can_view_branch_rules?
+      = link_button_to project_settings_repository_path(@project, anchor: 'js-branch-rules') do
+        = s_('Branches|View branch rules')
+
+    - if can_push_code?
+      = link_button_to new_project_branch_path(@project), variant: :confirm do
+        = s_('Branches|New branch')
+      .js-delete-merged-branches.gl-w-7{ data: {
           default_branch: @project.repository.root_ref,
           form_path: project_merged_branches_path(@project) }
         }
-      = link_to new_project_branch_path(@project), class: 'gl-button btn btn-confirm' do
-        = s_('Branches|New branch')
 
 = render_if_exists 'projects/commits/mirror_status'
+
+- if can_view_branch_rules?
+  = render 'branch_rules_info'
 
 .js-branch-list{ data: { diverging_counts_endpoint: diverging_commit_counts_namespace_project_branches_path(@project.namespace, @project, format: :json), default_branch: @project.default_branch } }
 

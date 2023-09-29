@@ -30,15 +30,11 @@ module QA
       end
 
       context 'when moving from one Gitaly storage to another', :orchestrated, :repository_storage,
-              testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347827' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347827' do
         let(:source_storage) { { type: :gitaly, name: 'default' } }
         let(:destination_storage) { { type: :gitaly, name: QA::Runtime::Env.additional_repository_storage } }
         let(:project) do
-          Resource::Project.fabricate_via_api! do |project|
-            project.name = 'repo-storage-move-status'
-            project.initialize_with_readme = true
-            project.api_client = Runtime::API::Client.as_admin
-          end
+          create(:project, :with_readme, name: 'repo-storage-move-status', api_client: Runtime::API::Client.as_admin)
         end
 
         before do
@@ -52,16 +48,15 @@ module QA
       # scenario with other tests that aren't considered orchestrated.
       # It also runs on staging using nfs-file07 as non-cluster storage and nfs-file22 as cluster/praefect storage
       context 'when moving from Gitaly to Gitaly Cluster', :requires_praefect,
-              testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347828' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347828' do
         let(:source_storage) { { type: :gitaly, name: QA::Runtime::Env.non_cluster_repository_storage } }
         let(:destination_storage) { { type: :praefect, name: QA::Runtime::Env.praefect_repository_storage } }
         let(:project) do
-          Resource::Project.fabricate_via_api! do |project|
-            project.name = 'repo-storage-move'
-            project.initialize_with_readme = true
-            project.repository_storage = source_storage[:name]
-            project.api_client = Runtime::API::Client.as_admin
-          end
+          create(:project,
+            :with_readme,
+            name: 'repo-storage-move',
+            repository_storage: source_storage[:name],
+            api_client: Runtime::API::Client.as_admin)
         end
 
         before do
@@ -75,16 +70,15 @@ module QA
       # scenario with other tests that aren't considered orchestrated.
       # It also runs on staging using nfs-file07 as non-cluster storage and nfs-file22 as cluster/praefect storage
       context 'when moving from Gitaly Cluster to Gitaly', :requires_praefect,
-              testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/369204' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/369204' do
         let(:source_storage) { { type: :praefect, name: QA::Runtime::Env.praefect_repository_storage } }
         let(:destination_storage) { { type: :gitaly, name: QA::Runtime::Env.non_cluster_repository_storage } }
         let(:project) do
-          Resource::Project.fabricate_via_api! do |project|
-            project.name = 'repo-storage-move'
-            project.initialize_with_readme = true
-            project.repository_storage = source_storage[:name]
-            project.api_client = Runtime::API::Client.as_admin
-          end
+          create(:project,
+            :with_readme,
+            name: 'repo-storage-move',
+            repository_storage: source_storage[:name],
+            api_client: Runtime::API::Client.as_admin)
         end
 
         before do

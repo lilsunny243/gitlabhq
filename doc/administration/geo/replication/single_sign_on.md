@@ -31,6 +31,10 @@ If you have configured SAML on the primary site correctly, then it should work o
 
 ### SAML with separate URL with proxying enabled
 
+NOTE:
+When proxying is enabled, SAML can only be used to sign in the secondary site if your SAML Identity Provider (IdP) allows an
+application to have multiple callback URLs configured. Check with your IdP provider support team to confirm if this is the case.
+
 If a secondary site uses a different `external_url` to the primary site, then configure your SAML Identity Provider (IdP) to allow the secondary site's SAML callback URL. For example, to configure Okta:
 
 1. [Sign in to Okta](https://www.okta.com/login/).
@@ -111,6 +115,15 @@ After configuring your SAML IdP to allow the secondary site's SAML callback URL,
 ### SAML with separate URL with proxying disabled
 
 If you have configured SAML on the primary site correctly, then it should work on the secondary site without additional configuration.
+
+## OpenID Connect
+
+If you use an [OpenID Connect (OIDC)](../../auth/oidc.md) OmniAuth provider,
+in most cases, it should work without an issue:
+
+- **OIDC with Unified URL**: If you have configured OIDC on the primary site correctly, then it should work on the secondary site without additional configuration.
+- **OIDC with separate URL with proxying disabled**: If you have configured OIDC on the primary site correctly, then it should work on the secondary site without additional configuration.
+- **OIDC with separate URL with proxying enabled**: Geo with separate URL with proxying enabled does not support [OpenID Connect](../../auth/oidc.md). For more information, see [issue 396745](https://gitlab.com/gitlab-org/gitlab/-/issues/396745).
 
 ## LDAP
 

@@ -35,23 +35,6 @@ module IssuesHelper
     end
   end
 
-  def issue_status_visibility(issue, status_box:)
-    case status_box
-    when :open
-      'hidden' if issue.closed?
-    when :closed
-      'hidden' unless issue.closed?
-    end
-  end
-
-  def work_item_type_icon(issue_type)
-    if WorkItems::Type.base_types.include?(issue_type)
-      "issue-type-#{issue_type.to_s.dasherize}"
-    else
-      'issue-type-issue'
-    end
-  end
-
   def confidential_icon(issue)
     sprite_icon('eye-slash', css_class: 'gl-vertical-align-text-bottom') if issue.confidential?
   end
@@ -63,7 +46,7 @@ module IssuesHelper
   def hidden_issue_icon(issue)
     return unless issue_hidden?(issue)
 
-    hidden_issuable_icon(issue)
+    hidden_resource_icon(issue)
   end
 
   def award_user_list(awards, current_user, limit: 10)
@@ -136,24 +119,6 @@ module IssuesHelper
       can?(current_user, :create_merge_request_in, @project)
   end
 
-  def issue_closed_link(issue, current_user, css_class: '')
-    if issue.moved? && can?(current_user, :read_issue, issue.moved_to)
-      link_to(s_('IssuableStatus|moved'), issue.moved_to, class: css_class)
-    elsif issue.duplicated? && can?(current_user, :read_issue, issue.duplicated_to)
-      link_to(s_('IssuableStatus|duplicated'), issue.duplicated_to, class: css_class)
-    end
-  end
-
-  def issue_closed_text(issue, current_user)
-    link = issue_closed_link(issue, current_user, css_class: 'text-underline gl-reset-color!')
-
-    if link
-      s_('IssuableStatus|Closed (%{link})').html_safe % { link: link }
-    else
-      s_('IssuableStatus|Closed')
-    end
-  end
-
   def show_moved_service_desk_issue_warning?(issue)
     return false unless issue.moved_from
     return false unless issue.from_service_desk?
@@ -161,9 +126,9 @@ module IssuesHelper
     issue.moved_from.project.service_desk_enabled? && !issue.project.service_desk_enabled?
   end
 
-  def issue_header_actions_data(project, issuable, current_user)
+  def issue_header_actions_data(project, issuable, current_user, issuable_sidebar)
     new_issuable_params = { issue: {}, add_related_issue: issuable.iid }
-    if issuable.incident?
+    if issuable.work_item_type&.incident?
       new_issuable_params[:issuable_template] = 'incident'
       new_issuable_params[:issue][:issue_type] = 'incident'
     end
@@ -175,16 +140,15 @@ module IssuesHelper
       can_reopen_issue: can?(current_user, :reopen_issue, issuable).to_s,
       can_report_spam: issuable.submittable_as_spam_by?(current_user).to_s,
       can_update_issue: can?(current_user, :update_issue, issuable).to_s,
-      iid: issuable.iid,
       is_issue_author: (issuable.author == current_user).to_s,
       issue_path: issuable_path(issuable),
-      issue_type: issuable_display_type(issuable),
       new_issue_path: new_project_issue_path(project, new_issuable_params),
       project_path: project.full_path,
       report_abuse_path: add_category_abuse_reports_path,
       reported_user_id: issuable.author.id,
       reported_from_url: issue_url(issuable),
-      submit_as_spam_path: mark_as_spam_project_issue_path(project, issuable)
+      submit_as_spam_path: mark_as_spam_project_issue_path(project, issuable),
+      issuable_email_address: issuable_sidebar.nil? ? '' : issuable_sidebar[:create_note_email]
     }
   end
 
@@ -192,7 +156,7 @@ module IssuesHelper
     {
       autocomplete_award_emojis_path: autocomplete_award_emojis_path,
       calendar_path: url_for(safe_params.merge(calendar_url_options)),
-      empty_state_svg_path: image_path('illustrations/issues.svg'),
+      empty_state_svg_path: image_path('illustrations/empty-state/empty-issues-md.svg'),
       full_path: namespace.full_path,
       initial_sort: current_user&.user_preference&.issues_sort,
       is_issue_repositioning_disabled: issue_repositioning_disabled?.to_s,
@@ -201,7 +165,8 @@ module IssuesHelper
       is_signed_in: current_user.present?.to_s,
       jira_integration_path: help_page_url('integration/jira/issues', anchor: 'view-jira-issues'),
       rss_path: url_for(safe_params.merge(rss_url_options)),
-      sign_in_path: new_user_session_path
+      sign_in_path: new_user_session_path,
+      has_issue_date_filter_feature: Feature.enabled?(:issue_date_filter, namespace).to_s
     }
   end
 
@@ -226,7 +191,9 @@ module IssuesHelper
       quick_actions_help_path: help_page_path('user/project/quick_actions'),
       releases_path: project_releases_path(project, format: :json),
       reset_path: new_issuable_address_project_path(project, issuable_type: 'issue'),
-      show_new_issue_link: show_new_issue_link?(project).to_s
+      show_new_issue_link: show_new_issue_link?(project).to_s,
+      report_abuse_path: add_category_abuse_reports_path,
+      register_path: new_user_registration_path(redirect_to_referer: 'yes')
     )
   end
 
@@ -237,17 +204,19 @@ module IssuesHelper
       can_read_crm_organization: can?(current_user, :read_crm_organization, group).to_s,
       has_any_issues: @has_issues.to_s,
       has_any_projects: @has_projects.to_s,
-      new_project_path: new_project_path(namespace_id: group.id)
+      new_project_path: new_project_path(namespace_id: group.id),
+      group_id: group.id
     )
   end
 
   def dashboard_issues_list_data(current_user)
     {
       autocomplete_award_emojis_path: autocomplete_award_emojis_path,
+      autocomplete_users_path: autocomplete_users_path,
       calendar_path: url_for(safe_params.merge(calendar_url_options)),
       dashboard_labels_path: dashboard_labels_path(format: :json, include_ancestor_groups: true),
       dashboard_milestones_path: dashboard_milestones_path(format: :json),
-      empty_state_with_filter_svg_path: image_path('illustrations/issues.svg'),
+      empty_state_with_filter_svg_path: image_path('illustrations/empty-state/empty-issues-md.svg'),
       empty_state_without_filter_svg_path: image_path('illustrations/issue-dashboard_results-without-filter.svg'),
       initial_sort: current_user&.user_preference&.issues_sort,
       is_public_visibility_restricted:

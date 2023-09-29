@@ -14,16 +14,11 @@ describe('ServiceDeskTemplateDropdown', () => {
       mount(ServiceDeskTemplateDropdown, {
         propsData: {
           isEnabled: true,
+          isIssueTrackerEnabled: true,
           ...props,
         },
       }),
     );
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-    }
-  });
 
   describe('templates dropdown', () => {
     it('renders a dropdown to choose a template', () => {

@@ -3,12 +3,13 @@ import { GlIcon, GlPopover, GlSkeletonLoader, GlTooltipDirective } from '@gitlab
 import query from 'ee_else_ce/issuable/popover/queries/issue.query.graphql';
 import IssueDueDate from '~/boards/components/issue_due_date.vue';
 import IssueMilestone from '~/issuable/components/issue_milestone.vue';
-import StatusBox from '~/issuable/components/status_box.vue';
-import { STATUS_CLOSED } from '~/issues/constants';
+import StatusBadge from '~/issuable/components/status_badge.vue';
+import { STATUS_CLOSED, TYPE_ISSUE } from '~/issues/constants';
 import timeagoMixin from '~/vue_shared/mixins/timeago';
 import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
 
 export default {
+  TYPE_ISSUE,
   components: {
     GlIcon,
     GlPopover,
@@ -16,7 +17,7 @@ export default {
     IssueDueDate,
     IssueMilestone,
     IssueWeight: () => import('ee_component/boards/components/issue_card_weight.vue'),
-    StatusBox,
+    StatusBadge,
     WorkItemTypeIcon,
   },
   directives: {
@@ -28,7 +29,7 @@ export default {
       type: HTMLAnchorElement,
       required: true,
     },
-    projectPath: {
+    namespacePath: {
       type: String,
       required: true,
     },
@@ -65,10 +66,10 @@ export default {
       query,
       update: (data) => data.project.issue,
       variables() {
-        const { projectPath, iid } = this;
+        const { namespacePath, iid } = this;
 
         return {
-          projectPath,
+          projectPath: namespacePath,
           iid,
         };
       },
@@ -82,14 +83,14 @@ export default {
     <gl-skeleton-loader v-if="$apollo.queries.issue.loading" :height="15">
       <rect width="250" height="15" rx="4" />
     </gl-skeleton-loader>
-    <div v-else-if="showDetails" class="gl-display-flex gl-align-items-center">
-      <status-box issuable-type="issue" :initial-state="issue.state" />
+    <div v-else-if="showDetails" class="gl-display-flex gl-align-items-center gl-gap-2">
+      <status-badge :issuable-type="$options.TYPE_ISSUE" :state="issue.state" />
       <gl-icon
         v-if="issue.confidential"
         v-gl-tooltip
         name="eye-slash"
         :title="__('Confidential')"
-        class="gl-text-orange-500 gl-mr-2"
+        class="gl-text-orange-500"
         :aria-label="__('Confidential')"
       />
       <span class="gl-text-secondary">
@@ -100,7 +101,7 @@ export default {
     <!-- eslint-disable @gitlab/vue-require-i18n-strings -->
     <div>
       <work-item-type-icon v-if="!$apollo.queries.issue.loading" :work-item-type="issue.type" />
-      <span class="gl-text-secondary">{{ `${projectPath}#${iid}` }}</span>
+      <span class="gl-text-secondary">{{ `${namespacePath}#${iid}` }}</span>
     </div>
     <!-- eslint-enable @gitlab/vue-require-i18n-strings -->
 

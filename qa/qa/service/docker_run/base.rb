@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'socket'
+
 module QA
   module Service
     module DockerRun
@@ -11,8 +13,7 @@ module QA
         end
 
         def initialize
-          @network = Runtime::Scenario.attributes[:network] || 'test'
-          @runner_network = Runtime::Scenario.attributes[:runner_network] || @network
+          @network = gdk_network || Runtime::Scenario.attributes[:network] || 'test'
         end
 
         # Authenticate against a container registry
@@ -39,19 +40,16 @@ module QA
         end
 
         def network
-          shell "docker network inspect #{@network}"
-        rescue CommandError
-          'bridge'
-        else
-          @network
+          network_exists?(@network) ? @network : 'bridge'
         end
 
-        def runner_network
-          shell "docker network inspect #{@runner_network}"
-        rescue CommandError
-          network
-        else
-          @runner_network
+        def inspect_network(name)
+          shell("docker network inspect #{name}", fail_on_exception: false, return_exit_status: true)
+        end
+
+        def network_exists?(name)
+          _, status = inspect_network(name)
+          status == 0
         end
 
         def pull
@@ -84,6 +82,43 @@ module QA
           return "Container #{@name} is not running, cannot restart." unless running?
 
           shell "docker restart #{@name}"
+        end
+
+        def health
+          shell("docker inspect --format='{{json .State.Health.Status}}' #{@name}").delete('"')
+        end
+
+        # The network to use when testing against GDK in docker
+        #
+        # @return [String]
+        def gdk_network
+          return unless Runtime::Env.gdk_url
+
+          'host'
+        end
+
+        # The IP address of the docker host when testing against GDK in docker
+        #
+        # @return [String]
+        def gdk_host_ip
+          return unless Runtime::Env.gdk_url
+
+          Addrinfo.tcp(URI(Runtime::Env.gdk_url).host, nil).ip_address
+        end
+
+        # Returns the IP address of the docker host
+        #
+        # @return [String]
+        def host_ip
+          docker_host = shell("docker context inspect --format='{{json .Endpoints.docker.Host}}'").delete('"')
+          hostname = URI(docker_host).host
+          # The docker host could be bound to a Unix socket, in which case as a URI it has no host
+          host = hostname.presence || Socket.gethostname
+          ip = Addrinfo.tcp(host, nil).ip_address
+          ip == '0.0.0.0' ? '127.0.0.1' : ip
+        rescue SocketError
+          # If the host could not be resolved, fallback on localhost
+          '127.0.0.1'
         end
       end
     end

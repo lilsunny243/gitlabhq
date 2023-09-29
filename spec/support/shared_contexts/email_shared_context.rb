@@ -24,7 +24,10 @@ end
 
 def service_desk_fixture(path, slug: nil, key: 'mykey')
   slug ||= project.full_path_slug.to_s
-  fixture_file(path).gsub('project_slug', slug).gsub('project_key', key)
+  fixture_file(path)
+    .gsub('project_slug', slug)
+    .gsub('project_key', key)
+    .gsub('project_id', project.project_id.to_s)
 end
 
 RSpec.shared_examples 'reply processing shared examples' do
@@ -188,7 +191,7 @@ RSpec.shared_examples 'note handler shared examples' do |forwardable|
 
   context 'when the service desk' do
     let(:project) { create(:project, :public, service_desk_enabled: true) }
-    let(:support_bot) { User.support_bot }
+    let(:support_bot) { Users::Internal.support_bot }
     let(:noteable) { create(:issue, project: project, author: support_bot, title: 'service desk issue') }
     let!(:note) { create(:note, project: project, noteable: noteable) }
     let(:email_raw) { with_quick_actions }

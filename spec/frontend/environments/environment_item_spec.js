@@ -19,10 +19,6 @@ describe('Environment item', () => {
   let tracking;
 
   const factory = (options = {}) => {
-    // This destroys any wrappers created before a nested call to factory reassigns it
-    if (wrapper && wrapper.destroy) {
-      wrapper.destroy();
-    }
     wrapper = mount(EnvironmentItem, {
       ...options,
     });
@@ -55,10 +51,6 @@ describe('Environment item', () => {
   const findUpcomingDeploymentAvatarLink = () =>
     findUpcomingDeployment().findComponent(GlAvatarLink);
   const findUpcomingDeploymentAvatar = () => findUpcomingDeployment().findComponent(GlAvatar);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('when item is not folder', () => {
     it('should render environment name', () => {
@@ -388,10 +380,6 @@ describe('Environment item', () => {
           tableData,
         },
       });
-    });
-
-    afterEach(() => {
-      wrapper.destroy();
     });
 
     it('should render folder icon and name', () => {

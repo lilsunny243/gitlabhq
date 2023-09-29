@@ -29,8 +29,13 @@ fi
 ASSETS_IMAGE_NAME="gitlab-assets-ce"
 
 # `dev.gitlab-org` still has gitlab-ee.
-if [ "${CI_PROJECT_NAME}" = "gitlab" ] || [ "${CI_PROJECT_NAME}" = "gitlab-ee" ]; then
+if ([ "${CI_PROJECT_NAME}" = "gitlab" ] && [ "${FOSS_ONLY}" != "1" ]) || ([ "${CI_PROJECT_NAME}" = "gitlab-ee" ] && [ "${FOSS_ONLY}" != "1" ]); then
   ASSETS_IMAGE_NAME="gitlab-assets-ee"
+fi
+
+# Generate this image for https://jihulab.com/gitlab-cn/gitlab
+if [ "${CI_PROJECT_NAMESPACE}" = "gitlab-cn" ]; then
+  ASSETS_IMAGE_NAME="gitlab-assets-jh"
 fi
 
 ASSETS_IMAGE_PATH="${CI_REGISTRY}/${CI_PROJECT_PATH}/${ASSETS_IMAGE_NAME}"

@@ -25,7 +25,7 @@ module Gitlab
 
             full_line = line.delete("\n")
 
-            if line =~ /^@@ -/
+            if /^@@ -/.match?(line)
               type = "match"
 
               diff_hunk = Gitlab::WordDiff::Segments::DiffHunk.new(line)
@@ -84,8 +84,6 @@ module Gitlab
           "new"
         when "-"
           "old"
-        else
-          nil
         end
       end
     end

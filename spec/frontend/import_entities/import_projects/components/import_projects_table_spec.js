@@ -1,6 +1,7 @@
 import { GlLoadingIcon, GlButton, GlIntersectionObserver, GlSearchBoxByClick } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { STATUSES } from '~/import_entities/constants';
 import ImportProjectsTable from '~/import_entities/import_projects/components/import_projects_table.vue';
@@ -80,13 +81,6 @@ describe('ImportProjectsTable', () => {
       },
     });
   }
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
-  });
 
   it('renders a loading icon while repos are loading', () => {
     createComponent({ state: { isLoadingRepos: true } });
@@ -292,7 +286,7 @@ describe('ImportProjectsTable', () => {
   });
 
   it('should render advanced settings panel when no optional steps are passed', () => {
-    const OPTIONAL_STAGES = [{ name: 'step1', label: 'Step 1' }];
+    const OPTIONAL_STAGES = [{ name: 'step1', label: 'Step 1', selected: true }];
     createComponent({ state: { providerRepos: [providerRepo] }, optionalStages: OPTIONAL_STAGES });
 
     expect(wrapper.findComponent(AdvancedSettingsPanel).exists()).toBe(true);
@@ -300,7 +294,7 @@ describe('ImportProjectsTable', () => {
       OPTIONAL_STAGES,
     );
     expect(wrapper.findComponent(AdvancedSettingsPanel).props('value')).toStrictEqual({
-      step1: false,
+      step1: true,
     });
   });
 });

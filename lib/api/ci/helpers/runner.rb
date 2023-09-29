@@ -12,19 +12,21 @@ module API
         JOB_TOKEN_PARAM = :token
         LEGACY_SYSTEM_XID = '<legacy>'
 
-        def authenticate_runner!
+        def authenticate_runner!(ensure_runner_manager: true, update_contacted_at: true)
           track_runner_authentication
           forbidden! unless current_runner
 
           runner_details = get_runner_details_from_request
-          current_runner.heartbeat(runner_details)
-          current_runner_machine&.heartbeat(runner_details)
+          current_runner.heartbeat(runner_details, update_contacted_at: update_contacted_at)
+          return unless ensure_runner_manager
+
+          current_runner_manager&.heartbeat(runner_details, update_contacted_at: update_contacted_at)
         end
 
         def get_runner_details_from_request
           return get_runner_ip unless params['info'].present?
 
-          attributes_for_keys(%w(name version revision platform architecture executor), params['info'])
+          attributes_for_keys(%w[name version revision platform architecture executor], params['info'])
             .merge(get_system_id_from_request)
             .merge(get_runner_config_from_request)
             .merge(get_runner_ip)
@@ -43,21 +45,17 @@ module API
         def current_runner
           token = params[:token]
 
-          if token
-            ::Ci::Runner.sticking.stick_or_unstick_request(env, :runner, token)
-          end
+          load_balancer_stick_request(::Ci::Runner, :runner, token) if token
 
           strong_memoize(:current_runner) do
             ::Ci::Runner.find_by_token(token.to_s)
           end
         end
 
-        def current_runner_machine
-          return if Feature.disabled?(:create_runner_machine)
-
-          strong_memoize(:current_runner_machine) do
+        def current_runner_manager
+          strong_memoize(:current_runner_manager) do
             system_xid = params.fetch(:system_id, LEGACY_SYSTEM_XID)
-            current_runner&.ensure_machine(system_xid) { |m| m.contacted_at = Time.current }
+            current_runner&.ensure_manager(system_xid) { |m| m.contacted_at = Time.current }
           end
         end
 
@@ -96,7 +94,7 @@ module API
           # the heartbeat should be triggered.
           if heartbeat_runner
             job.runner&.heartbeat(get_runner_ip)
-            job.runner_machine&.heartbeat(get_runner_ip)
+            job.runner_manager&.heartbeat(get_runner_ip)
           end
 
           job
@@ -111,11 +109,7 @@ module API
         def current_job
           id = params[:id]
 
-          if id
-            ::Ci::Build
-              .sticking
-              .stick_or_unstick_request(env, :build, id)
-          end
+          load_balancer_stick_request(::Ci::Build, :build, id) if id
 
           strong_memoize(:current_job) do
             ::Ci::Build.find_by_id(id)
@@ -146,10 +140,16 @@ module API
           # noop: overridden in EE
         end
 
+        def check_if_backoff_required!
+          return unless Gitlab::Database::Migrations::RunnerBackoff::Communicator.backoff_runner?
+
+          too_many_requests!('Executing database migrations. Please retry later.', retry_after: 1.minute)
+        end
+
         private
 
         def get_runner_config_from_request
-          { config: attributes_for_keys(%w(gpus), params.dig('info', 'config')) }
+          { config: attributes_for_keys(%w[gpus], params.dig('info', 'config')) }
         end
 
         def metrics

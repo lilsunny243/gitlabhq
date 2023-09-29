@@ -72,7 +72,7 @@ module Issuables
       elsif specific_params[:assignee_id].present?
         Array(specific_params[:assignee_id])
       elsif specific_params[:assignee_username].present?
-        User.by_username(specific_params[:assignee_username]).select(:id)
+        User.by_username(specific_params[:assignee_username]).pluck_primary_key
       end
     end
   end

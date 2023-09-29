@@ -1,29 +1,37 @@
 import { GlBreadcrumb } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import LegacyContainer from '~/vue_shared/new_namespace/components/legacy_container.vue';
 import WelcomePage from '~/vue_shared/new_namespace/components/welcome.vue';
 import NewNamespacePage from '~/vue_shared/new_namespace/new_namespace_page.vue';
+import NewTopLevelGroupAlert from '~/groups/components/new_top_level_group_alert.vue';
+import SuperSidebarToggle from '~/super_sidebar/components/super_sidebar_toggle.vue';
+import { sidebarState } from '~/super_sidebar/constants';
 
-describe('Experimental new project creation app', () => {
+jest.mock('~/super_sidebar/constants');
+describe('Experimental new namespace creation app', () => {
   let wrapper;
 
   const findWelcomePage = () => wrapper.findComponent(WelcomePage);
   const findLegacyContainer = () => wrapper.findComponent(LegacyContainer);
+  const findTopBar = () => wrapper.findByTestId('top-bar');
   const findBreadcrumb = () => wrapper.findComponent(GlBreadcrumb);
+  const findImage = () => wrapper.find('img');
+  const findNewTopLevelGroupAlert = () => wrapper.findComponent(NewTopLevelGroupAlert);
+  const findSuperSidebarToggle = () => wrapper.findComponent(SuperSidebarToggle);
 
   const DEFAULT_PROPS = {
     title: 'Create something',
     initialBreadcrumbs: [{ text: 'Something', href: '#' }],
     panels: [
-      { name: 'panel1', selector: '#some-selector1' },
-      { name: 'panel2', selector: '#some-selector2' },
+      { name: 'panel1', selector: '#some-selector1', imageSrc: 'panel1.svg' },
+      { name: 'panel2', selector: '#some-selector2', imageSrc: 'panel2.svg' },
     ],
     persistenceKey: 'DEMO-PERSISTENCE-KEY',
   };
 
   const createComponent = ({ slots, propsData } = {}) => {
-    wrapper = shallowMount(NewNamespacePage, {
+    wrapper = shallowMountExtended(NewNamespacePage, {
       slots,
       propsData: {
         ...DEFAULT_PROPS,
@@ -33,7 +41,6 @@ describe('Experimental new project creation app', () => {
   };
 
   afterEach(() => {
-    wrapper.destroy();
     window.location.hash = '';
   });
 
@@ -77,6 +84,10 @@ describe('Experimental new project creation app', () => {
       expect(breadcrumb.exists()).toBe(true);
       expect(breadcrumb.props().items[0].text).toBe(DEFAULT_PROPS.initialBreadcrumbs[0].text);
     });
+
+    it('renders images', () => {
+      expect(findImage().attributes('src')).toBe(DEFAULT_PROPS.panels[1].imageSrc);
+    });
   });
 
   it('renders extra description if provided', () => {
@@ -103,5 +114,73 @@ describe('Experimental new project creation app', () => {
     await nextTick();
     expect(findWelcomePage().exists()).toBe(false);
     expect(findLegacyContainer().exists()).toBe(true);
+  });
+
+  describe.each`
+    featureFlag | isSuperSidebarCollapsed | isToggleVisible
+    ${true}     | ${true}                 | ${true}
+    ${true}     | ${false}                | ${false}
+    ${false}    | ${true}                 | ${false}
+    ${false}    | ${false}                | ${false}
+  `('Super sidebar toggle', ({ featureFlag, isSuperSidebarCollapsed, isToggleVisible }) => {
+    beforeEach(() => {
+      sidebarState.isCollapsed = isSuperSidebarCollapsed;
+      gon.use_new_navigation = featureFlag;
+      createComponent();
+    });
+
+    it(`${isToggleVisible ? 'is visible' : 'is not visible'}`, () => {
+      expect(findSuperSidebarToggle().exists()).toBe(isToggleVisible);
+    });
+  });
+
+  describe('top level group alert', () => {
+    beforeEach(() => {
+      window.location.hash = `#${DEFAULT_PROPS.panels[0].name}`;
+    });
+
+    describe('when self-managed', () => {
+      it('does not render alert', () => {
+        createComponent();
+
+        expect(findNewTopLevelGroupAlert().exists()).toBe(false);
+      });
+    });
+
+    describe('when on .com', () => {
+      it('does not render alert', () => {
+        createComponent({ propsData: { isSaas: true } });
+
+        expect(findNewTopLevelGroupAlert().exists()).toBe(false);
+      });
+
+      describe('when empty parent group name', () => {
+        it('renders alert', () => {
+          createComponent({
+            propsData: {
+              isSaas: true,
+              panels: [{ ...DEFAULT_PROPS.panels[0], detailProps: { parentGroupName: '' } }],
+            },
+          });
+
+          expect(findNewTopLevelGroupAlert().exists()).toBe(true);
+        });
+      });
+    });
+  });
+
+  describe('top bar', () => {
+    it('adds "top-bar-fixed" and "container-fluid" classes when new navigation enabled', () => {
+      gon.use_new_navigation = true;
+      createComponent();
+
+      expect(findTopBar().classes()).toEqual(['top-bar-fixed', 'container-fluid']);
+    });
+
+    it('does not add classes when new navigation is not enabled', () => {
+      createComponent();
+
+      expect(findTopBar().classes()).toEqual([]);
+    });
   });
 });

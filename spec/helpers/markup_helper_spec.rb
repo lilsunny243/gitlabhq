@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MarkupHelper do
+RSpec.describe MarkupHelper, feature_category: :team_planning do
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:user) do
     user = create(:user, username: 'gfm')
@@ -278,7 +278,7 @@ RSpec.describe MarkupHelper do
     it 'ignores reference links when they are the entire body' do
       text = issues[0].to_reference
       act = helper.link_to_markdown(text, '/foo')
-      expect(act).to eq %Q(<a href="/foo">#{issues[0].to_reference}</a>)
+      expect(act).to eq %(<a href="/foo">#{issues[0].to_reference}</a>)
     end
 
     it 'replaces commit message with emoji to link' do
@@ -461,7 +461,7 @@ RSpec.describe MarkupHelper do
 
       it 'displays the first line of a code block' do
         object = create_object("```\nCode block\nwith two lines\n```")
-        expected = %r{<pre.+><code><span class="line">Code block\.\.\.</span>\n</code></pre>}
+        expected = %r{<pre.+><code><span class="line">Code block\.\.\.</span></code></pre>}
 
         expect(helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)).to match(expected)
       end
@@ -477,7 +477,7 @@ RSpec.describe MarkupHelper do
       it 'preserves code color scheme' do
         object = create_object("```ruby\ndef test\n  'hello world'\nend\n```")
         expected = "\n<pre class=\"code highlight js-syntax-highlight language-ruby\">" \
-          "<code><span class=\"line\"><span class=\"k\">def</span> <span class=\"nf\">test</span>...</span>\n" \
+          "<code><span class=\"line\"><span class=\"k\">def</span> <span class=\"nf\">test</span>...</span>" \
           "</code></pre>\n"
 
         expect(helper.first_line_in_markdown(object, attribute, 150, is_todo: true, project: project)).to eq(expected)
@@ -533,6 +533,45 @@ RSpec.describe MarkupHelper do
         expect do
           helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
         end.not_to change { Gitlab::GitalyClient.get_request_count }
+      end
+
+      it 'strips non-user links' do
+        html = 'This a cool [website](https://gitlab.com/).'
+
+        object = create_object(html)
+        result = helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
+
+        expect(result).to include('This a cool website.')
+      end
+
+      it 'styles the current user link', :aggregate_failures do
+        another_user = create(:user)
+        html = "Please have a look, @#{user.username} @#{another_user.username}!"
+
+        object = create_object(html)
+        result = helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
+        links = Nokogiri::HTML.parse(result).css('//a')
+
+        expect(links[0].classes).to include('current-user')
+        expect(links[1].classes).not_to include('current-user')
+      end
+
+      context 'when current_user is nil' do
+        before do
+          allow(helper).to receive(:current_user).and_return(nil)
+        end
+
+        it 'renders the link with no styling when current_user is nil' do
+          another_user = create(:user)
+          html = "Please have a look, @#{user.username} @#{another_user.username}!"
+
+          object = create_object(html)
+          result = helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
+          links = Nokogiri::HTML.parse(result).css('//a')
+
+          expect(links[0].classes).not_to include('current-user')
+          expect(links[1].classes).not_to include('current-user')
+        end
       end
     end
 

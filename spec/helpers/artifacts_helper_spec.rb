@@ -17,7 +17,7 @@ RSpec.describe ArtifactsHelper, feature_category: :build_artifacts do
     it 'returns expected data' do
       expect(subject).to include({
         project_path: project.full_path,
-        artifacts_management_feedback_image_path: match_asset_path('illustrations/chat-bubble-sm.svg')
+        project_id: project.id
       })
     end
 

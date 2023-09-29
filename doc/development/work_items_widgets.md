@@ -123,17 +123,47 @@ Because information about what widgets are assigned to each work item type is st
 
 ### Structure of widget definitions table
 
-Each record in the table defines mapping of a widget to a work item type. Currently only "global" definitions (definitions with NULL namespace_id) are used. In next iterations we plan to allow customization of these mappings. For example table below defines that:
+Each record in the table defines mapping of a widget to a work item type. Currently only "global" definitions (definitions with NULL `namespace_id`) are used. In next iterations we plan to allow customization of these mappings. For example table below defines that:
 
 - Weight widget is enabled for work item types 0 and 1
 - in namespace 1 Weight widget is renamed to MyWeight. When user renames widget's name, it makes sense to rename all widget mappings in the namespace - because `name` attribute is denormalized, we have to create namespaced mappings for all work item types for this widget type.
 - Weight widget can be disabled for specific work item types (in namespace 3 it's disabled for work item type 0, while still left enabled for work item type 1)
 
-| ID | Namespace_id | Work_item_type_id | Widget_type_enum | Position | Name      | Disabled |
-|----| ------------ | ----------------- |----------------- |--------- |---------- |-------|
-| 1  |              | 0                 | 1                | 1        | Weight    | false |
-| 2  |              | 1                 | 1                | 1        | Weight    | false |
-| 3  | 1            | 0                 | 1                | 0        | MyWeight  | false |
-| 4  | 1            | 1                 | 1                | 0        | MyWeight  | false |
-| 5  | 2            | 0                 | 1                | 1        | Other Weight | false |
-| 6  | 3            | 0                 | 1                | 1        | Weight | true |
+| ID | `namespace_id` | `work_item_type_id` | `widget_type_enum` | Position | Name         | Disabled |
+|:---|:---------------|:--------------------|:-------------------|:---------|:-------------|:---------|
+| 1  |                | 0                   | 1                  | 1        | Weight       | false    |
+| 2  |                | 1                   | 1                  | 1        | Weight       | false    |
+| 3  | 1              | 0                   | 1                  | 0        | MyWeight     | false    |
+| 4  | 1              | 1                   | 1                  | 0        | MyWeight     | false    |
+| 5  | 2              | 0                   | 1                  | 1        | Other Weight | false    |
+| 6  | 3              | 0                   | 1                  | 1        | Weight       | true     |
+
+## Backend architecture
+
+You can update widgets using custom fine-grained mutations (for example, `WorkItemCreateFromTask`) or as part of the
+`workItemCreate` or `workItemUpdate` mutations.
+
+### Widget callbacks
+
+When updating the widget together with the work item's mutation, backend code should be implemented using
+callback classes that inherit from `WorkItems::Callbacks::Base`. These classes have callback methods
+that are named similar to ActiveRecord callbacks and behave similarly.
+
+Callback classes with the same name as the widget are automatically used. For example, `WorkItems::Callbacks::AwardEmoji`
+is called when the work item has the `AwardEmoji` widget. To use a different class, you can override the `callback_class`
+class method.
+
+When a callback class is also used for other issuables like merge requests or epics, define the class under `Issuable::Callbacks`
+and add the class to the list in `IssuableBaseService#available_callbacks`. These are executed for both work item updates and
+legacy issue, merge request, or epic updates.
+
+#### Available callbacks
+
+- `after_initialize` is called after the work item is initialized by the `BuildService` and before
+  the work item is saved by the `CreateService` and `UpdateService`. This callback runs outside the
+  creation or update database transaction.
+- `before_update` is called before the work item is saved by the `UpdateService`. This callback runs
+  within the update database transaction.
+- `after_update_commit` is called after the DB update transaction is committed by the `UpdateService`.
+- `after_save_commit` is called after the creation or DB update transaction is committed by the
+  `CreateService` or `UpdateService`.

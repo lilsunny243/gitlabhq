@@ -13,23 +13,23 @@ class Discussion
   attr_reader :context_noteable
   attr_accessor :notes
 
-  delegate  :created_at,
-            :project,
-            :author,
-            :noteable,
-            :commit_id,
-            :confidential?,
-            :for_commit?,
-            :for_design?,
-            :for_merge_request?,
-            :noteable_ability_name,
-            :to_ability_name,
-            :editable?,
-            :resolved_by_id,
-            :system_note_visible_for?,
-            :resource_parent,
-            :save,
-            to: :first_note
+  delegate :created_at,
+    :project,
+    :author,
+    :noteable,
+    :commit_id,
+    :confidential?,
+    :for_commit?,
+    :for_design?,
+    :for_merge_request?,
+    :noteable_ability_name,
+    :to_ability_name,
+    :editable?,
+    :resolved_by_id,
+    :system_note_visible_for?,
+    :resource_parent,
+    :save,
+    to: :first_note
 
   def declarative_policy_delegate
     first_note
@@ -190,5 +190,9 @@ class Discussion
   # depending on number of notes it has.
   def to_global_id(options = {})
     GlobalID.new(::Gitlab::GlobalId.build(model_name: Discussion.to_s, id: id))
+  end
+
+  def noteable_collection_name
+    noteable.class.underscore.pluralize
   end
 end

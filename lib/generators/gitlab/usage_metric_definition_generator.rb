@@ -26,7 +26,7 @@ module Gitlab
     TOP_LEVEL_DIR = 'config'
     TOP_LEVEL_DIR_EE = 'ee'
 
-    VALID_INPUT_DIRS = (TIME_FRAME_DIRS.flat_map { |d| [d.name, d.time_frame] } - %w(none)).freeze
+    VALID_INPUT_DIRS = (TIME_FRAME_DIRS.flat_map { |d| [d.name, d.time_frame] } - %w[none]).freeze
 
     source_root File.expand_path('../../../generator_templates/usage_metric_definition', __dir__)
 
@@ -72,10 +72,6 @@ module Gitlab
     end
 
     private
-
-    def metric_name_suggestion(key_path)
-      "\nname: \"#{Usage::Metrics::NamesSuggestions::Generator.generate(key_path)}\""
-    end
 
     def file_path(key_path)
       path = File.join(TOP_LEVEL_DIR, 'metrics', directory&.name, "#{file_name(key_path)}.yml")

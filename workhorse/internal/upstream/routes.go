@@ -279,8 +279,14 @@ func configureRoutes(u *upstream) {
 		// Generic Packages Repository
 		u.route("PUT", apiProjectPattern+`/packages/generic/`, requestBodyUploader),
 
+		// Ml Model Packages Repository
+		u.route("PUT", apiProjectPattern+`/packages/ml_models/`, requestBodyUploader),
+
 		// NuGet Artifact Repository
 		u.route("PUT", apiProjectPattern+`/packages/nuget/`, mimeMultipartUploader),
+
+		// NuGet v2 Artifact Repository
+		u.route("PUT", apiProjectPattern+`/packages/nuget/v2`, mimeMultipartUploader),
 
 		// PyPI Artifact Repository
 		u.route("POST", apiProjectPattern+`/packages/pypi`, mimeMultipartUploader),
@@ -324,6 +330,9 @@ func configureRoutes(u *upstream) {
 
 		// Requirements Import via UI upload acceleration
 		u.route("POST", projectPattern+`requirements_management/requirements/import_csv`, mimeMultipartUploader),
+
+		// Work items Import via UI upload acceleration
+		u.route("POST", projectPattern+`work_items/import_csv`, mimeMultipartUploader),
 
 		// Uploads via API
 		u.route("POST", apiProjectPattern+`/uploads\z`, mimeMultipartUploader),
@@ -385,6 +394,7 @@ func configureRoutes(u *upstream) {
 		u.route("GET", geoGitProjectPattern+`info/refs\z`, git.GetInfoRefsHandler(api)),
 		u.route("POST", geoGitProjectPattern+`git-upload-pack\z`, contentEncodingHandler(git.UploadPack(api)), withMatcher(isContentType("application/x-git-upload-pack-request"))),
 		u.route("GET", geoGitProjectPattern+`gitlab-lfs/objects/([0-9a-f]{64})\z`, defaultUpstream),
+		u.route("POST", geoGitProjectPattern+`info/lfs/objects/batch\z`, defaultUpstream),
 
 		// Serve health checks from this Geo secondary
 		u.route("", "^/-/(readiness|liveness)$", static.DeployPage(probeUpstream)),
@@ -403,6 +413,8 @@ func configureRoutes(u *upstream) {
 		u.route("", "^/api/v4/geo_replication", defaultUpstream),
 		u.route("", "^/api/v4/geo/proxy_git_ssh", defaultUpstream),
 		u.route("", "^/api/v4/geo/graphql", defaultUpstream),
+		u.route("", "^/api/v4/geo_nodes/current/failures", defaultUpstream),
+		u.route("", "^/api/v4/geo_sites/current/failures", defaultUpstream),
 
 		// Internal API routes
 		u.route("", "^/api/v4/internal", defaultUpstream),

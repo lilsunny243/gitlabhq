@@ -27,12 +27,11 @@ module CommitsHelper
   end
 
   def commit_to_html(commit, ref, project)
-    render partial: 'projects/commits/commit', formats: :html,
-           locals: {
-        commit: commit,
-        ref: ref,
-        project: project
-      }
+    render partial: 'projects/commits/commit', formats: :html, locals: {
+      commit: commit,
+      ref: ref,
+      project: project
+    }
   end
 
   # Breadcrumb links for a Project and, if applicable, a tree path
@@ -112,7 +111,7 @@ module CommitsHelper
       tooltip = _("Browse Directory")
     end
 
-    link_to url, class: "btn gl-button btn-default btn-icon has-tooltip", title: tooltip, data: { container: "body" } do
+    render Pajamas::ButtonComponent.new(href: url, button_options: { title: tooltip, class: 'has-tooltip btn-icon', data: { container: 'body' } }) do
       sprite_icon('folder-open')
     end
   end
@@ -144,6 +143,16 @@ module CommitsHelper
     end
   end
 
+  def local_committed_date(commit, user)
+    server_timezone = Time.zone
+    user_timezone = user.timezone if user
+    user_timezone = ActiveSupport::TimeZone.new(user_timezone) if user_timezone
+
+    timezone = user_timezone || server_timezone
+
+    commit.committed_date.in_time_zone(timezone).to_date
+  end
+
   def cherry_pick_projects_data(project)
     [project, project.forked_from_project].compact.map do |project|
       {
@@ -161,23 +170,18 @@ module CommitsHelper
   # This includes a keyed hash for values that can be nil, to prevent invalid cache entries
   # being served if the order should change in future.
   def commit_partial_cache_key(commit, ref:, merge_request:, request:)
-    keyed_hash = {
-      merge_request: merge_request&.cache_key,
-      pipeline_status: commit.detailed_status_for(ref)&.cache_key,
-      xhr: request.xhr?,
-      controller: controller.controller_path,
-      path: @path # referred to in #link_to_browse_code
-    }
-
-    if Feature.enabled?(:show_tags_on_commits_view, commit.project)
-      keyed_hash[:referenced_by] = tag_checksum(commit.referenced_by)
-    end
-
     [
       commit,
       commit.author,
       ref,
-      keyed_hash
+      {
+        merge_request: merge_request&.cache_key,
+        pipeline_status: commit.detailed_status_for(ref)&.cache_key,
+        xhr: request.xhr?,
+        controller: controller.controller_path,
+        path: @path, # referred to in #link_to_browse_code
+        referenced_by: tag_checksum(commit.referenced_by)
+      }
     ]
   end
 
@@ -194,10 +198,11 @@ module CommitsHelper
     entity = mode == 'raw' ? 'rawButton' : 'renderedButton'
     title = "Display #{mode} diff"
 
-    link_to("##{mode}-diff-#{file_hash}",
-            class: "btn gl-button btn-default btn-file-option has-tooltip btn-show-#{mode}-diff",
-            title: title,
-            data: { file_hash: file_hash, diff_toggle_entity: entity }) do
+    render Pajamas::ButtonComponent.new(
+      href: "##{mode}-diff-#{file_hash}",
+      button_options: { title: title,
+                        class: "btn-file-option has-tooltip btn-show-#{mode}-diff",
+                        data: { file_hash: file_hash, diff_toggle_entity: entity } }) do
       sprite_icon(icon)
     end
   end
@@ -246,7 +251,7 @@ module CommitsHelper
     path = project_blob_path(project, tree_join(commit_sha, diff_new_path))
     title = replaced ? _('View replaced file @ ') : _('View file @ ')
 
-    link_to(path, class: 'btn gl-button btn-default gl-ml-3') do
+    render Pajamas::ButtonComponent.new(href: path, button_options: { class: 'gl-ml-3' }) do
       raw(title) + content_tag(:span, truncate_sha(commit_sha), class: 'commit-sha')
     end
   end
@@ -257,7 +262,7 @@ module CommitsHelper
     external_url = environment.external_url_for(diff_new_path, commit_sha)
     return unless external_url
 
-    link_to(external_url, class: 'btn gl-button btn-default btn-file-option has-tooltip', target: '_blank', rel: 'noopener noreferrer', title: "View on #{environment.formatted_external_url}", data: { container: 'body' }) do
+    render Pajamas::ButtonComponent.new(href: external_url, target: '_blank', button_options: { rel: 'noopener noreferrer', title: "View on #{environment.formatted_external_url}", data: { container: 'body' } }) do
       sprite_icon('external-link')
     end
   end

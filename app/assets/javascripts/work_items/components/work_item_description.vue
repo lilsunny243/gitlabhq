@@ -1,5 +1,5 @@
 <script>
-import { GlAlert, GlButton, GlFormGroup } from '@gitlab/ui';
+import { GlAlert, GlButton, GlForm, GlFormGroup } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { getDraft, clearDraft, updateDraft } from '~/lib/utils/autosave';
@@ -7,12 +7,10 @@ import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_m
 import { __, s__ } from '~/locale';
 import EditedAt from '~/issues/show/components/edited.vue';
 import Tracking from '~/tracking';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import MarkdownField from '~/vue_shared/components/markdown/field.vue';
 import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
-import { getWorkItemQuery, autocompleteDataSources, markdownPreviewPath } from '../utils';
-import workItemDescriptionSubscription from '../graphql/work_item_description.subscription.graphql';
+import { autocompleteDataSources, markdownPreviewPath } from '../utils';
 import updateWorkItemMutation from '../graphql/update_work_item.mutation.graphql';
+import workItemByIidQuery from '../graphql/work_item_by_iid.query.graphql';
 import { i18n, TRACKING_CATEGORY_SHOW, WIDGET_TYPE_DESCRIPTION } from '../constants';
 import WorkItemDescriptionRendered from './work_item_description_rendered.vue';
 
@@ -21,33 +19,24 @@ export default {
     EditedAt,
     GlAlert,
     GlButton,
+    GlForm,
     GlFormGroup,
     MarkdownEditor,
-    MarkdownField,
     WorkItemDescriptionRendered,
   },
-  mixins: [glFeatureFlagMixin(), Tracking.mixin()],
+  mixins: [Tracking.mixin()],
+  inject: ['fullPath'],
   props: {
     workItemId: {
       type: String,
       required: true,
     },
-    fullPath: {
+    workItemIid: {
       type: String,
       required: true,
     },
-    fetchByIid: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    queryVariables: {
-      type: Object,
-      required: true,
-    },
   },
-  markdownDocsPath: helpPagePath('user/project/quick_actions'),
-  quickActionsDocsPath: helpPagePath('user/project/quick_actions'),
+  markdownDocsPath: helpPagePath('user/markdown'),
   data() {
     return {
       workItem: {},
@@ -55,7 +44,6 @@ export default {
       isSubmitting: false,
       isSubmittingWithKeydown: false,
       descriptionText: '',
-      descriptionHtml: '',
       conflictedDescription: '',
       formFieldProps: {
         'aria-label': __('Description'),
@@ -67,38 +55,23 @@ export default {
   },
   apollo: {
     workItem: {
-      query() {
-        return getWorkItemQuery(this.fetchByIid);
-      },
+      query: workItemByIidQuery,
       variables() {
-        return this.queryVariables;
+        return {
+          fullPath: this.fullPath,
+          iid: this.workItemIid,
+        };
       },
       update(data) {
-        return this.fetchByIid ? data.workspace.workItems.nodes[0] : data.workItem;
-      },
-      skip() {
-        return !this.queryVariables.id && !this.queryVariables.iid;
+        return data.workspace.workItems.nodes[0];
       },
       result() {
         if (this.isEditing) {
-          if (this.descriptionText !== this.workItemDescription?.description) {
-            this.conflictedDescription = this.workItemDescription?.description;
-          }
-        } else {
-          this.descriptionText = this.workItemDescription?.description;
-          this.descriptionHtml = this.workItemDescription?.descriptionHtml;
+          this.checkForConflicts();
         }
       },
       error() {
         this.$emit('error', i18n.fetchError);
-      },
-      subscribeToMore: {
-        document: workItemDescriptionSubscription,
-        variables() {
-          return {
-            issuableId: this.workItemId,
-          };
-        },
       },
     },
   },
@@ -148,6 +121,11 @@ export default {
     },
   },
   methods: {
+    checkForConflicts() {
+      if (this.descriptionText !== this.workItemDescription?.description) {
+        this.conflictedDescription = this.workItemDescription?.description;
+      }
+    },
     async startEditing() {
       this.isEditing = true;
 
@@ -237,112 +215,84 @@ export default {
 
 <template>
   <div>
-    <gl-form-group
-      v-if="isEditing"
-      class="gl-mb-5 gl-border-t gl-pt-6"
-      :label="__('Description')"
-      label-for="work-item-description"
-    >
-      <markdown-editor
-        v-if="glFeatures.workItemsMvc"
-        class="gl-my-3 common-note-form"
-        :value="descriptionText"
-        :render-markdown-path="markdownPreviewPath"
-        :markdown-docs-path="$options.markdownDocsPath"
-        :form-field-props="formFieldProps"
-        :quick-actions-docs-path="$options.quickActionsDocsPath"
-        :autocomplete-data-sources="autocompleteDataSources"
-        enable-autocomplete
-        supports-quick-actions
-        init-on-autofocus
-        use-bottom-toolbar
-        @input="setDescriptionText"
-        @keydown.meta.enter="updateWorkItem"
-        @keydown.ctrl.enter="updateWorkItem"
-      />
-      <markdown-field
-        v-else
-        can-attach-file
-        :textarea-value="descriptionText"
-        :is-submitting="isSubmitting"
-        :markdown-preview-path="markdownPreviewPath"
-        :markdown-docs-path="$options.markdownDocsPath"
-        :quick-actions-docs-path="$options.quickActionsDocsPath"
-        :autocomplete-data-sources="autocompleteDataSources"
-        class="gl-px-3 bordered-box gl-mt-5"
+    <gl-form v-if="isEditing" @submit.prevent="updateWorkItem" @reset.prevent="cancelEditing">
+      <gl-form-group
+        class="gl-mb-5 gl-border-t gl-pt-6 common-note-form"
+        :label="__('Description')"
+        label-for="work-item-description"
       >
-        <template #textarea>
-          <textarea
-            v-bind="formFieldProps"
-            ref="textarea"
-            v-model="descriptionText"
-            :disabled="isSubmitting"
-            class="note-textarea js-gfm-input js-autosize markdown-area"
-            dir="auto"
-            data-supports-quick-actions="true"
-            @keydown.meta.enter="updateWorkItem"
-            @keydown.ctrl.enter="updateWorkItem"
-            @keydown.exact.esc.stop="cancelEditing"
-            @input="onInput"
-          ></textarea>
-        </template>
-      </markdown-field>
-      <div class="gl-display-flex">
-        <gl-alert
-          v-if="hasConflicts"
-          :dismissible="false"
-          variant="danger"
-          class="gl-w-full"
-          data-testid="work-item-description-conflicts"
-        >
-          <p>
-            {{
-              s__(
-                "WorkItem|Someone edited the description at the same time you did. If you save it will overwrite their changes. Please confirm you'd like to save your edits.",
-              )
-            }}
-          </p>
-          <details class="gl-mb-5">
-            <summary class="gl-text-blue-500">{{ s__('WorkItem|View current version') }}</summary>
-            <textarea
-              class="note-textarea js-gfm-input js-autosize markdown-area gl-p-3"
-              readonly
-              :value="conflictedDescription"
-            ></textarea>
-          </details>
-          <template #actions>
+        <markdown-editor
+          class="gl-my-5"
+          :value="descriptionText"
+          :render-markdown-path="markdownPreviewPath"
+          :markdown-docs-path="$options.markdownDocsPath"
+          :form-field-props="formFieldProps"
+          :quick-actions-docs-path="$options.quickActionsDocsPath"
+          :autocomplete-data-sources="autocompleteDataSources"
+          enable-autocomplete
+          supports-quick-actions
+          autofocus
+          @input="setDescriptionText"
+          @keydown.meta.enter="updateWorkItem"
+          @keydown.ctrl.enter="updateWorkItem"
+        />
+        <div class="gl-display-flex">
+          <gl-alert
+            v-if="hasConflicts"
+            :dismissible="false"
+            variant="danger"
+            class="gl-w-full"
+            data-testid="work-item-description-conflicts"
+          >
+            <p>
+              {{
+                s__(
+                  "WorkItem|Someone edited the description at the same time you did. If you save it will overwrite their changes. Please confirm you'd like to save your edits.",
+                )
+              }}
+            </p>
+            <details class="gl-mb-5">
+              <summary class="gl-text-blue-500">{{ s__('WorkItem|View current version') }}</summary>
+              <textarea
+                class="note-textarea js-gfm-input js-autosize markdown-area gl-p-3"
+                readonly
+                :value="conflictedDescription"
+              ></textarea>
+            </details>
+            <template #actions>
+              <gl-button
+                category="primary"
+                variant="confirm"
+                :loading="isSubmitting"
+                data-testid="save-description"
+                @click="updateWorkItem"
+                >{{ s__('WorkItem|Save and overwrite') }}
+              </gl-button>
+              <gl-button
+                category="secondary"
+                class="gl-ml-3"
+                data-testid="cancel"
+                @click="cancelEditing"
+                >{{ s__('WorkItem|Discard changes') }}
+              </gl-button>
+            </template>
+          </gl-alert>
+          <template v-else>
             <gl-button
               category="primary"
               variant="confirm"
               :loading="isSubmitting"
               data-testid="save-description"
-              @click="updateWorkItem"
-              >{{ s__('WorkItem|Save and overwrite') }}
+              type="submit"
+              >{{ __('Save') }}
             </gl-button>
-            <gl-button
-              category="secondary"
-              class="gl-ml-3"
-              data-testid="cancel"
-              @click="cancelEditing"
-              >{{ s__('WorkItem|Discard changes') }}
+            <gl-button category="tertiary" class="gl-ml-3" data-testid="cancel" type="reset"
+              >{{ __('Cancel') }}
             </gl-button>
           </template>
-        </gl-alert>
-        <template v-else>
-          <gl-button
-            category="primary"
-            variant="confirm"
-            :loading="isSubmitting"
-            data-testid="save-description"
-            @click="updateWorkItem"
-            >{{ __('Save') }}
-          </gl-button>
-          <gl-button category="tertiary" class="gl-ml-3" data-testid="cancel" @click="cancelEditing"
-            >{{ __('Cancel') }}
-          </gl-button>
-        </template>
-      </div>
-    </gl-form-group>
+        </div>
+      </gl-form-group>
+    </gl-form>
     <work-item-description-rendered
       v-else
       :work-item-description="workItemDescription"

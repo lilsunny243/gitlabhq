@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Edit Project Settings', feature_category: :projects do
-  let(:member) { create(:user) }
+RSpec.describe 'Edit Project Settings', feature_category: :groups_and_projects do
+  let(:member) { create(:user, :no_super_sidebar) }
   let!(:project) { create(:project, :public, :repository) }
   let!(:issue) { create(:issue, project: project) }
-  let(:non_member) { create(:user) }
+  let(:non_member) { create(:user, :no_super_sidebar) }
 
   describe 'project features visibility selectors', :js do
     before do

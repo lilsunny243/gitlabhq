@@ -1,7 +1,7 @@
 - breadcrumb_title _("Repository")
 - page_title _("Repository")
 - add_page_specific_style 'page_bundles/settings'
-- @content_class = "limit-container-width" unless fluid_layout
+- @force_desktop_expanded_sidebar = true
 
 %section.settings.as-default-branch-name.no-animate#js-default-branch-name{ class: ('expanded' if expanded_by_default?) }
   .settings-header
@@ -9,7 +9,7 @@
       = _('Default branch')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       = s_('AdminSettings|Set the initial name and protections for the default branch of new repositories created in the instance.')
   .settings-content
     = render 'default_branch'
@@ -20,7 +20,7 @@
       = _('Repository mirroring')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? 'Collapse' : 'Expand'
-    %p
+    %p.gl-text-secondary
       = _('Configure repository mirroring.')
       = link_to _('Learn more.'), help_page_path('user/project/repository/mirror/index.md'), target: '_blank', rel: 'noopener noreferrer'
   .settings-content
@@ -32,7 +32,7 @@
       = _('Repository storage')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       = _('Configure repository storage.')
       = link_to _('Learn more.'), help_page_path('administration/repository_storage_paths.md'), target: '_blank', rel: 'noopener noreferrer'
   .settings-content
@@ -44,7 +44,7 @@
       = _('Repository maintenance')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       - repository_checks_link_url = help_page_path('administration/repository_checks.md')
       - repository_checks_link_start = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: repository_checks_link_url }
       - housekeeping_link_url = help_page_path('administration/housekeeping.md')
@@ -59,7 +59,7 @@
       = _('External storage for repository static objects')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       = _('Serve repository static objects (for example, archives and blobs) from external storage.')
       = link_to _('Learn more.'), help_page_path('administration/static_objects_external_storage.md'), target: '_blank', rel: 'noopener noreferrer'
   .settings-content

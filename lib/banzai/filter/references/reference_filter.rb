@@ -143,7 +143,7 @@ module Banzai
           attributes.delete(:original) if context[:no_original_data]
 
           attributes.map do |key, value|
-            %Q(data-#{key.to_s.dasherize}="#{escape_once(value)}")
+            %(data-#{key.to_s.dasherize}="#{escape_once(value)}")
           end
             .join(' ')
             .prepend(reference_type_attribute)
@@ -151,8 +151,9 @@ module Banzai
 
         def ignore_ancestor_query
           @ignore_ancestor_query ||= begin
-            parents = %w(pre code a style)
+            parents = %w[pre code a style]
             parents << 'blockquote' if context[:ignore_blockquotes]
+            parents << 'span[contains(concat(" ", @class, " "), " idiff ")]'
 
             parents.map { |n| "ancestor::#{n}" }.join(' or ')
           end
@@ -206,7 +207,8 @@ module Banzai
         end
 
         def replace_text_when_pattern_matches(node, index, pattern)
-          return unless node.text =~ pattern
+          return if pattern.is_a?(Gitlab::UntrustedRegexp) && !pattern.match?(node.text)
+          return if pattern.is_a?(Regexp) && !(pattern =~ node.text)
 
           content = node.to_html
           html = yield content
@@ -251,7 +253,7 @@ module Banzai
         end
 
         def query
-          @query ||= %Q{descendant-or-self::text()[not(#{ignore_ancestor_query})]
+          @query ||= %{descendant-or-self::text()[not(#{ignore_ancestor_query})]
           | descendant-or-self::a[
             not(contains(concat(" ", @class, " "), " gfm ")) and not(@href = "")
           ]}

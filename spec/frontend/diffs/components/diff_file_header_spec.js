@@ -1,14 +1,19 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import { cloneDeep } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 
 import { mockTracking, triggerEvent } from 'helpers/tracking_helper';
 
 import DiffFileHeader from '~/diffs/components/diff_file_header.vue';
 import { DIFF_FILE_AUTOMATIC_COLLAPSE, DIFF_FILE_MANUAL_COLLAPSE } from '~/diffs/constants';
-import { reviewFile } from '~/diffs/store/actions';
-import { SET_DIFF_FILE_VIEWED, SET_MR_FILE_REVIEWS } from '~/diffs/store/mutation_types';
+import { reviewFile, setFileForcedOpen } from '~/diffs/store/actions';
+import {
+  SET_DIFF_FILE_VIEWED,
+  SET_MR_FILE_REVIEWS,
+  SET_FILE_FORCED_OPEN,
+} from '~/diffs/store/mutation_types';
 import { diffViewerModes } from '~/ide/constants';
 import { scrollToElement } from '~/lib/utils/common_utils';
 import { truncateSha } from '~/lib/utils/text_utility';
@@ -18,7 +23,10 @@ import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
 import testAction from '../../__helpers__/vuex_action_helper';
 import diffDiscussionsMockData from '../mock_data/diff_discussions';
 
-jest.mock('~/lib/utils/common_utils');
+jest.mock('~/lib/utils/common_utils', () => ({
+  scrollToElement: jest.fn(),
+  isLoggedIn: () => true,
+}));
 
 const diffFile = Object.freeze(
   Object.assign(diffDiscussionsMockData.diff_file, {
@@ -47,6 +55,9 @@ describe('DiffFileHeader component', () => {
   const diffHasDiscussionsResultMock = jest.fn();
   const defaultMockStoreConfig = {
     state: {},
+    getters: {
+      getNoteableData: () => ({ current_user: { can_create_note: true } }),
+    },
     modules: {
       diffs: {
         namespaced: true,
@@ -60,6 +71,7 @@ describe('DiffFileHeader component', () => {
           toggleFullDiff: jest.fn(),
           setCurrentFileHash: jest.fn(),
           setFileCollapsedByUser: jest.fn(),
+          setFileForcedOpen: jest.fn(),
           reviewFile: jest.fn(),
         },
       },
@@ -72,8 +84,6 @@ describe('DiffFileHeader component', () => {
       diffHasExpandedDiscussionsResultMock,
       ...Object.values(mockStoreConfig.modules.diffs.actions),
     ].forEach((mock) => mock.mockReset());
-
-    wrapper.destroy();
   });
 
   const findHeader = () => wrapper.findComponent({ ref: 'header' });
@@ -87,7 +97,7 @@ describe('DiffFileHeader component', () => {
   const findExternalLink = () => wrapper.findComponent({ ref: 'externalLink' });
   const findReplacedFileButton = () => wrapper.findComponent({ ref: 'replacedFileButton' });
   const findViewFileButton = () => wrapper.findComponent({ ref: 'viewButton' });
-  const findCollapseIcon = () => wrapper.findComponent({ ref: 'collapseIcon' });
+  const findCollapseButton = () => wrapper.findComponent({ ref: 'collapseButton' });
   const findEditButton = () => wrapper.findComponent({ ref: 'editButton' });
   const findReviewFileCheckbox = () => wrapper.find("[data-testid='fileReviewCheckbox']");
 
@@ -113,7 +123,7 @@ describe('DiffFileHeader component', () => {
     ${'hidden'}  | ${false}
   `('collapse toggle is $visibility if collapsible is $collapsible', ({ collapsible }) => {
     createComponent({ props: { collapsible } });
-    expect(findCollapseIcon().exists()).toBe(collapsible);
+    expect(findCollapseButton().exists()).toBe(collapsible);
   });
 
   it.each`
@@ -122,7 +132,7 @@ describe('DiffFileHeader component', () => {
     ${false} | ${'chevron-right'}
   `('collapse icon is $icon if expanded is $expanded', ({ icon, expanded }) => {
     createComponent({ props: { expanded, collapsible: true } });
-    expect(findCollapseIcon().props('name')).toBe(icon);
+    expect(findCollapseButton().props('icon')).toBe(icon);
   });
 
   it('when header is clicked emits toggleFile', async () => {
@@ -133,9 +143,22 @@ describe('DiffFileHeader component', () => {
     expect(wrapper.emitted().toggleFile).toBeDefined();
   });
 
+  it('when header is clicked it triggers the action that removes the value that forces a file to be uncollapsed', () => {
+    createComponent();
+    findHeader().trigger('click');
+
+    return testAction(
+      setFileForcedOpen,
+      { filePath: diffFile.file_path, forced: false },
+      {},
+      [{ type: SET_FILE_FORCED_OPEN, payload: { filePath: diffFile.file_path, forced: false } }],
+      [],
+    );
+  });
+
   it('when collapseIcon is clicked emits toggleFile', async () => {
     createComponent({ props: { collapsible: true } });
-    findCollapseIcon().vm.$emit('click', new Event('click'));
+    findCollapseButton().vm.$emit('click', new Event('click'));
     await nextTick();
     expect(wrapper.emitted().toggleFile).toBeDefined();
   });
@@ -638,5 +661,54 @@ describe('DiffFileHeader component', () => {
         expect(Boolean(wrapper.emitted().toggleFile)).toBe(fires);
       },
     );
+
+    it('removes the property that forces a file to be shown when the file review is toggled', () => {
+      createComponent({
+        props: {
+          diffFile: {
+            ...diffFile,
+            viewer: {
+              ...diffFile.viewer,
+              automaticallyCollapsed: false,
+              manuallyCollapsed: null,
+            },
+          },
+          showLocalFileReviews: true,
+          addMergeRequestButtons: true,
+          expanded: false,
+        },
+      });
+
+      findReviewFileCheckbox().vm.$emit('change', true);
+
+      testAction(
+        setFileForcedOpen,
+        { filePath: diffFile.file_path, forced: false },
+        {},
+        [{ type: SET_FILE_FORCED_OPEN, payload: { filePath: diffFile.file_path, forced: false } }],
+        [],
+      );
+
+      findReviewFileCheckbox().vm.$emit('change', false);
+
+      testAction(
+        setFileForcedOpen,
+        { filePath: diffFile.file_path, forced: false },
+        {},
+        [{ type: SET_FILE_FORCED_OPEN, payload: { filePath: diffFile.file_path, forced: false } }],
+        [],
+      );
+    });
+  });
+
+  it('should render the comment on files button', () => {
+    window.gon = { current_user_id: 1 };
+    createComponent({
+      props: {
+        addMergeRequestButtons: true,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="comment-files-button"]').exists()).toEqual(true);
   });
 });

@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Test coverage visualization **(FREE)**
+# Test coverage visualization **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/3708) in GitLab 12.9.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/249811) in GitLab 13.5.
@@ -19,7 +19,7 @@ MR is merged.
 
 ## How test coverage visualization works
 
-Collecting the coverage information is done via GitLab CI/CD's
+Collecting the coverage information is done by using the GitLab CI/CD
 [artifacts reports feature](../yaml/index.md#artifactsreports).
 You can specify one or more coverage reports to collect, including wildcard paths.
 GitLab then takes the coverage information in all the files and combines it
@@ -33,7 +33,7 @@ This format was originally developed for Java, but most coverage analysis framew
 for other languages have plugins to add support for it, like:
 
 - [simplecov-cobertura](https://rubygems.org/gems/simplecov-cobertura) (Ruby)
-- [gocover-cobertura](https://github.com/boumenot/gocover-cobertura) (Golang)
+- [gocover-cobertura](https://github.com/boumenot/gocover-cobertura) (Go)
 
 Other coverage analysis frameworks support the format out of the box, for example:
 
@@ -41,8 +41,7 @@ Other coverage analysis frameworks support the format out of the box, for exampl
 - [Coverage.py](https://coverage.readthedocs.io/en/coverage-5.0.4/cmd.html#xml-reporting) (Python)
 - [PHPUnit](https://github.com/sebastianbergmann/phpunit-documentation-english/blob/master/src/textui.rst#command-line-options) (PHP)
 
-Once configured, if you create a merge request that triggers a pipeline which collects
-coverage reports, the coverage is shown in the diff view. This includes reports
+After configuration, if your merge request triggers a pipeline that collects coverage reports, the coverage information is displayed in the diff view. This includes reports
 from any job in any stage in the pipeline. The coverage displays for each line:
 
 - `covered` (green): lines which have been checked at least once by tests
@@ -54,8 +53,8 @@ of times the line was checked by tests.
 
 Uploading a test coverage report does not enable:
 
-- [Test coverage results in merge requests](../pipelines/settings.md#merge-request-test-coverage-results).
-- [Code coverage history](../pipelines/settings.md#view-code-coverage-history).
+- [Test coverage results in merge requests](code_coverage.md#view-code-coverage-results-in-the-mr).
+- [Code coverage history](code_coverage.md#view-history-of-project-code-coverage).
 
 You must configure these separately.
 
@@ -73,10 +72,11 @@ a [blocking manual job](../jobs/job_control.md#types-of-manual-jobs), the
 pipeline waits for the manual job before continuing and is not considered complete.
 The visualization cannot be displayed if the blocking manual job did not run.
 
-### Artifact expiration
+### Data expiration
 
-By default, the [pipeline artifact](../pipelines/pipeline_artifacts.md#storage) used
-to draw the visualization on the merge request expires **one week** after creation.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/321323) in GitLab 13.12, the latest data is kept regardless of expiry time.
+
+By default, the data used to draw the visualization on the merge request expires **one week** after creation.
 
 ### Coverage report from child pipeline
 
@@ -112,24 +112,14 @@ attempts to build the full path by:
 
 #### Path correction example
 
-As an example, a project with:
+As an example, a C# project with:
 
-- A full path of `test-org/test-project`.
+- A full path of `test-org/test-cs-project`.
 - The following files relative to the project root:
 
   ```shell
   Auth/User.cs
   Lib/Utils/User.cs
-  src/main/java
-  ```
-
-In the:
-
-- Cobertura XML, the `filename` attribute in the `class` element assumes the value is a relative
-  path to the project's root:
-
-  ```xml
-  <class name="packet.name" filename="src/main/java" line-rate="0.0" branch-rate="0.0" complexity="5">
   ```
 
 - `sources` from Cobertura XML, the following paths in the format
@@ -137,8 +127,8 @@ In the:
 
   ```xml
   <sources>
-    <source>/builds/test-org/test-project/Auth</source>
-    <source>/builds/test-org/test-project/Lib/Utils</source>
+    <source>/builds/test-org/test-cs-project/Auth</source>
+    <source>/builds/test-org/test-cs-project/Lib/Utils</source>
   </sources>
   ```
 
@@ -152,6 +142,29 @@ The parser:
 - For each `class` element, attempts to look for a match for each extracted `source` path up to
   100 iterations. If it reaches this limit without finding a matching path in the file tree, the
   class is not included in the final coverage report.
+
+Automatic class path correction also works for a Java project with:
+
+- A full path of `test-org/test-java-project`.
+- The following files relative to the project root:
+  
+  ```shell
+  src/main/java/com/gitlab/security_products/tests/App.java
+  ```
+
+- `sources` from Cobertura XML:
+
+  ```xml
+  <sources>
+    <source>/builds/test-org/test-java-project/src/main/java/</source>
+  </sources>
+  ```
+
+- `class` element with the `filename` value of `com/gitlab/security_products/tests/App.java`:
+
+  ```xml
+  <class name="com.gitlab.security_products.tests.App" filename="com/gitlab/security_products/tests/App.java" line-rate="0.0" branch-rate="0.0" complexity="6.0">
+  ```
 
 NOTE:
 Automatic class path correction only works on `source` paths in the format `<CI_BUILDS_DIR>/<PROJECT_FULL_PATH>/...`.
@@ -261,10 +274,7 @@ coverage-jdk11:
 
 ### Python example
 
-The following [`.gitlab-ci.yml`](../yaml/index.md) example for Python uses [pytest-cov](https://pytest-cov.readthedocs.io/) to collect test coverage data and [coverage.py](https://coverage.readthedocs.io/) to convert the report to use full relative paths.
-The information isn't displayed without the conversion.
-
-This example assumes that the code for your package is in `src/` and your tests are in `tests.py`:
+The following [`.gitlab-ci.yml`](../yaml/index.md) example uses [pytest-cov](https://pytest-cov.readthedocs.io/) to collect test coverage data:
 
 ```yaml
 run tests:
@@ -272,9 +282,7 @@ run tests:
   image: python:3
   script:
     - pip install pytest pytest-cov
-    - coverage run -m pytest
-    - coverage report
-    - coverage xml
+    - pytest --cov --cov-report term --cov-report xml:coverage.xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:
@@ -288,7 +296,7 @@ run tests:
 The following [`.gitlab-ci.yml`](../yaml/index.md) example for PHP uses [PHPUnit](https://phpunit.readthedocs.io/)
 to collect test coverage data and generate the report.
 
-With a minimal [`phpunit.xml`](https://phpunit.readthedocs.io/en/9.5/configuration.html) file (you may reference
+With a minimal [`phpunit.xml`](https://docs.phpunit.de/en/10.2/configuration.html) file (you may reference
 [this example repository](https://gitlab.com/yookoala/code-coverage-visualization-with-php/)), you can run the test and
 generate the `coverage.xml`:
 
@@ -420,6 +428,9 @@ the coverage report itself and verify that:
 - The file you are viewing in the diff view is mentioned in the coverage report.
 - The `source` and `filename` nodes in the report follows the [expected structure](#automatic-class-path-correction)
   to match the files in your repository.
+- The pipeline has completed. If the pipeline is [blocked on a manual job](../jobs/job_control.md#types-of-manual-jobs),
+  the pipeline is not considered complete.
+- The coverage report file does not exceed the [limits](#limits).
 
 Report artifacts are not downloadable by default. If you want the report to be downloadable
 from the job details page, add your coverage report to the artifact `paths`:

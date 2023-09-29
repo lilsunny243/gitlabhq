@@ -2,7 +2,7 @@
 
 RSpec.shared_examples 'store ActiveRecord info in RequestStore' do |db_role|
   let(:db_config_name) do
-    db_config_name = ::Gitlab::Database.db_config_names.first
+    db_config_name = ::Gitlab::Database.db_config_names(with_schema: :gitlab_shared).first
     db_config_name += "_replica" if db_role == :secondary
     db_config_name
   end
@@ -34,7 +34,7 @@ RSpec.shared_examples 'store ActiveRecord info in RequestStore' do |db_role|
 
   it 'prevents db counters from leaking to the next transaction' do
     2.times do
-      Gitlab::WithRequestStore.with_request_store do
+      Gitlab::SafeRequestStore.ensure_request_store do
         subscriber.sql(event)
 
         expected = case db_role
@@ -96,7 +96,7 @@ end
 
 RSpec.shared_examples 'record ActiveRecord metrics in a metrics transaction' do |db_role|
   let(:db_config_name) do
-    db_config_name = ::Gitlab::Database.db_config_names.first
+    db_config_name = ::Gitlab::Database.db_config_names(with_schema: :gitlab_shared).first
     db_config_name += "_replica" if db_role == :secondary
     db_config_name
   end

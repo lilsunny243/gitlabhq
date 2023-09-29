@@ -1,10 +1,12 @@
 import getStateKey from 'ee_else_ce/vue_merge_request_widget/stores/get_state_key';
-import { badgeState } from '~/issuable/components/status_box.vue';
-import { formatDate, getTimeago } from '~/lib/utils/datetime_utility';
+import { STATUS_CLOSED, STATUS_MERGED, STATUS_OPEN } from '~/issues/constants';
+import { formatDate, getTimeago, timeagoLanguageCode } from '~/lib/utils/datetime_utility';
 import { machine } from '~/lib/utils/finite_state_machine';
+import { badgeState } from '~/merge_requests/components/merge_request_status_badge.vue';
 import {
   MTWPS_MERGE_STRATEGY,
   MT_MERGE_STRATEGY,
+  MWCP_MERGE_STRATEGY,
   MWPS_MERGE_STRATEGY,
   STATE_MACHINE,
   stateToTransitionMap,
@@ -121,7 +123,7 @@ export default class MergeRequestStore {
     this.ffOnlyEnabled = data.ff_only_enabled;
     this.isRemovingSourceBranch = this.isRemovingSourceBranch || false;
     this.mergeRequestState = data.state;
-    this.isOpen = this.mergeRequestState === 'opened';
+    this.isOpen = this.mergeRequestState === STATUS_OPEN;
     this.latestSHA = data.diff_head_sha;
     this.isMergeAllowed = data.mergeable || false;
     this.mergeOngoing = data.merge_ongoing;
@@ -139,7 +141,7 @@ export default class MergeRequestStore {
     this.isPipelineActive = data.pipeline ? data.pipeline.active : false;
     this.isPipelineBlocked =
       data.only_allow_merge_if_pipeline_succeeds && pipelineStatus?.group === 'manual';
-    this.ciStatusFaviconPath = pipelineStatus ? pipelineStatus.favicon : null;
+    this.faviconOverlayPath = data.favicon_overlay_path;
     this.terraformReportsPath = data.terraform_reports_path;
     this.testResultsPath = data.test_reports_path;
     this.accessibilityReportPath = data.accessibility_report_path;
@@ -211,6 +213,7 @@ export default class MergeRequestStore {
 
   setGraphqlSubscriptionData(data) {
     this.detailedMergeStatus = data.detailedMergeStatus;
+    this.commitsCount = data.commitCount;
 
     this.setState();
   }
@@ -236,11 +239,11 @@ export default class MergeRequestStore {
       this.state = getStateKey.call(this);
     } else {
       switch (this.mergeRequestState) {
-        case 'merged':
-          this.state = 'merged';
+        case STATUS_MERGED:
+          this.state = STATUS_MERGED;
           break;
-        case 'closed':
-          this.state = 'closed';
+        case STATUS_CLOSED:
+          this.state = STATUS_CLOSED;
           break;
         default:
           this.state = null;
@@ -269,7 +272,7 @@ export default class MergeRequestStore {
     this.conflictsDocsPath = data.conflicts_docs_path;
     this.reviewingDocsPath = data.reviewing_and_managing_merge_requests_docs_path;
     this.ciEnvironmentsStatusPath = data.ci_environments_status_path;
-    this.securityApprovalsHelpPagePath = data.security_approvals_help_page_path;
+    this.codeCoverageCheckHelpPagePath = data.code_coverage_check_help_page_path;
     this.licenseComplianceDocsPath = data.license_compliance_docs_path;
     this.eligibleApproversDocsPath = data.eligible_approvers_docs_path;
     this.mergeImmediatelyDocsPath = data.merge_immediately_docs_path;
@@ -294,6 +297,9 @@ export default class MergeRequestStore {
     // Security reports
     this.sastComparisonPath = data.sast_comparison_path;
     this.secretDetectionComparisonPath = data.secret_detection_comparison_path;
+
+    this.sastComparisonPathV2 = data.new_sast_comparison_path;
+    this.secretDetectionComparisonPathV2 = data.new_secret_detection_comparison_path;
   }
 
   get isNothingToMergeState() {
@@ -337,7 +343,7 @@ export default class MergeRequestStore {
       return '';
     }
 
-    return format(date);
+    return format(date, timeagoLanguageCode);
   }
 
   static getPreferredAutoMergeStrategy(availableAutoMergeStrategies) {
@@ -345,9 +351,14 @@ export default class MergeRequestStore {
 
     if (availableAutoMergeStrategies.includes(MTWPS_MERGE_STRATEGY)) {
       return MTWPS_MERGE_STRATEGY;
-    } else if (availableAutoMergeStrategies.includes(MT_MERGE_STRATEGY)) {
+    }
+    if (availableAutoMergeStrategies.includes(MT_MERGE_STRATEGY)) {
       return MT_MERGE_STRATEGY;
-    } else if (availableAutoMergeStrategies.includes(MWPS_MERGE_STRATEGY)) {
+    }
+    if (availableAutoMergeStrategies.includes(MWCP_MERGE_STRATEGY)) {
+      return MWCP_MERGE_STRATEGY;
+    }
+    if (availableAutoMergeStrategies.includes(MWPS_MERGE_STRATEGY)) {
       return MWPS_MERGE_STRATEGY;
     }
 
@@ -368,6 +379,14 @@ export default class MergeRequestStore {
   // eslint-disable-next-line class-methods-use-this
   get hasMergeChecksFailed() {
     return false;
+  }
+
+  get isApprovalNeeded() {
+    return this.hasApprovalsAvailable ? !this.isApproved : false;
+  }
+
+  get preventMerge() {
+    return this.isApprovalNeeded;
   }
 
   // Because the state machine doesn't yet handle every state and transition,

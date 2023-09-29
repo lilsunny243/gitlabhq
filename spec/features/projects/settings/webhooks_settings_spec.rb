@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :projects do
+RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :groups_and_projects do
   let(:project) { create(:project) }
   let(:user) { create(:user) }
   let(:webhooks_path) { project_hooks_path(project) }
@@ -31,7 +31,6 @@ RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :proj
 
       it 'show list of webhooks' do
         hook
-
         visit webhooks_path
 
         expect(page.status_code).to eq(200)
@@ -46,11 +45,13 @@ RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :proj
         expect(page).to have_content('Pipeline events')
         expect(page).to have_content('Wiki page events')
         expect(page).to have_content('Releases events')
+        expect(page).to have_content('Emoji events')
       end
 
       it 'create webhook', :js do
         visit webhooks_path
 
+        click_button 'Add new webhook'
         fill_in 'URL', with: url
         check 'Tag push events'
         check 'Enable SSL verification'
@@ -59,10 +60,10 @@ RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :proj
         click_button 'Add webhook'
 
         expect(page).to have_content(url)
+        expect(page).to have_content('Webhook was created')
         expect(page).to have_content('SSL Verification: enabled')
         expect(page).to have_content('Tag push events')
         expect(page).to have_content('Job events')
-        expect(page).to have_content('Push events')
       end
 
       it 'edit existing webhook', :js do
@@ -83,7 +84,7 @@ RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :proj
         visit webhooks_path
 
         click_button 'Test'
-        click_button 'Push events'
+        click_link 'Push events'
 
         expect(page).to have_current_path(webhooks_path, ignore_query: true)
       end

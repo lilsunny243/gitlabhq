@@ -4,6 +4,7 @@ module MergeRequests
   class CreateService < MergeRequests::BaseService
     def execute
       set_projects!
+      set_default_attributes!
 
       merge_request = MergeRequest.new
       merge_request.target_project = @project
@@ -40,6 +41,7 @@ module MergeRequests
       # timeout, we do this before we attempt to save the merge request.
 
       merge_request.skip_ensure_merge_request_diff = true
+      merge_request.check_for_spam(user: current_user, action: :create)
     end
 
     def set_projects!
@@ -60,6 +62,10 @@ module MergeRequests
 
         raise Gitlab::Access::AccessDeniedError
       end
+    end
+
+    def set_default_attributes!
+      # Implemented in EE
     end
   end
 end

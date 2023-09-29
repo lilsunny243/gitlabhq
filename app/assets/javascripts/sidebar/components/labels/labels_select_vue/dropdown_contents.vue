@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapState } from 'vuex';
 
 import DropdownContentsCreateView from './dropdown_contents_create_view.vue';
@@ -40,7 +41,6 @@ export default {
   <div
     class="labels-select-dropdown-contents gl-w-full gl-my-2 gl-py-3 gl-rounded-base gl-absolute"
     data-testid="labels-select-dropdown-contents"
-    data-qa-selector="labels_dropdown_content"
     :style="directionStyle"
   >
     <component :is="dropdownContentsView" />

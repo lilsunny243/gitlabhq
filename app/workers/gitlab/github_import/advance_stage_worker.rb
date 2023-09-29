@@ -20,6 +20,7 @@ module Gitlab
 
       # The known importer stages and their corresponding Sidekiq workers.
       STAGES = {
+        collaborators: Stage::ImportCollaboratorsWorker,
         pull_requests_merged_by: Stage::ImportPullRequestsMergedByWorker,
         pull_request_review_requests: Stage::ImportPullRequestsReviewRequestsWorker,
         pull_request_reviews: Stage::ImportPullRequestsReviewsWorker,
@@ -32,8 +33,12 @@ module Gitlab
         finish: Stage::FinishImportWorker
       }.freeze
 
-      def find_import_state(project_id)
+      def find_import_state_jid(project_id)
         ProjectImportState.jid_by(project_id: project_id, status: :started)
+      end
+
+      def find_import_state(id)
+        ProjectImportState.find(id)
       end
 
       private

@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -12,7 +12,7 @@ To enable the GitLab.com OmniAuth provider you must register your application wi
 GitLab.com generates an application ID and secret key for you to use.
 
 1. Sign in to GitLab.com.
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Applications**.
 1. Provide the required details for **Add new application**.
@@ -37,13 +37,13 @@ GitLab.com generates an application ID and secret key for you to use.
    configuration.
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus package:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    cd /home/git/gitlab
@@ -51,12 +51,12 @@ GitLab.com generates an application ID and secret key for you to use.
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `gitlab` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. Add the provider configuration:
 
-   For Omnibus installations authenticating against **GitLab.com**:
+   For Linux package installations authenticating against **GitLab.com**:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
@@ -70,7 +70,7 @@ GitLab.com generates an application ID and secret key for you to use.
    ]
    ```
 
-   Or, for Omnibus installations authenticating against a different GitLab instance:
+   Or, for Linux package installations authenticating against a different GitLab instance:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
@@ -85,7 +85,7 @@ GitLab.com generates an application ID and secret key for you to use.
    ]
    ```
 
-   For installations from source authenticating against **GitLab.com**:
+   For self-compiled installations authenticating against **GitLab.com**:
 
    ```yaml
    - { name: 'gitlab',
@@ -94,7 +94,7 @@ GitLab.com generates an application ID and secret key for you to use.
        app_secret: 'YOUR_APP_SECRET',
    ```
 
-   Or, for installations from source to authenticate against a different GitLab instance:
+   Or, for self-compiled installations to authenticate against a different GitLab instance:
 
    ```yaml
    - { name: 'gitlab',
@@ -111,10 +111,9 @@ GitLab.com generates an application ID and secret key for you to use.
 1. Change `'YOUR_APP_ID'` to the Application ID from the GitLab.com application page.
 1. Change `'YOUR_APP_SECRET'` to the secret from the GitLab.com application page.
 1. Save the configuration file.
-1. Based on how GitLab was installed, implement these changes by using
-   the appropriate method:
-   - Omnibus GitLab: [reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - Source: [restart GitLab](../administration/restart_gitlab.md#installations-from-source).
+1. Implement these changes by using the appropriate method:
+   - For Linux package installations, [reconfigure GitLab](../administration/restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - For self-compiled installations, [restart GitLab](../administration/restart_gitlab.md#self-compiled-installations).
 
 On the sign-in page, there should now be a GitLab.com icon following the
 regular sign-in form. Select the icon to begin the authentication process.

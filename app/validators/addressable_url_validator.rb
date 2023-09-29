@@ -31,6 +31,8 @@
 # * <tt>allow_blank</tt> - Allow urls to be +blank+. Default: +false+
 # * <tt>allow_nil</tt> - Allow urls to be +nil+. Default: +false+
 # * <tt>ports</tt> - Allowed ports. Default: +all+.
+# * <tt>deny_all_requests_except_allowed</tt> - Deny all requests. Default: Respects the instance app setting.
+#                                               Note: Regardless of whether enforced during validation, an HTTP request that uses the URI may still be blocked.
 # * <tt>enforce_user</tt> - Validate user format. Default: +false+
 # * <tt>enforce_sanitization</tt> - Validate that there are no html/css/js tags. Default: +false+
 #
@@ -49,11 +51,12 @@ class AddressableUrlValidator < ActiveModel::EachValidator
   # tasks that uses that url won't work.
   # See https://gitlab.com/gitlab-org/gitlab-foss/issues/66723
   BLOCKER_VALIDATE_OPTIONS = {
-    schemes: %w(http https),
+    schemes: %w[http https],
     ports: [],
     allow_localhost: true,
     allow_local_network: true,
     ascii_only: false,
+    deny_all_requests_except_allowed: Gitlab::UrlBlocker::DENY_ALL_REQUESTS_EXCEPT_ALLOWED_DEFAULT,
     enforce_user: false,
     enforce_sanitization: false,
     dns_rebind_protection: false
@@ -81,7 +84,7 @@ class AddressableUrlValidator < ActiveModel::EachValidator
     value = strip_value!(record, attribute, value)
 
     Gitlab::UrlBlocker.validate!(value, **blocker_args)
-  rescue Gitlab::UrlBlocker::BlockedUrlError => e
+  rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError => e
     record.errors.add(attribute, options.fetch(:blocked_message) % { exception_message: e.message })
   end
 

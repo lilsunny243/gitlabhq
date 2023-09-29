@@ -11,38 +11,50 @@ require 'task_list/filter'
 module Taskable
   COMPLETED          = 'completed'
   INCOMPLETE         = 'incomplete'
-  COMPLETE_PATTERN   = /\[[xX]\]/.freeze
-  INCOMPLETE_PATTERN = /\[[[:space:]]\]/.freeze
+  COMPLETE_PATTERN   = /\[[xX]\]/
+  INCOMPLETE_PATTERN = /\[[[:space:]]\]/
   ITEM_PATTERN       = %r{
     ^
-    (?:(?:>\s{0,4})*)             # optional blockquote characters
-    ((?:\s*(?:[-+*]|(?:\d+\.)))+) # list prefix (one or more) required - task item has to be always in a list
-    \s+                           # whitespace prefix has to be always presented for a list item
-    (                             # checkbox
+    (?:(?:>\s{0,4})*)               # optional blockquote characters
+    ((?:\s*(?:[-+*]|(?:\d+[.)])))+) # list prefix (one or more) required - task item has to be always in a list
+    \s+                             # whitespace prefix has to be always presented for a list item
+    (                               # checkbox
       #{COMPLETE_PATTERN}|#{INCOMPLETE_PATTERN}
     )
-    (\s.+)                        # followed by whitespace and some text.
-  }x.freeze
+    (\s.+)                          # followed by whitespace and some text.
+  }x
+
+  ITEM_PATTERN_UNTRUSTED =
+    '^' \
+    '(?:(?:>\s{0,4})*)' \
+    '(?P<prefix>(?:\s*(?:[-+*]|(?:\d+[.)])))+)' \
+    '\s+' \
+    '(?P<checkbox>' \
+    "#{COMPLETE_PATTERN.source}|#{INCOMPLETE_PATTERN.source}" \
+    ')' \
+    '(?P<label>\s.+)'.freeze
 
   # ignore tasks in code or html comment blocks.  HTML blocks
   # are ok as we allow tasks inside <detail> blocks
-  REGEX = %r{
-      #{::Gitlab::Regex.markdown_code_or_html_comments}
-    |
-      (?<task_item>
-        #{ITEM_PATTERN}
-      )
-  }mx.freeze
+  REGEX =
+    "#{::Gitlab::Regex.markdown_code_or_html_comments_untrusted}" \
+    "|" \
+    "(?P<task_item>" \
+    "#{ITEM_PATTERN_UNTRUSTED}" \
+    ")".freeze
 
   def self.get_tasks(content)
     items = []
 
-    content.to_s.scan(REGEX) do
-      next unless $~[:task_item]
+    regex = Gitlab::UntrustedRegexp.new(REGEX, multiline: true)
+    regex.scan(content.to_s).each do |match|
+      next unless regex.extract_named_group(:task_item, match)
 
-      $~[:task_item].scan(ITEM_PATTERN) do |prefix, checkbox, label|
-        items << TaskList::Item.new("#{prefix.strip} #{checkbox}", label.strip)
-      end
+      prefix = regex.extract_named_group(:prefix, match)
+      checkbox = regex.extract_named_group(:checkbox, match)
+      label = regex.extract_named_group(:label, match)
+
+      items << TaskList::Item.new("#{prefix.strip} #{checkbox}", label.strip)
     end
 
     items

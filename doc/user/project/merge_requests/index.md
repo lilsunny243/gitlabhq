@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: index, reference
 ---
 
-# Merge requests **(FREE)**
+# Merge requests **(FREE ALL)**
 
 To incorporate changes from a source branch to a target branch, you use a *merge request* (MR).
 
@@ -18,46 +18,54 @@ Merge requests include:
 - A comment section for discussion threads.
 - The list of commits.
 
-<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
-For a quick overview of merge requests,
-view [this GitLab Flow video](https://www.youtube.com/watch?v=InKNIvky2KE).
-
 ## Create a merge request
 
 Learn the various ways to [create a merge request](creating_merge_requests.md).
+
+### Use merge request templates
+
+When you create a merge request, GitLab checks for the existence of a
+[description template](../description_templates.md) to add data to your merge request.
+GitLab checks these locations in order from 1 to 5, and applies the first template
+found to your merge request:
+
+| Name | Project UI<br>setting | Group<br>`default.md` | Instance<br>`default.md` | Project<br>`default.md` | No template |
+| :-- | :--: | :--: | :--: | :--: | :--: |
+| Standard commit message | 1 | 2 | 3 | 4 | 5 |
+| Commit message with an [issue closing pattern](../issues/managing_issues.md#closing-issues-automatically) like `Closes #1234` | 1 | 2 | 3 | 4 | 5 \* |
+| Branch name [prefixed with an issue ID](../repository/branches/index.md#prefix-branch-names-with-issue-numbers), like `1234-example` | 1 \* | 2 \* | 3 \* | 4 \* | 5 \* |
+
+NOTE:
+Items marked with an asterisk (\*) also append an [issue closing pattern](../issues/managing_issues.md#closing-issues-automatically).
 
 ## View merge requests
 
 You can view merge requests for your project, group, or yourself.
 
-### View merge requests for a project
+### For a project
 
 To view all merge requests for a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests**.
 
 Or, to use a [keyboard shortcut](../../shortcuts.md), press <kbd>g</kbd> + <kbd>m</kbd>.
 
-### View merge requests for all projects in a group
+### For all projects in a group
 
 To view merge requests for all projects in a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Code > Merge requests**.
 
 If your group contains subgroups, this view also displays merge requests from the subgroup projects.
 
-### View all merge requests assigned to you
+### Assigned to you
 
 To view all merge requests assigned to you:
 
-<!-- vale gitlab.FirstPerson = NO -->
-
-1. On the top bar, put your cursor in the **Search** box.
+1. On the left sidebar, select **Search or go to**.
 1. From the dropdown list, select **Merge requests assigned to me**.
-
-<!-- vale gitlab.FirstPerson = YES -->
 
 or:
 
@@ -65,8 +73,8 @@ or:
 
 or:
 
-1. On the top bar, in the upper-right corner, select **Merge requests** (**{merge-request-open}**).
-1. From the dropdown list, select **Assigned to you**.
+1. On the left sidebar, select **Code > Merge requests** (**{merge-request}**).
+1. From the dropdown list, select **Assigned**.
 
 ## Filter the list of merge requests
 
@@ -77,14 +85,16 @@ or:
 
 To filter the list of merge requests:
 
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests**.
 1. Above the list of merge requests, select **Search or filter results...**.
 1. From the dropdown list, select the attribute you wish to filter by. Some examples:
-   - [**By environment or deployment date**](#filter-merge-requests-by-environment-or-deployment-date).
+   - [**By environment or deployment date**](#by-environment-or-deployment-date).
    - **ID**: Enter filter `#30` to return only merge request 30.
    - User filters: Type (or select from the dropdown list) any of these filters to display a list of users:
-     - **Approved-By**, for merge requests already approved by a user. **(PREMIUM)**.
+     - **Approved-By**, for merge requests already approved by a user. **(PREMIUM ALL)**.
      - **Approver**, for merge requests that this user is eligible to approve.
-       (For more information, read about [Code owners](../code_owners.md)). **(PREMIUM)**
+       (For more information, read about [Code owners](../codeowners/index.md)). **(PREMIUM ALL)**
      - **Reviewer**, for merge requests reviewed by this user.
 1. Select or type the operator to use for filtering the attribute. The following operators are
    available:
@@ -97,10 +107,7 @@ To filter the list of merge requests:
 1. Select a **Sort direction**, either **{sort-lowest}** for descending order,
    or **{sort-highest}** for ascending order.
 
-GitLab displays the results on-screen, but you can also
-[retrieve them as an RSS feed](../../search/index.md#retrieve-search-results-as-feed).
-
-### Filter merge requests by environment or deployment date
+### By environment or deployment date
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/44041) in GitLab 13.6.
 
@@ -116,17 +123,15 @@ Projects using a [fast-forward merge method](methods/index.md#fast-forward-merge
 do not return results, as this method does not create a merge commit.
 
 When filtering by an environment, a dropdown list presents all environments that
-you can choose from:
+you can choose from.
 
-![Filter MRs by their environment](img/filtering_merge_requests_by_environment_v14_6.png)
+When filtering by `Deployed-before` or `Deployed-after`:
 
-When filtering by `Deployed-before` or `Deployed-after`, the date refers to when
-the deployment to an environment (triggered by the merge commit) completed successfully.
-You must enter the deploy date manually. Deploy dates
-use the format `YYYY-MM-DD`, and must be quoted if you wish to specify
-both a date and time (`"YYYY-MM-DD HH:MM"`):
-
-![Filter MRs by a deploy date](img/filtering_merge_requests_by_date_v14_6.png)
+- The date refers to when the deployment to an environment (triggered by the
+  merge commit) completed successfully.
+- You must enter the deploy date manually.
+- Deploy dates use the format `YYYY-MM-DD`, and must be wrapped in double quotes (`"`)
+  if you want to specify both a date and time (`"YYYY-MM-DD HH:MM"`).
 
 ## Add changes to a merge request
 
@@ -151,28 +156,28 @@ To assign the merge request to a user, use the `/assign @user`
 [quick action](../quick_actions.md#issues-merge-requests-and-epics) in a text area in
 a merge request, or:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests** and find your merge request.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and find your merge request.
 1. On the right sidebar, expand the right sidebar and locate the **Assignees** section.
 1. Select **Edit**.
 1. Search for the user you want to assign, and select the user.
 
 The merge request is added to the user's assigned merge request list.
 
-### Assign multiple users **(PREMIUM)**
+### Assign multiple users **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
 GitLab enables multiple assignees for merge requests, if multiple people are
 accountable for it:
 
-![multiple assignees for merge requests sidebar](img/multiple_assignees_for_merge_requests_sidebar.png)
+![multiple assignees for merge requests sidebar](img/merge_request_assignees_v16_0.png)
 
 To assign multiple assignees to a merge request, use the `/assign @user`
 [quick action](../quick_actions.md#issues-merge-requests-and-epics) in a text area, or:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests** and find your merge request.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and find your merge request.
 1. On the right sidebar, expand the right sidebar and locate the **Assignees** section.
 1. Select **Edit** and, from the dropdown list, select all users you want
    to assign the merge request to.
@@ -251,11 +256,8 @@ after merging does not retarget open merge requests. This improvement is
 <!-- When the `moved_mr_sidebar` feature flag is removed, delete this topic and update the steps for these actions
 like in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87727/diffs?diff_id=522279685#5d9afba799c4af9920dab533571d7abb8b9e9163 -->
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85584) in GitLab 14.10 [with a flag](../../../administration/feature_flags.md) named `moved_mr_sidebar`. Disabled by default.
-
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available per project or for your entire instance, ask an administrator to [enable the feature flag](../../../administration/feature_flags.md) named `moved_mr_sidebar`.
-On GitLab.com, this feature is enabled in the following projects: `gitlab-org/gitlab`, `gitlab-com/www-gitlab-com`, and `gitlab-org/customers-gitlab-com`.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85584) in GitLab 14.10 [with a flag](../../../administration/feature_flags.md) named `moved_mr_sidebar`. Enabled by default.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/373757) to also move actions on issues, incidents, and epics in GitLab 16.0.
 
 When this feature flag is enabled, in the upper-right corner,
 **Merge request actions** (**{ellipsis_v}**) contains the following actions:
@@ -265,6 +267,8 @@ When this feature flag is enabled, in the upper-right corner,
 - Close merge request
 - [Lock discussion](../../discussions/index.md#prevent-comments-by-locking-the-discussion)
 - Copy reference
+
+In GitLab 16.0 and later, similar action menus are available on issues, incidents, and epics.
 
 When this feature flag is disabled, these actions are in the right sidebar.
 
@@ -276,12 +280,12 @@ For a software developer working in a team:
 1. You gather feedback from your team.
 1. You work on the implementation optimizing code with [Code Quality reports](../../../ci/testing/code_quality.md).
 1. You verify your changes with [Unit test reports](../../../ci/testing/unit_test_reports.md) in GitLab CI/CD.
-1. You avoid using dependencies whose license is not compatible with your project with [License Compliance reports](../../compliance/license_compliance/index.md).
+1. You avoid using dependencies whose license is not compatible with your project with [License approval policies](../../../user/compliance/license_approval_policies.md).
 1. You request the [approval](approvals/index.md) from your manager.
 1. Your manager:
    1. Pushes a commit with their final review.
    1. [Approves the merge request](approvals/index.md).
-   1. Sets it to [merge when pipeline succeeds](merge_when_pipeline_succeeds.md).
+   1. Sets it to [auto-merge](merge_when_pipeline_succeeds.md) (formerly **Merge when pipeline succeeds**).
 1. Your changes get deployed to production with [manual jobs](../../../ci/jobs/job_control.md#create-a-job-that-must-be-run-manually) for GitLab CI/CD.
 1. Your implementations were successfully shipped to your customer.
 
@@ -295,6 +299,98 @@ For a web developer writing a webpage for your company's website:
 1. Once approved, your merge request is [squashed and merged](squash_and_merge.md), and [deployed to staging with GitLab Pages](https://about.gitlab.com/blog/2021/02/05/ci-deployment-and-environments/).
 1. Your production team [cherry-picks](cherry_pick_changes.md) the merge commit into production.
 
+## Filter activity in a merge request
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/115383) in GitLab 15.11 [with a flag](../../../administration/feature_flags.md) named `mr_activity_filters`. Disabled by default.
+> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/387070) in GitLab 16.0.
+> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/126998) in GitLab 16.3 by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/132355) in GitLab 16.5. Feature flag `mr_activity_filters` removed.
+
+To understand the history of a merge request, filter its activity feed to show you
+only the items that are relevant to you.
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests**.
+1. Select a merge request.
+1. Scroll to **Activity**.
+1. On the right side of the page, select **Activity filter** to show the filter options.
+   If you've selected filter options previously, this field shows a summary of your
+   choices, like **Activity + 5 more**.
+1. Select the types of activity you want to see. Options include:
+
+   - Assignees & Reviewers
+   - Approvals
+   - Comments
+   - Commits & branches
+   - Edits
+   - Labels
+   - Lock status
+   - Mentions
+   - Merge request status
+   - Tracking
+
+1. Optional. Select **Sort** (**{sort-lowest}**) to reverse the sort order.
+
+Your selection persists across all merge requests. You can also change the
+sort order by clicking the sort button on the right.
+
+## Resolve a thread
+
+> Resolving comments individually was [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/28750) in GitLab 13.6.
+
+In a merge request, you can [resolve a thread](../../discussions/index.md#resolve-a-thread) when you want to finish a conversation.
+
+At the top of the page, the number of unresolved threads is updated:
+
+![Count of unresolved threads](img/unresolved_threads_v15_4.png)
+
+### Move all unresolved threads in a merge request to an issue
+
+If you have multiple unresolved threads in a merge request, you can
+create an issue to resolve them separately. In the merge request, at the top of the page,
+select the ellipsis icon button (**{ellipsis_v}**) in the threads control and then select **Resolve all with new issue**:
+
+![Open new issue for all unresolved threads](img/create_new_issue_v15_4.png)
+
+All threads are marked as resolved, and a link is added from the merge request to
+the newly created issue.
+
+### Move one unresolved thread in a merge request to an issue
+
+If you have one specific unresolved thread in a merge request, you can
+create an issue to resolve it separately. In the merge request, under the last reply
+to the thread, next to **Resolve thread**, select **Create issue to resolve thread** (**{issue-new}**):
+
+![Create issue for thread](img/new-issue-one-thread_v14_3.png)
+
+The thread is marked as resolved, and a link is added from the merge request to
+the newly created issue.
+
+### Prevent merge unless all threads are resolved
+
+You can prevent merge requests from being merged until all threads are
+resolved. When this setting is enabled, the **Unresolved threads** counter in a merge request
+is shown in orange when at least one thread remains unresolved.
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
+1. In the **Merge checks** section, select the **All threads must be resolved** checkbox.
+1. Select **Save changes**.
+
+### Automatically resolve threads in a merge request when they become outdated
+
+You can set merge requests to automatically resolve threads when lines are modified
+with a new push.
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
+1. In the **Merge options** section, select
+   **Automatically resolve merge request diff threads when they become outdated**.
+1. Select **Save changes**.
+
+Threads are now resolved if a push makes a diff section outdated.
+Threads on lines that don't change and top-level resolvable threads are not resolved.
+
 ## Related topics
 
 - [Create a merge request](creating_merge_requests.md)
@@ -304,7 +400,6 @@ For a web developer writing a webpage for your company's website:
 - [GitLab keyboard shortcuts](../../shortcuts.md)
 - [Comments and threads](../../discussions/index.md)
 - [Suggest code changes](reviews/suggestions.md)
-- [Commits](commits.md)
 - [CI/CD pipelines](../../../ci/index.md)
 - [Push options](../push_options.md) for merge requests
 

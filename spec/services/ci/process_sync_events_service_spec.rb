@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::ProcessSyncEventsService do
+RSpec.describe Ci::ProcessSyncEventsService, feature_category: :continuous_integration do
   let!(:group) { create(:group) }
   let!(:project1) { create(:project, group: group) }
   let!(:project2) { create(:project, group: group) }
@@ -145,10 +145,9 @@ RSpec.describe Ci::ProcessSyncEventsService do
         end
       end
 
-      context 'when the FFs use_traversal_ids and use_traversal_ids_for_ancestors are disabled' do
+      context 'when the use_traversal_ids FF is disabled' do
         before do
-          stub_feature_flags(use_traversal_ids: false,
-                             use_traversal_ids_for_ancestors: false)
+          stub_feature_flags(use_traversal_ids: false)
         end
 
         it_behaves_like 'event consuming'

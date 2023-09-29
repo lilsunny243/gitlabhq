@@ -18,17 +18,12 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
   let(:sidekiq_exporter_enabled) { false }
   let(:sidekiq_exporter_port) { '3807' }
 
-  let(:config_file) { Tempfile.new('gitlab.yml') }
   let(:config) do
     {
-      'test' => {
-        'monitoring' => {
-          'sidekiq_exporter' => {
-            'address' => 'localhost',
-            'enabled' => sidekiq_exporter_enabled,
-            'port' => sidekiq_exporter_port
-          }
-        }
+      'sidekiq_exporter' => {
+        'address' => 'localhost',
+        'enabled' => sidekiq_exporter_enabled,
+        'port' => sidekiq_exporter_port
       }
     }
   end
@@ -37,23 +32,22 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
   let(:metrics_cleanup_service) { instance_double(Prometheus::CleanupMultiprocDirService, execute: nil) }
 
   before do
-    stub_env('RAILS_ENV', 'test')
-
-    config_file.write(YAML.dump(config))
-    config_file.close
-
-    allow(::Settings).to receive(:source).and_return(config_file.path)
-    ::Settings.reload!
-
     allow(Gitlab::ProcessManagement).to receive(:write_pid)
     allow(Gitlab::SidekiqCluster::SidekiqProcessSupervisor).to receive(:instance).and_return(supervisor)
     allow(supervisor).to receive(:supervise)
 
     allow(Prometheus::CleanupMultiprocDirService).to receive(:new).and_return(metrics_cleanup_service)
+
+    stub_config(sidekiq: { routing_rules: [] })
   end
 
-  after do
-    config_file.unlink
+  around do |example|
+    original = Settings['monitoring']
+    Settings['monitoring'] = config
+
+    example.run
+
+    Settings['monitoring'] = original
   end
 
   describe '#run' do
@@ -66,7 +60,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
     context 'with arguments' do
       it 'starts the Sidekiq workers' do
         expect(Gitlab::SidekiqCluster).to receive(:start)
-                                            .with([['foo']], default_options)
+                                            .with([['foo'] + described_class::DEFAULT_QUEUES], default_options)
                                             .and_return([])
 
         cli.run(%w(foo))
@@ -100,7 +94,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
         it 'starts Sidekiq workers for all queues in all_queues.yml except the ones in argv' do
           expect(Gitlab::SidekiqConfig::CliMethods).to receive(:worker_queues).and_return(['baz'])
           expect(Gitlab::SidekiqCluster).to receive(:start)
-                                              .with([['baz']], default_options)
+                                              .with([['baz'] + described_class::DEFAULT_QUEUES], default_options)
                                               .and_return([])
 
           cli.run(%w(foo -n))
@@ -109,9 +103,10 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
       context 'with --max-concurrency flag' do
         it 'starts Sidekiq workers for specified queues with a max concurrency' do
+          expected_queues = [%w(foo bar baz), %w(solo)].each { |queues| queues.concat(described_class::DEFAULT_QUEUES) }
           expect(Gitlab::SidekiqConfig::CliMethods).to receive(:worker_queues).and_return(%w(foo bar baz))
           expect(Gitlab::SidekiqCluster).to receive(:start)
-                                              .with([%w(foo bar baz), %w(solo)], default_options.merge(max_concurrency: 2))
+                                              .with(expected_queues, default_options.merge(max_concurrency: 2))
                                               .and_return([])
 
           cli.run(%w(foo,bar,baz solo -m 2))
@@ -120,9 +115,10 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
       context 'with --min-concurrency flag' do
         it 'starts Sidekiq workers for specified queues with a min concurrency' do
+          expected_queues = [%w(foo bar baz), %w(solo)].each { |queues| queues.concat(described_class::DEFAULT_QUEUES) }
           expect(Gitlab::SidekiqConfig::CliMethods).to receive(:worker_queues).and_return(%w(foo bar baz))
           expect(Gitlab::SidekiqCluster).to receive(:start)
-                                              .with([%w(foo bar baz), %w(solo)], default_options.merge(min_concurrency: 2))
+                                              .with(expected_queues, default_options.merge(min_concurrency: 2))
                                               .and_return([])
 
           cli.run(%w(foo,bar,baz solo --min-concurrency 2))
@@ -132,7 +128,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
       context 'with --timeout flag' do
         it 'when given', 'starts Sidekiq workers with given timeout' do
           expect(Gitlab::SidekiqCluster).to receive(:start)
-            .with([['foo']], default_options.merge(timeout: 10))
+            .with([['foo'] + described_class::DEFAULT_QUEUES], default_options.merge(timeout: 10))
             .and_return([])
 
           cli.run(%w(foo --timeout 10))
@@ -140,7 +136,8 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
         it 'when not given', 'starts Sidekiq workers with default timeout' do
           expect(Gitlab::SidekiqCluster).to receive(:start)
-            .with([['foo']], default_options.merge(timeout: Gitlab::SidekiqCluster::DEFAULT_SOFT_TIMEOUT_SECONDS))
+            .with([['foo'] + described_class::DEFAULT_QUEUES], default_options.merge(timeout:
+                                                            Gitlab::SidekiqCluster::DEFAULT_SOFT_TIMEOUT_SECONDS))
             .and_return([])
 
           cli.run(%w(foo))
@@ -154,8 +151,10 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
         it 'prints out a list of queues in alphabetical order' do
           expected_queues = [
+            'default',
             'epics:epics_update_epics_dates',
             'epics_new_epic_issue',
+            'mailers',
             'new_epic',
             'todos_destroyer:todos_destroyer_confidential_epic'
           ]
@@ -172,7 +171,8 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
         it 'starts Sidekiq workers for all queues in all_queues.yml with a namespace in argv' do
           expect(Gitlab::SidekiqConfig::CliMethods).to receive(:worker_queues).and_return(['cronjob:foo', 'cronjob:bar'])
           expect(Gitlab::SidekiqCluster).to receive(:start)
-                                              .with([['cronjob', 'cronjob:foo', 'cronjob:bar']], default_options)
+                                              .with([['cronjob', 'cronjob:foo', 'cronjob:bar'] +
+                                                       described_class::DEFAULT_QUEUES], default_options)
                                               .and_return([])
 
           cli.run(%w(cronjob))
@@ -210,7 +210,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
             'CI and SCM queues' => {
               query: 'feature_category=continuous_integration|feature_category=source_code_management',
               included_queues: %w(pipeline_default:ci_drop_pipeline merge),
-              excluded_queues: %w(mailers)
+              excluded_queues: %w()
             }
           }
         end
@@ -221,6 +221,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
               expect(opts).to eq(default_options)
               expect(queues.first).to include(*included_queues)
               expect(queues.first).not_to include(*excluded_queues)
+              expect(queues.first).to include(*described_class::DEFAULT_QUEUES)
 
               []
             end
@@ -233,6 +234,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
               expect(opts).to eq(default_options)
               expect(queues.first).not_to include(*included_queues)
               expect(queues.first).to include(*excluded_queues)
+              expect(queues.first).to include(*described_class::DEFAULT_QUEUES)
 
               []
             end
@@ -245,13 +247,15 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
           expected_workers =
             if Gitlab.ee?
               [
-                %w[cronjob:clusters_integrations_check_prometheus_health incident_management_close_incident status_page_publish],
-                %w[project_export projects_import_export_parallel_project_export projects_import_export_relation_export project_template_export]
+                %w[incident_management_close_incident status_page_publish] + described_class::DEFAULT_QUEUES,
+                %w[bulk_imports_pipeline bulk_imports_pipeline_batch bulk_imports_relation_export project_export projects_import_export_parallel_project_export projects_import_export_relation_export repository_import project_template_export] +
+                  described_class::DEFAULT_QUEUES
               ]
             else
               [
-                %w[cronjob:clusters_integrations_check_prometheus_health incident_management_close_incident],
-                %w[project_export projects_import_export_parallel_project_export projects_import_export_relation_export]
+                %w[incident_management_close_incident] + described_class::DEFAULT_QUEUES,
+                %w[bulk_imports_pipeline bulk_imports_pipeline_batch bulk_imports_relation_export project_export projects_import_export_parallel_project_export projects_import_export_relation_export repository_import] +
+                  described_class::DEFAULT_QUEUES
               ]
             end
 
@@ -289,6 +293,40 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
             .to raise_error(Gitlab::SidekiqConfig::WorkerMatcher::QueryError)
         end
       end
+
+      context "with routing rules specified" do
+        before do
+          stub_config(sidekiq: { routing_rules: [['resource_boundary=cpu', 'foo']] })
+        end
+
+        it "starts Sidekiq workers only for given queues without any additional DEFAULT_QUEUES" do
+          expect(Gitlab::SidekiqCluster).to receive(:start)
+                                              .with([['foo']], default_options)
+                                              .and_return([])
+
+          cli.run(%w(foo))
+        end
+      end
+
+      context "with sidekiq settings not specified" do
+        before do
+          stub_config(sidekiq: nil)
+        end
+
+        it "does not throw an error" do
+          allow(Gitlab::SidekiqCluster).to receive(:start).and_return([])
+
+          expect { cli.run(%w(foo)) }.not_to raise_error
+        end
+
+        it "starts Sidekiq workers with given queues, and additional default and mailers queues (DEFAULT_QUEUES)" do
+          expect(Gitlab::SidekiqCluster).to receive(:start)
+                                              .with([['foo'] + described_class::DEFAULT_QUEUES], default_options)
+                                              .and_return([])
+
+          cli.run(%w(foo))
+        end
+      end
     end
 
     context 'metrics server' do
@@ -318,13 +356,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
           context 'when sidekiq_exporter is not set up' do
             let(:config) do
-              {
-                'test' => {
-                  'monitoring' => {
-                    'sidekiq_exporter' => {}
-                  }
-                }
-              }
+              { 'sidekiq_exporter' => {} }
             end
 
             it 'does not start a sidekiq metrics server' do
@@ -336,13 +368,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_
 
           context 'with missing sidekiq_exporter setting' do
             let(:config) do
-              {
-                'test' => {
-                  'monitoring' => {
-                    'sidekiq_exporter' => nil
-                  }
-                }
-              }
+              { 'sidekiq_exporter' => nil }
             end
 
             it 'does not start a sidekiq metrics server' do

@@ -1,5 +1,7 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlIcon } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions } from 'vuex';
 import { modalTypes } from '../../constants';
 import ItemButton from './button.vue';
@@ -69,7 +71,7 @@ export default {
       >
         <gl-icon name="ellipsis_v" />
       </button>
-      <ul ref="dropdownMenu" class="dropdown-menu dropdown-menu-right">
+      <ul ref="dropdownMenu" class="dropdown-menu dropdown-menu-right" data-testid="dropdown-menu">
         <template v-if="type === 'tree'">
           <li>
             <item-button

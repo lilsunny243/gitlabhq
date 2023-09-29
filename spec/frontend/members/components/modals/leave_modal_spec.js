@@ -1,6 +1,7 @@
 import { GlModal, GlForm } from '@gitlab/ui';
 import { cloneDeep } from 'lodash';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mountExtended, extendedWrapper } from 'helpers/vue_test_utils_helper';
 import LeaveModal from '~/members/components/modals/leave_modal.vue';
@@ -59,10 +60,6 @@ describe('LeaveModal', () => {
   const findModal = () => extendedWrapper(wrapper.findComponent(GlModal));
   const findForm = () => findModal().findComponent(GlForm);
   const findUserDeletionObstaclesList = () => findModal().findComponent(UserDeletionObstaclesList);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('sets modal ID', async () => {
     await createComponent();

@@ -3,7 +3,7 @@
 require 'spec_helper'
 require_migration!
 
-RSpec.describe FinalizeInvalidMemberCleanup, :migration, feature_category: :subgroups do
+RSpec.describe FinalizeInvalidMemberCleanup, :migration, feature_category: :groups_and_projects do
   let(:batched_migrations) { table(:batched_background_migrations) }
 
   let!(:migration) { described_class::MIGRATION }
@@ -18,6 +18,10 @@ RSpec.describe FinalizeInvalidMemberCleanup, :migration, feature_category: :subg
     end
 
     context 'when migration is missing' do
+      before do
+        batched_migrations.where(job_class_name: migration).delete_all
+      end
+
       it 'warns migration not found' do
         expect(Gitlab::AppLogger)
           .to receive(:warn).with(/Could not find batched background migration for the given configuration:/)

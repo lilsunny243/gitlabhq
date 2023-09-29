@@ -10,6 +10,7 @@ class Explore::ProjectsController < Explore::ApplicationController
 
   MIN_SEARCH_LENGTH = 3
   PAGE_LIMIT = 50
+  RSS_ENTRIES_LIMIT = 20
 
   before_action :set_non_archived_param
   before_action :set_sorting
@@ -23,7 +24,7 @@ class Explore::ProjectsController < Explore::ApplicationController
 
   rescue_from PageOutOfBoundsError, with: :page_out_of_bounds
 
-  feature_category :projects
+  feature_category :groups_and_projects
   # TODO: Set higher urgency after addressing https://gitlab.com/gitlab-org/gitlab/-/issues/357913
   # and https://gitlab.com/gitlab-org/gitlab/-/issues/358945
   urgency :low, [:index, :topics, :trending, :starred, :topic]
@@ -83,13 +84,21 @@ class Explore::ProjectsController < Explore::ApplicationController
 
     params[:topic] = @topic.name
     @projects = load_projects
+
+    respond_to do |format|
+      format.html
+      format.atom do
+        @projects = @projects.projects_order_id_desc.limit(RSS_ENTRIES_LIMIT)
+        render layout: 'xml'
+      end
+    end
   end
 
   private
 
   def load_project_counts
-    @total_user_projects_count = ProjectsFinder.new(params: { non_public: true }, current_user: current_user).execute
-    @total_starred_projects_count = ProjectsFinder.new(params: { starred: true }, current_user: current_user).execute
+    @all_user_projects = ProjectsFinder.new(params: { non_public: true }, current_user: current_user).execute
+    @all_starred_projects = ProjectsFinder.new(params: { starred: true }, current_user: current_user).execute
   end
 
   def load_projects
@@ -113,7 +122,9 @@ class Explore::ProjectsController < Explore::ApplicationController
   end
 
   def load_topic
-    @topic = Projects::Topic.find_by_name_case_insensitive(params[:topic_name])
+    topic_name = Feature.enabled?(:explore_topics_cleaned_path) ? URI.decode_www_form_component(params[:topic_name]) : params[:topic_name]
+
+    @topic = Projects::Topic.find_by_name_case_insensitive(topic_name)
   end
 
   # rubocop: disable CodeReuse/ActiveRecord

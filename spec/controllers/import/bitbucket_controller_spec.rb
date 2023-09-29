@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Import::BitbucketController do
+RSpec.describe Import::BitbucketController, feature_category: :importers do
   include ImportSpecHelper
 
   let(:user) { create(:user) }
@@ -31,6 +31,16 @@ RSpec.describe Import::BitbucketController do
       let(:external_bitbucket_auth_url) { "http://fake.bitbucket.host/url" }
 
       it "redirects to external auth url" do
+        expected_client_options = {
+          site: OmniAuth::Strategies::Bitbucket.default_options[:client_options]['site'],
+          authorize_url: OmniAuth::Strategies::Bitbucket.default_options[:client_options]['authorize_url'],
+          token_url: OmniAuth::Strategies::Bitbucket.default_options[:client_options]['token_url']
+        }
+
+        expect(OAuth2::Client)
+          .to receive(:new)
+          .with(anything, anything, expected_client_options)
+
         allow(SecureRandom).to receive(:base64).and_return(random_key)
         allow_next_instance_of(OAuth2::Client) do |client|
           allow(client).to receive_message_chain(:auth_code, :authorize_url)
@@ -101,7 +111,7 @@ RSpec.describe Import::BitbucketController do
       @invalid_repo = double(name: 'mercurialrepo', slug: 'mercurialrepo', owner: 'asd', full_name: 'asd/mercurialrepo', clone_url: 'http://test.host/demo/mercurialrepo.git', 'valid?' => false)
     end
 
-    context "when token does not exists" do
+    context "when token does not exist" do
       let(:random_key) { "pure_random"  }
       let(:external_bitbucket_auth_url) { "http://fake.bitbucket.host/url" }
 
@@ -443,6 +453,17 @@ RSpec.describe Import::BitbucketController do
           user: user,
           extra: { user_role: 'Not a member', import_type: 'bitbucket' }
         )
+      end
+    end
+
+    context 'when user can not import projects' do
+      let!(:other_namespace) { create(:group, name: 'other_namespace').tap { |other_namespace| other_namespace.add_developer(user) } }
+
+      it 'returns 422 response' do
+        post :create, params: { target_namespace: other_namespace.name }, format: :json
+
+        expect(response).to have_gitlab_http_status(:unprocessable_entity)
+        expect(response.parsed_body['errors']).to eq('You are not allowed to import projects in this namespace.')
       end
     end
   end

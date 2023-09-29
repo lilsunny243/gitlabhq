@@ -43,8 +43,8 @@ describe('TokensApp', () => {
   }) => {
     const container = extendedWrapper(wrapper.findByTestId(testId));
 
-    expect(container.findByText(expectedLabel, { selector: 'h4' }).exists()).toBe(true);
-    expect(container.findByText(expectedDescription).exists()).toBe(true);
+    expect(container.findByText(expectedLabel).exists()).toBe(true);
+    expect(container.findByText(expectedDescription, { exact: false }).exists()).toBe(true);
     expect(container.findByText(expectedInputDescription, { exact: false }).exists()).toBe(true);
     expect(container.findByText('reset this token').attributes()).toMatchObject({
       'data-confirm': expectedResetConfirmMessage,
@@ -53,10 +53,6 @@ describe('TokensApp', () => {
     });
     expect(container.props()).toMatchObject(expectedProps);
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('renders all enabled tokens', () => {
     createComponent();

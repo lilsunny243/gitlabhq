@@ -47,7 +47,7 @@ RSpec.describe Gitlab::AvatarCache, :clean_gitlab_redis_cache do
     it "finds the cached value in the request store and doesn't execute the block" do
       expect(thing).to receive(:avatar_path).once
 
-      Gitlab::WithRequestStore.with_request_store do
+      Gitlab::SafeRequestStore.ensure_request_store do
         described_class.by_email("foo@bar.com", 20, 2, true) do
           thing.avatar_path
         end
@@ -95,6 +95,20 @@ RSpec.describe Gitlab::AvatarCache, :clean_gitlab_redis_cache do
         expect(subject).to eq(1)
 
         expect(read(key, "20:2:true")).to eq(nil)
+      end
+    end
+
+    context 'when deleting over 1000 emails' do
+      it 'deletes in batches of 1000' do
+        Gitlab::Redis::Cache.with do |redis|
+          if Gitlab::Redis::ClusterUtil.cluster?(redis)
+            expect(redis).to receive(:pipelined).at_least(2).and_call_original
+          else
+            expect(redis).to receive(:unlink).and_call_original
+          end
+        end
+
+        described_class.delete_by_email(*(Array.new(1001) { |i| i }))
       end
     end
   end

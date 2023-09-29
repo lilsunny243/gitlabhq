@@ -1,98 +1,64 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', product_group: :editor,
-    feature_flag: { name: 'vscode_web_ide', scope: :global },
-    quarantine: { issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/387032', type: :stale } do
+  RSpec.describe 'Create', product_group: :ide,
+    quarantine: {
+      only: { job: 'slow-network' },
+      issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/387609',
+      type: :flaky
+    } do
     describe 'Upload a file in Web IDE' do
-      let(:file_path) { File.join(Runtime::Path.fixtures_path, 'web_ide', file_name) }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'upload-file-project'
-          project.initialize_with_readme = true
-        end
-      end
+      let(:file_path) { File.absolute_path(File.join('qa', 'fixtures', 'web_ide', file_name)) }
+      let(:project) { create(:project, :with_readme, name: 'upload-file-project') }
 
       before do
-        Runtime::Feature.disable(:vscode_web_ide)
         Flow::Login.sign_in
-
         project.visit!
-        Page::Project::Show.perform(&:open_web_ide!)
-      end
-
-      after do
-        Runtime::Feature.enable(:vscode_web_ide)
       end
 
       context 'when a file with the same name already exists' do
         let(:file_name) { 'README.md' }
 
-        it 'throws an error', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347850' do
-          Page::Project::WebIDE::Edit.perform do |ide|
-            ide.wait_until_ide_loads
+        it 'throws an error', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/390005' do
+          Page::Project::Show.perform(&:open_web_ide!)
+          Page::Project::WebIDE::VSCode.perform do |ide|
             ide.upload_file(file_path)
+            ide.has_message?("A file or folder with the name 'README.md' already exists in the destination folder")
           end
-
-          expect(page).to have_content('The name "README.md" is already taken in this directory.')
         end
       end
 
-      context 'when the file is a text file' do
+      shared_examples 'upload a file' do
+        it "verifies it successfully uploads and commits to a MR" do
+          Page::Project::Show.perform(&:open_web_ide!)
+          Page::Project::WebIDE::VSCode.perform do |ide|
+            ide.upload_file(file_path)
+            ide.has_message?(file_name)
+            ide.commit_and_push(file_name)
+            ide.has_message?('Success! Your changes have been committed.')
+            ide.create_merge_request
+          end
+
+          # Opens the MR in new tab and verify the file is in the MR
+          page.driver.browser.switch_to.window(page.driver.browser.window_handles.last)
+          Page::MergeRequest::Show.perform do |merge_request|
+            expect(merge_request).to have_content(file_name)
+          end
+        end
+      end
+
+      context 'when the file is a text file',
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/390006' do
         let(:file_name) { 'text_file.txt' }
 
-        it 'shows the Edit tab with the text',
-          testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347852' do
-          Page::Project::WebIDE::Edit.perform do |ide|
-            ide.wait_until_ide_loads
-            ide.upload_file(file_path)
-
-            expect(ide).to have_file(file_name)
-            expect(ide).to have_file_addition_icon(file_name)
-            expect(ide).to have_text('Simple text')
-
-            ide.commit_changes
-
-            expect(ide).to have_file(file_name)
-          end
-        end
+        it_behaves_like 'upload a file'
       end
 
-      context 'when the file is binary' do
-        let(:file_name) { 'logo_sample.svg' }
-
-        it 'shows a Download button', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347851' do
-          Page::Project::WebIDE::Edit.perform do |ide|
-            ide.upload_file(file_path)
-
-            expect(ide).to have_file(file_name)
-            expect(ide).to have_file_addition_icon(file_name)
-            expect(ide).to have_download_button(file_name)
-
-            ide.commit_changes
-
-            expect(ide).to have_file(file_name)
-          end
-        end
-      end
-
-      context 'when the file is an image' do
+      context 'when the file is an image',
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/390007' do
         let(:file_name) { 'dk.png' }
 
-        it 'shows an image viewer', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347853' do
-          Page::Project::WebIDE::Edit.perform do |ide|
-            ide.upload_file(file_path)
-
-            expect(ide).to have_file(file_name)
-            expect(ide).to have_file_addition_icon(file_name)
-            expect(ide).to have_image_viewer(file_name)
-
-            ide.commit_changes
-
-            expect(ide).to have_file(file_name)
-          end
-        end
+        it_behaves_like 'upload a file'
       end
     end
   end

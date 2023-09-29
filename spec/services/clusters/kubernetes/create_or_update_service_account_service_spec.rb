@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Clusters::Kubernetes::CreateOrUpdateServiceAccountService do
+RSpec.describe Clusters::Kubernetes::CreateOrUpdateServiceAccountService, feature_category: :deployment_management do
   include KubernetesHelpers
 
   let(:api_url) { 'http://111.111.111.111' }
@@ -9,9 +9,12 @@ RSpec.describe Clusters::Kubernetes::CreateOrUpdateServiceAccountService do
   let(:cluster_project) { cluster.cluster_project }
   let(:project) { cluster_project.project }
   let(:cluster) do
-    create(:cluster,
-           :project, :provided_by_gcp,
-           platform_kubernetes: create(:cluster_platform_kubernetes, :configured))
+    create(
+      :cluster,
+      :project,
+      :provided_by_gcp,
+      platform_kubernetes: create(:cluster_platform_kubernetes, :configured)
+    )
   end
 
   let(:kubeclient) do

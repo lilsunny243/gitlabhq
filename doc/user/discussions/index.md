@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, howto
 ---
 
-# Comments and threads **(FREE)**
+# Comments and threads **(FREE ALL)**
 
 > - Paginated merge request discussions [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/340172) in GitLab 15.1 [with a flag](../../administration/feature_flags.md) named `paginated_mr_discussions`. Disabled by default.
 > - Paginated merge request discussions [enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/364497) in GitLab 15.2.
@@ -13,12 +13,12 @@ type: reference, howto
 > - Paginated merge request discussions [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/370075) in GitLab 15.8. Feature flag `paginated_mr_discussions` removed.
 
 GitLab encourages communication through comments, threads, and
-[code suggestions](../project/merge_requests/reviews/suggestions.md).
+[Code Suggestions](../project/merge_requests/reviews/suggestions.md).
 
 Two types of comments are available:
 
 - A standard comment.
-- A comment in a thread, which can be [resolved](#resolve-a-thread).
+- A comment in a thread, which can be [resolved](../project/merge_requests/index.md#resolve-a-thread).
 
 In a comment, you can enter [Markdown](../markdown.md) and use [quick actions](../project/quick_actions.md).
 
@@ -36,6 +36,8 @@ You can create comments in places like:
 - Issues
 - Merge requests
 - Snippets
+- Tasks
+- OKRs
 
 Each object can have as many as 5,000 comments.
 
@@ -46,12 +48,28 @@ instance with `@username` or `@groupname`. All mentioned users are notified with
 Users can change this setting for themselves in the [notification settings](../profile/notifications.md).
 
 You can quickly see which comments involve you, because
-mentions for yourself (the user currently signed in) are highlighted
+mentions for yourself (the user who is signed in) are highlighted
 in a different color.
 
-Avoid mentioning `@all` in issues and merge requests. It sends an email notification
-to all members of that project's parent group, not only the participants of the project,
-and may be interpreted as spam.
+### Mentioning all members
+
+> [Flag](../../administration/feature_flags.md) named `disable_all_mention` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/110586) in GitLab 16.1. Disabled by default. [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/18442).
+
+FLAG:
+On self-managed GitLab, by default this flag is not enabled. To make it available, an administrator can [enable the feature flag](../../administration/feature_flags.md)
+named `disable_all_mention`.
+On GitLab.com, this flag is enabled.
+
+When this feature flag is enabled, typing `@all` in comments and descriptions
+results in plain text instead of a mention.
+When you disable this feature, existing `@all` mentions in the Markdown texts are not affected
+and remain as links. Only future `@all` mentions appear as plain text.
+
+Avoid mentioning `@all` in comments and descriptions.
+When you do it, you don't only mention the participants of the project, issue, or merge request,
+but to all members of that project's parent group.
+All these users receive an email notification and a to-do item. It might be interpreted as spam.
+
 Notifications and mentions can be disabled in
 [a group's settings](../group/manage.md#disable-email-notifications).
 
@@ -85,36 +103,13 @@ To add a commit diff comment:
 
 The comment is displayed on the merge request's **Overview** tab.
 
-The comment is not displayed on your project's **Repository > Commits** page.
+The comment is not displayed on your project's **Code > Commits** page.
 
 NOTE:
 When your comment contains a reference to a commit included in the merge request,
-it's automatically converted to a link in the context of the current merge request.
-For example, `28719b171a056960dfdc0012b625d0b47b123196` becomes
+it's converted to a link in the context of the merge request.
+For example, `28719b171a056960dfdc0012b625d0b47b123196` becomes `28719b17` that links to
 `https://gitlab.example.com/example-group/example-project/-/merge_requests/12345/diffs?commit_id=28719b171a056960dfdc0012b625d0b47b123196`.
-
-## Add a comment to a commit
-
-You can add comments and threads to a particular commit.
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Repository > Commits**.
-1. Below the commits, in the **Comment** field, enter a comment.
-1. Select **Comment** or select the down arrow (**{chevron-down}**) to select **Start thread**.
-
-WARNING:
-Threads created this way are lost if the commit ID changes after a
-force push.
-
-## Add a comment to an image
-
-In merge requests and commit detail views, you can add a comment to an image.
-This comment can also be a thread.
-
-1. Hover your mouse over the image.
-1. Select the location where you want to comment.
-
-An icon is displayed on the image and a comment field is displayed.
 
 ## Reply to a comment by sending email
 
@@ -203,44 +198,36 @@ You can also mark an [issue as confidential](../project/issues/confidential_issu
 
 ## Show only comments
 
-For issues and merge requests with many comments, you can filter the page to show comments only.
+In discussions with many comments, filter the discussion to show only comments or history of
+changes ([system notes](../project/system_notes.md)). System notes include changes to the description, mentions in other GitLab
+objects, or changes to labels, assignees, and the milestone.
+GitLab saves your preference, and applies it to every issue, merge request, or epic you view.
 
 1. Open the **Overview** tab in a merge request, issue, or epic.
-1. On the right side of the page, select from the filter:
+1. On the right side of the page, from the **Sort or filter** dropdown list, select a filter:
    - **Show all activity**: Display all user comments and system notes.
-     (issue updates, mentions from other issues, changes to the description, and so on).
    - **Show comments only**: Display only user comments.
    - **Show history only**: Display only activity notes.
 
-![Notes filters dropdown list options](img/index_notes_filters.png)
+## Change activity sort order
 
-GitLab saves your preference, so it persists when you visit the same page again
-from any device you're logged into.
+Reverse the default order and interact with the activity feed sorted by most recent items
+at the top. GitLab saves your preference in local storage and applies it to every issue,
+merge request, or epic you view.
 
-## View description change history **(PREMIUM)**
+To change the activity sort order:
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/10103) in GitLab 12.6.
+1. Open the **Overview** tab in a merge request, issue, or epic.
+1. On the right side of the page, from the **Sort or filter** dropdown list, select the sort order
+   **Newest first** or **Oldest first** (default).
+
+## View description change history **(PREMIUM ALL)**
 
 You can see changes to the description listed in the history.
 
 To compare the changes, select **Compare with previous version**.
 
-## Change activity sort order
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/14588) in GitLab 12.10.
-
-You can reverse the default order and interact with the activity feed sorted by most recent items
-at the top. Your preference is saved in local storage and automatically applies to every issue,
-merge request, or epic you view.
-
-To change the activity sort order:
-
-1. Select the **Oldest first** (or **Newest first**) dropdown list.
-1. Select either oldest or newest items to be shown first.
-
 ## Assign an issue to the commenting user
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/191455) in GitLab 13.1.
 
 You can assign an issue to a user who made a comment.
 
@@ -260,9 +247,7 @@ Prerequisites:
 
 To create a thread by replying to a comment:
 
-1. In the upper-right corner of the comment, select **Reply to comment** (**{comment}**).
-
-   ![Reply to comment button](img/reply_to_comment_button.png)
+1. In the upper-right corner of the comment, select **Reply to comment** (**{reply}**).
 
    The reply section is displayed.
 
@@ -283,7 +268,7 @@ Prerequisites:
 To create a thread:
 
 1. Enter a comment.
-1. Below the comment, to the right of the **Comment** button, select the down arrow (**{chevron-down}**).
+1. Below the comment, to the right of **Comment**, select the down arrow (**{chevron-down}**).
 1. From the list, select **Start thread**.
 1. Select **Start thread** again.
 
@@ -293,16 +278,21 @@ A threaded comment is created.
 
 ## Resolve a thread
 
-> Resolving comments individually was [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/28750) in GitLab 13.6.
+> - Resolvable threads for issues [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/31114) in GitLab 16.3 [with a flag](../../administration/feature_flags.md) named `resolvable_issue_threads`. Disabled by default.
+> - Resolvable threads for issues [enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/31114) in GitLab 16.4.
 
-In a merge request, you can resolve a thread when you want to finish a conversation.
+FLAG:
+On self-managed GitLab, resolvable threads _for issues_ are available by default.
+To hide the feature, an administrator can
+[disable the feature flag](../../administration/feature_flags.md) named `resolvable_issue_threads`.
+On GitLab.com, this feature is available.
+
+You can resolve a thread when you want to finish a conversation.
 
 Prerequisites:
 
-- You must have at least the Developer role
-  or be the author of the change being reviewed.
-- Resolvable threads can be added only to merge requests. It doesn't work
-  for comments in issues, commits, or snippets.
+- You must be in an issue or merge request.
+- You must have at least the Developer role or be the author of the issue or merge request.
 
 To resolve a thread:
 
@@ -311,54 +301,3 @@ To resolve a thread:
    - In the upper-right corner of the original comment, select **Resolve thread** (**{check-circle}**).
    - Below the last reply, in the **Reply** field, select **Resolve thread**.
    - Below the last reply, in the **Reply** field, enter text, select the **Resolve thread** checkbox, and select **Add comment now**.
-
-At the top of the page, the number of unresolved threads is updated:
-
-![Count of unresolved threads](img/unresolved_threads_v15_4.png)
-
-### Move all unresolved threads in a merge request to an issue
-
-If you have multiple unresolved threads in a merge request, you can
-create an issue to resolve them separately. In the merge request, at the top of the page,
-select the ellipsis icon button (**{ellipsis_v}**) in the threads control and then select **Create issue to resolve all threads**:
-
-![Open new issue for all unresolved threads](img/create_new_issue_v15_4.png)
-
-All threads are marked as resolved, and a link is added from the merge request to
-the newly created issue.
-
-### Move one unresolved thread in a merge request to an issue
-
-If you have one specific unresolved thread in a merge request, you can
-create an issue to resolve it separately. In the merge request, under the last reply
-to the thread, next to **Resolve thread**, select **Create issue to resolve thread** (**{issue-new}**):
-
-![Create issue for thread](img/new-issue-one-thread_v14_3.png)
-
-The thread is marked as resolved, and a link is added from the merge request to
-the newly created issue.
-
-### Prevent merge unless all threads are resolved
-
-You can prevent merge requests from being merged until all threads are
-resolved. When this setting is enabled, the **Unresolved threads** counter in a merge request
-is shown in orange when at least one thread remains unresolved.
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
-1. In the **Merge checks** section, select the **All threads must be resolved** checkbox.
-1. Select **Save changes**.
-
-### Automatically resolve threads in a merge request when they become outdated
-
-You can set merge requests to automatically resolve threads when lines are modified
-with a new push.
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
-1. In the **Merge options** section, select
-   **Automatically resolve merge request diff threads when they become outdated**.
-1. Select **Save changes**.
-
-Threads are now resolved if a push makes a diff section outdated.
-Threads on lines that don't change and top-level resolvable threads are not resolved.

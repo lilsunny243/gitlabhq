@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import MembersTableCell from '~/members/components/table/members_table_cell.vue';
 import { MEMBER_TYPES } from '~/members/constants';
@@ -96,11 +97,6 @@ describe('MembersTableCell', () => {
       member: { ...inheritedMember, ...member },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   it.each`
     member           | expectedMemberType

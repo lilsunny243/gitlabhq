@@ -2,10 +2,9 @@
 stage: Create
 group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
-# Repository mirroring **(FREE)**
+# Repository mirroring **(FREE ALL)**
 
 You can _mirror_ a repository to and from external sources. You can select which repository
 serves as the source. Branches, tags, and commits are synced automatically.
@@ -35,15 +34,16 @@ Mirror a repository when:
 
 ## Create a repository mirror
 
-Prerequisite:
+Prerequisites:
 
 - You must have at least the Maintainer role for the project.
 - If your mirror connects with `ssh://`, the host key must be detectable on the server,
   or you must have a local copy of the key.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
+1. Select **Add new**.
 1. Enter a **Git repository URL**. For security reasons, the URL to the original
    repository is only displayed to users with the Maintainer role
    or the Owner role for the mirrored project.
@@ -60,12 +60,31 @@ Prerequisite:
 1. If you authenticate with SSH host keys, [verify the host key](#verify-a-host-key)
    to ensure it is correct.
 1. To prevent force-pushing over diverged refs, select [**Keep divergent refs**](push.md#keep-divergent-refs).
-1. Optional. Select [**Mirror only protected branches**](#mirror-only-protected-branches).
+1. Optional. To limit the number of branches mirrored, select
+   **Mirror only protected branches** or enter a regex in **Mirror specific branches**.
 1. Select **Mirror repository**.
 
 If you select `SSH public key` as your authentication method, GitLab generates a
 public key for your GitLab repository. You must provide this key to the non-GitLab server.
 For more information, see [Get your SSH public key](#get-your-ssh-public-key).
+
+### Mirror only protected branches
+
+You can choose to mirror only the
+[protected branches](../../protected_branches.md) in the mirroring project,
+either from or to your remote repository. For [pull mirroring](pull.md),
+non-protected branches in the mirroring project are not mirrored and can diverge.
+
+To use this option, select **Only mirror protected branches** when you create a repository mirror.
+
+### Mirror specific branches **(PREMIUM ALL)**
+
+> - Mirroring branches matching a regex [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/102608) in GitLab 15.8 [with a flag](../../../../administration/feature_flags.md) named `mirror_only_branches_match_regex`. Disabled by default.
+> - [Enabled by default](https://gitlab.com/gitlab-org/gitlab/-/issues/381667) in GitLab 16.0.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/410354) in GitLab 16.2. Feature flag `mirror_only_branches_match_regex` removed.
+To mirror only branches with names matching an [re2 regular expression](https://github.com/google/re2/wiki/Syntax),
+enter a regular expression into the **Mirror specific branches** field. Branches with names that
+do not match the regular expression are not mirrored.
 
 ## Update a mirror
 
@@ -76,6 +95,9 @@ You can also manually trigger an update:
 - At most once every five minutes on GitLab.com.
 - According to [the pull mirroring interval limit](../../../../administration/instance_limits.md#pull-mirroring-interval)
   set by the administrator on self-managed instances.
+
+NOTE:
+[GitLab Silent Mode](../../../../administration/silent_mode/index.md) disables both push and pull updates.
 
 ### Force an update
 
@@ -89,35 +111,12 @@ Prerequisite:
 
 - You must have at least the Maintainer role for the project.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Scroll to **Mirrored repositories** and identify the mirror to update.
 1. Select **Update now** (**{retry}**):
    ![Repository mirroring force update user interface](img/repository_mirroring_force_update.png)
-
-## Mirror only protected branches
-
-You can choose to mirror only the
-[protected branches](../../protected_branches.md) in the mirroring project,
-either from or to your remote repository. For [pull mirroring](pull.md),
-non-protected branches in the mirroring project are not mirrored and can diverge.
-
-To use this option, select **Only mirror protected branches** when you create a repository mirror.
-
-## Mirror specific branches
-
-> Mirroring branches matching a regex [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/102608) in GitLab 15.8 [with a flag](../../../../administration/feature_flags.md) named `mirror_only_branches_match_regex`. Disabled by default.
-
-FLAG:
-On self-managed GitLab, by default the field `mirror_branch_regex` is not available.
-To make it available, ask an administrator to [enable the feature flag](../../../../administration/feature_flags.md)
-named `mirror_only_branches_match_regex`.
-On GitLab.com, this feature is not available.
-
-To mirror only branches with names matching an [re2 regular expression](https://github.com/google/re2/wiki/Syntax),
-enter a regular expression into the **Mirror specific branches** field. Branches with names that
-do not match the regular expression are not mirrored.
 
 ## Authentication methods for mirrors
 
@@ -125,9 +124,8 @@ When you create a mirror, you must configure the authentication method for it.
 GitLab supports these authentication methods:
 
 - [SSH authentication](#ssh-authentication).
-- Password.
+- Username and password.
 
-When using password authentication, ensure you specify the username.
 For a [project access token](../../settings/project_access_tokens.md) or
 [group access token](../../../group/settings/group_access_tokens.md),
 use the username (not token name) and the token as the password.
@@ -155,8 +153,8 @@ When you mirror a repository and select the **SSH public key** as your
 authentication method, GitLab generates a public key for you. The non-GitLab server
 needs this key to establish trust with your GitLab repository. To copy your SSH public key:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Scroll to **Mirrored repositories**.
 1. Identify the correct repository, and select **Copy SSH public key** (**{copy-to-clipboard}**).
@@ -183,6 +181,7 @@ for you to check:
 
 - [AWS CodeCommit](https://docs.aws.amazon.com/codecommit/latest/userguide/regions.html#regions-fingerprints)
 - [Bitbucket](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/)
+- [Codeberg](https://docs.codeberg.org/security/ssh-fingerprint/)
 - [GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
 - [GitLab.com](../../../gitlab_com/index.md#ssh-host-keys-fingerprints)
 - [Launchpad](https://help.launchpad.net/SSHFingerprints)
@@ -206,165 +205,7 @@ Older versions of SSH may require you to remove `-E md5` from the command.
 
 ## Related topics
 
+- [Troubleshooting](troubleshooting.md) for repository mirroring.
 - Configure a [Pull Mirroring Interval](../../../../administration/instance_limits.md#pull-mirroring-interval)
-- [Disable mirrors for a project](../../../admin_area/settings/visibility_and_access_controls.md#enable-project-mirroring)
-- [Secrets file and mirroring](../../../../raketasks/backup_restore.md#when-the-secrets-file-is-lost)
-
-## Troubleshooting
-
-Should an error occur during a push, GitLab displays an **Error** highlight for that repository. Details on the error can then be seen by hovering over the highlight text.
-
-### Received RST_STREAM with error code 2 with GitHub
-
-If you receive this message while mirroring to a GitHub repository:
-
-```plaintext
-13:Received RST_STREAM with error code 2
-```
-
-Your GitHub settings might be set to block pushes that expose your email address
-used in commits. To fix this problem, either:
-
-- Set your GitHub email address to public.
-- Disable the [Block command line pushes that expose my email](https://github.com/settings/emails) setting.
-
-### Deadline Exceeded
-
-When upgrading GitLab, a change in how usernames are represented means that you
-must update your mirroring username and password to ensure that `%40` characters are replaced with `@`.
-
-### Connection blocked because server only allows public key authentication
-
-The connection between GitLab and the remote repository is blocked. Even if a
-[TCP Check](../../../../administration/raketasks/maintenance.md#check-tcp-connectivity-to-a-remote-site)
-is successful, you must check any networking components in the route from GitLab
-to the remote server for blockage.
-
-This error can occur when a firewall performs a `Deep SSH Inspection` on outgoing packets.
-
-### Could not read username: terminal prompts disabled
-
-If you receive this error after creating a new project using
-[GitLab CI/CD for external repositories](../../../../ci/ci_cd_for_external_repos/index.md):
-
-- In Bitbucket Cloud:
-
-  ```plaintext
-  "2:fetch remote: "fatal: could not read Username for 'https://bitbucket.org':
-  terminal prompts disabled\n": exit status 128."
-  ```
-
-- In Bitbucket Server (self-managed):
-
-  ```plaintext
-  "2:fetch remote: "fatal: could not read Username for 'https://lab.example.com':
-  terminal prompts disabled\n": exit status 128.
-  ```
-
-Check if the repository owner is specified in the URL of your mirrored repository:
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
-1. Expand **Mirroring repositories**.
-1. If no repository owner is specified, delete and add the URL again in this format,
-   replacing `OWNER`, `ACCOUNTNAME`, `PATH_TO_REPO`, and `REPONAME` with your values:
-
-   - In Bitbucket Cloud:
-
-     ```plaintext
-     https://OWNER@bitbucket.org/ACCOUNTNAME/REPONAME.git
-     ```
-
-   - In Bitbucket Server (self-managed):
-
-     ```plaintext
-     https://OWNER@lab.example.com/PATH_TO_REPO/REPONAME.git
-     ```
-
-When connecting to the Cloud or self-managed Bitbucket repository for mirroring, the repository owner is required in the string.
-
-### Pull mirror is missing LFS files
-
-In some cases, pull mirroring does not transfer LFS files. This issue occurs when:
-
-- You use an SSH repository URL. The workaround is to use an HTTPS repository URL instead.
-  An issue exists [to fix this problem for SSH URLs](https://gitlab.com/gitlab-org/gitlab/-/issues/11997).
-- You're using GitLab 14.0 or older, and the source repository is a public Bitbucket URL.
-  [Fixed](https://gitlab.com/gitlab-org/gitlab/-/issues/335123) in GitLab 14.0.6.
-- You mirror an external repository using object storage.
-  An issue exists [to fix this problem](https://gitlab.com/gitlab-org/gitlab/-/issues/335495).
-
-### `The repository is being updated`, but neither fails nor succeeds visibly
-
-In rare cases, mirroring slots on Redis can become exhausted,
-possibly because Sidekiq workers are reaped due to out-of-memory (OoM) events.
-When this occurs, mirroring jobs start and complete quickly, but they neither
-fail nor succeed. They also do not leave a clear log. To check for this problem:
-
-1. Enter the [Rails console](../../../../administration/operations/rails_console.md)
-   and check Redis' mirroring capacity:
-
-   ```ruby
-   current = Gitlab::Redis::SharedState.with { |redis| redis.scard('MIRROR_PULL_CAPACITY') }.to_i
-   maximum = Gitlab::CurrentSettings.mirror_max_capacity
-   available = maximum - current
-   ```
-
-1. If the mirroring capacity is `0` or very low, you can drain all stuck jobs with:
-
-   ```ruby
-   Gitlab::Redis::SharedState.with { |redis| redis.smembers('MIRROR_PULL_CAPACITY') }.each do |pid|
-     Gitlab::Redis::SharedState.with { |redis| redis.srem('MIRROR_PULL_CAPACITY', pid) }
-   end
-   ```
-
-1. After you run the command, the [background jobs page](../../../admin_area/index.md#background-jobs)
-   should show new mirroring jobs being scheduled, especially when
-   [triggered manually](#update-a-mirror).
-
-### Invalid URL
-
-If you receive this error while setting up mirroring over [SSH](#ssh-authentication), make sure the URL is in a valid format.
-
-Mirroring does not support the short version of SSH clone URLs (`git@gitlab.com:gitlab-org/gitlab.git`)
-and requires the full version including the protocol (`ssh://git@gitlab.com/gitlab-org/gitlab.git`).
-
-Make sure that host and project path are separated using `/` instead of `:`.
-
-### Transfer mirror users and tokens to a single service account in Rails console
-
-This requires access to the [GitLab Rails console](../../../../administration/operations/rails_console.md#starting-a-rails-console-session).
-
-Use case: If you have multiple users using their own GitHub credentials to set up
-repository mirroring, mirroring breaks when people leave the company. Use this
-script to migrate disparate mirroring users and tokens into a single service account:
-
-WARNING:
-Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
-
-```ruby
-svc_user = User.find_by(username: 'ourServiceUser')
-token = 'githubAccessToken'
-
-Project.where(mirror: true).each do |project|
-  import_url = project.import_url
-
-  # The url we want is https://token@project/path.git
-  repo_url = if import_url.include?('@')
-               # Case 1: The url is something like https://23423432@project/path.git
-               import_url.split('@').last
-             elsif import_url.include?('//')
-               # Case 2: The url is something like https://project/path.git
-               import_url.split('//').last
-             end
-
-  next unless repo_url
-
-  final_url = "https://#{token}@#{repo_url}"
-
-  project.mirror_user = svc_user
-  project.import_url = final_url
-  project.username_only_import_url = final_url
-  project.save
-end
-```
+- [Disable mirrors for a project](../../../../administration/settings/visibility_and_access_controls.md#enable-project-mirroring)
+- [Secrets file and mirroring](../../../../administration/backup_restore/backup_gitlab.md#when-the-secrets-file-is-lost)

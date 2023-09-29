@@ -11,30 +11,66 @@ module Groups
       @error = nil
     end
 
+    def log_group_transfer_success(group, new_parent_group)
+      log_transfer(group, new_parent_group, nil)
+    end
+
+    def log_group_transfer_error(group, new_parent_group, error_message)
+      log_transfer(group, new_parent_group, error_message)
+    end
+
     def execute(new_parent_group)
       @new_parent_group = new_parent_group
       ensure_allowed_transfer
       proceed_to_transfer
 
+      log_group_transfer_success(@group, @new_parent_group)
+
     rescue TransferError, ActiveRecord::RecordInvalid, Gitlab::UpdatePathError => e
       @group.errors.clear
       @error = s_("TransferGroup|Transfer failed: %{error_message}") % { error_message: e.message }
+
+      log_group_transfer_error(@group, @new_parent_group, e.message)
+
       false
     end
 
     private
 
+    def log_transfer(group, new_namespace, error_message = nil)
+      action = error_message.nil? ? "was" : "was not"
+
+      log_payload = {
+        message: "Group #{action} transferred to a new namespace",
+        group_path: group.full_path,
+        group_id: group.id,
+        new_parent_group_path: new_parent_group&.full_path,
+        new_parent_group_id: new_parent_group&.id,
+        error_message: error_message
+      }
+
+      if error_message.nil?
+        ::Gitlab::AppLogger.info(log_payload)
+      else
+        ::Gitlab::AppLogger.error(log_payload)
+      end
+    end
+
     def proceed_to_transfer
       old_root_ancestor_id = @group.root_ancestor.id
       was_root_group = @group.root?
 
-      Group.transaction do
-        update_group_attributes
-        ensure_ownership
-        update_integrations
-        remove_issue_contacts(old_root_ancestor_id, was_root_group)
-        update_crm_objects(was_root_group)
-        remove_namespace_commit_emails(was_root_group)
+      Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification.temporary_ignore_tables_in_transaction(
+        %w[routes redirect_routes], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424280'
+      ) do
+        Group.transaction do
+          update_group_attributes
+          ensure_ownership
+          update_integrations
+          remove_issue_contacts(old_root_ancestor_id, was_root_group)
+          update_crm_objects(was_root_group)
+          remove_namespace_commit_emails(was_root_group)
+        end
       end
 
       post_update_hooks(@updated_project_ids, old_root_ancestor_id)
@@ -51,6 +87,7 @@ module Groups
       publish_event(old_root_ancestor_id)
     end
 
+    # Overridden in EE
     def ensure_allowed_transfer
       raise_transfer_error(:group_is_already_root) if group_is_already_root?
       raise_transfer_error(:same_parent_as_current) if same_parent?
@@ -59,7 +96,7 @@ module Groups
       raise_transfer_error(:namespace_with_same_path) if namespace_with_same_path?
       raise_transfer_error(:group_contains_images) if group_projects_contain_registry_images?
       raise_transfer_error(:cannot_transfer_to_subgroup) if transfer_to_subgroup?
-      raise_transfer_error(:group_contains_npm_packages) if group_with_npm_packages?
+      raise_transfer_error(:group_contains_namespaced_npm_packages) if group_with_namespaced_npm_packages?
       raise_transfer_error(:no_permissions_to_migrate_crm) if no_permissions_to_migrate_crm?
     end
 
@@ -68,15 +105,16 @@ module Groups
       return false if group.root_ancestor == @new_parent_group.root_ancestor
 
       return true if group.contacts.exists? && !current_user.can?(:admin_crm_contact, @new_parent_group.root_ancestor)
-      return true if group.organizations.exists? && !current_user.can?(:admin_crm_organization, @new_parent_group.root_ancestor)
+      return true if group.crm_organizations.exists? && !current_user.can?(:admin_crm_organization, @new_parent_group.root_ancestor)
 
       false
     end
 
-    def group_with_npm_packages?
+    def group_with_namespaced_npm_packages?
       return false unless group.packages_feature_enabled?
 
-      npm_packages = ::Packages::GroupPackagesFinder.new(current_user, group, package_type: :npm).execute
+      npm_packages = ::Packages::GroupPackagesFinder.new(current_user, group, package_type: :npm, preload_pipelines: false).execute
+      npm_packages = npm_packages.with_npm_scope(group.root_ancestor.path)
 
       different_root_ancestor? && npm_packages.exists?
     end
@@ -195,6 +233,11 @@ module Groups
       return if @new_parent_group
       return unless @group.owners.empty?
 
+      add_owner_on_transferred_group
+    end
+
+    # Overridden in EE
+    def add_owner_on_transferred_group
       @group.add_owner(current_user)
     end
 
@@ -208,6 +251,7 @@ module Groups
       raise TransferError, localized_error_messages[message]
     end
 
+    # Overridden in EE
     def localized_error_messages
       {
         database_not_supported: s_('TransferGroup|Database is not supported.'),
@@ -217,7 +261,7 @@ module Groups
         invalid_policies: s_("TransferGroup|You don't have enough permissions."),
         group_contains_images: s_('TransferGroup|Cannot update the path because there are projects under this group that contain Docker images in their Container Registry. Please remove the images from your projects first and try again.'),
         cannot_transfer_to_subgroup: s_('TransferGroup|Cannot transfer group to one of its subgroup.'),
-        group_contains_npm_packages: s_('TransferGroup|Group contains projects with NPM packages.'),
+        group_contains_namespaced_npm_packages: s_('TransferGroup|Group contains projects with NPM packages scoped to the current root level group.'),
         no_permissions_to_migrate_crm: s_("TransferGroup|Group contains contacts/organizations and you don't have enough permissions to move them to the new root group.")
       }.freeze
     end

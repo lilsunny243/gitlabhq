@@ -9,8 +9,9 @@ module Sidebars
           return false unless feature_enabled?
 
           add_item(kubernetes_menu_item)
-          add_item(terraform_menu_item)
+          add_item(terraform_states_menu_item)
           add_item(google_cloud_menu_item)
+          add_item(aws_menu_item)
 
           true
         end
@@ -44,7 +45,7 @@ module Sidebars
         end
 
         def kubernetes_menu_item
-          unless can?(context.current_user, :read_cluster, context.project)
+          unless can?(context.current_user, :read_cluster_agent, context.project)
             return ::Sidebars::NilMenuItem.new(item_id: :kubernetes)
           end
 
@@ -72,17 +73,37 @@ module Sidebars
                     auto_devops_help_path: help_page_path('topics/autodevops/index.md') } }
         end
 
-        def terraform_menu_item
+        def terraform_states_menu_item
           unless can?(context.current_user, :read_terraform_state, context.project)
-            return ::Sidebars::NilMenuItem.new(item_id: :terraform)
+            return ::Sidebars::NilMenuItem.new(item_id: :terraform_states)
           end
 
           ::Sidebars::MenuItem.new(
-            title: _('Terraform'),
+            title: s_('Terraform|Terraform states'),
             link: project_terraform_index_path(context.project),
             super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: :terraform },
-            item_id: :terraform
+            item_id: :terraform_states
+          )
+        end
+
+        def aws_menu_item
+          enabled_for_user = Feature.enabled?(:cloudseed_aws, context.current_user)
+          enabled_for_group = Feature.enabled?(:cloudseed_aws, context.project.group)
+          enabled_for_project = Feature.enabled?(:cloudseed_aws, context.project)
+          feature_is_enabled = enabled_for_user || enabled_for_group || enabled_for_project
+          user_has_permissions = can?(context.current_user, :admin_project_aws, context.project)
+
+          return ::Sidebars::NilMenuItem.new(item_id: :cloudseed_aws) unless feature_is_enabled && user_has_permissions
+
+          ::Sidebars::MenuItem.new(
+            title: _('AWS'),
+            link: project_aws_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            item_id: :aws,
+            active_routes: { controller: %w[
+              projects/aws/configuration
+            ] }
           )
         end
 

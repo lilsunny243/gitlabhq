@@ -41,12 +41,22 @@ RSpec.describe Gitlab::Database::AsyncConstraints::PostgresAsyncConstraintValida
       it { is_expected.to eq([failed_validation]) }
 
       it 'does not apply the filter if the column is not present' do
-        expect(described_class).to receive(:columns_hash).and_wrap_original do |method|
-          method.call.except('constraint_type')
-        end
+        expect(described_class)
+          .to receive(:constraint_type_exists?)
+          .and_return(false)
 
         is_expected.to match_array([failed_validation, new_validation])
       end
+    end
+
+    describe '.check_constraint_type' do
+      before do
+        new_validation.update!(constraint_type: :check_constraint)
+      end
+
+      subject { described_class.check_constraint_type }
+
+      it { is_expected.to eq([new_validation]) }
     end
   end
 
@@ -63,6 +73,23 @@ RSpec.describe Gitlab::Database::AsyncConstraints::PostgresAsyncConstraintValida
       end
 
       it { is_expected.to be_falsy }
+    end
+  end
+
+  describe '.constraint_type_exists?' do
+    it { expect(described_class.constraint_type_exists?).to be_truthy }
+
+    it 'always asks the database' do
+      control1 = ActiveRecord::QueryRecorder.new(skip_schema_queries: false) do
+        described_class.constraint_type_exists?
+      end
+
+      control2 = ActiveRecord::QueryRecorder.new(skip_schema_queries: false) do
+        described_class.constraint_type_exists?
+      end
+
+      expect(control1.count).to eq(1)
+      expect(control2.count).to eq(1)
     end
   end
 

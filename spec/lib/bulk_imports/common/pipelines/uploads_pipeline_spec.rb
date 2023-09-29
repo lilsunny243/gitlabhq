@@ -79,7 +79,7 @@ RSpec.describe BulkImports::Common::Pipelines::UploadsPipeline, feature_category
           .to receive(:new)
           .with(
             configuration: context.configuration,
-            relative_url: "/#{entity.pluralized_name}/test/export_relations/download?relation=uploads",
+            relative_url: "/#{entity.pluralized_name}/#{CGI.escape(entity.source_full_path)}/export_relations/download?relation=uploads",
             tmpdir: tmpdir,
             filename: 'uploads.tar.gz')
           .and_return(download_service)
@@ -105,6 +105,7 @@ RSpec.describe BulkImports::Common::Pipelines::UploadsPipeline, feature_category
         it 'returns' do
           path = File.join(tmpdir, 'test')
           FileUtils.touch(path)
+
           expect { pipeline.load(context, path) }.not_to change { portable.uploads.count }
         end
       end
@@ -118,17 +119,26 @@ RSpec.describe BulkImports::Common::Pipelines::UploadsPipeline, feature_category
       context 'when path is a symlink' do
         it 'does not upload the file' do
           symlink = File.join(tmpdir, 'symlink')
+          FileUtils.ln_s(upload_file_path, symlink)
 
-          FileUtils.ln_s(File.join(tmpdir, upload_file_path), symlink)
-
+          expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(symlink).and_call_original
           expect { pipeline.load(context, symlink) }.not_to change { portable.uploads.count }
+        end
+      end
+
+      context 'when path has multiple hard links' do
+        it 'does not upload the file' do
+          FileUtils.link(upload_file_path, File.join(tmpdir, 'hard_link'))
+
+          expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(upload_file_path).and_call_original
+          expect { pipeline.load(context, upload_file_path) }.not_to change { portable.uploads.count }
         end
       end
 
       context 'when path traverses' do
         it 'does not upload the file' do
           path_traversal = "#{uploads_dir_path}/avatar/../../../../etc/passwd"
-          expect { pipeline.load(context, path_traversal) }.to not_change { portable.uploads.count }.and raise_error(Gitlab::Utils::PathTraversalAttackError)
+          expect { pipeline.load(context, path_traversal) }.to not_change { portable.uploads.count }.and raise_error(Gitlab::PathTraversal::PathTraversalAttackError)
         end
       end
 
@@ -168,14 +178,14 @@ RSpec.describe BulkImports::Common::Pipelines::UploadsPipeline, feature_category
 
   context 'when importing to group' do
     let(:portable) { group }
-    let(:entity) { create(:bulk_import_entity, :group_entity, group: group, source_full_path: 'test', source_xid: nil) }
+    let(:entity) { create(:bulk_import_entity, :group_entity, group: group, source_xid: nil) }
 
     include_examples 'uploads import'
   end
 
   context 'when importing to project' do
     let(:portable) { project }
-    let(:entity) { create(:bulk_import_entity, :project_entity, project: project, source_full_path: 'test', source_xid: nil) }
+    let(:entity) { create(:bulk_import_entity, :project_entity, project: project, source_xid: nil) }
 
     include_examples 'uploads import'
   end

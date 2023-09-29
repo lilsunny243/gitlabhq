@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe 'Project > Settings > Packages and registries > Container registry tag expiration policy',
-feature_category: :projects do
-  let_it_be(:user) { create(:user) }
+  feature_category: :groups_and_projects do
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
   let_it_be(:project, reload: true) { create(:project, namespace: user.namespace) }
 
   let(:container_registry_enabled) { true }
@@ -32,10 +32,19 @@ feature_category: :projects do
     it 'shows available section' do
       subject
 
-      expect(find('.breadcrumbs')).to have_content('Clean up image tags')
+      expect(find('.breadcrumbs')).to have_content('Cleanup policies')
 
       section = find('[data-testid="container-expiration-policy-project-settings"]')
-      expect(section).to have_text 'Clean up image tags'
+      expect(section).to have_text 'Cleanup policies'
+    end
+
+    it 'passes axe automated accessibility testing' do
+      subject
+
+      wait_for_requests
+
+      expect(page).to be_axe_clean.within('[data-testid="container-expiration-policy-project-settings"]')
+                                  .skipping :'link-in-text-block'
     end
 
     it 'saves cleanup policy submit the form' do

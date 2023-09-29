@@ -2,7 +2,7 @@ fragment RunnerFieldsShared on CiRunner {
   id
   shortSha
   runnerType
-  active
+  paused
   accessLevel
   runUntagged
   locked
@@ -10,5 +10,5 @@ fragment RunnerFieldsShared on CiRunner {
   maximumTimeout
   tagList
   createdAt
-  status(legacyMode: null)
+  status
 }

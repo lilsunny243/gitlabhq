@@ -117,7 +117,7 @@ On average, we can say the following:
 
 From the list, it's apparent that the number of `issues` records has
 the largest impact on the performance.
-As per normal usage, we can say that the number of issue records grows
+As per typical usage, we can say that the number of issue records grows
 at a faster rate than the `namespaces` and the `projects` records.
 
 This problem affects most of our group-level features where records are listed
@@ -225,9 +225,6 @@ Gitlab::Pagination::Keyset::InOperatorOptimization::QueryBuilder.new(
   the order by column expressions is available for locating the record. In this example, the
   yielded values are `created_at` and `id` SQL expressions. Finding a record is very fast via the
   primary key, so we don't use the `created_at` value. Providing the `finder_query` lambda is optional.
-  If it's not given, the `IN` operator optimization only makes the `ORDER BY` columns available to
-  the end-user and not the full database row.
-
   If it's not given, the `IN` operator optimization only makes the `ORDER BY` columns available to
   the end-user and not the full database row.
 
@@ -433,7 +430,7 @@ construct the following table:
 For the `issue_types` query we can construct a value list without querying a table:
 
 ```ruby
-value_list = Arel::Nodes::ValuesList.new([[Issue.issue_types[:incident]],[Issue.issue_types[:test_case]]])
+value_list = Arel::Nodes::ValuesList.new([[WorkItems::Type.base_types[:incident]],[WorkItems::Type.base_types[:test_case]]])
 issue_type_values = Arel::Nodes::Grouping.new(value_list).as('issue_type_values (value)').to_sql
 
 array_scope = Group
@@ -672,7 +669,7 @@ end
 #### Ordering by `JOIN` columns
 
 Ordering records by mixed columns where one or more columns are coming from `JOIN` tables
-works with limitations. It requires extra configuration (CTE). The trick is to use a
+works with limitations. It requires extra configuration via Common Table Expression (CTE). The trick is to use a
 non-materialized CTE to act as a "fake" table which exposes all required columns.
 
 NOTE:

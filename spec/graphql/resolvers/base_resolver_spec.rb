@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Resolvers::BaseResolver do
+RSpec.describe Resolvers::BaseResolver, feature_category: :api do
   include GraphqlHelpers
 
   let(:resolver) do
@@ -112,7 +112,7 @@ RSpec.describe Resolvers::BaseResolver do
         end
 
         def resolve(foo: 1)
-          [foo * foo] # rubocop: disable Lint/BinaryOperatorWithIdenticalOperands
+          [foo * foo]
         end
       end
     end

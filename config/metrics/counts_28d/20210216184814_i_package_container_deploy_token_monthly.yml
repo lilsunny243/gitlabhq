@@ -6,7 +6,6 @@ description: A monthly count of container images published to the registry using
 product_section: ops
 product_stage: package
 product_group: package
-product_category: container registry
 value_type: number
 status: removed
 time_frame: 28d
@@ -23,3 +22,5 @@ tier:
 - premium
 - ultimate
 milestone: "<13.9"
+removed_by_url:
+milestone_removed: "<16.4"

@@ -1,7 +1,10 @@
-import { GlFormTextarea, GlModal, GlFormInput, GlToggle, GlForm } from '@gitlab/ui';
-import { shallowMount, mount } from '@vue/test-utils';
+import { GlFormTextarea, GlModal, GlFormInput, GlToggle, GlForm, GlSprintf } from '@gitlab/ui';
+import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { RENDER_ALL_SLOTS_TEMPLATE, stubComponent } from 'helpers/stub_component';
 import DeleteBlobModal from '~/repository/components/delete_blob_modal.vue';
+import { sprintf } from '~/locale';
 
 jest.mock('~/lib/utils/csrf', () => ({ token: 'mock-csrf-token' }));
 
@@ -17,6 +20,8 @@ const initialProps = {
   emptyRepo: false,
 };
 
+const { i18n } = DeleteBlobModal;
+
 describe('DeleteBlobModal', () => {
   let wrapper;
 
@@ -30,10 +35,14 @@ describe('DeleteBlobModal', () => {
         static: true,
         visible: true,
       },
+      stubs: {
+        GlSprintf,
+        GlModal: stubComponent(GlModal, { template: RENDER_ALL_SLOTS_TEMPLATE }),
+      },
     });
   };
 
-  const createComponent = createComponentFactory(shallowMount);
+  const createComponent = createComponentFactory(shallowMountExtended);
   const createFullComponent = createComponentFactory(mount);
 
   const findModal = () => wrapper.findComponent(GlModal);
@@ -49,8 +58,33 @@ describe('DeleteBlobModal', () => {
     await findCommitTextarea().vm.$emit('input', commitText);
   };
 
-  afterEach(() => {
-    wrapper.destroy();
+  describe('LFS files', () => {
+    const lfsTitleText = i18n.LFS_WARNING_TITLE;
+    const primaryLfsText = sprintf(i18n.LFS_WARNING_PRIMARY_CONTENT, {
+      branch: initialProps.targetBranch,
+    });
+
+    const secondaryLfsText = sprintf(i18n.LFS_WARNING_SECONDARY_CONTENT, {
+      linkStart: '',
+      linkEnd: '',
+    });
+
+    beforeEach(() => createComponent({ isUsingLfs: true }));
+
+    it('renders a modal containing LFS text', () => {
+      expect(findModal().props('title')).toBe(lfsTitleText);
+      expect(findModal().text()).toContain(primaryLfsText);
+      expect(findModal().text()).toContain(secondaryLfsText);
+    });
+
+    it('hides the LFS content if the continue button is clicked', async () => {
+      findModal().vm.$emit('primary', { preventDefault: jest.fn() });
+      await nextTick();
+
+      expect(findModal().props('title')).not.toBe(lfsTitleText);
+      expect(findModal().text()).not.toContain(primaryLfsText);
+      expect(findModal().text()).not.toContain(secondaryLfsText);
+    });
   });
 
   it('renders Modal component', () => {
@@ -186,13 +220,13 @@ describe('DeleteBlobModal', () => {
         await fillForm({ targetText: '', commitText: '' });
       });
 
-      it('disables submit button', async () => {
-        expect(findModal().props('actionPrimary').attributes[0]).toEqual(
+      it('disables submit button', () => {
+        expect(findModal().props('actionPrimary').attributes).toEqual(
           expect.objectContaining({ disabled: true }),
         );
       });
 
-      it('does not submit form', async () => {
+      it('does not submit form', () => {
         findModal().vm.$emit('primary', { preventDefault: () => {} });
         expect(submitSpy).not.toHaveBeenCalled();
       });
@@ -206,13 +240,13 @@ describe('DeleteBlobModal', () => {
         });
       });
 
-      it('enables submit button', async () => {
-        expect(findModal().props('actionPrimary').attributes[0]).toEqual(
+      it('enables submit button', () => {
+        expect(findModal().props('actionPrimary').attributes).toEqual(
           expect.objectContaining({ disabled: false }),
         );
       });
 
-      it('submits form', async () => {
+      it('submits form', () => {
         findModal().vm.$emit('primary', { preventDefault: () => {} });
         expect(submitSpy).toHaveBeenCalled();
       });

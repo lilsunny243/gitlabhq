@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: index, howto
 ---
 
-# GitLab CI/CD for external repositories **(PREMIUM)**
+# GitLab CI/CD for external repositories **(PREMIUM ALL)**
 
 >[Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/4642) in GitLab 10.6.
 
@@ -18,17 +18,22 @@ external repository to get the benefits of GitLab CI/CD.
 Connecting an external repository sets up [repository mirroring](../../user/project/repository/mirror/index.md)
 and creates a lightweight project with issues, merge requests, wiki, and
 snippets disabled. These features
-[can be re-enabled later](../../user/project/settings/index.md#configure-project-visibility-features-and-permissions).
+[can be re-enabled later](../../user/project/settings/index.md#configure-project-features-and-permissions).
 
 ## Connect to an external repository
 
 To connect to an external repository:
 
-1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **View all my projects**.
+1. Select **New project**.
 1. Select **Run CI/CD for external repository**.
 1. Select **GitHub** or **Repository by URL**.
 1. Complete the fields.
+
+If the **Run CI/CD for external repository** option is not available, the GitLab instance
+might not have any import sources configured. Ask an administrator for your instance to check
+the [import sources configuration](../../administration/settings/import_and_export_settings.md#configure-allowed-import-sources).
 
 ## Pipelines for external pull requests
 
@@ -98,3 +103,8 @@ references an open Pull Request, both contribute to the status of the Pull Reque
 via GitHub integration. If you want to exclusively run pipelines on external pull
 requests and not on branches you can add `except: [branches]` to the job specs.
 [Read more](https://gitlab.com/gitlab-org/gitlab/-/issues/24089#workaround).
+
+## Troubleshooting
+
+- [Pull mirroring is not triggering pipelines](../../user/project/repository/mirror/troubleshooting.md#pull-mirroring-is-not-triggering-pipelines).
+- [Fix hard failures when mirroring](../../user/project/repository/mirror/pull.md#fix-hard-failures-when-mirroring).

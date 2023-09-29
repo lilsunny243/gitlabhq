@@ -14,7 +14,7 @@ RSpec.describe 'Dashboard > Milestones', feature_category: :team_planning do
   end
 
   describe 'as logged-in user' do
-    let(:user) { create(:user) }
+    let(:user) { create(:user, :no_super_sidebar) }
     let(:group) { create(:group) }
     let(:project) { create(:project, namespace: user.namespace) }
     let!(:milestone) { create(:milestone, project: project) }
@@ -26,7 +26,7 @@ RSpec.describe 'Dashboard > Milestones', feature_category: :team_planning do
       visit dashboard_milestones_path
     end
 
-    it_behaves_like 'a dashboard page with sidebar', :dashboard_milestones_path, :milestones
+    it_behaves_like 'a "Your work" page with sidebar and breadcrumbs', :dashboard_milestones_path, :milestones
 
     it 'sees milestones' do
       expect(page).to have_current_path dashboard_milestones_path, ignore_query: true
@@ -50,7 +50,7 @@ RSpec.describe 'Dashboard > Milestones', feature_category: :team_planning do
   end
 
   describe 'with merge requests disabled' do
-    let(:user) { create(:user) }
+    let(:user) { create(:user, :no_super_sidebar) }
     let(:group) { create(:group) }
     let(:project) { create(:project, :merge_requests_disabled, namespace: user.namespace) }
     let!(:milestone) { create(:milestone, project: project) }

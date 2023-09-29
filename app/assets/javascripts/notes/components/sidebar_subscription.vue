@@ -1,8 +1,9 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapActions } from 'vuex';
 import { TYPE_EPIC, TYPE_ISSUE } from '~/issues/constants';
 import { fetchPolicies } from '~/lib/graphql';
-import { confidentialityQueries } from '~/sidebar/constants';
+import { confidentialityQueries } from '~/sidebar/queries/constants';
 import { defaultClient as gqlClient } from '~/graphql_shared/issuable_client';
 
 export default {

@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
-require_relative '../../qa'
 require 'active_support/testing/time_helpers'
+require 'factory_bot'
+
+require_relative '../../qa'
+
+# Require shared test tooling from Rails test suite
+require_relative '../../../spec/support/fast_quarantine'
 
 QA::Specs::QaDeprecationToolkitEnv.configure!
 
@@ -12,6 +17,7 @@ QA::Runtime::Browser.configure! unless QA::Runtime::Env.dry_run
 QA::Runtime::AllureReport.configure!
 QA::Runtime::Scenario.from_env(QA::Runtime::Env.runtime_scenario_attributes)
 QA::Support::KnapsackReport.configure!
+QA::Service::DockerRun::Video.configure!
 
 # Enable zero monkey patching mode before loading any other RSpec code.
 RSpec.configure(&:disable_monkey_patching!)
@@ -23,6 +29,9 @@ RSpec.configure do |config|
   config.include ActiveSupport::Testing::TimeHelpers
   config.include QA::Support::Matchers::EventuallyMatcher
   config.include QA::Support::Matchers::HaveMatcher
+  config.include FactoryBot::Syntax::Methods
+
+  FactoryBot.definition_file_paths = ['qa/factories']
 
   config.add_formatter QA::Support::Formatters::ContextFormatter
   config.add_formatter QA::Support::Formatters::QuarantineFormatter
@@ -33,11 +42,15 @@ RSpec.configure do |config|
     QA::Runtime::Logger.info("Starting test: #{Rainbow(example.full_description).bright}")
     QA::Runtime::Example.current = example
 
-    visit(QA::Runtime::Scenario.gitlab_address) if QA::Runtime::Env.remote_mobile_device_name
+    visit(QA::Runtime::Scenario.gitlab_address) if QA::Runtime::Env.mobile_layout?
 
     # Reset fabrication counters tracked in resource base
     Thread.current[:api_fabrication] = 0
     Thread.current[:browser_ui_fabrication] = 0
+  end
+
+  config.before(:suite) do
+    FactoryBot.find_definitions
   end
 
   config.after do

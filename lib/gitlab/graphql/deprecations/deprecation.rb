@@ -5,11 +5,11 @@ module Gitlab
     module Deprecations
       class Deprecation
         REASON_RENAMED = :renamed
-        REASON_ALPHA = :alpha # TODO remove support in this class
+        REASON_ALPHA = :alpha
 
         REASONS = {
           REASON_RENAMED => 'This was renamed.',
-          REASON_ALPHA => 'This feature is in Alpha. It can be changed or removed at any time.'
+          REASON_ALPHA => 'This feature is an Experiment. It can be changed or removed at any time.'
         }.freeze
 
         include ActiveModel::Validations

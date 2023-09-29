@@ -16,15 +16,6 @@ export const setApiBaseURL = (baseURL = null) => {
   axiosInstance.defaults.baseURL = baseURL;
 };
 
-export const addSubscription = async (addPath, namespace) => {
-  const jwt = await getJwt();
-
-  return axiosInstance.post(addPath, {
-    jwt,
-    namespace_path: namespace,
-  });
-};
-
 export const removeSubscription = async (removePath) => {
   const jwt = await getJwt();
 
@@ -35,9 +26,14 @@ export const removeSubscription = async (removePath) => {
   });
 };
 
-export const fetchGroups = async (groupsPath, { page, perPage, search }, accessToken = null) => {
+export const fetchGroups = async (
+  groupsPath,
+  { minAccessLevel, page, perPage, search },
+  accessToken = null,
+) => {
   return axiosInstance.get(groupsPath, {
     params: {
+      min_access_level: minAccessLevel,
       page,
       per_page: perPage,
       search,

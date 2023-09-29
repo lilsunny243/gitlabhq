@@ -2,9 +2,10 @@
 
 module Search
   class ProjectService
+    include Search::Filter
     include Gitlab::Utils::StrongMemoize
 
-    ALLOWED_SCOPES = %w(notes issues merge_requests milestones wiki_blobs commits users).freeze
+    ALLOWED_SCOPES = %w[blobs issues merge_requests wiki_blobs commits notes milestones users].freeze
 
     attr_accessor :project, :current_user, :params
 
@@ -16,13 +17,13 @@ module Search
 
     def execute
       Gitlab::ProjectSearchResults.new(current_user,
-                                       params[:search],
-                                       project: project,
-                                       repository_ref: params[:repository_ref],
-                                       order_by: params[:order_by],
-                                       sort: params[:sort],
-                                       filters: { confidential: params[:confidential], state: params[:state] }
-                                      )
+        params[:search],
+        project: project,
+        repository_ref: params[:repository_ref],
+        order_by: params[:order_by],
+        sort: params[:sort],
+        filters: filters
+      )
     end
 
     def allowed_scopes
@@ -31,7 +32,13 @@ module Search
 
     def scope
       strong_memoize(:scope) do
-        allowed_scopes.include?(params[:scope]) ? params[:scope] : 'blobs'
+        search_navigation = Search::Navigation.new(user: current_user, project: project)
+        scope = params[:scope]
+        next scope if allowed_scopes.include?(scope) && search_navigation.tab_enabled_for_project?(scope.to_sym)
+
+        allowed_scopes.find do |s|
+          search_navigation.tab_enabled_for_project?(s.to_sym)
+        end
       end
     end
   end

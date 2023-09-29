@@ -2,28 +2,63 @@
 
 require "spec_helper"
 
-RSpec.describe Projects::UpdatePagesService do
+RSpec.describe Projects::UpdatePagesService, feature_category: :pages do
   let_it_be(:project, refind: true) { create(:project, :repository) }
 
   let_it_be(:old_pipeline) { create(:ci_pipeline, project: project, sha: project.commit('HEAD').sha) }
   let_it_be(:pipeline) { create(:ci_pipeline, project: project, sha: project.commit('HEAD').sha) }
 
-  let(:build) { create(:ci_build, pipeline: pipeline, ref: 'HEAD') }
+  let(:options) { {} }
+  let(:build) { create(:ci_build, pipeline: pipeline, ref: 'HEAD', options: options) }
   let(:invalid_file) { fixture_file_upload('spec/fixtures/dk.png') }
 
   let(:file) { fixture_file_upload("spec/fixtures/pages.zip") }
+  let(:custom_root_file) { fixture_file_upload("spec/fixtures/pages_with_custom_root.zip") }
   let(:empty_file) { fixture_file_upload("spec/fixtures/pages_empty.zip") }
   let(:empty_metadata_filename) { "spec/fixtures/pages_empty.zip.meta" }
   let(:metadata_filename) { "spec/fixtures/pages.zip.meta" }
+  let(:custom_root_file_metadata) { "spec/fixtures/pages_with_custom_root.zip.meta" }
   let(:metadata) { fixture_file_upload(metadata_filename) if File.exist?(metadata_filename) }
 
-  subject { described_class.new(project, build) }
+  subject(:service) { described_class.new(project, build) }
+
+  RSpec.shared_examples 'pages size limit is' do |size_limit|
+    context "when size is below the limit" do
+      before do
+        allow(metadata).to receive(:total_size).and_return(size_limit - 1.megabyte)
+        allow(metadata).to receive(:entries).and_return([])
+      end
+
+      it 'updates pages correctly' do
+        subject.execute
+
+        deploy_status = GenericCommitStatus.last
+        expect(deploy_status.description).not_to be_present
+        expect(project.pages_metadatum).to be_deployed
+      end
+    end
+
+    context "when size is above the limit" do
+      before do
+        allow(metadata).to receive(:total_size).and_return(size_limit + 1.megabyte)
+        allow(metadata).to receive(:entries).and_return([])
+      end
+
+      it 'limits the maximum size of gitlab pages' do
+        subject.execute
+
+        deploy_status = GenericCommitStatus.last
+        expect(deploy_status.description).to match(/artifacts for pages are too large/)
+        expect(deploy_status).to be_script_failure
+      end
+    end
+  end
 
   context 'when a deploy stage already exists', :aggregate_failures do
     let!(:stage) { create(:ci_stage, name: 'deploy', pipeline: pipeline) }
 
     it 'assigns the deploy stage' do
-      expect { subject.execute }
+      expect { service.execute }
         .to change(GenericCommitStatus, :count).by(1)
         .and change(Ci::Stage.where(name: 'deploy'), :count).by(0)
 
@@ -38,7 +73,7 @@ RSpec.describe Projects::UpdatePagesService do
 
   context 'when a deploy stage does not exists' do
     it 'assigns the deploy stage' do
-      expect { subject.execute }
+      expect { service.execute }
         .to change(GenericCommitStatus, :count).by(1)
         .and change(Ci::Stage.where(name: 'deploy'), :count).by(1)
 
@@ -61,7 +96,7 @@ RSpec.describe Projects::UpdatePagesService do
       end
 
       it "doesn't delete artifacts after deploying" do
-        expect(execute).to eq(:success)
+        expect(service.execute[:status]).to eq(:success)
 
         expect(project.pages_metadatum).to be_deployed
         expect(build.artifacts?).to eq(true)
@@ -69,7 +104,7 @@ RSpec.describe Projects::UpdatePagesService do
 
       it 'succeeds' do
         expect(project.pages_deployed?).to be_falsey
-        expect(execute).to eq(:success)
+        expect(service.execute[:status]).to eq(:success)
         expect(project.pages_metadatum).to be_deployed
         expect(project.pages_deployed?).to be_truthy
       end
@@ -81,22 +116,23 @@ RSpec.describe Projects::UpdatePagesService do
           root_namespace_id: project.root_namespace.id
         }
 
-        expect { subject.execute }.to publish_event(Pages::PageDeployedEvent).with(expected_data)
+        expect { service.execute }.to publish_event(Pages::PageDeployedEvent).with(expected_data)
       end
 
       it 'creates pages_deployment and saves it in the metadata' do
         expect do
-          expect(execute).to eq(:success)
+          expect(service.execute[:status]).to eq(:success)
         end.to change { project.pages_deployments.count }.by(1)
 
         deployment = project.pages_deployments.last
 
         expect(deployment.size).to eq(file.size)
-        expect(deployment.file).to be
+        expect(deployment.file).to be_present
         expect(deployment.file_count).to eq(3)
         expect(deployment.file_sha256).to eq(artifacts_archive.file_sha256)
         expect(project.pages_metadatum.reload.pages_deployment_id).to eq(deployment.id)
         expect(deployment.ci_build_id).to eq(build.id)
+        expect(deployment.root_directory).to be_nil
       end
 
       it 'does not fail if pages_metadata is absent' do
@@ -104,7 +140,7 @@ RSpec.describe Projects::UpdatePagesService do
         project.reload
 
         expect do
-          expect(execute).to eq(:success)
+          expect(service.execute[:status]).to eq(:success)
         end.to change { project.pages_deployments.count }.by(1)
 
         expect(project.pages_metadatum.reload.pages_deployment).to eq(project.pages_deployments.last)
@@ -116,17 +152,19 @@ RSpec.describe Projects::UpdatePagesService do
 
         it 'schedules a destruction of older deployments' do
           expect(DestroyPagesDeploymentsWorker).to(
-            receive(:perform_in).with(described_class::OLD_DEPLOYMENTS_DESTRUCTION_DELAY,
-                                      project.id,
-                                      instance_of(Integer))
+            receive(:perform_in).with(
+              described_class::OLD_DEPLOYMENTS_DESTRUCTION_DELAY,
+              project.id,
+              instance_of(Integer)
+            )
           )
 
-          execute
+          service.execute
         end
 
         it 'removes older deployments', :sidekiq_inline do
           expect do
-            execute
+            service.execute
           end.not_to change { PagesDeployment.count } # it creates one and deletes one
 
           expect(PagesDeployment.find_by_id(old_deployment.id)).to be_nil
@@ -138,21 +176,59 @@ RSpec.describe Projects::UpdatePagesService do
         let(:metadata_filename) { empty_metadata_filename }
 
         it 'returns an error' do
-          expect(execute).not_to eq(:success)
+          expect(service.execute[:status]).not_to eq(:success)
 
-          expect(GenericCommitStatus.last.description).to eq("Error: The `public/` folder is missing, or not declared in `.gitlab-ci.yml`.")
+          expect(GenericCommitStatus.last.description).to eq("Error: You need to either include a `public/` folder in your artifacts, or specify which one to use for Pages using `publish` in `.gitlab-ci.yml`")
+        end
+      end
+
+      context 'when there is a custom root config' do
+        let(:file) { custom_root_file }
+        let(:metadata_filename) { custom_root_file_metadata }
+
+        context 'when the directory specified with `publish` is included in the artifacts' do
+          let(:options) { { publish: 'foo' } }
+
+          it 'creates pages_deployment and saves it in the metadata' do
+            expect(service.execute[:status]).to eq(:success)
+
+            deployment = project.pages_deployments.last
+            expect(deployment.root_directory).to eq(options[:publish])
+          end
+        end
+
+        context 'when the directory specified with `publish` is not included in the artifacts' do
+          let(:options) { { publish: 'bar' } }
+
+          it 'returns an error' do
+            expect(service.execute[:status]).not_to eq(:success)
+
+            expect(GenericCommitStatus.last.description).to eq("Error: You need to either include a `public/` folder in your artifacts, or specify which one to use for Pages using `publish` in `.gitlab-ci.yml`")
+          end
+        end
+
+        context 'when there is a folder named `public`, but `publish` specifies a different one' do
+          let(:options) { { publish: 'foo' } }
+          let(:file) { fixture_file_upload("spec/fixtures/pages.zip") }
+          let(:metadata_filename) { "spec/fixtures/pages.zip.meta" }
+
+          it 'returns an error' do
+            expect(service.execute[:status]).not_to eq(:success)
+
+            expect(GenericCommitStatus.last.description).to eq("Error: You need to either include a `public/` folder in your artifacts, or specify which one to use for Pages using `publish` in `.gitlab-ci.yml`")
+          end
         end
       end
 
       it 'limits pages size' do
         stub_application_setting(max_pages_size: 1)
-        expect(execute).not_to eq(:success)
+        expect(service.execute[:status]).not_to eq(:success)
       end
 
       it 'limits pages file count' do
         create(:plan_limits, :default_plan, pages_file_entries: 2)
 
-        expect(execute).not_to eq(:success)
+        expect(service.execute[:status]).not_to eq(:success)
 
         expect(GenericCommitStatus.last.description).to eq("pages site contains 3 file entries, while limit is set to 2")
       end
@@ -165,9 +241,11 @@ RSpec.describe Projects::UpdatePagesService do
         end
 
         it 'raises an error' do
-          expect { execute }.to raise_error(SocketError)
+          expect { service.execute }.to raise_error(SocketError)
 
           build.reload
+
+          deploy_status = GenericCommitStatus.last
           expect(deploy_status).to be_failed
           expect(project.pages_metadatum).not_to be_deployed
         end
@@ -179,9 +257,11 @@ RSpec.describe Projects::UpdatePagesService do
         end
 
         it 'does not raise an error as failed job' do
-          execute
+          service.execute
 
           build.reload
+
+          deploy_status = GenericCommitStatus.last
           expect(deploy_status).to be_failed
           expect(project.pages_metadatum).not_to be_deployed
         end
@@ -190,7 +270,7 @@ RSpec.describe Projects::UpdatePagesService do
       context 'with background jobs running', :sidekiq_inline do
         it 'succeeds' do
           expect(project.pages_deployed?).to be_falsey
-          expect(execute).to eq(:success)
+          expect(service.execute[:status]).to eq(:success)
         end
       end
 
@@ -202,41 +282,43 @@ RSpec.describe Projects::UpdatePagesService do
           end
         end
 
-        shared_examples 'successfully deploys' do
-          it 'succeeds' do
-            expect do
-              expect(execute).to eq(:success)
-            end.to change { project.pages_deployments.count }.by(1)
+        it 'creates a new pages deployment and mark it as deployed' do
+          expect do
+            expect(service.execute[:status]).to eq(:success)
+          end.to change { project.pages_deployments.count }.by(1)
 
-            deployment = project.pages_deployments.last
-            expect(deployment.ci_build_id).to eq(build.id)
-          end
+          deployment = project.pages_deployments.last
+          expect(deployment.ci_build_id).to eq(build.id)
         end
 
-        include_examples 'successfully deploys'
-
         context 'when old deployment present' do
+          let!(:old_build) { create(:ci_build, name: 'pages', pipeline: old_pipeline, ref: 'HEAD') }
+          let!(:old_deployment) { create(:pages_deployment, ci_build: old_build, project: project) }
+
           before do
-            old_build = create(:ci_build, pipeline: old_pipeline, ref: 'HEAD')
-            old_deployment = create(:pages_deployment, ci_build: old_build, project: project)
             project.update_pages_deployment!(old_deployment)
           end
 
-          include_examples 'successfully deploys'
+          it 'deactivates old deployments' do
+            expect(service.execute[:status]).to eq(:success)
+
+            expect(old_deployment.reload.deleted_at).not_to be_nil
+          end
         end
 
         context 'when newer deployment present' do
           before do
             new_pipeline = create(:ci_pipeline, project: project, sha: project.commit('HEAD').sha)
-            new_build = create(:ci_build, pipeline: new_pipeline, ref: 'HEAD')
+            new_build = create(:ci_build, name: 'pages', pipeline: new_pipeline, ref: 'HEAD')
             new_deployment = create(:pages_deployment, ci_build: new_build, project: project)
             project.update_pages_deployment!(new_deployment)
           end
 
           it 'fails with outdated reference message' do
-            expect(execute).to eq(:error)
+            expect(service.execute[:status]).to eq(:error)
             expect(project.reload.pages_metadatum).not_to be_deployed
 
+            deploy_status = GenericCommitStatus.last
             expect(deploy_status).to be_failed
             expect(deploy_status.description).to eq('build SHA is outdated for this ref')
           end
@@ -250,7 +332,7 @@ RSpec.describe Projects::UpdatePagesService do
             .and_return(file.size + 1)
         end
 
-        expect(execute).not_to eq(:success)
+        expect(service.execute[:status]).not_to eq(:success)
 
         expect(GenericCommitStatus.last.description).to eq('The uploaded artifact size does not match the expected value')
         project.pages_metadatum.reload
@@ -274,18 +356,18 @@ RSpec.describe Projects::UpdatePagesService do
 
     it 'fails with exception raised' do
       expect do
-        execute
+        service.execute
       end.to raise_error("Validation failed: File sha256 can't be blank")
     end
   end
 
   it 'fails if no artifacts' do
-    expect(execute).not_to eq(:success)
+    expect(service.execute[:status]).not_to eq(:success)
   end
 
   it 'fails for invalid archive' do
     create(:ci_job_artifact, :archive, file: invalid_file, job: build)
-    expect(execute).not_to eq(:success)
+    expect(service.execute[:status]).not_to eq(:success)
   end
 
   describe 'maximum pages artifacts size' do
@@ -322,10 +404,14 @@ RSpec.describe Projects::UpdatePagesService do
   context 'when retrying the job' do
     let(:stage) { create(:ci_stage, position: 1_000_000, name: 'deploy', pipeline: pipeline) }
     let!(:older_deploy_job) do
-      create(:generic_commit_status, :failed, pipeline: pipeline,
-                                              ref: build.ref,
-                                              ci_stage: stage,
-                                              name: 'pages:deploy')
+      create(
+        :generic_commit_status,
+        :failed,
+        pipeline: pipeline,
+        ref: build.ref,
+        ci_stage: stage,
+        name: 'pages:deploy'
+      )
     end
 
     before do
@@ -335,21 +421,13 @@ RSpec.describe Projects::UpdatePagesService do
     end
 
     it 'marks older pages:deploy jobs retried' do
-      expect(execute).to eq(:success)
+      expect(service.execute[:status]).to eq(:success)
 
       expect(older_deploy_job.reload).to be_retried
+
+      deploy_status = GenericCommitStatus.last
       expect(deploy_status.ci_stage).to eq(stage)
       expect(deploy_status.stage_idx).to eq(stage.position)
     end
-  end
-
-  private
-
-  def deploy_status
-    GenericCommitStatus.where(name: 'pages:deploy').last
-  end
-
-  def execute
-    subject.execute[:status]
   end
 end

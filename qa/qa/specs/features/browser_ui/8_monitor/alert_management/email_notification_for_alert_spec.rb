@@ -3,8 +3,8 @@
 module QA
   RSpec.describe 'Monitor', :orchestrated, :smtp, :requires_admin, product_group: :respond do
     describe 'Alert' do
-      shared_examples 'notification on new alert', :aggregate_failures do
-        it 'sends email to user' do
+      shared_examples 'notification on new alert' do
+        it 'sends email to user', :aggregate_failures do
           expect { email_subjects }.to eventually_include(alert_email_subject).within(max_duration: 60)
           expect(recipient_email_addresses).to include(user.email)
         end
@@ -12,20 +12,9 @@ module QA
 
       let!(:admin_api_client) { Runtime::API::Client.as_admin }
 
-      let!(:user) do
-        Resource::User.fabricate_via_api! do |user|
-          user.api_client = admin_api_client
-          user.hard_delete_on_api_removal = true
-        end
-      end
+      let!(:user) { create(:user, :hard_delete, api_client: admin_api_client) }
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-for-alerts'
-          project.description = 'Project for alerts'
-        end
-      end
-
+      let(:project) { create(:project, name: 'project-for-alerts', description: 'Project for alerts') }
       let(:alert_title) { Faker::Lorem.word }
       let(:mail_hog_api) { Vendor::MailHog::API.new }
       let(:alert_email_subject) { "#{project.name} | Alert: #{alert_title}" }

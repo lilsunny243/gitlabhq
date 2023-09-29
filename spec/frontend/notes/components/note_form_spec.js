@@ -1,42 +1,51 @@
-import { GlLink } from '@gitlab/ui';
-import { mount } from '@vue/test-utils';
+import { GlLink, GlFormCheckbox } from '@gitlab/ui';
 import { nextTick } from 'vue';
 import batchComments from '~/batch_comments/stores/modules/batch_comments';
-import { getDraft, updateDraft } from '~/lib/utils/autosave';
 import NoteForm from '~/notes/components/note_form.vue';
 import createStore from '~/notes/stores';
 import MarkdownField from '~/vue_shared/components/markdown/field.vue';
+import CommentFieldLayout from '~/notes/components/comment_field_layout.vue';
 import { AT_WHO_ACTIVE_CLASS } from '~/gfm_auto_complete';
+import eventHub from '~/environments/event_hub';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
+import { mockTracking } from 'helpers/tracking_helper';
 import { noteableDataMock, notesDataMock, discussionMock, note } from '../mock_data';
 
 jest.mock('~/lib/utils/autosave');
 
 describe('issue_note_form component', () => {
-  const dummyAutosaveKey = 'some-autosave-key';
-  const dummyDraft = 'dummy draft content';
-
   let store;
   let wrapper;
   let props;
+  let trackingSpy;
 
-  const createComponentWrapper = () => {
-    return mount(NoteForm, {
+  const createComponentWrapper = (propsData = {}, provide = {}) => {
+    wrapper = mountExtended(NoteForm, {
       store,
-      propsData: props,
+      propsData: {
+        ...props,
+        ...propsData,
+      },
+      provide: {
+        glFeatures: provide,
+      },
+      mocks: {
+        $apollo: {
+          queries: {
+            currentUser: {
+              loading: false,
+            },
+          },
+        },
+      },
     });
   };
 
-  const findCancelButton = () => wrapper.find('[data-testid="cancel"]');
+  const findCancelButton = () => wrapper.findByTestId('cancel');
+  const findCancelCommentButton = () => wrapper.findByTestId('cancelBatchCommentsEnabled');
+  const findMarkdownField = () => wrapper.findComponent(MarkdownField);
 
   beforeEach(() => {
-    getDraft.mockImplementation((key) => {
-      if (key === dummyAutosaveKey) {
-        return dummyDraft;
-      }
-
-      return null;
-    });
-
     store = createStore();
     store.dispatch('setNoteableData', noteableDataMock);
     store.dispatch('setNotesData', notesDataMock);
@@ -46,35 +55,42 @@ describe('issue_note_form component', () => {
       noteBody: 'Magni suscipit eius consectetur enim et ex et commodi.',
       noteId: '545',
     };
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
+    trackingSpy = mockTracking(undefined, null, jest.spyOn);
   });
 
   describe('noteHash', () => {
     beforeEach(() => {
-      wrapper = createComponentWrapper();
+      createComponentWrapper();
     });
 
     it('returns note hash string based on `noteId`', () => {
       expect(wrapper.vm.noteHash).toBe(`#note_${props.noteId}`);
     });
 
-    it('return note hash as `#` when `noteId` is empty', async () => {
-      wrapper.setProps({
-        ...props,
+    it('return note hash as `#` when `noteId` is empty', () => {
+      createComponentWrapper({
         noteId: '',
       });
-      await nextTick();
 
       expect(wrapper.vm.noteHash).toBe('#');
     });
   });
 
+  it('hides content editor switcher if feature flag content_editor_on_issues is off', () => {
+    createComponentWrapper({}, { contentEditorOnIssues: false });
+
+    expect(wrapper.text()).not.toContain('Switch to rich text editing');
+  });
+
+  it('shows content editor switcher if feature flag content_editor_on_issues is on', () => {
+    createComponentWrapper({}, { contentEditorOnIssues: true });
+
+    expect(wrapper.text()).toContain('Switch to rich text editing');
+  });
+
   describe('conflicts editing', () => {
     beforeEach(() => {
-      wrapper = createComponentWrapper();
+      createComponentWrapper();
     });
 
     it('should show conflict message if note changes outside the component', async () => {
@@ -98,15 +114,13 @@ describe('issue_note_form component', () => {
 
   describe('form', () => {
     beforeEach(() => {
-      wrapper = createComponentWrapper();
+      createComponentWrapper();
     });
 
     it('should render text area with placeholder', () => {
       const textarea = wrapper.find('textarea');
 
-      expect(textarea.attributes('placeholder')).toEqual(
-        'Write a comment or drag your files here…',
-      );
+      expect(textarea.attributes('placeholder')).toBe('Write a comment or drag your files here…');
     });
 
     it('should set data-supports-quick-actions to enable autocomplete', () => {
@@ -121,23 +135,21 @@ describe('issue_note_form component', () => {
       ${true}  | ${'Write an internal note or drag your files here…'}
     `(
       'should set correct textarea placeholder text when discussion confidentiality is $internal',
-      ({ internal, placeholder }) => {
+      async ({ internal, placeholder }) => {
         props.note = {
           ...note,
           internal,
         };
-        wrapper = createComponentWrapper();
+        createComponentWrapper();
+
+        await nextTick();
 
         expect(wrapper.find('textarea').attributes('placeholder')).toBe(placeholder);
       },
     );
 
     it('should link to markdown docs', () => {
-      const { markdownDocsPath } = notesDataMock;
-      const markdownField = wrapper.findComponent(MarkdownField);
-      const markdownFieldProps = markdownField.props();
-
-      expect(markdownFieldProps.markdownDocsPath).toBe(markdownDocsPath);
+      expect(findMarkdownField().props('markdownDocsPath')).toBe(notesDataMock.markdownDocsPath);
     });
 
     describe('keyboard events', () => {
@@ -150,12 +162,11 @@ describe('issue_note_form component', () => {
 
       describe('up', () => {
         it('should ender edit mode', () => {
-          // TODO: do not spy on vm
-          jest.spyOn(wrapper.vm, 'editMyLastNote');
+          const eventHubSpy = jest.spyOn(eventHub, '$emit');
 
           textarea.trigger('keydown.up');
 
-          expect(wrapper.vm.editMyLastNote).toHaveBeenCalled();
+          expect(eventHubSpy).not.toHaveBeenCalled();
         });
       });
 
@@ -163,17 +174,13 @@ describe('issue_note_form component', () => {
         it('should save note when cmd+enter is pressed', () => {
           textarea.trigger('keydown.enter', { metaKey: true });
 
-          const { handleFormUpdate } = wrapper.emitted();
-
-          expect(handleFormUpdate.length).toBe(1);
+          expect(wrapper.emitted('handleFormUpdate')).toHaveLength(1);
         });
 
         it('should save note when ctrl+enter is pressed', () => {
           textarea.trigger('keydown.enter', { ctrlKey: true });
 
-          const { handleFormUpdate } = wrapper.emitted();
-
-          expect(handleFormUpdate.length).toBe(1);
+          expect(wrapper.emitted('handleFormUpdate')).toHaveLength(1);
         });
 
         it('should disable textarea when ctrl+enter is pressed', async () => {
@@ -183,125 +190,107 @@ describe('issue_note_form component', () => {
 
           await nextTick();
 
-          expect(textarea.attributes('disabled')).toBe('disabled');
+          expect(textarea.attributes('disabled')).toBeDefined();
         });
       });
     });
 
     describe('actions', () => {
-      it('should be possible to cancel', async () => {
-        wrapper.setProps({
-          ...props,
-        });
-        await nextTick();
+      it('should be possible to cancel', () => {
+        createComponentWrapper();
 
-        const cancelButton = findCancelButton();
-        cancelButton.vm.$emit('click');
-        await nextTick();
+        findCancelButton().vm.$emit('click');
 
-        expect(wrapper.emitted().cancelForm).toHaveLength(1);
+        expect(wrapper.emitted('cancelForm')).toHaveLength(1);
       });
 
       it('will not cancel form if there is an active at-who-active class', async () => {
-        wrapper.setProps({
-          ...props,
-        });
-        await nextTick();
+        createComponentWrapper();
 
-        const textareaEl = wrapper.vm.$refs.textarea;
+        const textareaEl = wrapper.vm.$refs.markdownEditor.$el.querySelector('textarea');
         const cancelButton = findCancelButton();
         textareaEl.classList.add(AT_WHO_ACTIVE_CLASS);
         cancelButton.vm.$emit('click');
         await nextTick();
 
-        expect(wrapper.emitted().cancelForm).toBeUndefined();
+        expect(wrapper.emitted('cancelForm')).toBeUndefined();
       });
 
-      it('should be possible to update the note', async () => {
-        wrapper.setProps({
-          ...props,
-        });
-        await nextTick();
+      it('should be possible to update the note', () => {
+        createComponentWrapper();
 
         const textarea = wrapper.find('textarea');
         textarea.setValue('Foo');
         const saveButton = wrapper.find('.js-vue-issue-save');
         saveButton.vm.$emit('click');
 
-        expect(wrapper.vm.isSubmitting).toBe(true);
+        expect(wrapper.emitted('handleFormUpdate')).toHaveLength(1);
+      });
+
+      it('tracks event when save button is clicked', () => {
+        createComponentWrapper();
+
+        const textarea = wrapper.find('textarea');
+        textarea.setValue('Foo');
+        const saveButton = wrapper.find('.js-vue-issue-save');
+        saveButton.vm.$emit('click');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'save_markdown', {
+          label: 'markdown_editor',
+          property: 'Issue_note',
+        });
+      });
+
+      describe('when discussion is confidential', () => {
+        beforeEach(() => {
+          createComponentWrapper({
+            discussion: {
+              ...discussionMock,
+              confidential: true,
+            },
+          });
+        });
+
+        it('passes correct confidentiality to CommentFieldLayout', () => {
+          expect(wrapper.findComponent(CommentFieldLayout).props('isInternalNote')).toBe(true);
+        });
       });
     });
   });
 
-  describe('with autosaveKey', () => {
-    describe('with draft', () => {
-      beforeEach(() => {
-        Object.assign(props, {
-          noteBody: '',
-          autosaveKey: dummyAutosaveKey,
-        });
-        wrapper = createComponentWrapper();
-
-        return nextTick();
+  describe('resolve checkbox', () => {
+    it('hides resolve checkbox when discussion is not resolvable', () => {
+      createComponentWrapper({
+        discussion: {
+          ...discussionMock,
+          notes: [
+            ...discussionMock.notes.map((n) => ({
+              ...n,
+              resolvable: false,
+              current_user: { ...n.current_user, can_resolve_discussion: false },
+            })),
+          ],
+        },
       });
 
-      it('displays the draft in textarea', () => {
-        const textarea = wrapper.find('textarea');
-
-        expect(textarea.element.value).toBe(dummyDraft);
-      });
+      expect(wrapper.findComponent(GlFormCheckbox).exists()).toBe(false);
     });
 
-    describe('without draft', () => {
-      beforeEach(() => {
-        Object.assign(props, {
-          noteBody: '',
-          autosaveKey: 'some key without draft',
-        });
-        wrapper = createComponentWrapper();
-
-        return nextTick();
+    it('shows resolve checkbox when discussion is resolvable', () => {
+      createComponentWrapper({
+        discussion: {
+          ...discussionMock,
+          notes: [
+            ...discussionMock.notes.map((n) => ({
+              ...n,
+              resolvable: true,
+              current_user: { ...n.current_user, can_resolve_discussion: true },
+            })),
+          ],
+        },
       });
 
-      it('leaves the textarea empty', () => {
-        const textarea = wrapper.find('textarea');
-
-        expect(textarea.element.value).toBe('');
-      });
-    });
-
-    it('updates the draft if textarea content changes', () => {
-      Object.assign(props, {
-        noteBody: '',
-        autosaveKey: dummyAutosaveKey,
-      });
-      wrapper = createComponentWrapper();
-      const textarea = wrapper.find('textarea');
-      const dummyContent = 'some new content';
-
-      textarea.setValue(dummyContent);
-
-      expect(updateDraft).toHaveBeenCalledWith(dummyAutosaveKey, dummyContent);
-    });
-
-    it('does not save draft when ctrl+enter is pressed', () => {
-      const options = {
-        noteBody: '',
-        autosaveKey: dummyAutosaveKey,
-      };
-
-      props = { ...props, ...options };
-      wrapper = createComponentWrapper();
-
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ isSubmittingWithKeydown: true });
-
-      const textarea = wrapper.find('textarea');
-      textarea.setValue('some content');
-      textarea.trigger('keydown.enter', { metaKey: true });
-
-      expect(updateDraft).not.toHaveBeenCalled();
+      expect(wrapper.findComponent(GlFormCheckbox).exists()).toBe(true);
     });
   });
 
@@ -309,54 +298,21 @@ describe('issue_note_form component', () => {
     beforeEach(() => {
       store.registerModule('batchComments', batchComments());
 
-      wrapper = createComponentWrapper();
-      wrapper.setProps({
-        ...props,
+      createComponentWrapper({
         isDraft: true,
         noteId: '',
         discussion: { ...discussionMock, for_commit: false },
       });
     });
 
-    it('should be possible to cancel', async () => {
-      jest.spyOn(wrapper.vm, 'cancelHandler');
+    it('should be possible to cancel', () => {
+      findCancelCommentButton().vm.$emit('click');
 
-      await nextTick();
-      const cancelButton = wrapper.find('[data-testid="cancelBatchCommentsEnabled"]');
-      cancelButton.vm.$emit('click');
-
-      expect(wrapper.vm.cancelHandler).toHaveBeenCalledWith(true);
+      expect(wrapper.emitted('cancelForm')).toEqual([[true, false]]);
     });
 
-    it('shows resolve checkbox', () => {
-      expect(wrapper.find('.js-resolve-checkbox').exists()).toBe(true);
-    });
-
-    it('hides resolve checkbox', async () => {
-      wrapper.setProps({
-        isDraft: false,
-        discussion: {
-          ...discussionMock,
-          notes: [
-            ...discussionMock.notes.map((n) => ({
-              ...n,
-              resolvable: true,
-              current_user: { ...n.current_user, can_resolve_discussion: false },
-            })),
-          ],
-          for_commit: false,
-        },
-      });
-
-      await nextTick();
-
-      expect(wrapper.find('.js-resolve-checkbox').exists()).toBe(false);
-    });
-
-    it('hides actions for commits', async () => {
-      wrapper.setProps({ discussion: { for_commit: true } });
-
-      await nextTick();
+    it('hides actions for commits', () => {
+      createComponentWrapper({ discussion: { for_commit: true } });
 
       expect(wrapper.find('.note-form-actions').text()).not.toContain('Start a review');
     });
@@ -365,13 +321,14 @@ describe('issue_note_form component', () => {
       it('should start review or add to review when cmd+enter is pressed', async () => {
         const textarea = wrapper.find('textarea');
 
-        jest.spyOn(wrapper.vm, 'handleAddToReview');
-
         textarea.setValue('Foo');
         textarea.trigger('keydown.enter', { metaKey: true });
 
         await nextTick();
-        expect(wrapper.vm.handleAddToReview).toHaveBeenCalled();
+
+        expect(wrapper.emitted('handleFormUpdateAddToReview')).toStrictEqual([
+          ['Foo', false, wrapper.vm.$refs.editNoteForm, expect.any(Function)],
+        ]);
       });
     });
   });

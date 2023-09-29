@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project variables', :js, feature_category: :pipeline_composition do
+RSpec.describe 'Project variables', :js, feature_category: :secrets_management do
   let(:user)     { create(:user) }
   let(:project)  { create(:project) }
   let(:variable) { create(:ci_variable, key: 'test_key', value: 'test_value', masked: true) }
@@ -12,11 +12,24 @@ RSpec.describe 'Project variables', :js, feature_category: :pipeline_composition
     sign_in(user)
     project.add_maintainer(user)
     project.variables << variable
+
+    stub_feature_flags(ci_variable_drawer: false)
     visit page_path
     wait_for_requests
   end
 
-  it_behaves_like 'variable list'
+  context 'when ci_variables_pages FF is enabled' do
+    it_behaves_like 'variable list'
+    it_behaves_like 'variable list pagination', :ci_variable
+  end
+
+  context 'when ci_variables_pages FF is disabled' do
+    before do
+      stub_feature_flags(ci_variables_pages: false)
+    end
+
+    it_behaves_like 'variable list'
+  end
 
   it 'adds a new variable with an environment scope' do
     click_button('Add variable')
@@ -37,5 +50,15 @@ RSpec.describe 'Project variables', :js, feature_category: :pipeline_composition
     page.within('[data-testid="ci-variable-table"]') do
       expect(find('.js-ci-variable-row:first-child [data-label="Environments"]').text).to eq('review/*')
     end
+  end
+
+  context 'when ci_variable_drawer FF is enabled' do
+    before do
+      stub_feature_flags(ci_variable_drawer: true)
+      visit page_path
+      wait_for_requests
+    end
+
+    it_behaves_like 'variable list drawer'
   end
 end

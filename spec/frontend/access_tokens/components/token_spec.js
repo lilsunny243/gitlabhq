@@ -23,10 +23,6 @@ describe('Token', () => {
     wrapper = mountExtended(Token, { propsData: defaultPropsData, slots: defaultSlots });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('renders title slot', () => {
     createComponent();
 
@@ -54,6 +50,7 @@ describe('Token', () => {
       formInputGroupProps: {
         id: defaultPropsData.inputId,
       },
+      readonly: true,
       value: defaultPropsData.token,
       copyButtonTitle: defaultPropsData.copyButtonTitle,
     });

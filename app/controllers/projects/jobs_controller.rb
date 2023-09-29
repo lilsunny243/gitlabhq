@@ -8,8 +8,8 @@ class Projects::JobsController < Projects::ApplicationController
 
   urgency :low, [:index, :show, :trace, :retry, :play, :cancel, :unschedule, :erase, :raw]
 
-  before_action :find_job_as_build, except: [:index, :play, :show, :retry]
-  before_action :find_job_as_processable, only: [:play, :show, :retry]
+  before_action :find_job_as_build, except: [:index, :play, :retry, :show]
+  before_action :find_job_as_processable, only: [:play, :retry, :show]
   before_action :authorize_read_build_trace!, only: [:trace, :raw]
   before_action :authorize_read_build!
   before_action :authorize_update_build!,
@@ -21,23 +21,19 @@ class Projects::JobsController < Projects::ApplicationController
   before_action :verify_proxy_request!, only: :proxy_websocket_authorize
   before_action :push_job_log_jump_to_failures, only: [:show]
   before_action :reject_if_build_artifacts_size_refreshing!, only: [:erase]
-
+  before_action :push_ai_build_failure_cause, only: [:show]
   layout 'project'
 
   feature_category :continuous_integration
   urgency :low
 
-  def index
-    # We need all builds for tabs counters
-    @all_builds = Ci::JobsFinder.new(current_user: current_user, project: @project).execute
-
-    @scope = params[:scope]
-    @builds = Ci::JobsFinder.new(current_user: current_user, project: @project, params: params).execute
-    @builds = @builds.eager_load_everything
-    @builds = @builds.page(params[:page]).per(30).without_count
-  end
+  def index; end
 
   def show
+    if @build.instance_of?(::Ci::Bridge)
+      redirect_to project_pipeline_path(@build.downstream_pipeline.project, @build.downstream_pipeline.id)
+    end
+
     respond_to do |format|
       format.html
       format.json do
@@ -74,6 +70,8 @@ class Projects::JobsController < Projects::ApplicationController
   end
 
   def retry
+    Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/424184')
+
     response = Ci::RetryJobService.new(project, current_user).execute(@build)
 
     if response.success?
@@ -257,5 +255,9 @@ class Projects::JobsController < Projects::ApplicationController
 
   def push_job_log_jump_to_failures
     push_frontend_feature_flag(:job_log_jump_to_failures, @project)
+  end
+
+  def push_ai_build_failure_cause
+    push_frontend_feature_flag(:ai_build_failure_cause, @project)
   end
 end

@@ -1,4 +1,5 @@
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import frequentItemsListComponent from '~/frequent_items/components/frequent_items_list.vue';
@@ -29,10 +30,6 @@ describe('FrequentItemsListComponent', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('computed', () => {
     describe('isListEmpty', () => {
       it('should return `true` or `false` representing whether if `items` is empty or not with projects', async () => {
@@ -52,7 +49,7 @@ describe('FrequentItemsListComponent', () => {
     });
 
     describe('fetched item messages', () => {
-      it('should show default empty list message', async () => {
+      it('should show default empty list message', () => {
         createComponent({
           items: [],
         });

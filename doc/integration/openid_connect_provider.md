@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab as OpenID Connect identity provider **(FREE)**
+# GitLab as OpenID Connect identity provider **(FREE ALL)**
 
 This document is about using GitLab as an OpenID Connect identity provider
 to sign in to other services.
@@ -20,7 +20,7 @@ OAuth 2.0 protocol. It allows clients to:
 OIDC performs many of the same tasks as OpenID 2.0, but is API-friendly and usable by native and
 mobile applications.
 
-On the client side, you can use [OmniAuth::OpenIDConnect](https://github.com/jjbohn/omniauth-openid-connect/) for Rails
+On the client side, you can use [OmniAuth::OpenIDConnect](https://github.com/omniauth/omniauth_openid_connect) for Rails
 applications, or any of the other available [client implementations](https://openid.net/developers/libraries/#connect).
 
 The GitLab implementation uses the [doorkeeper-openid_connect](https://github.com/doorkeeper-gem/doorkeeper-openid_connect "Doorkeeper::OpenidConnect website") gem, refer
@@ -48,22 +48,22 @@ Similar URLs can be used for other GitLab instances.
 
 The following user information is shared with clients:
 
-| Claim                | Type      | Description |
-|:---------------------|:----------|:------------|
-| `sub`                | `string`  | The ID of the user |
-| `auth_time`          | `integer` | The timestamp for the user's last authentication |
-| `name`               | `string`  | The user's full name |
-| `nickname`           | `string`  | The user's GitLab username |
-| `preferred_username` | `string`  | The user's GitLab username |
-| `email`              | `string`  | The user's email address<br>This is the user's *primary* email address if the application has access to the `email` claim and the user's *public* email address otherwise |
-| `email_verified`     | `boolean` | Whether the user's email address was verified |
-| `website`            | `string`  | URL for the user's website |
-| `profile`            | `string`  | URL for the user's GitLab profile |
-| `picture`            | `string`  | URL for the user's GitLab avatar |
-| `groups`             | `array`   | Paths for the groups the user is a member of, either directly or through an ancestor group. |
-| `groups_direct`      | `array`   | Paths for the groups the user is a direct member of. |
-| `https://gitlab.org/claims/groups/owner`      | `array`   | Names of the groups the user is a direct member of with Owner role |
-| `https://gitlab.org/claims/groups/maintainer` | `array`   | Names of the groups the user is a direct member of with Maintainer role |
-| `https://gitlab.org/claims/groups/developer`  | `array`   | Names of the groups the user is a direct member of with Developer role |
+| Claim                | Type      | Description | Included in ID Token | Included in `userinfo` endpoint |
+|:---------------------|:----------|:------------|:---------------------|:------------------------------|
+| `sub`                | `string`  | The ID of the user | **{check-circle}** Yes | **{check-circle}** Yes |
+| `auth_time`          | `integer` | The timestamp for the user's last authentication | **{check-circle}** Yes | **{dotted-circle}** No |
+| `name`               | `string`  | The user's full name | **{check-circle}** Yes | **{check-circle}** Yes |
+| `nickname`           | `string`  | The user's GitLab username | **{check-circle}** Yes| **{check-circle}** Yes |
+| `preferred_username` | `string`  | The user's GitLab username | **{check-circle}** Yes | **{check-circle}** Yes |
+| `email`              | `string`  | The user's email address<br>This is the user's *primary* email address | **{check-circle}** Yes | **{check-circle}** Yes |
+| `email_verified`     | `boolean` | Whether the user's email address was verified | **{check-circle}** Yes | **{check-circle}** Yes |
+| `website`            | `string`  | URL for the user's website | **{check-circle}** Yes | **{check-circle}** Yes |
+| `profile`            | `string`  | URL for the user's GitLab profile | **{check-circle}** Yes | **{check-circle}** Yes|
+| `picture`            | `string`  | URL for the user's GitLab avatar | **{check-circle}** Yes| **{check-circle}** Yes |
+| `groups`             | `array`   | Paths for the groups the user is a member of, either directly or through an ancestor group. | **{dotted-circle}** No | **{check-circle}** Yes |
+| `groups_direct`      | `array`   | Paths for the groups the user is a direct member of. | **{check-circle}** Yes | **{dotted-circle}** No |
+| `https://gitlab.org/claims/groups/owner`      | `array`   | Names of the groups the user is a direct member of with Owner role | **{dotted-circle}** No | **{check-circle}** Yes |
+| `https://gitlab.org/claims/groups/maintainer` | `array`   | Names of the groups the user is a direct member of with Maintainer role | **{dotted-circle}** No | **{check-circle}** Yes |
+| `https://gitlab.org/claims/groups/developer`  | `array`   | Names of the groups the user is a direct member of with Developer role | **{dotted-circle}** No | **{check-circle}** Yes |
 
-The claims `sub`, `sub_legacy`, `email`, `email_verified` and `groups_direct` are included in the ID token. All other claims are available from the `/oauth/userinfo` endpoint used by OIDC clients.
+The claims `email` and `email_verified` are only added if the application has access to the `email` claim and the user's **public** email address, otherwise they are not included. All other claims are available from the `/oauth/userinfo` endpoint used by OIDC clients.

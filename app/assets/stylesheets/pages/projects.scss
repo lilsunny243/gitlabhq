@@ -65,7 +65,6 @@
     white-space: normal;
   }
 
-  .deploy-project-label,
   .key-created-at {
     svg {
       vertical-align: text-top;
@@ -83,18 +82,6 @@
 
 .deploy-project-list {
   margin-bottom: -$gl-padding-4;
-
-  a.deploy-project-label {
-    margin-right: $gl-padding-4;
-    margin-bottom: $gl-padding-4;
-    color: $gl-text-color-secondary;
-    background-color: $gray-50;
-    line-height: $gl-btn-line-height;
-
-    &:hover {
-      color: $blue-600;
-    }
-  }
 }
 
 .vs-public {
@@ -291,9 +278,9 @@
 
   .project-cell {
     @include gl-display-table-cell;
-    @include gl-border-b;
     @include gl-vertical-align-top;
     @include gl-py-4;
+    border-bottom: 1px solid $gray-50;
   }
 
   .project-row:last-of-type {
@@ -319,8 +306,6 @@
   }
 
   .project-details {
-    max-width: 625px;
-
     p,
     .commit-row-message {
       @include gl-mb-0;
@@ -493,88 +478,22 @@
   }
 }
 
-.protected-branches-list,
-.protected-tags-list {
-  margin-bottom: 32px;
-
-  .settings-message {
-    margin: 0;
-    border-radius: 0 0 1px 1px;
-    padding: 20px 0;
-    border: 0;
-  }
-
-  .table-bordered {
-    border-radius: 1px;
-
-    th:not(:last-child),
-    td:not(:last-child) {
-      border-right: solid 1px transparent;
-    }
-  }
-
-  .flash-container {
-    padding: 0;
-  }
-}
-
-.project-refs-form .dropdown-menu {
-  width: 300px;
-
-  @include media-breakpoint-up(sm) {
-    width: 500px;
-  }
-
-  a {
-    white-space: normal;
-  }
-}
-
-.compare-form-group {
-  .dropdown-menu,
-  .inline-input-group {
-    width: 100%;
-
-    @include media-breakpoint-up(sm) {
-      width: 300px;
-    }
-  }
-
-  + .compare-ellipsis {
-    width: 100%;
-    vertical-align: middle;
-    text-align: center;
-    margin-top: -20px;
-
-    @include media-breakpoint-up(sm) {
-      margin: 0 $gl-padding-8;
-      width: auto;
-    }
-  }
-
-  // Remove once gitlab/ui solution is implemented:
-  // https://gitlab.com/gitlab-org/gitlab-ui/-/issues/1157
-  // https://gitlab.com/gitlab-org/gitlab/-/issues/300405
-  .gl-search-box-by-type-input {
-    width: 100%;
-  }
-
-  // Remove once gitlab/ui solution is implemented
-  // https://gitlab.com/gitlab-org/gitlab-ui/-/issues/1158
-  // https://gitlab.com/gitlab-org/gitlab/-/issues/300405
-  .gl-dropdown-button-text {
-    @include str-truncated;
-  }
-}
-
 .compare-revision-cards {
+  @media (max-width: $breakpoint-lg) {
+    .swap-button {
+      display: none;
+    }
+  }
+
+  @media (max-width: $breakpoint-lg) {
+    .swap-button-mobile {
+      display: flex;
+    }
+  }
+
   @media (min-width: $breakpoint-lg) {
     .gl-card {
       width: calc(50% - 15px);
-    }
-
-    .compare-ellipsis {
-      width: 30px;
     }
   }
 }
@@ -651,6 +570,20 @@
       .label-hide {
         display: none;
       }
+    }
+  }
+}
+
+.projects-list-item {
+  .description {
+    max-height: $gl-spacing-scale-8;
+
+    p {
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      text-overflow: ellipsis;
+      /* stylelint-disable-next-line value-no-vendor-prefix */
+      display: -webkit-box;
     }
   }
 }

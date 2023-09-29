@@ -4,28 +4,23 @@ module QA
   RSpec.shared_context "with github import", :github, :import, :requires_admin, :orchestrated do
     include QA::Support::Data::Github
 
+    let(:import_wait_duration) { 240 }
+
     let!(:github_repo) { "#{github_username}/import-test" }
     let!(:api_client) { Runtime::API::Client.as_admin }
 
     let!(:group) do
-      Resource::Group.fabricate_via_api! do |resource|
-        resource.api_client = api_client
-        resource.path = "destination-group-for-import-#{SecureRandom.hex(4)}"
-      end
+      create(:group, api_client: api_client, path: "destination-group-for-import-#{SecureRandom.hex(4)}")
     end
 
-    let!(:user) do
-      Resource::User.fabricate_via_api! do |resource|
-        resource.api_client = api_client
-        resource.hard_delete_on_api_removal = true
-      end
-    end
+    let!(:user) { create(:user, :hard_delete, api_client: api_client) }
 
     let!(:user_api_client) { Runtime::API::Client.new(user: user) }
 
     let(:imported_project) do
       Resource::ProjectImportedFromGithub.fabricate_via_api! do |project|
         project.name = 'imported-project'
+        project.github_repo_id = '466994992'
         project.group = group
         project.github_personal_access_token = Runtime::Env.github_access_token
         project.github_repository_path = github_repo
@@ -45,18 +40,22 @@ module QA
       )
     end
 
-    let(:mocks_path) { File.join(Runtime::Path.fixtures_path, "mocks", "import") }
+    let(:mocks_path) { Runtime::Path.fixture("mocks", "import") }
 
     before do
       set_mocks
       group.add_member(user, Resource::Members::AccessLevel::MAINTAINER)
     end
 
+    after do
+      verify_mocks
+    end
+
     def expect_project_import_finished_successfully
       imported_project.reload! # import the project
 
       status = nil
-      Support::Retrier.retry_until(max_duration: 240, sleep_interval: 1, raise_on_failure: false) do
+      Support::Retrier.retry_until(max_duration: import_wait_duration, sleep_interval: 1, raise_on_failure: false) do
         status = imported_project.project_import_status[:import_status]
         %w[finished failed].include?(status)
       end
@@ -73,6 +72,18 @@ module QA
 
       smocker.reset
       smocker.register(File.read(File.join(mocks_path, "github.yml")))
+    end
+
+    # Verify mock session
+    #
+    # @return [void]
+    def verify_mocks
+      return Runtime::Logger.warn("Mock host is not set, skipping verify step") unless smocker_host
+
+      verify_response = smocker.verify
+      return if verify_response.success?
+
+      raise "Mock failures detected:\n#{JSON.pretty_generate(verify_response.failures)}"
     end
   end
 end

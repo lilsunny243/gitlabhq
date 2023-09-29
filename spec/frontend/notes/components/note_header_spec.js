@@ -1,4 +1,5 @@
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import NoteHeader from '~/notes/components/note_header.vue';
@@ -19,7 +20,10 @@ describe('NoteHeader component', () => {
   const findTimestampLink = () => wrapper.findComponent({ ref: 'noteTimestampLink' });
   const findTimestamp = () => wrapper.findComponent({ ref: 'noteTimestamp' });
   const findInternalNoteIndicator = () => wrapper.findByTestId('internal-note-indicator');
+  const findAuthorName = () => wrapper.findByTestId('author-name');
   const findSpinner = () => wrapper.findComponent({ ref: 'spinner' });
+  const authorUsernameLink = () => wrapper.findComponent({ ref: 'authorUsernameLink' });
+  const findAuthorNameLink = () => wrapper.findComponent({ ref: 'authorNameLink' });
 
   const statusHtml =
     '"<span class="user-status-emoji has-tooltip" title="foo bar" data-html="true" data-placement="top"><gl-emoji title="basketball and hoop" data-name="basketball" data-unicode-version="6.0">🏀</gl-emoji></span>"';
@@ -35,6 +39,17 @@ describe('NoteHeader component', () => {
     status_tooltip_html: statusHtml,
   };
 
+  const supportBotAuthor = {
+    avatar_url: null,
+    id: 1,
+    name: 'Gitlab Support Bot',
+    path: '/support-bot',
+    state: 'active',
+    username: 'support-bot',
+    show_status: true,
+    status_tooltip_html: statusHtml,
+  };
+
   const createComponent = (props) => {
     wrapper = shallowMountExtended(NoteHeader, {
       store: new Vuex.Store({
@@ -43,11 +58,6 @@ describe('NoteHeader component', () => {
       propsData: { ...props },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   it('does not render discussion actions when includeToggle is false', () => {
     createComponent({
@@ -119,6 +129,16 @@ describe('NoteHeader component', () => {
     expect(wrapper.text()).toContain('A deleted user');
   });
 
+  it('renders participant email when author is a support-bot', () => {
+    createComponent({
+      author: supportBotAuthor,
+      emailParticipant: 'email@example.com',
+    });
+
+    expect(findAuthorName().text()).toBe('email@example.com');
+    expect(authorUsernameLink().exists()).toBe(false);
+  });
+
   it('does not render created at information if createdAt is not passed as a prop', () => {
     createComponent();
 
@@ -187,7 +207,7 @@ describe('NoteHeader component', () => {
     it('proxies `mouseenter` event to author name link', () => {
       createComponent({ author });
 
-      const dispatchEvent = jest.spyOn(wrapper.vm.$refs.authorNameLink, 'dispatchEvent');
+      const dispatchEvent = jest.spyOn(findAuthorNameLink().element, 'dispatchEvent');
 
       wrapper.findComponent({ ref: 'authorUsernameLink' }).trigger('mouseenter');
 
@@ -197,7 +217,7 @@ describe('NoteHeader component', () => {
     it('proxies `mouseleave` event to author name link', () => {
       createComponent({ author });
 
-      const dispatchEvent = jest.spyOn(wrapper.vm.$refs.authorNameLink, 'dispatchEvent');
+      const dispatchEvent = jest.spyOn(findAuthorNameLink().element, 'dispatchEvent');
 
       wrapper.findComponent({ ref: 'authorUsernameLink' }).trigger('mouseleave');
 
@@ -209,16 +229,15 @@ describe('NoteHeader component', () => {
     it('toggles hover specific CSS classes on author name link', async () => {
       createComponent({ author });
 
-      const authorUsernameLink = wrapper.findComponent({ ref: 'authorUsernameLink' });
       const authorNameLink = wrapper.findComponent({ ref: 'authorNameLink' });
 
-      authorUsernameLink.trigger('mouseenter');
+      authorUsernameLink().trigger('mouseenter');
 
       await nextTick();
       expect(authorNameLink.classes()).toContain('hover');
       expect(authorNameLink.classes()).toContain('text-underline');
 
-      authorUsernameLink.trigger('mouseleave');
+      authorUsernameLink().trigger('mouseleave');
 
       await nextTick();
       expect(authorNameLink.classes()).not.toContain('hover');

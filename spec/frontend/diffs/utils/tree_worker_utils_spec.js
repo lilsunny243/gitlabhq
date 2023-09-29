@@ -75,8 +75,14 @@ describe('~/diffs/utils/tree_worker_utils', () => {
             {
               addedLines: 0,
               changed: true,
+              diffLoaded: false,
+              diffLoading: false,
               deleted: false,
               fileHash: 'test',
+              filePaths: {
+                new: 'app/index.js',
+                old: undefined,
+              },
               key: 'app/index.js',
               name: 'index.js',
               parentPath: 'app/',
@@ -97,8 +103,14 @@ describe('~/diffs/utils/tree_worker_utils', () => {
                 {
                   addedLines: 0,
                   changed: true,
+                  diffLoaded: false,
+                  diffLoading: false,
                   deleted: false,
                   fileHash: 'test',
+                  filePaths: {
+                    new: 'app/test/index.js',
+                    old: undefined,
+                  },
                   key: 'app/test/index.js',
                   name: 'index.js',
                   parentPath: 'app/test/',
@@ -112,8 +124,14 @@ describe('~/diffs/utils/tree_worker_utils', () => {
                 {
                   addedLines: 0,
                   changed: true,
+                  diffLoaded: false,
+                  diffLoading: false,
                   deleted: false,
                   fileHash: 'test',
+                  filePaths: {
+                    new: 'app/test/filepathneedstruncating.js',
+                    old: undefined,
+                  },
                   key: 'app/test/filepathneedstruncating.js',
                   name: 'filepathneedstruncating.js',
                   parentPath: 'app/test/',
@@ -138,8 +156,14 @@ describe('~/diffs/utils/tree_worker_utils', () => {
             {
               addedLines: 42,
               changed: true,
+              diffLoaded: false,
+              diffLoading: false,
               deleted: false,
               fileHash: 'test',
+              filePaths: {
+                new: 'constructor/test/aFile.js',
+                old: undefined,
+              },
               key: 'constructor/test/aFile.js',
               name: 'aFile.js',
               parentPath: 'constructor/test/',
@@ -160,10 +184,16 @@ describe('~/diffs/utils/tree_worker_utils', () => {
           name: 'submodule @ abcdef123',
           type: 'blob',
           changed: true,
+          diffLoaded: false,
+          diffLoading: false,
           tempFile: true,
           submodule: true,
           deleted: false,
           fileHash: 'test',
+          filePaths: {
+            new: 'submodule @ abcdef123',
+            old: undefined,
+          },
           addedLines: 1,
           removedLines: 0,
           tree: [],
@@ -175,10 +205,16 @@ describe('~/diffs/utils/tree_worker_utils', () => {
           name: 'package.json',
           type: 'blob',
           changed: true,
+          diffLoaded: false,
+          diffLoading: false,
           tempFile: false,
           submodule: undefined,
           deleted: true,
           fileHash: 'test',
+          filePaths: {
+            new: 'package.json',
+            old: undefined,
+          },
           addedLines: 0,
           removedLines: 0,
           tree: [],
@@ -346,7 +382,7 @@ describe('~/diffs/utils/tree_worker_utils', () => {
         },
         {
           type: 'tree',
-          name: 'ee/lib/…/…/…/longtreenametomakepath',
+          name: 'ee/lib/ee/gitlab/checks/longtreenametomakepath',
           tree: [
             {
               name: 'diff_check.rb',

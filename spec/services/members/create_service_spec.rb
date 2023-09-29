@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_cache, :clean_gitlab_redis_shared_state, :sidekiq_inline do
+RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_cache, :clean_gitlab_redis_shared_state, :sidekiq_inline,
+  feature_category: :groups_and_projects do
   let_it_be(:source, reload: true) { create(:project) }
   let_it_be(:user) { create(:user) }
   let_it_be(:member) { create(:user) }
@@ -120,7 +121,12 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
         source.group.add_developer(member)
       end
 
-      it 'triggers the members added event' do
+      it 'triggers the members added and authorizations changed events' do
+        expect(Gitlab::EventStore)
+          .to receive(:publish)
+                .with(an_instance_of(ProjectAuthorizations::AuthorizationsChangedEvent))
+                .and_call_original
+
         expect(Gitlab::EventStore)
           .to receive(:publish)
           .with(an_instance_of(Members::MembersAddedEvent))

@@ -1,10 +1,17 @@
 <script>
-import { GlIcon, GlTooltipDirective, GlOutsideDirective as Outside } from '@gitlab/ui';
+import {
+  GlIcon,
+  GlLoadingIcon,
+  GlDisclosureDropdownItem,
+  GlTooltipDirective,
+  GlOutsideDirective as Outside,
+} from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions } from 'vuex';
 import { TYPE_ISSUE } from '~/issues/constants';
 import { __, sprintf } from '~/locale';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import toast from '~/vue_shared/plugins/global_toast';
 import eventHub from '../../event_hub';
 import EditForm from './edit_form.vue';
@@ -13,18 +20,18 @@ export default {
   locked: {
     icon: 'lock',
     class: 'value',
-    iconClass: 'is-active',
     displayText: __('Locked'),
   },
   unlocked: {
     class: ['no-value hide-collapsed'],
     icon: 'lock-open',
-    iconClass: '',
     displayText: __('Unlocked'),
   },
   components: {
     EditForm,
     GlIcon,
+    GlLoadingIcon,
+    GlDisclosureDropdownItem,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -38,19 +45,39 @@ export default {
       type: Boolean,
     },
   },
+  i18n: {
+    issue: __('issue'),
+    issueCapitalized: __('Issue'),
+    mergeRequest: __('merge request'),
+    mergeRequestCapitalized: __('Merge request'),
+    lockingMergeRequest: __('Locking %{issuableDisplayName}'),
+    unlockingMergeRequest: __('Unlocking %{issuableDisplayName}'),
+    lockMergeRequest: __('Lock %{issuableDisplayName}'),
+    unlockMergeRequest: __('Unlock %{issuableDisplayName}'),
+    lockedMessage: __('%{issuableDisplayName} locked.'),
+    unlockedMessage: __('%{issuableDisplayName} unlocked.'),
+  },
   data() {
     return {
+      isLoading: false,
       isLockDialogOpen: false,
     };
   },
   computed: {
     ...mapGetters(['getNoteableData']),
-    isMergeRequest() {
-      return this.getNoteableData.targetType === 'merge_request' && this.glFeatures.movedMrSidebar;
+    isMovedMrSidebar() {
+      return this.glFeatures.movedMrSidebar;
+    },
+    isIssuable() {
+      return this.getNoteableData.targetType === TYPE_ISSUE;
     },
     issuableDisplayName() {
-      const isInIssuePage = this.getNoteableData.targetType === TYPE_ISSUE;
-      return isInIssuePage ? __('issue') : __('merge request');
+      return this.isIssuable ? this.$options.i18n.issue : this.$options.i18n.mergeRequest;
+    },
+    issuableDisplayNameCapitalized() {
+      return this.isIssuable
+        ? this.$options.i18n.issueCapitalized
+        : this.$options.i18n.mergeRequestCapitalized;
     },
     isLocked() {
       return this.getNoteableData.discussion_locked;
@@ -58,9 +85,41 @@ export default {
     lockStatus() {
       return this.isLocked ? this.$options.locked : this.$options.unlocked;
     },
-
-    tooltipLabel() {
-      return this.isLocked ? __('Locked') : __('Unlocked');
+    lockToggleInProgressText() {
+      return this.isLocked ? this.unlockingMergeRequestText : this.lockingMergeRequestText;
+    },
+    lockToggleText() {
+      return this.isLocked ? this.unlockMergeRequestText : this.lockMergeRequestText;
+    },
+    lockingMergeRequestText() {
+      return sprintf(this.$options.i18n.lockingMergeRequest, {
+        issuableDisplayName: this.issuableDisplayName,
+      });
+    },
+    unlockingMergeRequestText() {
+      return sprintf(this.$options.i18n.unlockingMergeRequest, {
+        issuableDisplayName: this.issuableDisplayName,
+      });
+    },
+    lockMergeRequestText() {
+      return sprintf(this.$options.i18n.lockMergeRequest, {
+        issuableDisplayName: this.issuableDisplayName,
+      });
+    },
+    unlockMergeRequestText() {
+      return sprintf(this.$options.i18n.unlockMergeRequest, {
+        issuableDisplayName: this.issuableDisplayName,
+      });
+    },
+    lockedMessageText() {
+      return sprintf(this.$options.i18n.lockedMessage, {
+        issuableDisplayName: this.issuableDisplayNameCapitalized,
+      });
+    },
+    unlockedMessageText() {
+      return sprintf(this.$options.i18n.unlockedMessage, {
+        issuableDisplayName: this.issuableDisplayNameCapitalized,
+      });
     },
   },
 
@@ -87,16 +146,16 @@ export default {
         fullPath: this.fullPath,
       })
         .then(() => {
-          if (this.isMergeRequest) {
-            toast(this.isLocked ? __('Merge request locked.') : __('Merge request unlocked.'));
+          if (this.isMovedMrSidebar) {
+            toast(this.isLocked ? this.lockedMessageText : this.unlockedMessageText);
           }
         })
         .catch(() => {
-          const flashMessage = __(
+          const alertMessage = __(
             'Something went wrong trying to change the locked state of this %{issuableDisplayName}',
           );
           createAlert({
-            message: sprintf(flashMessage, { issuableDisplayName: this.issuableDisplayName }),
+            message: sprintf(alertMessage, { issuableDisplayName: this.issuableDisplayName }),
           });
         })
         .finally(() => {
@@ -111,21 +170,38 @@ export default {
 </script>
 
 <template>
-  <li v-if="isMergeRequest" class="gl-dropdown-item">
-    <button type="button" class="dropdown-item" @click="toggleLocked">
+  <li v-if="isMovedMrSidebar && isIssuable" class="gl-dropdown-item">
+    <button type="button" class="dropdown-item" data-testid="issuable-lock" @click="toggleLocked">
       <span class="gl-dropdown-item-text-wrapper">
-        <template v-if="isLocked">
-          {{ __('Unlock merge request') }}
+        <template v-if="isLoading">
+          <gl-loading-icon inline size="sm" /> {{ lockToggleInProgressText }}
         </template>
         <template v-else>
-          {{ __('Lock merge request') }}
+          {{ lockToggleText }}
         </template>
       </span>
     </button>
   </li>
+  <gl-disclosure-dropdown-item v-else-if="isMovedMrSidebar">
+    <button
+      type="button"
+      class="gl-new-dropdown-item-content"
+      data-testid="issuable-lock"
+      @click="toggleLocked"
+    >
+      <span class="gl-new-dropdown-item-text-wrapper">
+        <template v-if="isLoading">
+          <gl-loading-icon inline size="sm" /> {{ lockToggleInProgressText }}
+        </template>
+        <template v-else>
+          {{ lockToggleText }}
+        </template>
+      </span>
+    </button>
+  </gl-disclosure-dropdown-item>
   <div v-else class="block issuable-sidebar-item lock">
     <div
-      v-gl-tooltip.left.viewport="{ title: tooltipLabel }"
+      v-gl-tooltip.left.viewport="{ title: lockStatus.displayText }"
       class="sidebar-collapsed-icon"
       data-testid="sidebar-collapse-icon"
       @click="toggleForm"
@@ -134,7 +210,7 @@ export default {
     </div>
 
     <div class="hide-collapsed gl-line-height-20 gl-mb-2 gl-text-gray-900 gl-font-weight-bold">
-      {{ sprintf(__('Lock %{issuableDisplayName}'), { issuableDisplayName: issuableDisplayName }) }}
+      {{ lockMergeRequestText }}
       <a
         v-if="isEditable"
         class="float-right lock-edit btn gl-text-gray-900! gl-ml-auto hide-collapsed btn-default btn-sm gl-button btn-default-tertiary gl-mr-n2"

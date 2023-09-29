@@ -13,7 +13,7 @@ RSpec.describe Gitlab::Ci::Tags::BulkInsert do
   subject(:service) { described_class.new(statuses) }
 
   describe 'gem version' do
-    let(:acceptable_version) { '9.0.0' }
+    let(:acceptable_version) { '9.0.1' }
 
     let(:error_message) do
       <<~MESSAGE
@@ -31,7 +31,7 @@ RSpec.describe Gitlab::Ci::Tags::BulkInsert do
     let(:inserter) { instance_double(described_class) }
 
     it 'delegates to bulk insert class' do
-      expect(Gitlab::Ci::Tags::BulkInsert)
+      expect(described_class)
         .to receive(:new)
         .with(statuses)
         .and_return(inserter)

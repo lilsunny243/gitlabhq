@@ -240,7 +240,7 @@ module Gitlab
         yield.merge(key => Time.current)
       end
 
-      # @param event_name [String] the event name
+      # @param event_name [String, Symbol] the event name
       # @param values [Array|String] the values counted
       def track_usage_event(event_name, values)
         Gitlab::UsageDataCounters::HLLRedisCounter.track_event(event_name.to_s, values: values)
@@ -254,33 +254,6 @@ module Gitlab
           model.maximum(column_to_read)
         end
       end
-
-      # rubocop: disable UsageData/LargeTable:
-      def jira_integration_data
-        with_metadata do
-          data = {
-            projects_jira_server_active: 0,
-            projects_jira_cloud_active: 0
-          }
-
-          # rubocop: disable CodeReuse/ActiveRecord
-          ::Integrations::Jira.active.includes(:jira_tracker_data).find_in_batches(batch_size: 100) do |services|
-            counts = services.group_by do |service|
-              # TODO: Simplify as part of https://gitlab.com/gitlab-org/gitlab/issues/29404
-              service_url = service.data_fields&.url || (service.properties && service.properties['url'])
-              service_url&.include?('.atlassian.net') ? :cloud : :server
-            end
-
-            data[:projects_jira_server_active] += counts[:server].size if counts[:server]
-            data[:projects_jira_cloud_active] += counts[:cloud].size if counts[:cloud]
-          end
-
-          data
-        end
-      end
-
-      # rubocop: enable CodeReuse/ActiveRecord
-      # rubocop: enable UsageData/LargeTable:
 
       def minimum_id(model, column = nil)
         key = :"#{model.name.downcase.gsub('::', '_')}_minimum_id"

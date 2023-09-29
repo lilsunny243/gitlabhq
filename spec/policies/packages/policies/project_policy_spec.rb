@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Packages::Policies::ProjectPolicy do
+RSpec.describe Packages::Policies::ProjectPolicy, feature_category: :package_registry do
   include_context 'ProjectPolicy context'
 
   let(:project) { public_project }
@@ -126,6 +126,31 @@ RSpec.describe Packages::Policies::ProjectPolicy do
       let(:current_user) { admin }
 
       it_behaves_like 'package access with repository disabled'
+    end
+
+    context 'with package_registry_allow_anyone_to_pull_option disabled' do
+      where(:project, :expect_to_be_allowed) do
+        ref(:private_project)  | false
+        ref(:internal_project) | false
+        ref(:public_project)   | true
+      end
+
+      with_them do
+        let(:current_user) { anonymous }
+
+        before do
+          stub_application_setting(package_registry_allow_anyone_to_pull_option: false)
+          project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+        end
+
+        it do
+          if expect_to_be_allowed
+            is_expected.to be_allowed(:read_package)
+          else
+            is_expected.to be_disallowed(:read_package)
+          end
+        end
+      end
     end
   end
 end

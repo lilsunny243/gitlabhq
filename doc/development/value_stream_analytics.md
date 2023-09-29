@@ -4,9 +4,9 @@ group: Optimize
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Value stream analytics development guide
+# Value stream analytics development guidelines
 
-For information on how to configure value stream analytics (VSA) in GitLab, see our [analytics documentation](../user/analytics/value_stream_analytics.md).
+For information on how to configure value stream analytics (VSA) in GitLab, see our [analytics documentation](../user/group/value_stream_analytics/index.md).
 
 ## How does Value Stream Analytics work?
 
@@ -41,8 +41,8 @@ feature-full.
 |Total time chart|Yes|No|No|
 |Task by type chart|Yes|No|No|
 |DORA Metrics|Yes|Yes|No|
-|Cycle time and lead time summary (Key metrics)|Yes|Yes|No|
-|New issues, commits and deploys (Key metrics)|Yes, excluding commits|Yes|Yes|
+|Cycle time and lead time summary (Lifecycle metrics)|Yes|Yes|No|
+|New issues, commits and deploys (Lifecycle metrics)|Yes, excluding commits|Yes|Yes|
 |Uses aggregated backend|Yes|No|No|
 |Date filter behavior|Filters items [finished within the date range](https://gitlab.com/groups/gitlab-org/-/epics/6046)|Filters items by creation date.|Filters items by creation date.|
 |Authorization|At least reporter|At least reporter|Can be public.|
@@ -65,7 +65,7 @@ of the stage. Stages are configurable by the user within the pairing rules defin
   IDs are identical.
   - The stage event hash ID is later used to store the aggregated data in partitioned database tables.
 
-Historically, value stream analytics defined [7 stages](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/analytics/cycle_analytics/default_stages.rb)
+Historically, value stream analytics defined [six stages](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/analytics/cycle_analytics/default_stages.rb)
 which are always available to the end-users regardless of the subscription.
 
 ### Value streams
@@ -160,6 +160,7 @@ graph LR;
   IssueCreated --> IssueLastEdited;
   IssueCreated --> IssueLabelAdded;
   IssueCreated --> IssueLabelRemoved;
+  IssueCreated --> IssueFirstAssignedAt;
   MergeRequestCreated --> MergeRequestMerged;
   MergeRequestCreated --> MergeRequestClosed;
   MergeRequestCreated --> MergeRequestFirstDeployedToProduction;
@@ -168,6 +169,13 @@ graph LR;
   MergeRequestCreated --> MergeRequestLastEdited;
   MergeRequestCreated --> MergeRequestLabelAdded;
   MergeRequestCreated --> MergeRequestLabelRemoved;
+  MergeRequestCreated --> MergeRequestFirstAssignedAt;
+  MergeRequestFirstAssignedAt --> MergeRequestClosed;
+  MergeRequestFirstAssignedAt --> MergeRequestLastBuildStarted;
+  MergeRequestFirstAssignedAt --> MergeRequestLastEdited;
+  MergeRequestFirstAssignedAt --> MergeRequestMerged;
+  MergeRequestFirstAssignedAt --> MergeRequestLabelAdded;
+  MergeRequestFirstAssignedAt --> MergeRequestLabelRemoved;
   MergeRequestLastBuildStarted --> MergeRequestLastBuildFinished;
   MergeRequestLastBuildStarted --> MergeRequestClosed;
   MergeRequestLastBuildStarted --> MergeRequestFirstDeployedToProduction;
@@ -184,19 +192,30 @@ graph LR;
   IssueLabelAdded --> IssueLabelAdded;
   IssueLabelAdded --> IssueLabelRemoved;
   IssueLabelAdded --> IssueClosed;
+  IssueLabelAdded --> IssueFirstAssignedAt;
   IssueLabelRemoved --> IssueClosed;
+  IssueLabelRemoved --> IssueFirstAssignedAt;
   IssueFirstAddedToBoard --> IssueClosed;
   IssueFirstAddedToBoard --> IssueFirstAssociatedWithMilestone;
   IssueFirstAddedToBoard --> IssueFirstMentionedInCommit;
   IssueFirstAddedToBoard --> IssueLastEdited;
   IssueFirstAddedToBoard --> IssueLabelAdded;
   IssueFirstAddedToBoard --> IssueLabelRemoved;
+  IssueFirstAddedToBoard --> IssueFirstAssignedAt;
+  IssueFirstAssignedAt --> IssueClosed;
+  IssueFirstAssignedAt --> IssueFirstAddedToBoard;
+  IssueFirstAssignedAt --> IssueFirstAssociatedWithMilestone;
+  IssueFirstAssignedAt --> IssueFirstMentionedInCommit;
+  IssueFirstAssignedAt --> IssueLastEdited;
+  IssueFirstAssignedAt --> IssueLabelAdded;
+  IssueFirstAssignedAt --> IssueLabelRemoved;
   IssueFirstAssociatedWithMilestone --> IssueClosed;
   IssueFirstAssociatedWithMilestone --> IssueFirstAddedToBoard;
   IssueFirstAssociatedWithMilestone --> IssueFirstMentionedInCommit;
   IssueFirstAssociatedWithMilestone --> IssueLastEdited;
   IssueFirstAssociatedWithMilestone --> IssueLabelAdded;
   IssueFirstAssociatedWithMilestone --> IssueLabelRemoved;
+  IssueFirstAssociatedWithMilestone --> IssueFirstAssignedAt;
   IssueFirstMentionedInCommit --> IssueClosed;
   IssueFirstMentionedInCommit --> IssueFirstAssociatedWithMilestone;
   IssueFirstMentionedInCommit --> IssueFirstAddedToBoard;
@@ -221,8 +240,11 @@ graph LR;
   MergeRequestLastBuildFinished --> MergeRequestLabelRemoved;
   MergeRequestLabelAdded --> MergeRequestLabelAdded;
   MergeRequestLabelAdded --> MergeRequestLabelRemoved;
+  MergeRequestLabelAdded --> MergeRequestMerged;
+  MergeRequestLabelAdded --> MergeRequestFirstAssignedAt;
   MergeRequestLabelRemoved --> MergeRequestLabelAdded;
   MergeRequestLabelRemoved --> MergeRequestLabelRemoved;
+  MergeRequestLabelRemoved --> MergeRequestFirstAssignedAt;
 ```
 
 ## Default stages
@@ -268,7 +290,7 @@ considered legacy, which will be phased out at some point.
 
 ## Frontend
 
-[Project VSA](../user/analytics/value_stream_analytics.md) is available for all users and:
+[Project VSA](../user/group/value_stream_analytics/index.md) is available for all users and:
 
 - Includes a mixture of key and DORA metrics based on the tier.
 - Uses the set of [default stages](#default-stages).
@@ -332,20 +354,4 @@ Analytics::CycleAnalytics::ReaggregationWorker.new.perform
 
 #### Value stream analytics
 
-Seed issues and merge requests for value stream analytics:
-
-  ```shell
-  // Seed 10 issues for the project specified by <project-id>
-  $ VSA_SEED_PROJECT_ID=<project-id> VSA_ISSUE_COUNT=10 SEED_VSA=true FILTER=cycle_analytics rake db:seed_fu
-  ```
-
-#### DORA metrics
-
-Seed DORA daily metrics for value stream, insights and CI/CD analytics:
-
-1. [Create an environment from the UI](../ci/environments/index.md#create-a-static-environment) named `production`.
-1. Open the rails console:
-
-   ```shell
-   rails c
-   ```
+For instructions on how to seed data for value stream analytics, see [development seed files](../development/development_seed_files.md).

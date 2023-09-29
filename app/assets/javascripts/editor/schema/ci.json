@@ -9,22 +9,27 @@
       "format": "uri"
     },
     "image": {
-      "$ref": "#/definitions/image"
+      "$ref": "#/definitions/image",
+      "markdownDescription": "Defining `image` globally is deprecated. Use [`default`](https://docs.gitlab.com/ee/ci/yaml/#default) instead. [Learn more](https://docs.gitlab.com/ee/ci/yaml/#globally-defined-image-services-cache-before_script-after_script)."
     },
     "services": {
-      "$ref": "#/definitions/services"
+      "$ref": "#/definitions/services",
+      "markdownDescription": "Defining `services` globally is deprecated. Use [`default`](https://docs.gitlab.com/ee/ci/yaml/#default) instead. [Learn more](https://docs.gitlab.com/ee/ci/yaml/#globally-defined-image-services-cache-before_script-after_script)."
     },
     "before_script": {
-      "$ref": "#/definitions/before_script"
+      "$ref": "#/definitions/before_script",
+      "markdownDescription": "Defining `before_script` globally is deprecated. Use [`default`](https://docs.gitlab.com/ee/ci/yaml/#default) instead. [Learn more](https://docs.gitlab.com/ee/ci/yaml/#globally-defined-image-services-cache-before_script-after_script)."
     },
     "after_script": {
-      "$ref": "#/definitions/after_script"
+      "$ref": "#/definitions/after_script",
+      "markdownDescription": "Defining `after_script` globally is deprecated. Use [`default`](https://docs.gitlab.com/ee/ci/yaml/#default) instead. [Learn more](https://docs.gitlab.com/ee/ci/yaml/#globally-defined-image-services-cache-before_script-after_script)."
     },
     "variables": {
       "$ref": "#/definitions/globalVariables"
     },
     "cache": {
-      "$ref": "#/definitions/cache"
+      "$ref": "#/definitions/cache",
+      "markdownDescription": "Defining `cache` globally is deprecated. Use [`default`](https://docs.gitlab.com/ee/ci/yaml/#default) instead. [Learn more](https://docs.gitlab.com/ee/ci/yaml/#globally-defined-image-services-cache-before_script-after_script)."
     },
     "!reference": {
       "$ref": "#/definitions/!reference"
@@ -318,6 +323,10 @@
             "cyclonedx": {
               "$ref": "#/definitions/string_file_list",
               "markdownDescription": "Path to file or list of files with cyclonedx report(s). [Learn More](https://docs.gitlab.com/ee/ci/yaml/artifacts_reports.html#artifactsreportscyclonedx)."
+            },
+            "load_performance": {
+              "$ref": "#/definitions/string_file_list",
+              "markdownDescription": "Path to file or list of files with load performance testing report(s). [Learn More](https://docs.gitlab.com/ee/ci/yaml/artifacts_reports.html#artifactsreportsload_performance)."
             }
           }
         }
@@ -355,7 +364,10 @@
               "pattern": "\\.ya?ml$"
             },
             "rules": {
-              "$ref": "#/definitions/rules"
+              "$ref": "#/definitions/includeRules"
+            },
+            "inputs": {
+              "$ref": "#/definitions/inputs"
             }
           },
           "required": [
@@ -391,6 +403,12 @@
                   }
                 }
               ]
+            },
+            "rules": {
+              "$ref": "#/definitions/includeRules"
+            },
+            "inputs": {
+              "$ref": "#/definitions/inputs"
             }
           },
           "required": [
@@ -407,6 +425,12 @@
               "type": "string",
               "format": "uri-reference",
               "pattern": "\\.ya?ml$"
+            },
+            "rules": {
+              "$ref": "#/definitions/includeRules"
+            },
+            "inputs": {
+              "$ref": "#/definitions/inputs"
             }
           },
           "required": [
@@ -421,6 +445,12 @@
               "description": "Local path to component directory or full path to external component directory.",
               "type": "string",
               "format": "uri-reference"
+            },
+            "rules": {
+              "$ref": "#/definitions/includeRules"
+            },
+            "inputs": {
+              "$ref": "#/definitions/inputs"
             }
           },
           "required": [
@@ -436,6 +466,12 @@
               "type": "string",
               "format": "uri-reference",
               "pattern": "^https?://.+\\.ya?ml$"
+            },
+            "rules": {
+              "$ref": "#/definitions/includeRules"
+            },
+            "inputs": {
+              "$ref": "#/definitions/inputs"
             }
           },
           "required": [
@@ -672,6 +708,21 @@
                 }
               ]
             },
+            "azure_key_vault": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
             "file": {
               "type": "boolean",
               "default": true,
@@ -682,46 +733,77 @@
               "description": "Specifies the JWT variable that should be used to authenticate with Hashicorp Vault."
             }
           },
-          "required": [
-            "vault"
+          "anyOf": [
+            {
+              "required": [
+                "vault"
+              ]
+            },
+            {
+              "required": [
+                "azure_key_vault"
+              ]
+            }
           ],
           "additionalProperties": false
         }
       }
     },
-    "before_script": {
-      "type": "array",
-      "markdownDescription": "Defines scripts that should run *before* the job. Can be set globally or per job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#before_script).",
-      "items": {
-        "anyOf": [
-          {
-            "type": "string"
+    "script": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           },
-          {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "minItems": 1
+        }
+      ]
+    },
+    "optional_script": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
+    },
+    "before_script": {
+      "$ref": "#/definitions/optional_script",
+      "markdownDescription": "Defines scripts that should run *before* the job. Can be set globally or per job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#before_script)."
     },
     "after_script": {
-      "type": "array",
-      "markdownDescription": "Defines scripts that should run *after* the job. Can be set globally or per job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#after_script).",
-      "items": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ]
-      }
+      "$ref": "#/definitions/optional_script",
+      "markdownDescription": "Defines scripts that should run *after* the job. Can be set globally or per job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#after_script)."
     },
     "rules": {
       "type": [
@@ -755,6 +837,61 @@
               },
               "allow_failure": {
                 "$ref": "#/definitions/allow_failure"
+              },
+              "needs": {
+                "$ref": "#/definitions/rulesNeeds"
+              }
+            }
+          },
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "array",
+            "minLength": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "includeRules": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "markdownDescription": "You can use rules to conditionally include other configuration files. [Learn More](https://docs.gitlab.com/ee/ci/yaml/includes.html#use-rules-with-include).",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "if": {
+                "$ref": "#/definitions/if"
+              },
+              "changes": {
+                "$ref": "#/definitions/changes"
+              },
+              "exists": {
+                "$ref": "#/definitions/exists"
+              },
+              "when": {
+                "markdownDescription": "Use `when: never` to exclude the configuration file if the condition matches. [Learn More](https://docs.gitlab.com/ee/ci/yaml/includes.html#include-with-rulesif).",
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "never",
+                      "always"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           },
@@ -917,6 +1054,39 @@
       "markdownDescription": "Used in conjunction with 'when: delayed' to set how long to delay before starting a job. e.g. '5', 5 seconds, 30 minutes, 1 week, etc. [Learn More](https://docs.gitlab.com/ee/ci/jobs/job_control.html#run-a-job-after-a-delay).",
       "minLength": 1
     },
+    "rulesNeeds": {
+      "markdownDescription": "Use needs in rules to update job needs for specific conditions. When a condition matches a rule, the job's needs configuration is completely replaced with the needs in the rule. [Learn More](https://docs.gitlab.com/ee/ci/yaml/index.html#rulesneeds).",
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "job": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Name of a job that is defined in the pipeline."
+              },
+              "artifacts": {
+                "type": "boolean",
+                "description": "Download artifacts of the job in needs."
+              },
+              "optional": {
+                "type": "boolean",
+                "description": "Whether the job needs to be present in the pipeline to run ahead of the current job."
+              }
+            },
+            "required": [
+              "job"
+            ]
+          }
+        ]
+      }
+    },
     "allow_failure": {
       "markdownDescription": "Allow job to fail. A failed job does not cause the pipeline to fail. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#allow_failure).",
       "oneOf": [
@@ -955,6 +1125,73 @@
               }
             }
           }
+        }
+      ]
+    },
+    "parallel": {
+      "description": "Splits up a single job into multiple that run in parallel. Provides `CI_NODE_INDEX` and `CI_NODE_TOTAL` environment variables to the jobs.",
+      "oneOf": [
+        {
+          "type": "integer",
+          "description": "Creates N instances of the job that run in parallel.",
+          "default": 0,
+          "minimum": 2,
+          "maximum": 200
+        },
+        {
+          "type": "object",
+          "properties": {
+            "matrix": {
+              "type": "array",
+              "description": "Defines different variables for jobs that are running in parallel.",
+              "items": {
+                "type": "object",
+                "description": "Defines the variables for a specific job.",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "array"
+                  ]
+                }
+              },
+              "maxItems": 200
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "matrix"
+          ]
+        }
+      ]
+    },
+    "parallel_matrix": {
+      "description": "Use the `needs:parallel:matrix` keyword to specify parallelized jobs needed to be completed for the job to run. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix)",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "matrix": {
+              "type": "array",
+              "description": "Defines different variables for jobs that are running in parallel.",
+              "items": {
+                "type": "object",
+                "description": "Defines the variables for a specific job.",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "array"
+                  ]
+                }
+              },
+              "maxItems": 200
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "matrix"
+          ]
         }
       ]
     },
@@ -1012,11 +1249,7 @@
           "type": "string",
           "markdownDescription": "Determines the strategy for downloading and updating the cache. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachepolicy)",
           "default": "pull-push",
-          "enum": [
-            "pull",
-            "push",
-            "pull-push"
-          ]
+          "pattern": "pull-push|pull|push|\\$\\w{1,255}"
         },
         "unprotect": {
           "type": "boolean",
@@ -1037,6 +1270,14 @@
             "on_failure",
             "always"
           ]
+        },
+        "fallback_keys": {
+          "type": "array",
+          "markdownDescription": "List of keys to download cache from if no cache hit occurred for key",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5
         }
       }
     },
@@ -1248,6 +1489,10 @@
       "markdownDescription": "Interruptible is used to indicate that a job should be canceled if made redundant by a newer pipeline run. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#interruptible).",
       "default": false
     },
+    "inputs": {
+      "markdownDescription": "Used to pass input values to included templates or components. [Learn More](https://docs.gitlab.com/ee/ci/yaml/includes.html#set-input-parameter-values-with-includeinputs).",
+      "type": "object"
+    },
     "job": {
       "allOf": [
         {
@@ -1290,30 +1535,8 @@
           "$ref": "#/definitions/secrets"
         },
         "script": {
-          "markdownDescription": "Shell scripts executed by the Runner. The only required property of jobs. Be careful with special characters (e.g. `:`, `{`, `}`, `&`) and use single or double quotes to avoid issues. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#script)",
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                ]
-              },
-              "minItems": 1
-            }
-          ]
+          "$ref": "#/definitions/script",
+          "markdownDescription": "Shell scripts executed by the Runner. The only required property of jobs. Be careful with special characters (e.g. `:`, `{`, `}`, `&`) and use single or double quotes to avoid issues. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#script)"
         },
         "stage": {
           "description": "Define what stage the job will run in.",
@@ -1370,6 +1593,9 @@
                   },
                   "optional": {
                     "type": "boolean"
+                  },
+                  "parallel": {
+                    "$ref": "#/definitions/parallel_matrix"
                   }
                 },
                 "required": [
@@ -1388,6 +1614,9 @@
                   },
                   "artifacts": {
                     "type": "boolean"
+                  },
+                  "parallel": {
+                    "$ref": "#/definitions/parallel_matrix"
                   }
                 },
                 "required": [
@@ -1410,6 +1639,9 @@
                   },
                   "artifacts": {
                     "type": "boolean"
+                  },
+                  "parallel": {
+                    "$ref": "#/definitions/parallel_matrix"
                   }
                 },
                 "required": [
@@ -1623,41 +1855,7 @@
           "$ref": "#/definitions/retry"
         },
         "parallel": {
-          "description": "Parallel will split up a single job into several, and provide `CI_NODE_INDEX` and `CI_NODE_TOTAL` environment variables for the running jobs.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "description": "Creates N instances of the same job that run in parallel.",
-              "default": 0,
-              "minimum": 2,
-              "maximum": 200
-            },
-            {
-              "type": "object",
-              "properties": {
-                "matrix": {
-                  "type": "array",
-                  "description": "Defines different variables for jobs that are running in parallel.",
-                  "items": {
-                    "type": "object",
-                    "description": "Defines environment variables for specific job.",
-                    "additionalProperties": {
-                      "type": [
-                        "string",
-                        "number",
-                        "array"
-                      ]
-                    }
-                  },
-                  "maxItems": 200
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "matrix"
-              ]
-            }
-          ]
+          "$ref": "#/definitions/parallel"
         },
         "interruptible": {
           "$ref": "#/definitions/interruptible"
@@ -1890,6 +2088,14 @@
             }
           },
           "additionalProperties": false
+        },
+        "publish": {
+          "description": "A path to a directory that contains the files to be published with Pages",
+          "type": "string"
+        },
+        "pages_path_prefix": {
+          "description": "The path prefix identifier for this version of pages. Allows creation of multiple versions of the same site with different path prefixes",
+          "type": "string"
         }
       },
       "oneOf": [
@@ -1944,30 +2150,8 @@
       "markdownDescription": "Specifies lists of commands to execute on the runner at certain stages of job execution. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#hooks).",
       "properties": {
         "pre_get_sources_script": {
-          "markdownDescription": "Specifies a list of commands to execute on the runner before updating the Git repository and any submodules. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#hookspre_get_sources_script).",
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                ]
-              },
-              "minItems": 1
-            }
-          ]
+          "$ref": "#/definitions/optional_script",
+          "markdownDescription": "Specifies a list of commands to execute on the runner before updating the Git repository and any submodules. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#hookspre_get_sources_script)."
         }
       },
       "additionalProperties": false

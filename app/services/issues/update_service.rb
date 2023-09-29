@@ -2,12 +2,12 @@
 
 module Issues
   class UpdateService < Issues::BaseService
-    # NOTE: For Issues::UpdateService, we default the spam_params to nil, because spam_checking is not
-    # necessary in many cases, and we don't want to require every caller to explicitly pass it as nil
+    # NOTE: For Issues::UpdateService, we default perform_spam_check to false, because spam_checking is not
+    # necessary in many cases, and we don't want to require every caller to explicitly pass it
     # to disable spam checking.
-    def initialize(container:, current_user: nil, params: {}, spam_params: nil)
+    def initialize(container:, current_user: nil, params: {}, perform_spam_check: false)
       super(container: container, current_user: current_user, params: params)
-      @spam_params = spam_params
+      @perform_spam_check = perform_spam_check
     end
 
     def execute(issue)
@@ -26,20 +26,15 @@ module Issues
     def before_update(issue, skip_spam_check: false)
       change_work_item_type(issue)
 
-      return if skip_spam_check
+      return if skip_spam_check || !perform_spam_check
 
-      Spam::SpamActionService.new(
-        spammable: issue,
-        spam_params: spam_params,
-        user: current_user,
-        action: :update
-      ).execute
+      issue.check_for_spam(user: current_user, action: :update)
     end
 
     def change_work_item_type(issue)
-      return unless issue.changed_attributes['issue_type']
+      return unless params[:issue_type].present?
 
-      type_id = find_work_item_type_id(issue.issue_type)
+      type_id = find_work_item_type_id(params[:issue_type])
 
       issue.work_item_type_id = type_id
     end
@@ -64,7 +59,6 @@ module Issues
       handle_assignee_changes(issue, old_assignees)
       handle_confidential_change(issue)
       handle_added_labels(issue, old_labels)
-      handle_milestone_change(issue)
       handle_added_mentions(issue, old_mentioned_users)
       handle_severity_change(issue, old_severity)
       handle_escalation_status_change(issue)
@@ -76,6 +70,7 @@ module Issues
       return if issue.assignees == old_assignees
 
       create_assignee_note(issue, old_assignees)
+      Gitlab::ResourceEvents::AssignmentEventRecorder.new(parent: issue, old_assignees: old_assignees).record
       notification_service.async.reassigned_issue(issue, current_user, old_assignees)
       todo_service.reassigned_assignable(issue, current_user, old_assignees)
       track_incident_action(current_user, issue, :incident_assigned)
@@ -114,14 +109,13 @@ module Issues
 
     private
 
-    attr_reader :spam_params
+    attr_reader :perform_spam_check
 
-    def handle_quick_actions(issue)
-      # Do not handle quick actions unless the work item is the default Issue.
-      # The available quick actions for a work item depend on its type and widgets.
-      return unless issue.work_item_type.default_issue?
-
+    override :after_update
+    def after_update(issue, _old_associations)
       super
+
+      GraphqlTriggers.work_item_updated(issue)
     end
 
     def handle_date_changes(issue)
@@ -166,35 +160,6 @@ module Issues
       end
     end
 
-    def handle_milestone_change(issue)
-      return unless issue.previous_changes.include?('milestone_id')
-
-      invalidate_milestone_issue_counters(issue)
-      send_milestone_change_notification(issue)
-      GraphqlTriggers.issuable_milestone_updated(issue)
-    end
-
-    def invalidate_milestone_issue_counters(issue)
-      issue.previous_changes['milestone_id'].each do |milestone_id|
-        next unless milestone_id
-
-        milestone = Milestone.find_by_id(milestone_id)
-
-        delete_milestone_closed_issue_counter_cache(milestone)
-        delete_milestone_total_issue_counter_cache(milestone)
-      end
-    end
-
-    def send_milestone_change_notification(issue)
-      return if skip_milestone_email
-
-      if issue.milestone.nil?
-        notification_service.async.removed_milestone(issue, current_user)
-      else
-        notification_service.async.changed_milestone(issue, issue.milestone, current_user)
-      end
-    end
-
     def handle_added_mentions(issue, old_mentioned_users)
       added_mentions = issue.mentioned_users(current_user) - old_mentioned_users
 
@@ -214,15 +179,21 @@ module Issues
     end
 
     def handle_issue_type_change(issue)
-      return unless issue.previous_changes.include?('issue_type')
+      return unless issue.previous_changes.include?('work_item_type_id')
 
       do_handle_issue_type_change(issue)
     end
 
     def do_handle_issue_type_change(issue)
-      SystemNoteService.change_issue_type(issue, current_user)
+      old_work_item_type = ::WorkItems::Type.find(issue.work_item_type_id_before_last_save).base_type
+      SystemNoteService.change_issue_type(issue, current_user, old_work_item_type)
 
       ::IncidentManagement::IssuableEscalationStatuses::CreateService.new(issue).execute if issue.supports_escalation?
+    end
+
+    override :allowed_update_params
+    def allowed_update_params(params)
+      super.except(:issue_type)
     end
   end
 end

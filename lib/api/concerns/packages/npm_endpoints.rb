@@ -21,12 +21,23 @@ module API
         included do
           helpers ::API::Helpers::Packages::DependencyProxyHelpers
 
+          rescue_from ActiveRecord::RecordInvalid do |e|
+            render_structured_api_error!({ message: e.message, error: e.message }, 400)
+          end
+
           before do
             require_packages_enabled!
             authenticate_non_get!
           end
 
           helpers do
+            include Gitlab::Utils::StrongMemoize
+
+            params :package_name do
+              requires :package_name, type: String, file_path: true, desc: 'Package name',
+                documentation: { example: 'mypackage' }
+            end
+
             def redirect_or_present_audit_report
               redirect_registry_request(
                 forward_to_registry: true,
@@ -42,6 +53,16 @@ module API
                 present []
               end
             end
+
+            def generate_metadata_service(packages)
+              ::Packages::Npm::GenerateMetadataService.new(params[:package_name], packages)
+            end
+
+            def metadata_cache
+              ::Packages::Npm::MetadataCache
+                .find_by_package_name_and_project_id(params[:package_name], project.id)
+            end
+            strong_memoize_attr :metadata_cache
           end
 
           params do
@@ -55,11 +76,14 @@ module API
               ]
               failure [
                 { code: 400, message: 'Bad Request' },
+                { code: 401, message: 'Unauthorized' },
                 { code: 403, message: 'Forbidden' },
                 { code: 404, message: 'Not Found' }
               ]
               tags %w[npm_packages]
             end
+            route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true,
+                                           authenticate_non_public: true
             get 'dist-tags', format: false, requirements: ::API::Helpers::Packages::Npm::NPM_ENDPOINT_REQUIREMENTS do
               package_name = params[:package_name]
 
@@ -70,10 +94,12 @@ module API
               packages = ::Packages::Npm::PackageFinder.new(package_name, project: project)
                                                        .execute
 
-              not_found! if packages.empty?
+              not_found!('Package') if packages.empty?
 
-              present ::Packages::Npm::PackagePresenter.new(package_name, packages),
-                      with: ::API::Entities::NpmPackageTag
+              track_package_event(:list_tags, :npm, project: project, namespace: project.namespace)
+
+              metadata = generate_metadata_service(packages).execute(only_dist_tags: true).payload
+              present metadata, with: ::API::Entities::NpmPackageTag
             end
 
             params do
@@ -91,6 +117,7 @@ module API
                 ]
                 tags %w[npm_packages]
               end
+              route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
               put format: false do
                 package_name = params[:package_name]
                 version = env['api.request.body']
@@ -105,6 +132,10 @@ module API
                 package = ::Packages::Npm::PackageFinder.new(package_name, project: project)
                                                         .find_by_version(version)
                 not_found!('Package') unless package
+
+                track_package_event(:create_tag, :npm, project: project, namespace: project.namespace)
+
+                enqueue_sync_metadata_cache_worker(project, package_name)
 
                 ::Packages::Npm::CreateTagService.new(package, tag).execute
 
@@ -122,6 +153,7 @@ module API
                 ]
                 tags %w[npm_packages]
               end
+              route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
               delete format: false do
                 package_name = params[:package_name]
                 tag = params[:tag]
@@ -136,6 +168,10 @@ module API
                   .find_by_name(tag)
 
                 not_found!('Package tag') unless package_tag
+
+                track_package_event(:delete_tag, :npm, project: project, namespace: project.namespace)
+
+                enqueue_sync_metadata_cache_worker(project, package_name)
 
                 ::Packages::RemoveTagService.new(package_tag).execute
 
@@ -152,21 +188,29 @@ module API
             ]
             failure [
               { code: 400, message: 'Bad Request' },
+              { code: 401, message: 'Unauthorized' },
               { code: 403, message: 'Forbidden' },
               { code: 404, message: 'Not Found' }
             ]
             tags %w[npm_packages]
           end
           params do
-            requires :package_name, type: String, desc: 'Package name'
+            use :package_name
           end
-          route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
+          route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true,
+                                         authenticate_non_public: true
           get '*package_name', format: false, requirements: ::API::Helpers::Packages::Npm::NPM_ENDPOINT_REQUIREMENTS do
             package_name = params[:package_name]
-            packages = ::Packages::Npm::PackageFinder.new(package_name, project: project_or_nil)
-                                                     .execute
+            available_packages =
+              if Feature.enabled?(:npm_allow_packages_in_multiple_projects)
+                finder_for_endpoint_scope(package_name).execute
+              else
+                ::Packages::Npm::PackageFinder.new(package_name, project: project_or_nil)
+                                              .execute
+              end
 
-            redirect_request = project_or_nil.blank? || packages.empty?
+            # In order to redirect a request, packages should not exist (without taking the user into account).
+            redirect_request = project_or_nil.blank? || available_packages.empty?
 
             redirect_registry_request(
               forward_to_registry: redirect_request,
@@ -174,12 +218,37 @@ module API
               target: project_or_nil,
               package_name: package_name
             ) do
-              authorize_read_package!(project)
+              if endpoint_scope == :project || Feature.disabled?(:npm_allow_packages_in_multiple_projects)
+                authorize_read_package!(project)
+              elsif Feature.enabled?(:npm_allow_packages_in_multiple_projects)
+                available_packages_to_user = ::Packages::Npm::PackagesForUserFinder.new(
+                  current_user,
+                  group_or_namespace,
+                  package_name: params[:package_name]
+                ).execute
 
-              not_found!('Packages') if packages.empty?
+                if available_packages.any? && available_packages_to_user.empty?
+                  current_user ? forbidden! : unauthorized!
+                end
 
-              present ::Packages::Npm::PackagePresenter.new(package_name, packages),
-                with: ::API::Entities::NpmPackage
+                available_packages = available_packages_to_user
+              end
+
+              not_found!('Packages') if available_packages.empty?
+
+              if endpoint_scope == :project && Feature.enabled?(:npm_metadata_cache, project)
+                if metadata_cache&.file&.exists?
+                  metadata_cache.touch_last_downloaded_at
+                  present_carrierwave_file!(metadata_cache.file)
+
+                  break
+                end
+
+                enqueue_sync_metadata_cache_worker(project, package_name)
+              end
+
+              metadata = generate_metadata_service(available_packages).execute.payload
+              present metadata, with: ::API::Entities::NpmPackage
             end
           end
 

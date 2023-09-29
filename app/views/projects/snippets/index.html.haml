@@ -4,12 +4,12 @@
 - if @snippets.exists?
   - if current_user
     .top-area
-      - include_private = @project.team.member?(current_user) || current_user.admin?
+      - include_private = @project.member?(current_user) || current_user.admin?
       = render partial: 'snippets/snippets_scope_menu', locals: { subject: @project, include_private: include_private, counts: @snippet_counts }
 
       - if new_project_snippet_link.present?
         .nav-controls
-          = link_to _("New snippet"), new_project_snippet_link, class: "gl-button btn btn-confirm", title: _("New snippet")
+          = link_button_to _("New snippet"), new_project_snippet_link, title: _("New snippet"), variant: :confirm
 
   = render 'shared/snippets/list'
 - else

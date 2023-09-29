@@ -3,12 +3,12 @@
 RSpec.shared_context 'stubbed service ping metrics definitions' do
   include UsageDataHelpers
 
-  let(:metrics_definitions) { standard_metrics + subscription_metrics + operational_metrics + optional_metrics }
+  let(:metrics_definitions) { standard_metrics + operational_metrics + optional_metrics }
+  # ToDo: remove during https://gitlab.com/gitlab-org/gitlab/-/issues/396824 (license metrics migration)
   let(:standard_metrics) do
     [
-      metric_attributes('uuid', 'standard'),
       metric_attributes('recorded_at', 'standard'),
-      metric_attributes('settings.collected_data_categories', 'standard', 'object')
+      metric_attributes('settings.collected_data_categories', 'standard', 'object', 'CollectedDataCategoriesMetric')
     ]
   end
 

@@ -129,7 +129,7 @@ class GfmAutoComplete {
     this.dataSources = dataSources;
     this.cachedData = {};
     this.isLoadingData = {};
-    this.previousQuery = '';
+    this.previousQuery = undefined;
   }
 
   setup(input, enableMap = defaultAutocompleteConfig) {
@@ -343,7 +343,9 @@ class GfmAutoComplete {
             icon,
             availabilityStatus:
               availability && isUserBusy(availability)
-                ? `<span class="gl-text-gray-500"> ${s__('UserAvailability|(Busy)')}</span>`
+                ? `<span class="badge badge-warning badge-pill gl-badge sm gl-ml-2"> ${s__(
+                    'UserProfile|Busy',
+                  )}</span>`
                 : '',
           });
         }
@@ -391,13 +393,16 @@ class GfmAutoComplete {
           if (command === MEMBER_COMMAND.ASSIGN) {
             // Only include members which are not assigned to Issuable currently
             return data.filter((member) => !assignees.includes(member.search));
-          } else if (command === MEMBER_COMMAND.UNASSIGN) {
+          }
+          if (command === MEMBER_COMMAND.UNASSIGN) {
             // Only include members which are assigned to Issuable currently
             return data.filter((member) => assignees.includes(member.search));
-          } else if (command === MEMBER_COMMAND.ASSIGN_REVIEWER) {
+          }
+          if (command === MEMBER_COMMAND.ASSIGN_REVIEWER) {
             // Only include members which are not assigned as a reviewer to Issuable currently
             return data.filter((member) => !reviewers.includes(member.search));
-          } else if (command === MEMBER_COMMAND.UNASSIGN_REVIEWER) {
+          }
+          if (command === MEMBER_COMMAND.UNASSIGN_REVIEWER) {
             // Only include members which are not assigned as a reviewer to Issuable currently
             return data.filter((member) => reviewers.includes(member.search));
           }
@@ -615,11 +620,6 @@ class GfmAutoComplete {
             if (labels.find((label) => label.title.startsWith(lastCandidate))) {
               return lastCandidate;
             }
-          } else {
-            // Load all labels into the autocompleter.
-            // This needs to happen if e.g. editing a label in an existing comment, because normally
-            // label data would only be loaded only once you type `~`.
-            fetchData(this.$inputor, this.at);
           }
 
           const match = GfmAutoComplete.defaultMatcher(flag, subtext, this.app.controllers);
@@ -640,7 +640,8 @@ class GfmAutoComplete {
           if (command === LABEL_COMMAND.LABEL || command === LABEL_COMMAND.LABELS) {
             // Return labels with set: undefined.
             return data.filter((label) => !label.set);
-          } else if (command === LABEL_COMMAND.UNLABEL) {
+          }
+          if (command === LABEL_COMMAND.UNLABEL) {
             // Return labels with set: true.
             return data.filter((label) => label.set);
           }
@@ -749,7 +750,8 @@ class GfmAutoComplete {
           if (command === CONTACTS_ADD_COMMAND) {
             // Return contacts that are active and not already on the issue
             return data.filter((contact) => contact.state === CONTACT_STATE_ACTIVE && !contact.set);
-          } else if (command === CONTACTS_REMOVE_COMMAND) {
+          }
+          if (command === CONTACTS_REMOVE_COMMAND) {
             // Return contacts already on the issue
             return data.filter((contact) => contact.set);
           }
@@ -774,17 +776,19 @@ class GfmAutoComplete {
         return $.fn.atwho.default.callbacks.sorter(query, items, searchKey);
       },
       filter(query, data, searchKey) {
+        if (GfmAutoComplete.isTypeWithBackendFiltering(this.at)) {
+          if (GfmAutoComplete.isLoading(data) || self.previousQuery !== query) {
+            self.previousQuery = query;
+            self.fetchData(this.$inputor, this.at, query);
+            return data;
+          }
+        }
+
         if (GfmAutoComplete.isLoading(data)) {
           self.fetchData(this.$inputor, this.at);
           return data;
-        } else if (
-          GfmAutoComplete.isTypeWithBackendFiltering(this.at) &&
-          self.previousQuery !== query
-        ) {
-          self.fetchData(this.$inputor, this.at, query);
-          self.previousQuery = query;
-          return data;
         }
+
         return $.fn.atwho.default.callbacks.filter(query, data, searchKey);
       },
       beforeInsert(value) {
@@ -828,14 +832,18 @@ class GfmAutoComplete {
     const dataSource = this.dataSources[GfmAutoComplete.atTypeMap[at]];
 
     if (GfmAutoComplete.isTypeWithBackendFiltering(at)) {
-      axios
-        .get(dataSource, { params: { search } })
-        .then(({ data }) => {
-          this.loadData($input, at, data);
-        })
-        .catch(() => {
-          this.isLoadingData[at] = false;
-        });
+      if (this.cachedData[at]?.[search]) {
+        this.loadData($input, at, this.cachedData[at][search], { search });
+      } else {
+        axios
+          .get(dataSource, { params: { search } })
+          .then(({ data }) => {
+            this.loadData($input, at, data, { search });
+          })
+          .catch(() => {
+            this.isLoadingData[at] = false;
+          });
+      }
     } else if (this.cachedData[at]) {
       this.loadData($input, at, this.cachedData[at]);
     } else if (GfmAutoComplete.atTypeMap[at] === 'emojis') {
@@ -853,9 +861,19 @@ class GfmAutoComplete {
     }
   }
 
-  loadData($input, at, data) {
+  loadData($input, at, data, { search } = {}) {
     this.isLoadingData[at] = false;
-    this.cachedData[at] = data;
+
+    if (search !== undefined) {
+      if (this.cachedData[at] === undefined) {
+        this.cachedData[at] = {};
+      }
+
+      this.cachedData[at][search] = data;
+    } else {
+      this.cachedData[at] = data;
+    }
+
     $input.atwho('load', at, data);
     // This trigger at.js again
     // otherwise we would be stuck with loading until the user types
@@ -957,7 +975,7 @@ GfmAutoComplete.Emoji = {
       return `<li>${escapedFieldValue}</li>`;
     }
 
-    return `<li>${escapedFieldValue} ${GfmAutoComplete.glEmojiTag(item.emoji.name)}</li>`;
+    return `<li>${GfmAutoComplete.glEmojiTag(item.emoji.name)} ${escapedFieldValue}</li>`;
   },
   filter(query) {
     if (query.length === 0) {

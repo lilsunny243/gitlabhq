@@ -46,7 +46,7 @@ describe('Incidents List', () => {
   const findLoader = () => wrapper.findComponent(GlLoadingIcon);
   const findTimeAgo = () => wrapper.findAllComponents(TimeAgoTooltip);
   const findAssignees = () => wrapper.findAll('[data-testid="incident-assignees"]');
-  const findCreateIncidentBtn = () => wrapper.find('[data-testid="createIncidentBtn"]');
+  const findCreateIncidentBtn = () => wrapper.find('[data-testid="create-incident-button"]');
   const findClosedIcon = () => wrapper.findAll("[data-testid='incident-closed']");
   const findEmptyState = () => wrapper.findComponent(GlEmptyState);
   const findSeverity = () => wrapper.findAllComponents(SeverityToken);
@@ -96,13 +96,6 @@ describe('Incidents List', () => {
       }),
     );
   }
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
-  });
 
   it('shows the loading state', () => {
     mountComponent({
@@ -212,7 +205,7 @@ describe('Incidents List', () => {
       });
     });
 
-    it('contains a link to the incident details page', async () => {
+    it('contains a link to the incident details page', () => {
       findTableRows().at(0).trigger('click');
       expect(visitUrl).toHaveBeenCalledWith(
         joinPaths(`/project/issues/incident`, mockIncidents[0].iid),

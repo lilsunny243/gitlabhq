@@ -21,7 +21,7 @@ module Gitlab
           UnimplementedOperationError = Class.new(StandardError) # rubocop:disable UsageData/InstrumentationSuperclass
 
           class << self
-            IMPLEMENTED_OPERATIONS = %i(add).freeze
+            IMPLEMENTED_OPERATIONS = %i[add].freeze
 
             private_constant :IMPLEMENTED_OPERATIONS
 
@@ -42,10 +42,6 @@ module Gitlab
 
           def value
             method(self.class.metric_operation).call(*data)
-          end
-
-          def suggested_name
-            Gitlab::Usage::Metrics::NameSuggestion.for(:alt)
           end
 
           private

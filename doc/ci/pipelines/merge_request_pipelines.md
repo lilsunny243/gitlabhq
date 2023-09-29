@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 ---
 
 
-# Merge request pipelines **(FREE)**
+# Merge request pipelines **(FREE ALL)**
 
 > [Renamed](https://gitlab.com/gitlab-org/gitlab/-/issues/351192) from `pipelines for merge requests` to `merge request pipelines` in GitLab 14.8.
 
@@ -67,7 +67,7 @@ To use merge request pipelines:
 
 ## Use `rules` to add jobs
 
-You can use the [`rules`](../yaml/index.md#rules) keyword to configure jobs to run in
+Use the [`rules`](../yaml/index.md#rules) keyword to configure jobs to run in
 merge request pipelines. For example:
 
 ```yaml
@@ -95,10 +95,21 @@ job2:
     - echo "This job also runs in merge request pipelines"
 ```
 
+A common `workflow` configuration is to have pipelines run for merge requests, tags, and the default branch. For example:
+
+```yaml
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
 ## Use `only` to add jobs
 
-You can use the [`only`](../yaml/index.md#onlyrefs--exceptrefs) keyword with `merge_requests`
-to configure jobs to run in merge request pipelines.
+[`rules`](#use-rules-to-add-jobs) is the preferred method, but you can also use
+the [`only`](../yaml/index.md#onlyrefs--exceptrefs) keyword with `merge_requests`
+to configure jobs to run in merge request pipelines. For example:
 
 ```yaml
 job1:
@@ -125,7 +136,7 @@ Pipelines for forks display with the **fork** badge in the parent project:
 
 ![Pipeline ran in fork](img/pipeline_fork_v13_7.png)
 
-### Run pipelines in the parent project **(PREMIUM)**
+### Run pipelines in the parent project **(PREMIUM ALL)**
 
 Project members in the parent project can trigger a merge request pipeline
 for a merge request submitted from a fork project. This pipeline:
@@ -140,14 +151,11 @@ the parent project. Additionally, if you do not trust the fork project's runner,
 running the pipeline in the parent project uses the parent project's trusted runners.
 
 WARNING:
-Fork merge requests can contain malicious code that tries to steal secrets in the
-parent project when the pipeline runs, even before merge. As a reviewer, carefully
-check the changes in the merge request before triggering the pipeline. If you trigger
-the pipeline by selecting **Run pipeline** or applying a suggestion, GitLab shows
-a warning that you must accept before the pipeline runs. If you trigger the pipeline
-by using any other method, including the API, [`/rebase` quick action](../../user/project/quick_actions.md#issues-merge-requests-and-epics),
-or [**Rebase** option](../../user/project/merge_requests/methods/index.md#rebasing-in-semi-linear-merge-methods),
-**no warning displays**.
+Fork merge requests can contain malicious code that tries to steal secrets in the parent project
+when the pipeline runs, even before merge. As a reviewer, carefully check the changes
+in the merge request before triggering the pipeline. Unless you trigger the pipeline
+through the API or the [`/rebase` quick action](../../user/project/quick_actions.md#issues-merge-requests-and-epics),
+GitLab shows a warning that you must accept before the pipeline runs. Otherwise, **no warning displays**.
 
 Prerequisites:
 
@@ -164,9 +172,18 @@ To use the UI to run a pipeline in the parent project for a merge request from a
 1. In the merge request, go to the **Pipelines** tab.
 1. Select **Run pipeline**. You must read and accept the warning, or the pipeline does not run.
 
-You can disable this feature by using [the projects API](../../api/projects.md#edit-project)
-to disable the `ci_allow_fork_pipelines_to_run_in_parent_project` setting.
-The setting is `enabled` by default.
+### Prevent pipelines from fork projects
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325189) in GitLab 15.3.
+
+To prevent users from running new pipelines for fork projects in the parent project
+use [the projects API](../../api/projects.md#edit-project) to disable the `ci_allow_fork_pipelines_to_run_in_parent_project`
+setting.
+
+WARNING:
+Pipelines created before the setting was disabled are not affected and continue to run.
+If you rerun a job in an older pipeline, the job uses the same context as when the
+pipeline was originally created.
 
 ## Available predefined variables
 
@@ -175,9 +192,7 @@ When you use merge request pipelines, you can use:
 - All the same [predefined variables](../variables/predefined_variables.md) that are
   available in branch pipelines.
 - [Additional predefined variables](../variables/predefined_variables.md#predefined-variables-for-merge-request-pipelines)
-  available only to jobs in merge request pipelines. These variables contain
-  information from the associated merge request, which can be when calling the
-  [GitLab Merge Request API endpoint](../../api/merge_requests.md) from a job.
+  available only to jobs in merge request pipelines.
 
 ## Troubleshooting
 
@@ -209,15 +224,19 @@ It's possible to have both branch pipelines and merge request pipelines in the
 **Pipelines** tab of a single merge request. This might be [by configuration](../yaml/workflow.md#switch-between-branch-pipelines-and-merge-request-pipelines),
 or [by accident](#two-pipelines-when-pushing-to-a-branch).
 
-If both types of pipelines are in one merge request, the merge request's pipeline
-is not considered successful if:
-
-- The branch pipeline succeeds.
-- The merge request pipeline fails.
-
-When using the [merge when pipeline succeeds](../../user/project/merge_requests/merge_when_pipeline_succeeds.md)
-feature and both pipelines types are present, the merge request pipelines are checked,
+When the project has [**Pipelines must succeed**](../../user/project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge) enabled
+and both pipelines types are present, the merge request pipelines are checked,
 not the branch pipelines.
+
+Therefore, the MR pipeline result is marked as unsuccessful if the
+**merge request pipeline** fails, independently of the **branch pipeline** result.
+
+However:
+
+- These conditions are not enforced.
+- A race condition determines which pipeline's result is used to either block or pass merge requests.
+
+This bug is tracked on [issue 384927](https://gitlab.com/gitlab-org/gitlab/-/issues/384927).
 
 ### `An error occurred while trying to run a new pipeline for this merge request.`
 

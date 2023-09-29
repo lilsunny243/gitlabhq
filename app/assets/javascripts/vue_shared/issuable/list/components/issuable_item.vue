@@ -2,13 +2,15 @@
 import { GlLink, GlIcon, GlLabel, GlFormCheckbox, GlSprintf, GlTooltipDirective } from '@gitlab/ui';
 
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
+import { STATUS_CLOSED } from '~/issues/constants';
 import { isScopedLabel } from '~/lib/utils/common_utils';
-import { getTimeago } from '~/lib/utils/datetime_utility';
 import { isExternal, setUrlFragment } from '~/lib/utils/url_utility';
 import { __, n__, sprintf } from '~/locale';
 import IssuableAssignees from '~/issuable/components/issue_assignees.vue';
-import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
 import timeagoMixin from '~/vue_shared/mixins/timeago';
+import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
+import { STATE_CLOSED } from '~/work_items/constants';
+import { isAssigneesWidget, isLabelsWidget } from '~/work_items/utils';
 
 export default {
   components: {
@@ -57,6 +59,16 @@ export default {
       required: false,
       default: false,
     },
+    isActive: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    preventRedirect: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   computed: {
     issuableId() {
@@ -68,6 +80,9 @@ export default {
     author() {
       return this.issuable.author || {};
     },
+    externalAuthor() {
+      return this.issuable.externalAuthor;
+    },
     webUrl() {
       return this.issuable.gitlabWebUrl || this.issuable.webUrl;
     },
@@ -75,38 +90,56 @@ export default {
       return getIdFromGraphQLId(this.author.id);
     },
     isIssuableUrlExternal() {
-      return isExternal(this.webUrl);
+      return isExternal(this.webUrl ?? '');
     },
     reference() {
       return this.issuable.reference || `${this.issuableSymbol}${this.issuable.iid}`;
     },
+    type() {
+      return this.issuable.type || this.issuable.workItemType?.name.toUpperCase();
+    },
     labels() {
-      return this.issuable.labels?.nodes || this.issuable.labels || [];
+      return (
+        this.issuable.labels?.nodes ||
+        this.issuable.labels ||
+        this.issuable.widgets?.find(isLabelsWidget)?.labels.nodes ||
+        []
+      );
     },
     labelIdsString() {
       return JSON.stringify(this.labels.map((label) => getIdFromGraphQLId(label.id)));
     },
     assignees() {
-      return this.issuable.assignees?.nodes || this.issuable.assignees || [];
+      return (
+        this.issuable.assignees?.nodes ||
+        this.issuable.assignees ||
+        this.issuable.widgets?.find(isAssigneesWidget)?.assignees.nodes ||
+        []
+      );
     },
     createdAt() {
-      return getTimeago().format(this.issuable.createdAt);
+      return this.timeFormatted(this.issuable.createdAt);
+    },
+    isClosed() {
+      return this.issuable.state === STATUS_CLOSED || this.issuable.state === STATE_CLOSED;
     },
     timestamp() {
-      if (this.issuable.state === 'closed' && this.issuable.closedAt) {
-        return this.issuable.closedAt;
-      }
-      return this.issuable.updatedAt;
+      return this.isClosed && this.issuable.closedAt
+        ? this.issuable.closedAt
+        : this.issuable.updatedAt;
     },
     formattedTimestamp() {
-      if (this.issuable.state === 'closed' && this.issuable.closedAt) {
+      if (this.isClosed && this.issuable.closedAt) {
         return sprintf(__('closed %{timeago}'), {
-          timeago: getTimeago().format(this.issuable.closedAt),
+          timeago: this.timeFormatted(this.issuable.closedAt),
         });
       }
-      return sprintf(__('updated %{timeAgo}'), {
-        timeAgo: getTimeago().format(this.issuable.updatedAt),
-      });
+      if (this.issuable.updatedAt !== this.issuable.createdAt) {
+        return sprintf(__('updated %{timeAgo}'), {
+          timeAgo: this.timeFormatted(this.issuable.updatedAt),
+        });
+      }
+      return undefined;
     },
     issuableTitleProps() {
       if (this.isIssuableUrlExternal) {
@@ -155,7 +188,10 @@ export default {
       return Boolean(this.$slots[slotName]);
     },
     scopedLabel(label) {
-      return this.hasScopedLabelsFeature && isScopedLabel(label);
+      const allowsScopedLabels =
+        this.hasScopedLabelsFeature ||
+        this.issuable.widgets?.find(isLabelsWidget)?.allowsScopedLabels;
+      return allowsScopedLabels && isScopedLabel(label);
     },
     labelTitle(label) {
       return label.title || label.name;
@@ -175,6 +211,13 @@ export default {
       }
       return '';
     },
+    handleIssuableItemClick(e) {
+      if (e.metaKey || e.ctrlKey || !this.preventRedirect) {
+        return;
+      }
+      e.preventDefault();
+      this.$emit('select-issuable', { iid: this.issuableIid, webUrl: this.webUrl });
+    },
   },
 };
 </script>
@@ -183,9 +226,10 @@ export default {
   <li
     :id="`issuable_${issuableId}`"
     class="issue gl-display-flex! gl-px-5!"
-    :class="{ closed: issuable.closedAt }"
+    :class="{ closed: issuable.closedAt, 'gl-bg-blue-50': isActive }"
     :data-labels="labelIdsString"
     :data-qa-issue-id="issuableId"
+    data-testid="issuable-item-wrapper"
   >
     <gl-form-checkbox
       v-if="showCheckbox"
@@ -193,13 +237,19 @@ export default {
       :checked="checked"
       :data-id="issuableId"
       :data-iid="issuableIid"
-      :data-type="issuable.type"
+      :data-type="type"
       @input="$emit('checked-input', $event)"
     >
       <span class="gl-sr-only">{{ issuable.title }}</span>
     </gl-form-checkbox>
     <div class="issuable-main-info">
       <div data-testid="issuable-title" class="issue-title title">
+        <work-item-type-icon
+          v-if="showWorkItemTypeIcon"
+          class="gl-mr-2"
+          :work-item-type="type"
+          show-tooltip-on-hover
+        />
         <gl-icon
           v-if="issuable.confidential"
           v-gl-tooltip
@@ -211,7 +261,7 @@ export default {
           v-if="issuable.hidden"
           v-gl-tooltip
           name="spam"
-          :title="__('This issue is hidden because its author has been banned')"
+          :title="__('This issue is hidden because its author has been banned.')"
           :aria-label="__('Hidden')"
         />
         <gl-link
@@ -219,25 +269,22 @@ export default {
           dir="auto"
           :href="webUrl"
           data-qa-selector="issuable_title_link"
+          data-testid="issuable-title-link"
           v-bind="issuableTitleProps"
+          @click="handleIssuableItemClick"
         >
           {{ issuable.title }}
           <gl-icon v-if="isIssuableUrlExternal" name="external-link" class="gl-ml-2" />
         </gl-link>
         <span
           v-if="taskStatus"
-          class="task-status gl-display-none gl-sm-display-inline-block! gl-ml-3"
+          class="task-status gl-display-none gl-sm-display-inline-block! gl-ml-2 gl-font-sm"
           data-testid="task-status"
         >
           {{ taskStatus }}
         </span>
       </div>
       <div class="issuable-info">
-        <work-item-type-icon
-          v-if="showWorkItemTypeIcon"
-          :work-item-type="issuable.type"
-          show-tooltip-on-hover
-        />
         <slot v-if="hasSlotContents('reference')" name="reference"></slot>
         <span v-else data-testid="issuable-reference" class="issuable-reference">
           {{ reference }}
@@ -256,6 +303,9 @@ export default {
                 </span>
               </template>
               <template #author>
+                <span v-if="externalAuthor" data-testid="external-author"
+                  >{{ externalAuthor }} {{ __('via') }}</span
+                >
                 <slot v-if="hasSlotContents('author')" name="author"></slot>
                 <gl-link
                   v-else
@@ -265,7 +315,7 @@ export default {
                   :data-avatar-url="author.avatarUrl"
                   :href="author.webUrl"
                   data-testid="issuable-author"
-                  class="author-link js-user-link"
+                  class="author-link js-user-link gl-font-sm gl-text-gray-500!"
                 >
                   <span class="author">{{ author.name }}</span>
                 </gl-link>
@@ -285,8 +335,7 @@ export default {
           </span>
           <slot name="timeframe"></slot>
         </span>
-        &nbsp;
-        <span v-if="labels.length" role="group" :aria-label="__('Labels')">
+        <p v-if="labels.length" role="group" :aria-label="__('Labels')" class="gl-mt-1 gl-mb-0">
           <gl-label
             v-for="(label, index) in labels"
             :key="index"
@@ -295,15 +344,15 @@ export default {
             :description="label.description"
             :scoped="scopedLabel(label)"
             :target="labelTarget(label)"
-            :class="{ 'gl-ml-2': index }"
+            class="gl-mr-2"
             size="sm"
           />
-        </span>
+        </p>
       </div>
     </div>
     <div class="issuable-meta">
       <ul v-if="showIssuableMeta" class="controls">
-        <li v-if="hasSlotContents('status')" class="issuable-status">
+        <li v-if="hasSlotContents('status')">
           <slot name="status"></slot>
         </li>
         <li v-if="assignees.length">
@@ -312,7 +361,7 @@ export default {
             :icon-size="16"
             :max-visible="4"
             img-css-classes="gl-mr-2!"
-            class="gl-align-items-center gl-display-flex gl-ml-3"
+            class="gl-align-items-center gl-display-flex"
           />
         </li>
         <slot name="statistics"></slot>

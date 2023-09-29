@@ -10,7 +10,7 @@ module Mutations
           ANNOTATION_SOURCE_ARGUMENT_ERROR = 'Either a cluster or environment global id is required'
           INVALID_ANNOTATION_SOURCE_ERROR = 'Invalid cluster or environment id'
 
-          authorize :create_metrics_dashboard_annotation
+          authorize :admin_metrics_dashboard_annotation
 
           field :annotation,
             Types::Metrics::Dashboards::AnnotationType,
@@ -61,43 +61,17 @@ module Mutations
             end
           end
 
-          def resolve(args)
-            annotation_response = ::Metrics::Dashboard::Annotations::CreateService.new(context[:current_user], annotation_create_params(args)).execute
-
-            annotation = annotation_response[:annotation]
-
+          def resolve(_args)
             {
-              annotation: annotation.valid? ? annotation : nil,
-              errors: errors_on_object(annotation)
+              annotation: nil,
+              errors: []
             }
           end
 
           private
 
-          def ready?(**args)
-            # Raise error if both cluster_id and environment_id are present or neither is present
-            unless args[:cluster_id].present? ^ args[:environment_id].present?
-              raise Gitlab::Graphql::Errors::ArgumentError, ANNOTATION_SOURCE_ARGUMENT_ERROR
-            end
-
-            super(**args)
-          end
-
-          def find_object(id:)
-            GitlabSchema.find_by_gid(id)
-          end
-
-          def annotation_create_params(args)
-            annotation_source = AnnotationSource.new(object: annotation_source(args))
-
-            args[annotation_source.type] = annotation_source.object
-
-            args
-          end
-
-          def annotation_source(args)
-            annotation_source_id = args[:cluster_id] || args[:environment_id]
-            authorized_find!(id: annotation_source_id)
+          def ready?(**_args)
+            raise_resource_not_available_error!
           end
         end
       end

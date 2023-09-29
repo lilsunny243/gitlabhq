@@ -90,6 +90,10 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
         end
       end
 
+      it_behaves_like 'runner migrations backoff' do
+        let(:request) { post api('/jobs/request') }
+      end
+
       context 'when no token is provided' do
         it 'returns 400 error' do
           post api('/jobs/request')
@@ -122,56 +126,33 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
         context 'when system_id parameter is specified' do
           subject(:request) { request_job(**args) }
 
-          context 'with create_runner_machine FF enabled' do
-            before do
-              stub_feature_flags(create_runner_machine: true)
-            end
+          context 'when ci_runner_machines with same system_xid does not exist' do
+            let(:args) { { system_id: 's_some_system_id' } }
 
-            context 'when ci_runner_machines with same system_xid does not exist' do
-              let(:args) { { system_id: 's_some_system_id' } }
+            it 'creates respective ci_runner_machines record', :freeze_time do
+              expect { request }.to change { runner.runner_managers.reload.count }.from(0).to(1)
 
-              it 'creates respective ci_runner_machines record', :freeze_time do
-                expect { request }.to change { runner.runner_machines.reload.count }.from(0).to(1)
-
-                machine = runner.runner_machines.last
-                expect(machine.system_xid).to eq args[:system_id]
-                expect(machine.runner).to eq runner
-                expect(machine.contacted_at).to eq Time.current
-              end
-            end
-
-            context 'when ci_runner_machines with same system_xid already exists', :freeze_time do
-              let(:args) { { system_id: 's_existing_system_id' } }
-              let!(:runner_machine) do
-                create(:ci_runner_machine, runner: runner, system_xid: args[:system_id], contacted_at: 1.hour.ago)
-              end
-
-              it 'does not create new ci_runner_machines record' do
-                expect { request }.not_to change { Ci::RunnerMachine.count }
-              end
-
-              it 'updates the contacted_at field' do
-                request
-
-                expect(runner_machine.reload.contacted_at).to eq Time.current
-              end
+              runner_manager = runner.runner_managers.last
+              expect(runner_manager.system_xid).to eq args[:system_id]
+              expect(runner_manager.runner).to eq runner
+              expect(runner_manager.contacted_at).to eq Time.current
             end
           end
 
-          context 'with create_runner_machine FF disabled' do
-            before do
-              stub_feature_flags(create_runner_machine: false)
+          context 'when ci_runner_machines with same system_xid already exists', :freeze_time do
+            let(:args) { { system_id: 's_existing_system_id' } }
+            let!(:runner_manager) do
+              create(:ci_runner_machine, runner: runner, system_xid: args[:system_id], contacted_at: 1.hour.ago)
             end
 
-            context 'when ci_runner_machines with same system_xid does not exist' do
-              let(:args) { { system_id: 's_some_system_id' } }
+            it 'does not create new ci_runner_machines record' do
+              expect { request }.not_to change { Ci::RunnerManager.count }
+            end
 
-              it 'does not create respective ci_runner_machines record', :freeze_time, :aggregate_failures do
-                expect { request }.not_to change { runner.runner_machines.reload.count }
+            it 'updates the contacted_at field' do
+              request
 
-                expect(response).to have_gitlab_http_status(:created)
-                expect(runner.runner_machines).to be_empty
-              end
+              expect(runner_manager.reload.contacted_at).to eq Time.current
             end
           end
         end
@@ -253,11 +234,14 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
           end
 
           let(:expected_cache) do
-            [{ 'key' => a_string_matching(/^cache_key-(?>protected|non_protected)$/),
-               'untracked' => false,
-               'paths' => ['vendor/*'],
-               'policy' => 'pull-push',
-               'when' => 'on_success' }]
+            [{
+              'key' => a_string_matching(/^cache_key-(?>protected|non_protected)$/),
+              'untracked' => false,
+              'paths' => ['vendor/*'],
+              'policy' => 'pull-push',
+              'when' => 'on_success',
+              'fallback_keys' => []
+            }]
           end
 
           let(:expected_features) do
@@ -276,7 +260,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
             expect(runner.reload.platform).to eq('darwin')
             expect(json_response['id']).to eq(job.id)
             expect(json_response['token']).to eq(job.token)
-            expect(json_response['job_info']).to eq(expected_job_info)
+            expect(json_response['job_info']).to include(expected_job_info)
             expect(json_response['git_info']).to eq(expected_git_info)
             expect(json_response['image']).to eq(
               { 'name' => 'image:1.0', 'entrypoint' => '/bin/sh', 'ports' => [], 'pull_policy' => nil }
@@ -362,36 +346,6 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
                   .to contain_exactly("+refs/pipelines/#{pipeline.id}:refs/pipelines/#{pipeline.id}",
                                       '+refs/tags/*:refs/tags/*',
                                       '+refs/heads/*:refs/remotes/origin/*')
-              end
-            end
-          end
-
-          context 'when job filtered by job_age' do
-            let!(:job) do
-              create(:ci_build, :pending, :queued, :tag, pipeline: pipeline, name: 'spinach', stage: 'test', stage_idx: 0, queued_at: 60.seconds.ago)
-            end
-
-            before do
-              job.queuing_entry&.update!(created_at: 60.seconds.ago)
-            end
-
-            context 'job is queued less than job_age parameter' do
-              let(:job_age) { 120 }
-
-              it 'gives 204' do
-                request_job(job_age: job_age)
-
-                expect(response).to have_gitlab_http_status(:no_content)
-              end
-            end
-
-            context 'job is queued more than job_age parameter' do
-              let(:job_age) { 30 }
-
-              it 'picks a job' do
-                request_job(job_age: job_age)
-
-                expect(response).to have_gitlab_http_status(:created)
               end
             end
           end
@@ -718,7 +672,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
               expect(runner.reload.platform).to eq('darwin')
               expect(json_response['id']).to eq(job.id)
               expect(json_response['token']).to eq(job.token)
-              expect(json_response['job_info']).to eq(expected_job_info)
+              expect(json_response['job_info']).to include(expected_job_info)
               expect(json_response['git_info']).to eq(expected_git_info)
               expect(json_response['artifacts']).to eq(expected_artifacts)
             end
@@ -827,6 +781,63 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
 
                   expect(response).to have_gitlab_http_status(:created)
                   expect(json_response['runner_info']).to include({ 'timeout' => 1234 })
+                end
+              end
+            end
+          end
+
+          describe 'time_in_queue_seconds support' do
+            let(:job) do
+              create(:ci_build, :pending, :queued, pipeline: pipeline,
+                     name: 'spinach', stage: 'test', stage_idx: 0,
+                     queued_at: 60.seconds.ago)
+            end
+
+            it 'presents the time_in_queue_seconds info in the payload' do
+              request_job
+
+              expect(response).to have_gitlab_http_status(:created)
+              expect(json_response['job_info']['time_in_queue_seconds']).to be >= 60.seconds
+            end
+          end
+
+          describe 'project_jobs_running_on_instance_runners_count support' do
+            context 'when runner is not instance_type' do
+              it 'presents the project_jobs_running_on_instance_runners_count info in the payload as +Inf' do
+                request_job
+
+                expect(response).to have_gitlab_http_status(:created)
+                expect(json_response['job_info']['project_jobs_running_on_instance_runners_count']).to eq('+Inf')
+              end
+            end
+
+            context 'when runner is instance_type' do
+              let(:project) { create(:project, namespace: group, shared_runners_enabled: true) }
+              let(:runner) { create(:ci_runner, :instance) }
+
+              context 'when less than Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET running jobs assigned to an instance runner are on the list' do
+                it 'presents the project_jobs_running_on_instance_runners_count info in the payload as a correct number in a string format' do
+                  request_job
+
+                  expect(response).to have_gitlab_http_status(:created)
+                  expect(json_response['job_info']['project_jobs_running_on_instance_runners_count']).to eq('0')
+                end
+              end
+
+              context 'when at least Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET running jobs assigned to an instance runner are on the list' do
+                let(:other_runner) { create(:ci_runner, :instance) }
+
+                before do
+                  stub_const('Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET', 1)
+
+                  create(:ci_running_build, runner: other_runner, runner_type: other_runner.runner_type, project: project)
+                end
+
+                it 'presents the project_jobs_running_on_instance_runners_count info in the payload as Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET+' do
+                  request_job
+
+                  expect(response).to have_gitlab_http_status(:created)
+                  expect(json_response['job_info']['project_jobs_running_on_instance_runners_count']).to eq('1+')
                 end
               end
             end

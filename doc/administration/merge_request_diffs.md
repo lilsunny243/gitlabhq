@@ -21,7 +21,7 @@ that only [stores outdated diffs](#alternative-in-database-storage) outside of d
 
 ## Using external storage
 
-**In Omnibus installations:**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb` and add the following line:
 
@@ -38,10 +38,10 @@ that only [stores outdated diffs](#alternative-in-database-storage) outside of d
    gitlab_rails['external_diffs_storage_path'] = "/mnt/storage/external-diffs"
    ```
 
-1. Save the file and [reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and [reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
    GitLab then migrates your existing merge request diffs to external storage.
 
-**In installations from source:**
+For self-compiled installations:
 
 1. Edit `/home/git/gitlab/config/gitlab.yml` and add or amend the following
    lines:
@@ -62,7 +62,7 @@ that only [stores outdated diffs](#alternative-in-database-storage) outside of d
      storage_path: /mnt/storage/external-diffs
    ```
 
-1. Save the file and [restart GitLab](restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and [restart GitLab](restart_gitlab.md#self-compiled-installations) for the changes to take effect.
    GitLab then migrates your existing merge request diffs to external storage.
 
 ## Using object storage
@@ -74,7 +74,7 @@ Instead of storing the external diffs on disk, we recommended the use of an obje
 store like AWS S3 instead. This configuration relies on valid AWS credentials to
 be configured already.
 
-**In Omnibus installations:**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb` and add the following line:
 
@@ -83,10 +83,10 @@ be configured already.
    ```
 
 1. Set [object storage settings](#object-storage-settings).
-1. Save the file and [reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and [reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
    GitLab then migrates your existing merge request diffs to external storage.
 
-**In installations from source:**
+For self-compiled installations:
 
 1. Edit `/home/git/gitlab/config/gitlab.yml` and add or amend the following
    lines:
@@ -97,7 +97,7 @@ be configured already.
    ```
 
 1. Set [object storage settings](#object-storage-settings).
-1. Save the file and [restart GitLab](restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and [restart GitLab](restart_gitlab.md#self-compiled-installations) for the changes to take effect.
    GitLab then migrates your existing merge request diffs to external storage.
 
 [Read more about using object storage with GitLab](object_storage.md).
@@ -105,11 +105,11 @@ be configured already.
 ### Object Storage Settings
 
 In GitLab 13.2 and later, you should use the
-[consolidated object storage settings](object_storage.md#consolidated-object-storage-configuration).
+[consolidated object storage settings](object_storage.md#configure-a-single-storage-connection-for-all-object-types-consolidated-form).
 This section describes the earlier configuration format.
 
-For source installations, these settings are nested under `external_diffs:` and
-then `object_store:`. On Omnibus installations, they are prefixed by
+For self-compiled installations, these settings are nested under `external_diffs:` and
+then `object_store:`. On Linux package installations, they are prefixed by
 `external_diffs_object_store_`.
 
 | Setting | Description | Default |
@@ -121,9 +121,9 @@ then `object_store:`. On Omnibus installations, they are prefixed by
 
 #### S3 compatible connection settings
 
-See [the available connection settings for different providers](object_storage.md#connection-settings).
+See [the available connection settings for different providers](object_storage.md#configure-the-connection-settings).
 
-**In Omnibus installations:**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb` and add the following lines by replacing with
    the values you want:
@@ -151,9 +151,9 @@ See [the available connection settings for different providers](object_storage.m
    }
    ```
 
-1. Save the file and [reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and [reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
-**In installations from source:**
+For self-compiled installations:
 
 1. Edit `/home/git/gitlab/config/gitlab.yml` and add or amend the following
    lines:
@@ -171,7 +171,7 @@ See [the available connection settings for different providers](object_storage.m
          region: eu-central-1
    ```
 
-1. Save the file and [restart GitLab](restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and [restart GitLab](restart_gitlab.md#self-compiled-installations) for the changes to take effect.
 
 ## Alternative in-database storage
 
@@ -182,7 +182,7 @@ in the database.
 
 To enable this feature, perform the following steps:
 
-**In Omnibus installations:**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb` and add the following line:
 
@@ -190,9 +190,9 @@ To enable this feature, perform the following steps:
    gitlab_rails['external_diffs_when'] = 'outdated'
    ```
 
-1. Save the file and [reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and [reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
-**In installations from source:**
+For self-compiled installations:
 
 1. Edit `/home/git/gitlab/config/gitlab.yml` and add or amend the following
    lines:
@@ -203,7 +203,7 @@ To enable this feature, perform the following steps:
      when: outdated
    ```
 
-1. Save the file and [restart GitLab](restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and [restart GitLab](restart_gitlab.md#self-compiled-installations) for the changes to take effect.
 
 With this feature enabled, diffs are initially stored in the database, rather
 than externally. They are moved to external storage after any of these
@@ -236,13 +236,13 @@ Then you are affected by this issue. Because it's not possible to safely determi
 all these conditions automatically, we've provided a Rake task in GitLab v13.2.0
 that you can run manually to correct the data:
 
-**In Omnibus installations:**
+For Linux package installations:
 
 ```shell
 sudo gitlab-rake gitlab:external_diffs:force_object_storage
 ```
 
-**In installations from source:**
+For self-compiled installations:
 
 ```shell
 sudo -u git -H bundle exec rake gitlab:external_diffs:force_object_storage RAILS_ENV=production

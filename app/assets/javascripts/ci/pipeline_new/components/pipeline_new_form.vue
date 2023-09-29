@@ -18,7 +18,7 @@ import { uniqueId } from 'lodash';
 import Vue from 'vue';
 import { fetchPolicies } from '~/lib/graphql';
 import SafeHtml from '~/vue_shared/directives/safe_html';
-import { redirectTo } from '~/lib/utils/url_utility';
+import { redirectTo } from '~/lib/utils/url_utility'; // eslint-disable-line import/no-deprecated
 import { s__, __, n__ } from '~/locale';
 import {
   CC_VALIDATION_REQUIRED_ERROR,
@@ -43,6 +43,7 @@ const i18n = {
   defaultError: __('Something went wrong on our end. Please try again.'),
   refsLoadingErrorTitle: s__('Pipeline|Branches or tags could not be loaded.'),
   submitErrorTitle: s__('Pipeline|Pipeline cannot be run.'),
+  configButtonTitle: s__('Pipelines|Go to the pipeline editor'),
   warningTitle: __('The form contains the following warning:'),
   maxWarningsSummary: __('%{total} warnings found: showing first %{warningsDisplayed}'),
   removeVariableLabel: s__('CiVariables|Remove variable'),
@@ -79,6 +80,14 @@ export default {
   props: {
     pipelinesPath: {
       type: String,
+      required: true,
+    },
+    pipelinesEditorPath: {
+      type: String,
+      required: true,
+    },
+    canViewPipelineEditor: {
+      type: Boolean,
       required: true,
     },
     defaultBranch: {
@@ -330,7 +339,7 @@ export default {
       const { id, errors, totalWarnings, warnings } = data.createPipeline;
 
       if (id) {
-        redirectTo(`${this.pipelinesPath}/${id}`);
+        redirectTo(`${this.pipelinesPath}/${id}`); // eslint-disable-line import/no-deprecated
         return;
       }
 
@@ -373,9 +382,18 @@ export default {
       :dismissible="false"
       variant="danger"
       class="gl-mb-4"
-      data-testid="run-pipeline-error-alert"
     >
-      <span v-safe-html="error"></span>
+      <span v-safe-html="error" data-testid="run-pipeline-error-alert" class="block"></span>
+      <gl-button
+        v-if="canViewPipelineEditor"
+        class="gl-my-3"
+        data-testid="ci-cd-pipeline-configuration"
+        variant="confirm"
+        :aria-label="$options.i18n.configButtonTitle"
+        :href="pipelinesEditorPath"
+      >
+        {{ $options.i18n.configButtonTitle }}
+      </gl-button>
     </gl-alert>
     <gl-alert
       v-if="shouldShowWarning"
@@ -406,7 +424,11 @@ export default {
       </details>
     </gl-alert>
     <gl-form-group :label="s__('Pipeline|Run for branch name or tag')">
-      <refs-dropdown v-model="refValue" @loadingError="onRefsLoadingError" />
+      <refs-dropdown
+        v-model="refValue"
+        :project-id="projectId"
+        @loadingError="onRefsLoadingError"
+      />
     </gl-form-group>
 
     <gl-loading-icon v-if="isLoading" class="gl-mb-5" size="lg" />
@@ -416,8 +438,7 @@ export default {
         v-for="(variable, index) in variables"
         :key="variable.uniqueId"
         class="gl-mb-3 gl-pb-2"
-        data-testid="ci-variable-row"
-        data-qa-selector="ci_variable_row_container"
+        data-testid="ci-variable-row-container"
       >
         <div
           class="gl-display-flex gl-align-items-stretch gl-flex-direction-column gl-md-flex-direction-row"
@@ -439,8 +460,7 @@ export default {
             v-model="variable.key"
             :placeholder="s__('CiVariables|Input variable key')"
             :class="$options.formElementClasses"
-            data-testid="pipeline-form-ci-variable-key"
-            data-qa-selector="ci_variable_key_field"
+            data-testid="pipeline-form-ci-variable-key-field"
             @change="addEmptyVariable(refFullName)"
           />
           <gl-dropdown
@@ -449,13 +469,11 @@ export default {
             :class="$options.formElementClasses"
             class="gl-flex-grow-1 gl-mr-0!"
             data-testid="pipeline-form-ci-variable-value-dropdown"
-            data-qa-selector="ci_variable_value_dropdown"
           >
             <gl-dropdown-item
               v-for="option in configVariablesWithDescription.options[variable.key]"
               :key="option"
-              data-testid="pipeline-form-ci-variable-value-dropdown-items"
-              data-qa-selector="ci_variable_value_dropdown_item"
+              data-testid="ci-variable-value-dropdown-item"
               @click="setVariableAttribute(variable.key, 'value', option)"
             >
               {{ option }}
@@ -468,8 +486,7 @@ export default {
             class="gl-mb-3"
             :style="$options.textAreaStyle"
             :no-resize="false"
-            data-testid="pipeline-form-ci-variable-value"
-            data-qa-selector="ci_variable_value_field"
+            data-testid="pipeline-form-ci-variable-value-field"
           />
 
           <template v-if="variables.length > 1">
@@ -521,8 +538,7 @@ export default {
         category="primary"
         variant="confirm"
         class="js-no-auto-disable gl-mr-3"
-        data-qa-selector="run_pipeline_button"
-        data-testid="run_pipeline_button"
+        data-testid="run-pipeline-button"
         :disabled="submitted"
         >{{ s__('Pipeline|Run pipeline') }}</gl-button
       >

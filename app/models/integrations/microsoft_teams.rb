@@ -2,6 +2,22 @@
 
 module Integrations
   class MicrosoftTeams < BaseChatNotification
+    field :webhook,
+      section: SECTION_TYPE_CONNECTION,
+      help: 'https://outlook.office.com/webhook/…',
+      required: true
+
+    field :notify_only_broken_pipelines,
+      type: :checkbox,
+      section: SECTION_TYPE_CONFIGURATION,
+      help: 'If selected, successful pipelines do not trigger a notification event.'
+
+    field :branches_to_be_notified,
+      type: :select,
+      section: SECTION_TYPE_CONFIGURATION,
+      title: -> { s_('Integrations|Branches for which notifications are to be sent') },
+      choices: -> { branch_choices }
+
     def title
       'Microsoft Teams notifications'
     end
@@ -24,45 +40,6 @@ module Integrations
     def self.supported_events
       %w[push issue confidential_issue merge_request note confidential_note tag_push
          pipeline wiki_page]
-    end
-
-    def default_fields
-      [
-        { type: 'text', section: SECTION_TYPE_CONNECTION, name: 'webhook', help: 'https://outlook.office.com/webhook/…', required: true },
-        {
-          type: 'checkbox',
-          section: SECTION_TYPE_CONFIGURATION,
-          name: 'notify_only_broken_pipelines',
-          help: 'If selected, successful pipelines do not trigger a notification event.'
-        },
-        {
-          type: 'select',
-          section: SECTION_TYPE_CONFIGURATION,
-          name: 'branches_to_be_notified',
-          title: s_('Integrations|Branches for which notifications are to be sent'),
-          choices: self.class.branch_choices
-        }
-      ]
-    end
-
-    def sections
-      [
-        {
-          type: SECTION_TYPE_CONNECTION,
-          title: s_('Integrations|Connection details'),
-          description: help
-        },
-        {
-          type: SECTION_TYPE_TRIGGER,
-          title: s_('Integrations|Trigger'),
-          description: s_('Integrations|An event will be triggered when one of the following items happen.')
-        },
-        {
-          type: SECTION_TYPE_CONFIGURATION,
-          title: s_('Integrations|Notification settings'),
-          description: s_('Integrations|Configure the scope of notifications.')
-        }
-      ]
     end
 
     private

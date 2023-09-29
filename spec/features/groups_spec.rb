@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group', feature_category: :subgroups do
-  let(:user) { create(:user) }
+RSpec.describe 'Group', feature_category: :groups_and_projects do
+  let(:user) { create(:user, :no_super_sidebar) }
 
   before do
     sign_in(user)
@@ -461,9 +461,11 @@ RSpec.describe 'Group', feature_category: :subgroups do
 
   describe 'new subgroup / project button' do
     let_it_be(:group, reload: true) do
-      create(:group,
-             project_creation_level: Gitlab::Access::NO_ONE_PROJECT_ACCESS,
-             subgroup_creation_level: Gitlab::Access::OWNER_SUBGROUP_ACCESS)
+      create(
+        :group,
+        project_creation_level: Gitlab::Access::NO_ONE_PROJECT_ACCESS,
+        subgroup_creation_level: Gitlab::Access::OWNER_SUBGROUP_ACCESS
+      )
     end
 
     before do
@@ -508,6 +510,47 @@ RSpec.describe 'Group', feature_category: :subgroups do
           expect(page).to have_link('New subgroup')
           expect(page).to have_link('New project')
         end
+      end
+    end
+
+    context 'when in a private group' do
+      before do
+        group.update!(
+          visibility_level: Gitlab::VisibilityLevel::PRIVATE,
+          project_creation_level: Gitlab::Access::MAINTAINER_PROJECT_ACCESS
+        )
+      end
+
+      context 'when visibility levels have been restricted to private only by an administrator' do
+        before do
+          stub_application_setting(
+            restricted_visibility_levels: [
+              Gitlab::VisibilityLevel::PRIVATE
+            ]
+          )
+        end
+
+        it 'does not display the "New project" button' do
+          visit group_path(group)
+
+          page.within '[data-testid="group-buttons"]' do
+            expect(page).not_to have_link('New project')
+          end
+        end
+      end
+    end
+  end
+
+  describe 'group README', :js do
+    context 'with gitlab-profile project and README.md' do
+      let_it_be(:group) { create(:group) }
+      let_it_be(:project) { create(:project, :readme, namespace: group) }
+
+      it 'renders README block on group page' do
+        visit group_path(group)
+        wait_for_requests
+
+        expect(page).to have_text('README.md')
       end
     end
   end

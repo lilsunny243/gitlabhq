@@ -1,5 +1,6 @@
 <script>
-import { GlBadge } from '@gitlab/ui';
+import { GlBadge, GlTooltipDirective } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import NoteableNote from '~/notes/components/noteable_note.vue';
@@ -11,6 +12,7 @@ export default {
   },
   directives: {
     SafeHtml,
+    GlTooltip: GlTooltipDirective,
   },
   props: {
     draft: {
@@ -95,7 +97,15 @@ export default {
     @mouseleave.native="handleMouseLeave(draft)"
   >
     <template #note-header-info>
-      <gl-badge variant="warning" class="gl-mr-2">{{ __('Pending') }}</gl-badge>
+      <gl-badge
+        v-gl-tooltip
+        variant="warning"
+        size="sm"
+        class="gl-mr-2"
+        :title="__('Pending comments are hidden until you submit your review.')"
+      >
+        {{ __('Pending') }}
+      </gl-badge>
     </template>
     <template v-if="!isEditingDraft" #after-note-body>
       <div

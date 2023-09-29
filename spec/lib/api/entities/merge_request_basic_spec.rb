@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::API::Entities::MergeRequestBasic do
+RSpec.describe ::API::Entities::MergeRequestBasic, feature_category: :code_review_workflow do
   let_it_be(:user) { create(:user) }
   let_it_be(:merge_request) { create(:merge_request) }
   let_it_be(:labels) { create_list(:label, 3) }
@@ -21,7 +21,7 @@ RSpec.describe ::API::Entities::MergeRequestBasic do
       merged_by merge_user merged_at closed_by closed_at target_branch user_notes_count upvotes downvotes
       author assignees assignee reviewers source_project_id target_project_id labels draft work_in_progress
       milestone merge_when_pipeline_succeeds merge_status detailed_merge_status sha merge_commit_sha
-      squash_commit_sha discussion_locked should_remove_source_branch force_remove_source_branch
+      squash_commit_sha discussion_locked should_remove_source_branch force_remove_source_branch prepared_at
       reference references web_url time_stats squash task_completion_status has_conflicts blocking_discussions_resolved
     ]
 

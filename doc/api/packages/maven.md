@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Maven API **(FREE)**
+# Maven API **(FREE ALL)**
 
 This is the API documentation for [Maven Packages](../../user/packages/maven_repository/index.md).
 
@@ -18,7 +18,7 @@ package registry, see the [Maven package registry documentation](../../user/pack
 NOTE:
 These endpoints do not adhere to the standard API authentication methods.
 See [Maven package registry documentation](../../user/packages/maven_repository/index.md)
-for details on which headers and token types are supported.
+for details on which headers and token types are supported. Undocumented authentication methods might be removed in the future.
 
 ## Download a package file at the instance-level
 

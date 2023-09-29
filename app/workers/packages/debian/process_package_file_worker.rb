@@ -5,6 +5,7 @@ module Packages
     class ProcessPackageFileWorker
       include ApplicationWorker
       include Gitlab::Utils::StrongMemoize
+      include ::Packages::ErrorHandling
 
       data_consistency :always
 
@@ -19,15 +20,21 @@ module Packages
         @distribution_name = distribution_name
         @component_name = component_name
 
-        return unless package_file && distribution_name && component_name
+        return unless package_file
         # return if file has already been processed
         return unless package_file.debian_file_metadatum&.unknown?
 
         ::Packages::Debian::ProcessPackageFileService.new(package_file, distribution_name, component_name).execute
-      rescue StandardError => e
-        Gitlab::ErrorTracking.log_exception(e, package_file_id: @package_file_id,
-                                               distribution_name: @distribution_name, component_name: @component_name)
-        package_file.package.update_column(:status, :error)
+      rescue StandardError => exception
+        package_file.update_column(:status, :error)
+        process_package_file_error(
+          package_file: package_file,
+          exception: exception,
+          extra_log_payload: {
+            distribution_name: @distribution_name,
+            component_name: @component_name
+          }
+        )
       end
 
       private

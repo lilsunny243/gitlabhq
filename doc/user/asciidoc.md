@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# AsciiDoc **(FREE)**
+# AsciiDoc **(FREE ALL)**
 
 GitLab uses the [Asciidoctor](https://asciidoctor.org) gem to convert AsciiDoc content to HTML5.
 Consult the [Asciidoctor User Manual](https://asciidoctor.org/docs/user-manual/) for a complete Asciidoctor reference.
@@ -244,15 +244,20 @@ pages, change the filename from `.adoc` to `.asciidoc`.
 
 ```plaintext
 include::basics.adoc[]
-
-// define -a allow-uri-read to allow content to be read from URI
-include::https://example.org/installation.adoc[]
 ```
 
 To guarantee good system performance and prevent malicious documents from causing
 problems, GitLab enforces a maximum limit on the number of include directives
 processed in any one document. You can include up to 32 documents, which is
 inclusive of transitive dependencies.
+
+To use includes from separate pages or external URLs, enable the `allow-uri-read`
+in [application settings](../administration/wikis/index.md#allow-uri-includes-for-asciidoc).
+
+```plaintext
+// define application setting allow-uri-read to true to allow content to be read from URI
+include::https://example.org/installation.adoc[]
+```
 
 ### Blocks
 
@@ -406,7 +411,7 @@ Color written inside backticks is followed by a color "chip":
 
 ### Equations and Formulas (STEM)
 
-If you need to include Science, Technology, Engineering and Math (STEM)
+If you need to include Science, Technology, Engineering, and Math (STEM)
 expressions, set the `stem` attribute in the document's header to `latexmath`.
 Equations and formulas are rendered using [KaTeX](https://katex.org/):
 

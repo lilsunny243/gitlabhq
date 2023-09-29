@@ -18,7 +18,7 @@ describe('Container Expiration Policy Settings Form', () => {
 
   const defaultProvidedValues = {
     projectPath: 'path',
-    projectSettingsPath: 'settings-path',
+    projectSettingsPath: '/settings-path',
   };
 
   const {
@@ -46,7 +46,7 @@ describe('Container Expiration Policy Settings Form', () => {
   const findOlderThanDropdown = () => wrapper.find('[data-testid="older-than-dropdown"]');
   const findRemoveRegexInput = () => wrapper.find('[data-testid="remove-regex-input"]');
 
-  const submitForm = async () => {
+  const submitForm = () => {
     findForm().trigger('submit');
     return waitForPromises();
   };
@@ -122,10 +122,6 @@ describe('Container Expiration Policy Settings Form', () => {
 
   beforeEach(() => {
     jest.spyOn(Tracking, 'event');
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   describe.each`
@@ -290,8 +286,8 @@ describe('Container Expiration Policy Settings Form', () => {
 
         await submitForm();
 
-        expect(window.location.href.endsWith('settings-path?showSetupSuccessAlert=true')).toBe(
-          true,
+        expect(window.location.assign).toHaveBeenCalledWith(
+          '/settings-path?showSetupSuccessAlert=true',
         );
       });
 

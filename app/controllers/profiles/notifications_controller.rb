@@ -25,7 +25,7 @@ class Profiles::NotificationsController < Profiles::ApplicationController
   end
 
   def user_params
-    params.require(:user).permit(:notification_email, :email_opted_in, :notified_of_own_activity)
+    params.require(:user).permit(:notification_email, :notified_of_own_activity)
   end
 
   private
@@ -45,11 +45,17 @@ class Profiles::NotificationsController < Profiles::ApplicationController
     projects = project_notifications.map(&:source)
     ActiveRecord::Associations::Preloader.new(
       records: projects,
-      associations: { namespace: [:route, :owner], group: [] }
+      associations: project_associations
     ).call
     Preloaders::UserMaxAccessLevelInProjectsPreloader.new(projects, current_user).execute
 
     project_notifications.select { |notification| current_user.can?(:read_project, notification.source) }
   end
   # rubocop: enable CodeReuse/ActiveRecord
+
+  def project_associations
+    { namespace: [:route, :owner], group: [], creator: [], project_setting: [] }
+  end
 end
+
+Profiles::NotificationsController.prepend_mod

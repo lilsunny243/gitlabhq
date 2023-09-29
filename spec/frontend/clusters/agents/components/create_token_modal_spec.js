@@ -3,13 +3,13 @@ import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
+import { stubComponent, RENDER_ALL_SLOTS_TEMPLATE } from 'helpers/stub_component';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { mockTracking } from 'helpers/tracking_helper';
 import {
   EVENT_LABEL_MODAL,
   EVENT_ACTIONS_OPEN,
   TOKEN_NAME_LIMIT,
-  TOKEN_STATUS_ACTIVE,
   MAX_LIST_COUNT,
   CREATE_TOKEN_MODAL,
 } from '~/clusters/agents/constants';
@@ -38,6 +38,7 @@ describe('CreateTokenModal', () => {
   };
   const agentName = 'cluster-agent';
   const projectPath = 'path/to/project';
+  const hideModalMock = jest.fn();
 
   const provide = {
     agentName,
@@ -62,7 +63,7 @@ describe('CreateTokenModal', () => {
 
   const expectDisabledAttribute = (element, disabled) => {
     if (disabled) {
-      expect(element.attributes('disabled')).toBe('true');
+      expect(element.attributes('disabled')).toBeDefined();
     } else {
       expect(element.attributes('disabled')).toBeUndefined();
     }
@@ -81,7 +82,6 @@ describe('CreateTokenModal', () => {
       variables: {
         agentName,
         projectPath,
-        tokenStatus: TOKEN_STATUS_ACTIVE,
         ...cursor,
       },
     });
@@ -93,10 +93,12 @@ describe('CreateTokenModal', () => {
       provide,
       propsData,
       stubs: {
-        GlModal,
+        GlModal: stubComponent(GlModal, {
+          methods: { hide: hideModalMock },
+          template: RENDER_ALL_SLOTS_TEMPLATE,
+        }),
       },
     });
-    wrapper.vm.$refs.modal.hide = jest.fn();
 
     trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
   };
@@ -119,7 +121,6 @@ describe('CreateTokenModal', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     apolloProvider = null;
     createResponse = null;
   });
@@ -139,6 +140,11 @@ describe('CreateTokenModal', () => {
     it('renders a cancel button', () => {
       expect(findCancelButton().isVisible()).toBe(true);
       expectDisabledAttribute(findCancelButton(), false);
+    });
+
+    it('cancel button should hide the modal', () => {
+      findCancelButton().vm.$emit('click');
+      expect(hideModalMock).toHaveBeenCalled();
     });
 
     it('renders a disabled next button', () => {
@@ -214,7 +220,7 @@ describe('CreateTokenModal', () => {
       await mockCreatedResponse(createAgentTokenErrorResponse);
     });
 
-    it('displays the error message', async () => {
+    it('displays the error message', () => {
       expect(findAlert().text()).toBe(
         createAgentTokenErrorResponse.data.clusterAgentTokenCreate.errors[0],
       );

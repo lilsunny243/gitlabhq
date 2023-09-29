@@ -45,10 +45,21 @@ module API
       optional :asset_proxy_whitelist, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Deprecated: Use :asset_proxy_allowlist instead. Assets that match these domain(s) will NOT be proxied. Wildcards allowed. Your GitLab installation URL is automatically whitelisted.'
       optional :asset_proxy_allowlist, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Assets that match these domain(s) will NOT be proxied. Wildcards allowed. Your GitLab installation URL is automatically allowed.'
       optional :container_registry_token_expire_delay, type: Integer, desc: 'Authorization token duration (minutes)'
+      optional :decompress_archive_file_timeout, type: Integer, desc: 'Default timeout for decompressing archived files, in seconds. Set to 0 to disable timeouts.'
       optional :default_artifacts_expire_in, type: String, desc: "Set the default expiration time for each job's artifacts"
       optional :default_ci_config_path, type: String, desc: 'The instance default CI/CD configuration file and path for new projects'
       optional :default_project_creation, type: Integer, values: ::Gitlab::Access.project_creation_values, desc: 'Determine if developers can create projects in the group'
       optional :default_branch_protection, type: Integer, values: ::Gitlab::Access.protection_values, desc: 'Determine if developers can push to default branch'
+      optional :default_branch_protection_defaults, type: Hash, desc: 'Determine if developers can push to default branch' do
+        optional :allowed_to_push, type: Array, desc: 'An array of access levels allowed to push' do
+          requires :access_level, type: Integer, values: [::Gitlab::Access::DEVELOPER, ::Gitlab::Access::MAINTAINER], desc: 'A valid access level'
+        end
+        optional :allow_force_push, type: Boolean, desc: 'Allow force push for all users with push access.'
+        optional :allowed_to_merge, type: Array, desc: 'An array of access levels allowed to merge' do
+          requires :access_level, type: Integer, values: [::Gitlab::Access::DEVELOPER, ::Gitlab::Access::MAINTAINER], desc: 'A valid access level'
+        end
+        optional :developer_can_initial_push, type: Boolean, desc: 'Allow developers to initial push'
+      end
       optional :default_group_visibility, type: String, values: Gitlab::VisibilityLevel.string_values, desc: 'The default group visibility'
       optional :default_project_visibility, type: String, values: Gitlab::VisibilityLevel.string_values, desc: 'The default project visibility'
       optional :default_projects_limit, type: Integer, desc: 'The maximum number of personal projects'
@@ -97,14 +108,15 @@ module API
       end
       optional :html_emails_enabled, type: Boolean, desc: 'By default GitLab sends emails in HTML and plain text formats so mail clients can choose what format to use. Disable this option if you only want to send emails in plain text format.'
       optional :import_sources, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce,
-                                values: %w[github bitbucket bitbucket_server gitlab fogbugz git gitlab_project gitea manifest phabricator],
+                                values: %w[github bitbucket bitbucket_server fogbugz git gitlab_project gitea manifest],
                                 desc: 'Enabled sources for code import during project creation. OmniAuth must be configured for GitHub, Bitbucket, and GitLab.com'
-      optional :in_product_marketing_emails_enabled, type: Boolean, desc: 'By default, in-product marketing emails are enabled. To disable these emails, disable this option.'
       optional :invisible_captcha_enabled, type: Boolean, desc: 'Enable Invisible Captcha spam detection during signup.'
       optional :max_artifacts_size, type: Integer, desc: "Set the maximum file size for each job's artifacts"
       optional :max_attachment_size, type: Integer, desc: 'Maximum attachment size in MB'
       optional :max_export_size, type: Integer, desc: 'Maximum export size in MB'
       optional :max_import_size, type: Integer, desc: 'Maximum import size in MB'
+      optional :max_import_remote_file_size, type: Integer, desc: 'Maximum remote file size in MB for imports from external object storages'
+      optional :max_decompressed_archive_size, type: Integer, desc: 'Maximum decompressed size in MB'
       optional :max_pages_size, type: Integer, desc: 'Maximum size of pages in MB'
       optional :max_pages_custom_domains_per_project, type: Integer, desc: 'Maximum number of GitLab Pages custom domains per project'
       optional :max_terraform_state_size_bytes, type: Integer, desc: "Maximum size in bytes of the Terraform state file. Set this to 0 for unlimited file size."
@@ -125,11 +137,15 @@ module API
       given plantuml_enabled: ->(val) { val } do
         requires :plantuml_url, type: String, desc: 'The PlantUML server URL'
       end
+      optional :diagramsnet_enabled, type: Boolean, desc: 'Enable Diagrams.net'
+      given diagramsnet_enabled: ->(val) { val } do
+        requires :diagramsnet_url, type: String, desc: 'The Diagrams.net server URL'
+      end
       optional :polling_interval_multiplier, type: BigDecimal, desc: 'Interval multiplier used by endpoints that perform polling. Set to 0 to disable polling.'
       optional :project_export_enabled, type: Boolean, desc: 'Enable project export'
       optional :prometheus_metrics_enabled, type: Boolean, desc: 'Enable Prometheus metrics'
-      optional :push_event_hooks_limit, type: Integer, desc: "Number of changes (branches or tags) in a single push to determine whether webhooks and services will be fired or not. Webhooks and services won't be submitted if it surpasses that value."
-      optional :push_event_activities_limit, type: Integer, desc: 'Number of changes (branches or tags) in a single push to determine whether individual push events or bulk push event will be created. Bulk push event will be created if it surpasses that value.'
+      optional :push_event_hooks_limit, type: Integer, desc: "Maximum number of changes (branches or tags) in a single push above which webhooks and integrations are not triggered. Setting to `0` does not disable throttling."
+      optional :push_event_activities_limit, type: Integer, desc: 'Maximum number of changes (branches or tags) in a single push above which a bulk push event is created. Setting to `0` does not disable throttling.'
       optional :recaptcha_enabled, type: Boolean, desc: 'Helps prevent bots from creating accounts'
       given recaptcha_enabled: ->(val) { val } do
         requires :recaptcha_site_key, type: String, desc: 'Generate site key at http://www.google.com/recaptcha'
@@ -152,6 +168,7 @@ module API
       given shared_runners_enabled: ->(val) { val } do
         requires :shared_runners_text, type: String, desc: 'Shared runners text '
       end
+      optional :valid_runner_registrars, type: Array[String], desc: 'List of types which are allowed to register a GitLab runner'
       optional :sign_in_text, type: String, desc: 'The sign in text of the GitLab application'
       optional :signin_enabled, type: Boolean, desc: 'Flag indicating if password authentication is enabled for the web interface' # support legacy names, can be removed in v5
       optional :signup_enabled, type: Boolean, desc: 'Flag indicating if sign up is enabled'
@@ -181,6 +198,7 @@ module API
       optional :issues_create_limit, type: Integer, desc: "Maximum number of issue creation requests allowed per minute per user. Set to 0 for unlimited requests per minute."
       optional :raw_blob_request_limit, type: Integer, desc: "Maximum number of requests per minute for each raw path. Set to 0 for unlimited requests per minute."
       optional :wiki_page_max_content_bytes, type: Integer, desc: "Maximum wiki page content size in bytes"
+      optional :wiki_asciidoc_allow_uri_includes, type: Boolean, desc: "Allow URI includes for AsciiDoc wiki pages"
       optional :require_admin_approval_after_user_signup, type: Boolean, desc: 'Require explicit admin approval for new signups'
       optional :whats_new_variant, type: String, values: ApplicationSetting.whats_new_variants.keys, desc: "What's new variant, possible values: `all_tiers`, `current_tier`, and `disabled`."
       optional :floc_enabled, type: Grape::API::Boolean, desc: 'Enable FloC (Federated Learning of Cohorts)'
@@ -194,7 +212,18 @@ module API
       optional :jira_connect_application_key, type: String, desc: "Application ID of the OAuth application that should be used to authenticate with the GitLab for Jira Cloud app"
       optional :jira_connect_proxy_url, type: String, desc: "URL of the GitLab instance that should be used as a proxy for the GitLab for Jira Cloud app"
       optional :bulk_import_enabled, type: Boolean, desc: 'Enable migrating GitLab groups and projects by direct transfer'
+      optional :bulk_import_max_download_file, type: Integer, desc: 'Maximum download file size in MB when importing from source GitLab instances by direct transfer'
       optional :allow_runner_registration_token, type: Boolean, desc: 'Allow registering runners using a registration token'
+      optional :ci_max_includes, type: Integer, desc: 'Maximum number of includes per pipeline'
+      optional :security_policy_global_group_approvers_enabled, type: Boolean, desc: 'Query scan result policy approval groups globally'
+      optional :slack_app_enabled, type: Grape::API::Boolean, desc: 'Enable the GitLab for Slack app'
+      given slack_app_enabled: -> (val) { val } do
+        requires :slack_app_id, type: String, desc: 'The client ID of the GitLab for Slack app'
+        requires :slack_app_secret, type: String, desc: 'The client secret of the GitLab for Slack app. Used for authenticating OAuth requests from the app'
+        requires :slack_app_signing_secret, type: String, desc: 'The signing secret of the GitLab for Slack app. Used for authenticating API requests from the app'
+        requires :slack_app_verification_token, type: String, desc: 'The verification token of the GitLab for Slack app. This method of authentication is deprecated by Slack and used only for authenticating slash commands from the app'
+      end
+      optional :namespace_aggregation_schedule_lease_duration_in_seconds, type: Integer, desc: 'Maximum duration (in seconds) between refreshes of namespace statistics (Default: 300)'
 
       Gitlab::SSHPublicKey.supported_types.each do |type|
         optional :"#{type}_key_restriction",

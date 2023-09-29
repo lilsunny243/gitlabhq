@@ -4,10 +4,21 @@ require 'spec_helper'
 
 RSpec.describe Gitlab::Ci::Config::External::Context, feature_category: :pipeline_composition do
   let(:project) { build(:project) }
+  let(:pipeline) { double('Pipeline') }
   let(:user) { double('User') }
   let(:sha) { '12345' }
   let(:variables) { Gitlab::Ci::Variables::Collection.new([{ 'key' => 'a', 'value' => 'b' }]) }
-  let(:attributes) { { project: project, user: user, sha: sha, variables: variables } }
+  let(:pipeline_config) { instance_double(Gitlab::Ci::ProjectConfig) }
+  let(:attributes) do
+    {
+      project: project,
+      pipeline: pipeline,
+      user: user,
+      sha: sha,
+      variables: variables,
+      pipeline_config: pipeline_config
+    }
+  end
 
   subject(:subject) { described_class.new(**attributes) }
 
@@ -15,22 +26,56 @@ RSpec.describe Gitlab::Ci::Config::External::Context, feature_category: :pipelin
     context 'with values' do
       it { is_expected.to have_attributes(**attributes) }
       it { expect(subject.expandset).to eq([]) }
-      it { expect(subject.max_includes).to eq(Gitlab::Ci::Config::External::Context::MAX_INCLUDES) }
       it { expect(subject.execution_deadline).to eq(0) }
       it { expect(subject.variables).to be_instance_of(Gitlab::Ci::Variables::Collection) }
       it { expect(subject.variables_hash).to be_instance_of(ActiveSupport::HashWithIndifferentAccess) }
       it { expect(subject.variables_hash).to include('a' => 'b') }
+      it { expect(subject.pipeline_config).to eq(pipeline_config) }
     end
 
     context 'without values' do
-      let(:attributes) { { project: nil, user: nil, sha: nil } }
+      let(:attributes) { { project: nil, pipeline: nil, user: nil, sha: nil } }
 
       it { is_expected.to have_attributes(**attributes) }
       it { expect(subject.expandset).to eq([]) }
-      it { expect(subject.max_includes).to eq(Gitlab::Ci::Config::External::Context::MAX_INCLUDES) }
       it { expect(subject.execution_deadline).to eq(0) }
       it { expect(subject.variables).to be_instance_of(Gitlab::Ci::Variables::Collection) }
       it { expect(subject.variables_hash).to be_instance_of(ActiveSupport::HashWithIndifferentAccess) }
+      it { expect(subject.pipeline_config).to be_nil }
+    end
+
+    describe 'max_includes' do
+      it 'returns the default value of application setting `ci_max_includes`' do
+        expect(subject.max_includes).to eq(150)
+      end
+
+      context 'when application setting `ci_max_includes` is changed' do
+        before do
+          stub_application_setting(ci_max_includes: 200)
+        end
+
+        it 'returns the new value of application setting `ci_max_includes`' do
+          expect(subject.max_includes).to eq(200)
+        end
+      end
+    end
+
+    describe 'max_total_yaml_size_bytes' do
+      context 'when application setting `max_total_yaml_size_bytes` is requsted and was never updated by the admin' do
+        it 'returns the default value `max_total_yaml_size_bytes`' do
+          expect(subject.max_total_yaml_size_bytes).to eq(157286400)
+        end
+      end
+
+      context 'when `max_total_yaml_size_bytes` was adjusted by the admin' do
+        before do
+          stub_application_setting(ci_max_total_yaml_size_bytes: 200000000)
+        end
+
+        it 'returns the updated value of application setting `max_total_yaml_size_bytes`' do
+          expect(subject.max_total_yaml_size_bytes).to eq(200000000)
+        end
+      end
     end
   end
 
@@ -105,6 +150,7 @@ RSpec.describe Gitlab::Ci::Config::External::Context, feature_category: :pipelin
     let(:attributes) do
       {
         project: project,
+        pipeline: pipeline,
         user: user,
         sha: sha,
         logger: double('logger')
@@ -122,6 +168,7 @@ RSpec.describe Gitlab::Ci::Config::External::Context, feature_category: :pipelin
       it { expect(mutated).not_to eq(subject) }
       it { expect(mutated).to be_a(described_class) }
       it { expect(mutated).to have_attributes(new_attributes) }
+      it { expect(mutated.pipeline).to eq(subject.pipeline) }
       it { expect(mutated.expandset).to eq(subject.expandset) }
       it { expect(mutated.execution_deadline).to eq(mutated.execution_deadline) }
       it { expect(mutated.logger).to eq(mutated.logger) }
@@ -144,27 +191,24 @@ RSpec.describe Gitlab::Ci::Config::External::Context, feature_category: :pipelin
     it { expect(subject.sentry_payload).to match(a_hash_including(:project, :user)) }
   end
 
-  describe '#contains_internal_include?' do
+  describe '#internal_include?' do
     context 'when pipeline_config is provided' do
-      let(:pipeline_config) { instance_double(Gitlab::Ci::ProjectConfig) }
-      let(:attributes) do
-        { project: project, user: user, sha: sha, variables: variables, pipeline_config: pipeline_config }
-      end
-
       where(:value) { [true, false] }
 
       with_them do
-        it 'returns the value of .contains_internal_include?' do
-          allow(pipeline_config).to receive(:contains_internal_include?).and_return(value)
+        it 'returns the value of .internal_include_prepended?' do
+          allow(pipeline_config).to receive(:internal_include_prepended?).and_return(value)
 
-          expect(subject.contains_internal_include?).to eq(value)
+          expect(subject.internal_include?).to eq(value)
         end
       end
     end
 
     context 'when pipeline_config is not provided' do
+      let(:pipeline_config) { nil }
+
       it 'returns false' do
-        expect(subject.contains_internal_include?).to eq(false)
+        expect(subject.internal_include?).to eq(false)
       end
     end
   end

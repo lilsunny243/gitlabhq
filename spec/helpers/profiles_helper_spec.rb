@@ -33,28 +33,28 @@ RSpec.describe ProfilesHelper do
     end
 
     it "returns omniauth provider label for users with external attributes" do
-      stub_omniauth_setting(sync_profile_from_provider: ['cas3'])
+      stub_omniauth_setting(sync_profile_from_provider: [example_omniauth_provider])
       stub_omniauth_setting(sync_profile_attributes: true)
-      stub_cas_omniauth_provider
-      cas_user = create(:omniauth_user, provider: 'cas3')
-      cas_user.create_user_synced_attributes_metadata(provider: 'cas3', name_synced: true, email_synced: true, location_synced: true)
-      allow(helper).to receive(:current_user).and_return(cas_user)
+      stub_auth0_omniauth_provider
+      auth0_user = create(:omniauth_user, provider: example_omniauth_provider)
+      auth0_user.create_user_synced_attributes_metadata(provider: example_omniauth_provider, name_synced: true, email_synced: true, location_synced: true)
+      allow(helper).to receive(:current_user).and_return(auth0_user)
 
-      expect(helper.attribute_provider_label(:email)).to eq('CAS')
-      expect(helper.attribute_provider_label(:name)).to eq('CAS')
-      expect(helper.attribute_provider_label(:location)).to eq('CAS')
+      expect(helper.attribute_provider_label(:email)).to eq(example_omniauth_provider_label)
+      expect(helper.attribute_provider_label(:name)).to eq(example_omniauth_provider_label)
+      expect(helper.attribute_provider_label(:location)).to eq(example_omniauth_provider_label)
     end
 
     it "returns the correct omniauth provider label for users with some external attributes" do
-      stub_omniauth_setting(sync_profile_from_provider: ['cas3'])
+      stub_omniauth_setting(sync_profile_from_provider: [example_omniauth_provider])
       stub_omniauth_setting(sync_profile_attributes: true)
-      stub_cas_omniauth_provider
-      cas_user = create(:omniauth_user, provider: 'cas3')
-      cas_user.create_user_synced_attributes_metadata(provider: 'cas3', name_synced: false, email_synced: true, location_synced: false)
-      allow(helper).to receive(:current_user).and_return(cas_user)
+      stub_auth0_omniauth_provider
+      auth0_user = create(:omniauth_user, provider: example_omniauth_provider)
+      auth0_user.create_user_synced_attributes_metadata(provider: example_omniauth_provider, name_synced: false, email_synced: true, location_synced: false)
+      allow(helper).to receive(:current_user).and_return(auth0_user)
 
       expect(helper.attribute_provider_label(:name)).to be_nil
-      expect(helper.attribute_provider_label(:email)).to eq('CAS')
+      expect(helper.attribute_provider_label(:email)).to eq(example_omniauth_provider_label)
       expect(helper.attribute_provider_label(:location)).to be_nil
     end
 
@@ -118,12 +118,61 @@ RSpec.describe ProfilesHelper do
     end
   end
 
-  def stub_cas_omniauth_provider
+  describe '#prevent_delete_account?' do
+    it 'returns false' do
+      expect(helper.prevent_delete_account?).to eq false
+    end
+  end
+
+  describe '#user_profile_data' do
+    let(:time) { 3.hours.ago }
+    let(:user) do
+      build_stubbed(:user, status: UserStatus.new(
+        message: 'Some message',
+        emoji: 'basketball',
+        availability: 'busy',
+        clear_status_at: time
+      ))
+    end
+
+    before do
+      allow(helper).to receive(:current_user).and_return(user)
+    end
+
+    it 'returns user profile data' do
+      data = helper.user_profile_data(user)
+
+      expect(data[:profile_path]).to be_a(String)
+      expect(data[:profile_avatar_path]).to be_a(String)
+      expect(data[:avatar_url]).to be_http_url
+      expect(data[:has_avatar]).to be_a(String)
+      expect(data[:gravatar_enabled]).to be_a(String)
+      expect(Gitlab::Json.parse(data[:gravatar_link])).to match(hash_including('hostname' => Gitlab.config.gravatar.host, 'url' => a_valid_url))
+      expect(data[:brand_profile_image_guidelines]).to be_a(String)
+      expect(data[:cropper_css_path]).to eq(ActionController::Base.helpers.stylesheet_path('lazy_bundles/cropper.css'))
+      expect(data[:user_path]).to be_a(String)
+      expect(data[:current_emoji]).to eq('basketball')
+      expect(data[:current_message]).to eq('Some message')
+      expect(data[:current_availability]).to eq('busy')
+      expect(data[:current_clear_status_after]).to eq(time.to_fs(:iso8601))
+      expect(data[:default_emoji]).to eq(UserStatus::DEFAULT_EMOJI)
+    end
+  end
+
+  def stub_auth0_omniauth_provider
     provider = OpenStruct.new(
-      'name' => 'cas3',
-      'label' => 'CAS'
+      'name' => example_omniauth_provider,
+      'label' => example_omniauth_provider_label
     )
 
     stub_omniauth_setting(providers: [provider])
+  end
+
+  def example_omniauth_provider
+    "auth0"
+  end
+
+  def example_omniauth_provider_label
+    "Auth0"
   end
 end

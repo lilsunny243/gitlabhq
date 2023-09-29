@@ -1,5 +1,6 @@
 import { GlSkeletonLoader, GlIcon } from '@gitlab/ui';
-import { loadHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+import mrDiffCommentFixture from 'test_fixtures/merge_requests/diff_comment.html';
+import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { sprintf } from '~/locale';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import { AVAILABILITY_STATUS } from '~/set_status_modal/constants';
@@ -13,11 +14,11 @@ import {
   I18N_ERROR_UNFOLLOW,
 } from '~/vue_shared/components/user_popover/constants';
 import axios from '~/lib/utils/axios_utils';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { followUser, unfollowUser } from '~/api/user_api';
 import { mockTracking } from 'helpers/tracking_helper';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/api/user_api', () => ({
   followUser: jest.fn(),
   unfollowUser: jest.fn(),
@@ -30,6 +31,7 @@ const DEFAULT_PROPS = {
     name: 'Administrator',
     location: 'Vienna',
     localTime: '2:30 PM',
+    webUrl: '/root',
     bot: false,
     bio: null,
     workInformation: null,
@@ -41,17 +43,14 @@ const DEFAULT_PROPS = {
 };
 
 describe('User Popover Component', () => {
-  const fixtureTemplate = 'merge_requests/diff_comment.html';
-
   let wrapper;
 
   beforeEach(() => {
-    loadHTMLFixture(fixtureTemplate);
+    setHTMLFixture(mrDiffCommentFixture);
     gon.features = {};
   });
 
   afterEach(() => {
-    wrapper.destroy();
     resetHTMLFixture();
   });
 
@@ -73,11 +72,11 @@ describe('User Popover Component', () => {
     });
   };
 
-  const createWrapper = (props = {}) => {
+  const createWrapper = (props = {}, target = findTarget()) => {
     wrapper = mountExtended(UserPopover, {
       propsData: {
         ...DEFAULT_PROPS,
-        target: findTarget(),
+        target,
         ...props,
       },
     });
@@ -277,7 +276,7 @@ describe('User Popover Component', () => {
 
       createWrapper({ user });
 
-      expect(wrapper.findByText('(Busy)').exists()).toBe(true);
+      expect(wrapper.findByText('Busy').exists()).toBe(true);
     });
 
     it('should hide the busy status for any other status', () => {
@@ -288,7 +287,7 @@ describe('User Popover Component', () => {
 
       createWrapper({ user });
 
-      expect(wrapper.findByText('(Busy)').exists()).toBe(false);
+      expect(wrapper.findByText('Busy').exists()).toBe(false);
     });
 
     it('shows pronouns when user has them set', () => {
@@ -518,6 +517,37 @@ describe('User Popover Component', () => {
 
     it('does not render the toggle follow button', () => {
       expect(findToggleFollowButton().exists()).toBe(false);
+    });
+  });
+
+  describe('when current user is assignee/reviewer in a Merge Request', () => {
+    const { id, username, webUrl } = DEFAULT_PROPS.user;
+    const target = document.createElement('a');
+    target.setAttribute('href', webUrl);
+    target.classList.add('js-user-link');
+    target.dataset.currentUserId = id;
+    target.dataset.currentUsername = username;
+
+    it('renders popover with warning when user unable to merge', () => {
+      target.dataset.cannotMerge = 'true';
+
+      createWrapper({}, target);
+
+      const cannotMergeWarning = wrapper.findByTestId('cannot-merge');
+
+      expect(cannotMergeWarning.exists()).toBe(true);
+      expect(cannotMergeWarning.text()).toContain('Cannot merge');
+      expect(cannotMergeWarning.findComponent(GlIcon).props('name')).toBe('warning-solid');
+    });
+
+    it('renders popover without any warning when user is able to merge', () => {
+      delete target.dataset.cannotMerge;
+
+      createWrapper({}, target);
+
+      const cannotMergeWarning = wrapper.findByTestId('cannot-merge');
+
+      expect(cannotMergeWarning.exists()).toBe(false);
     });
   });
 });

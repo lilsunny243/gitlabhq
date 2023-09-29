@@ -27,21 +27,23 @@ module Backup
     def dump(destination_dir, backup_id)
       FileUtils.mkdir_p(destination_dir)
 
-      snapshot_ids.each do |database_name, snapshot_id|
-        base_model = base_models_for_backup[database_name]
+      each_database(destination_dir) do |database_name, current_db|
+        model = current_db[:model]
+        snapshot_id = current_db[:snapshot_id]
 
-        config = base_model.connection_db_config.configuration_hash
+        pg_env = model.config[:pg_env]
+        connection = model.connection
+        active_record_config = model.config[:activerecord]
+        pg_database = active_record_config[:database]
 
         db_file_name = file_name(destination_dir, database_name)
         FileUtils.rm_f(db_file_name)
 
-        pg_database = config[:database]
-
         progress.print "Dumping PostgreSQL database #{pg_database} ... "
-        pg_env(config)
+
         pgsql_args = ["--clean"] # Pass '--clean' to include 'DROP TABLE' statements in the DB dump.
         pgsql_args << '--if-exists'
-        pgsql_args << "--snapshot=#{snapshot_ids[database_name]}"
+        pgsql_args << "--snapshot=#{snapshot_id}" if snapshot_id
 
         if Gitlab.config.backup.pg_schema
           pgsql_args << '-n'
@@ -53,25 +55,31 @@ module Backup
           end
         end
 
-        success = Backup::Dump::Postgres.new.dump(pg_database, db_file_name, pgsql_args)
+        success = with_transient_pg_env(pg_env) do
+          Backup::Dump::Postgres.new.dump(pg_database, db_file_name, pgsql_args)
+        end
 
-        base_model.connection.rollback_transaction
+        connection.rollback_transaction if snapshot_id
 
-        raise DatabaseBackupError.new(config, db_file_name) unless success
+        raise DatabaseBackupError.new(active_record_config, db_file_name) unless success
 
         report_success(success)
         progress.flush
       end
     ensure
-      base_models_for_backup.each do |_database_name, base_model|
-        Gitlab::Database::TransactionTimeoutSettings.new(base_model.connection).restore_timeouts
+      ::Gitlab::Database::EachDatabase.each_connection(
+        only: base_models_for_backup.keys, include_shared: false
+      ) do |connection, _|
+        Gitlab::Database::TransactionTimeoutSettings.new(connection).restore_timeouts
       end
     end
 
     override :restore
     def restore(destination_dir)
-      base_models_for_backup.each do |database_name, base_model|
-        config = base_model.connection_db_config.configuration_hash
+      base_models_for_backup.each do |database_name, _base_model|
+        backup_model = Backup::DatabaseModel.new(database_name)
+
+        config = backup_model.config[:activerecord]
 
         db_file_name = file_name(destination_dir, database_name)
         database = config[:database]
@@ -92,21 +100,23 @@ module Backup
         # hanging out from a failed upgrade
         drop_tables(database_name)
 
-        decompress_rd, decompress_wr = IO.pipe
-        decompress_pid = spawn(*%w(gzip -cd), out: decompress_wr, in: db_file_name)
-        decompress_wr.close
+        pg_env = backup_model.config[:pg_env]
+        success = with_transient_pg_env(pg_env) do
+          decompress_rd, decompress_wr = IO.pipe
+          decompress_pid = spawn(*%w[gzip -cd], out: decompress_wr, in: db_file_name)
+          decompress_wr.close
 
-        status, @errors =
-          case config[:adapter]
-          when "postgresql" then
-            progress.print "Restoring PostgreSQL database #{database} ... "
-            pg_env(config)
-            execute_and_track_errors(pg_restore_cmd(database), decompress_rd)
-          end
-        decompress_rd.close
+          status, @errors =
+            case config[:adapter]
+            when "postgresql" then
+              progress.print "Restoring PostgreSQL database #{database} ... "
+              execute_and_track_errors(pg_restore_cmd(database), decompress_rd)
+            end
+          decompress_rd.close
 
-        Process.waitpid(decompress_pid)
-        success = $?.success? && status.success?
+          Process.waitpid(decompress_pid)
+          $?.success? && status.success?
+        end
 
         if @errors.present?
           progress.print "------ BEGIN ERRORS -----\n".color(:yellow)
@@ -202,30 +212,6 @@ module Backup
       end
     end
 
-    def pg_env(config)
-      args = {
-        username: 'PGUSER',
-        host: 'PGHOST',
-        port: 'PGPORT',
-        password: 'PGPASSWORD',
-        # SSL
-        sslmode: 'PGSSLMODE',
-        sslkey: 'PGSSLKEY',
-        sslcert: 'PGSSLCERT',
-        sslrootcert: 'PGSSLROOTCERT',
-        sslcrl: 'PGSSLCRL',
-        sslcompression: 'PGSSLCOMPRESSION'
-      }
-      args.each do |opt, arg|
-        # This enables the use of different PostgreSQL settings in
-        # case PgBouncer is used. PgBouncer clears the search path,
-        # which wreaks havoc on Rails if connections are reused.
-        override = "GITLAB_BACKUP_#{arg}"
-        val = ENV[override].presence || config[opt].to_s.presence
-        ENV[arg] = val if val
-      end
-    end
-
     def report_success(success)
       if success
         progress.puts '[DONE]'.color(:green)
@@ -237,31 +223,57 @@ module Backup
     private
 
     def drop_tables(database_name)
+      puts_time 'Cleaning the database ... '.color(:blue)
+
       if Rake::Task.task_defined? "gitlab:db:drop_tables:#{database_name}"
-        puts_time 'Cleaning the database ... '.color(:blue)
         Rake::Task["gitlab:db:drop_tables:#{database_name}"].invoke
-        puts_time 'done'.color(:green)
-      elsif Gitlab::Database.database_base_models.one?
-        # In single database, we do not have rake tasks per database
-        puts_time 'Cleaning the database ... '.color(:blue)
+      else
+        # In single database (single or two connections)
         Rake::Task["gitlab:db:drop_tables"].invoke
-        puts_time 'done'.color(:green)
       end
+
+      puts_time 'done'.color(:green)
+    end
+
+    def with_transient_pg_env(extended_env)
+      ENV.merge!(extended_env)
+      result = yield
+      ENV.reject! { |k, _| extended_env.key?(k) }
+
+      result
     end
 
     def pg_restore_cmd(database)
       ['psql', database]
     end
 
-    def snapshot_ids
-      @snapshot_ids ||= base_models_for_backup.each_with_object({}) do |(database_name, base_model), snapshot_ids|
-        Gitlab::Database::TransactionTimeoutSettings.new(base_model.connection).disable_timeouts
+    def each_database(destination_dir, &block)
+      databases = {}
+      ::Gitlab::Database::EachDatabase.each_connection(
+        only: base_models_for_backup.keys, include_shared: false
+      ) do |_connection, name|
+        next if databases[name]
 
-        base_model.connection.begin_transaction(isolation: :repeatable_read)
+        backup_model = Backup::DatabaseModel.new(name)
 
-        snapshot_ids[database_name] =
-          base_model.connection.execute("SELECT pg_export_snapshot() as snapshot_id;").first['snapshot_id']
+        databases[name] = {
+          model: backup_model
+        }
+
+        next unless Gitlab::Database.database_mode == Gitlab::Database::MODE_MULTIPLE_DATABASES
+
+        connection = backup_model.connection
+
+        begin
+          Gitlab::Database::TransactionTimeoutSettings.new(connection).disable_timeouts
+          connection.begin_transaction(isolation: :repeatable_read)
+          databases[name][:snapshot_id] = connection.select_value("SELECT pg_export_snapshot()")
+        rescue ActiveRecord::ConnectionNotEstablished
+          raise Backup::DatabaseBackupError.new(backup_model.config[:activerecord], file_name(destination_dir, name))
+        end
       end
+
+      databases.each(&block)
     end
   end
 end

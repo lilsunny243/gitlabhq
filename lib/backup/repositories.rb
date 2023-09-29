@@ -10,13 +10,15 @@ module Backup
     # @param [IO] progress IO interface to output progress
     # @param [Object] :strategy Fetches backups from gitaly
     # @param [Array<String>] :storages Filter by specified storage names. Empty means all storages.
-    # @param [Array<String>] :paths Filter by specified project paths. Empty means all projects, groups and snippets.
-    def initialize(progress, strategy:, storages: [], paths: [])
+    # @param [Array<String>] :paths Filter by specified project paths. Empty means all projects, groups, and snippets.
+    # @param [Array<String>] :skip_paths Skip specified project paths. Empty means all projects, groups, and snippets.
+    def initialize(progress, strategy:, storages: [], paths: [], skip_paths: [])
       super(progress)
 
       @strategy = strategy
       @storages = storages
       @paths = paths
+      @skip_paths = skip_paths
     end
 
     override :dump
@@ -30,7 +32,7 @@ module Backup
 
     override :restore
     def restore(destination_path)
-      strategy.start(:restore, destination_path)
+      strategy.start(:restore, destination_path, remove_all_repositories: remove_all_repositories)
       enqueue_consecutive
 
     ensure
@@ -42,7 +44,13 @@ module Backup
 
     private
 
-    attr_reader :strategy, :storages, :paths
+    attr_reader :strategy, :storages, :paths, :skip_paths
+
+    def remove_all_repositories
+      return if paths.present?
+
+      storages.presence || Gitlab.config.repositories.storages.keys
+    end
 
     def enqueue_consecutive
       enqueue_consecutive_projects
@@ -50,8 +58,11 @@ module Backup
     end
 
     def enqueue_consecutive_projects
-      project_relation.find_each(batch_size: 1000) do |project|
-        enqueue_project(project)
+      cross_join_issue = "https://gitlab.com/gitlab-org/gitlab/-/issues/417467"
+      ::Gitlab::Database.allow_cross_joins_across_databases(url: cross_join_issue) do
+        project_relation.find_each(batch_size: 1000) do |project|
+          enqueue_project(project)
+        end
       end
     end
 
@@ -62,7 +73,10 @@ module Backup
     def enqueue_project(project)
       strategy.enqueue(project, Gitlab::GlRepository::PROJECT)
       strategy.enqueue(project, Gitlab::GlRepository::WIKI)
-      strategy.enqueue(project, Gitlab::GlRepository::DESIGN)
+
+      return unless project.design_management_repository
+
+      strategy.enqueue(project.design_management_repository, Gitlab::GlRepository::DESIGN)
     end
 
     def enqueue_snippet(snippet)
@@ -78,6 +92,7 @@ module Backup
         )
       end
 
+      scope = scope.and(skipped_path_relation) if skip_paths.any?
       scope
     end
 
@@ -92,7 +107,18 @@ module Backup
         )
       end
 
+      if skip_paths.any?
+        scope = scope.where(project: skipped_path_relation)
+        scope = scope.or(Snippet.where(project: nil)) if !paths.any? && !storages.any?
+      end
+
       scope
+    end
+
+    def skipped_path_relation
+      Project.where.not(id: Project.where_full_path_in(skip_paths).or(
+        Project.where(namespace_id: Namespace.where_full_path_in(skip_paths).self_and_descendants)
+      ))
     end
 
     def restore_object_pools

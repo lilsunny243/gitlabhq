@@ -49,7 +49,7 @@ On _each_ Consul server node:
    gitlab_rails['auto_migrate'] = false
    ```
 
-1. [Reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes
+1. [Reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes
    to take effect.
 1. Run the following command to ensure Consul is both configured correctly and
    to verify that all server nodes are communicating:
@@ -76,7 +76,7 @@ To upgrade your Consul nodes, upgrade the GitLab package.
 
 Nodes should be:
 
-- Members of a healthy cluster prior to upgrading the Omnibus GitLab package.
+- Members of a healthy cluster prior to upgrading the Linux package.
 - Upgraded one node at a time.
 
 Identify any existing health issues in the cluster by running the following command
@@ -244,6 +244,12 @@ sudo gitlab-ctl start consul
 
 After this, the node should start back up, and the rest of the server agents rejoin.
 Shortly after that, the client agents should rejoin as well.
+
+If they do not join, you might also need to erase the Consul data on the client:
+
+```shell
+sudo rm -rf /var/opt/gitlab/consul/data
+```
 
 #### Recover a failed node
 

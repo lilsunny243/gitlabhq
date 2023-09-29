@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe API::Entities::Ml::Mlflow::RunInfo, feature_category: :mlops do
-  let_it_be(:candidate) { create(:ml_candidates) }
+  let_it_be(:candidate) { build(:ml_candidates) }
 
   subject { described_class.new(candidate, packages_url: 'http://example.com').as_json }
 
@@ -55,13 +55,13 @@ RSpec.describe API::Entities::Ml::Mlflow::RunInfo, feature_category: :mlops do
 
   describe 'run_id' do
     it 'is the iid as string' do
-      expect(subject[:run_id]).to eq(candidate.iid.to_s)
+      expect(subject[:run_id]).to eq(candidate.eid.to_s)
     end
   end
 
   describe 'run_uuid' do
     it 'is the iid as string' do
-      expect(subject[:run_uuid]).to eq(candidate.iid.to_s)
+      expect(subject[:run_uuid]).to eq(candidate.eid.to_s)
     end
   end
 

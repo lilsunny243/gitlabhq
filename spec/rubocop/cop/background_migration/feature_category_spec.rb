@@ -4,8 +4,6 @@ require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/background_migration/feature_category'
 
 RSpec.describe RuboCop::Cop::BackgroundMigration::FeatureCategory, feature_category: :database do
-  let(:cop) { described_class.new }
-
   context 'for non background migrations' do
     before do
       allow(cop).to receive(:in_background_migration?).and_return(false)
@@ -66,6 +64,12 @@ RSpec.describe RuboCop::Cop::BackgroundMigration::FeatureCategory, feature_categ
           end
         end
       RUBY
+    end
+  end
+
+  describe '#external_dependency_checksum' do
+    it 'returns a SHA256 digest used by RuboCop to invalid cache' do
+      expect(cop.external_dependency_checksum).to match(/^\h{64}$/)
     end
   end
 end

@@ -36,12 +36,20 @@ RSpec.shared_examples 'merge quick action' do
           create(:ci_pipeline, :detached_merge_request_pipeline,
             project: project, merge_request: merge_request)
           merge_request.update_head_pipeline
+
+          stub_licensed_features(merge_request_approvers: true) if Gitlab.ee?
         end
 
         it 'schedules to merge the MR' do
           add_note("/merge")
 
-          expect(page).to have_content "Scheduled to merge this merge request (Merge when pipeline succeeds)."
+          if Gitlab.ee?
+            expect(page).to(
+              have_content("Scheduled to merge this merge request (Merge when checks pass).")
+            )
+          else
+            expect(page).to have_content "Scheduled to merge this merge request (Merge when pipeline succeeds)."
+          end
 
           expect(merge_request.reload).to be_auto_merge_enabled
           expect(merge_request.reload).not_to be_merged

@@ -2,30 +2,24 @@
 
 module QA
   RSpec.describe 'Manage', :reliable do
-    describe 'Jira issue import', :jira, :orchestrated, :requires_admin, product_group: :integrations do
+    describe 'Jira issue import', :jira, :orchestrated, :requires_admin, product_group: :import_and_integrate do
       let(:jira_project_key) { "JITD" }
       let(:jira_issue_title) { "[#{jira_project_key}-1] Jira to GitLab Test Issue" }
       let(:jira_issue_description) { "This issue is for testing importing Jira issues to GitLab." }
       let(:jira_issue_label_1) { "jira-import::#{jira_project_key}-1" }
       let(:jira_issue_label_2) { "QA" }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = "jira_issue_import"
-        end
-      end
+      let(:project) { create(:project, name: "jira_issue_import") }
 
       it 'imports issues from Jira', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347966' do
         set_up_jira_integration
         import_jira_issues
 
-        QA::Support::Retrier.retry_on_exception do
-          Page::Project::Menu.perform(&:click_issues)
-
-          Page::Project::Issue::Index.perform do |issues_page|
-            expect(issues_page).to have_content("2 issues successfully imported")
-
-            issues_page.click_issue_link(jira_issue_title)
-          end
+        Page::Project::Menu.perform(&:go_to_issues)
+        Page::Project::Issue::Index.perform do |issues_page|
+          expect { issues_page }.to eventually_have_content(jira_issue_title).within(
+            max_attempts: 5, sleep_interval: 1, reload_page: issues_page
+          )
+          issues_page.click_issue_link(jira_issue_title)
         end
 
         expect(page).to have_content(jira_issue_description)
@@ -58,7 +52,7 @@ module QA
       end
 
       def import_jira_issues
-        Page::Project::Menu.perform(&:click_issues)
+        Page::Project::Menu.perform(&:go_to_issues)
         Page::Project::Issue::Index.perform(&:go_to_jira_import_form)
 
         Page::Project::Issue::JiraImport.perform do |form|

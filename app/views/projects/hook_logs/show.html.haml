@@ -1,15 +1,15 @@
-- @content_class = 'limit-container-width' unless fluid_layout
 - add_to_breadcrumbs _('Webhook Settings'), namespace_project_hooks_path
 - page_title _('Webhook Logs')
 
-%h1.page-title.gl-font-size-h-display
+%h2.page-title.gl-font-size-h-display
   = _("Request details")
 
 %hr
 
 - if @hook_log.oversize?
-  = button_tag _("Resend Request"), class: "btn gl-button btn-default float-right gl-ml-3 has-tooltip", disabled: true, title: _("Request data is too large")
+  = render Pajamas::ButtonComponent.new(button_options: { class: "float-right gl-ml-3 has-tooltip", disabled: true, title: _("Request data is too large") }) do
+    = _("Resend Request")
 - else
-  = link_to _("Resend Request"), @hook_log.present.retry_path, method: :post, class: "btn gl-button btn-default float-right gl-ml-3"
+  = link_button_to _("Resend Request"), @hook_log.present.retry_path, method: :post, class: 'float-right gl-ml-3'
 
 = render partial: 'shared/hook_logs/content', locals: { hook_log: @hook_log }

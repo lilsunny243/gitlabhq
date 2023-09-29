@@ -5,24 +5,16 @@ module Gitlab
     class DecompressedArchiveSizeValidator
       include Gitlab::Utils::StrongMemoize
 
-      DEFAULT_MAX_BYTES = 10.gigabytes.freeze
-      TIMEOUT_LIMIT = 210.seconds
-
       ServiceError = Class.new(StandardError)
 
-      def initialize(archive_path:, max_bytes: self.class.max_bytes)
+      def initialize(archive_path:)
         @archive_path = archive_path
-        @max_bytes = max_bytes
       end
 
       def valid?
         strong_memoize(:valid) do
           validate
         end
-      end
-
-      def self.max_bytes
-        DEFAULT_MAX_BYTES
       end
 
       private
@@ -33,7 +25,7 @@ module Gitlab
 
         validate_archive_path
 
-        Timeout.timeout(TIMEOUT_LIMIT) do
+        Timeout.timeout(timeout) do
           stderr_r, stderr_w = IO.pipe
           stdout, wait_threads = Open3.pipeline_r(*command, pgroup: true, err: stderr_w)
 
@@ -52,7 +44,7 @@ module Gitlab
           if status.success?
             result = stdout.readline
 
-            if result.to_i > @max_bytes
+            if max_bytes > 0 && result.to_i > max_bytes
               valid_archive = false
 
               log_error('Decompressed archive size limit reached')
@@ -71,7 +63,7 @@ module Gitlab
 
         valid_archive
       rescue Timeout::Error
-        log_error('Timeout reached during archive decompression')
+        log_error("Timeout of #{timeout} seconds reached during archive decompression")
 
         pgrps.each { |pgrp| Process.kill(-1, pgrp) } if pgrps
 
@@ -85,9 +77,9 @@ module Gitlab
       end
 
       def validate_archive_path
-        Gitlab::Utils.check_path_traversal!(@archive_path)
+        Gitlab::PathTraversal.check_path_traversal!(@archive_path)
 
-        raise(ServiceError, 'Archive path is a symlink') if File.lstat(@archive_path).symlink?
+        raise(ServiceError, 'Archive path is a symlink or hard link') if Gitlab::Utils::FileInfo.linked?(@archive_path)
         raise(ServiceError, 'Archive path is not a file') unless File.file?(@archive_path)
       end
 
@@ -107,6 +99,14 @@ module Gitlab
           import_upload_archive_path: @archive_path,
           import_upload_archive_size: archive_size
         )
+      end
+
+      def timeout
+        Gitlab::CurrentSettings.current_application_settings.decompress_archive_file_timeout
+      end
+
+      def max_bytes
+        Gitlab::CurrentSettings.current_application_settings.max_decompressed_archive_size.megabytes
       end
     end
   end

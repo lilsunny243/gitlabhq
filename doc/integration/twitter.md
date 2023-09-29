@@ -1,10 +1,17 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Twitter OAuth 1.0a OmniAuth Provider **(FREE SELF)**
+# Twitter OAuth 1.0a OmniAuth Provider (deprecated) **(FREE SELF)**
+
+<!--- start_remove The following content will be removed on remove_date: '2024-05-17' -->
+
+WARNING:
+This feature was [deprecated](https://gitlab.com/gitlab-com/Product/-/issues/11417) in GitLab 16.3 and is planned for removal in 17.0. Use [another supported OmniAuth provider](omniauth.md#supported-providers) instead. This change is a breaking change.
+
+<!--- end_remove -->
 
 NOTE:
 Twitter OAuth 2.0 support is [not supported](https://gitlab.com/gitlab-org/gitlab/-/issues/366213).
@@ -48,13 +55,13 @@ Twitter. Twitter generates a client ID and secret key for you to use.
 
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus package:
+   For Linux package installations:
 
    ```shell
      sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
      cd /home/git/gitlab
@@ -62,13 +69,13 @@ Twitter. Twitter generates a client ID and secret key for you to use.
      sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `twitter` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration.
 
-   For Omnibus package:
+   For Linux package installations:
 
    ```ruby
      gitlab_rails['omniauth_providers'] = [
@@ -81,7 +88,7 @@ Twitter. Twitter generates a client ID and secret key for you to use.
      ]
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```yaml
    - { name: 'twitter',
@@ -96,10 +103,9 @@ Twitter. Twitter generates a client ID and secret key for you to use.
 
 1. Save the configuration file.
 
-1. For the changes to take effect, if you installed:
-
-   - Using Omnibus, [reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - From source, [restart GitLab](../administration/restart_gitlab.md#installations-from-source).
+1. For the changes to take effect:
+   - For Linux package installations, [reconfigure GitLab](../administration/restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - For self-compiled installations, [restart GitLab](../administration/restart_gitlab.md#self-compiled-installations).
 
 On the sign-in page, find the Twitter option below the regular sign-in form. Select the option to begin the authentication process. Twitter asks you to sign in and authorize the GitLab application. After authorization,
 you are returned to GitLab and signed in.

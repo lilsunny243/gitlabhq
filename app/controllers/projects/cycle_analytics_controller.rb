@@ -6,22 +6,27 @@ class Projects::CycleAnalyticsController < Projects::ApplicationController
   include CycleAnalyticsParams
   include GracefulTimeoutHandling
   include ProductAnalyticsTracking
+  include Gitlab::Utils::StrongMemoize
   extend ::Gitlab::Utils::Override
 
   before_action :authorize_read_cycle_analytics!
-  before_action :load_value_stream, only: :show
 
-  track_custom_event :show,
+  track_event :show,
     name: 'p_analytics_valuestream',
     action: 'perform_analytics_usage_action',
     label: 'redis_hll_counters.analytics.analytics_total_unique_counts_monthly',
     destinations: %i[redis_hll snowplow]
 
-  feature_category :planning_analytics
+  feature_category :team_planning
   urgency :low
 
   before_action do
     push_licensed_feature(:cycle_analytics_for_groups) if project.licensed_feature_available?(:cycle_analytics_for_groups)
+    push_licensed_feature(:group_level_analytics_dashboard) if project.licensed_feature_available?(:group_level_analytics_dashboard)
+
+    if project.licensed_feature_available?(:cycle_analytics_for_projects)
+      push_licensed_feature(:cycle_analytics_for_projects)
+    end
   end
 
   def show
@@ -44,12 +49,13 @@ class Projects::CycleAnalyticsController < Projects::ApplicationController
 
   override :all_cycle_analytics_params
   def all_cycle_analytics_params
-    super.merge({ namespace: @project.project_namespace, value_stream: @value_stream })
+    super.merge({ value_stream: value_stream })
   end
 
-  def load_value_stream
-    @value_stream = Analytics::CycleAnalytics::ValueStream.build_default_value_stream(@project.project_namespace)
+  def value_stream
+    Analytics::CycleAnalytics::ValueStream.build_default_value_stream(namespace)
   end
+  strong_memoize_attr :value_stream
 
   def cycle_analytics_json
     {
@@ -57,6 +63,10 @@ class Projects::CycleAnalyticsController < Projects::ApplicationController
       stats: @cycle_analytics.stats,
       permissions: @cycle_analytics.permissions(user: current_user)
     }
+  end
+
+  def namespace
+    @project.project_namespace
   end
 
   def tracking_namespace_source
@@ -67,3 +77,5 @@ class Projects::CycleAnalyticsController < Projects::ApplicationController
     project
   end
 end
+
+Projects::CycleAnalyticsController.prepend_mod

@@ -3,15 +3,16 @@ import {
   GlAlert,
   GlButton,
   GlCard,
-  GlFormInput,
   GlLink,
+  GlIcon,
   GlLoadingIcon,
   GlSprintf,
   GlToggle,
 } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, s__ } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import addProjectCIJobTokenScopeMutation from '../graphql/mutations/add_project_ci_job_token_scope.mutation.graphql';
 import removeProjectCIJobTokenScopeMutation from '../graphql/mutations/remove_project_ci_job_token_scope.mutation.graphql';
 import updateCIJobTokenScopeMutation from '../graphql/mutations/update_ci_job_token_scope.mutation.graphql';
@@ -19,11 +20,14 @@ import getCIJobTokenScopeQuery from '../graphql/queries/get_ci_job_token_scope.q
 import getProjectsWithCIJobTokenScopeQuery from '../graphql/queries/get_projects_with_ci_job_token_scope.query.graphql';
 import TokenProjectsTable from './token_projects_table.vue';
 
+// Note: This component will be removed in 17.0, as the outbound access token is getting deprecated
 export default {
   i18n: {
-    toggleLabelTitle: s__('CICD|Limit CI_JOB_TOKEN access'),
+    toggleLabelTitle: s__(
+      'CICD|Limit access %{italicStart}from%{italicEnd} this project (Deprecated)',
+    ),
     toggleHelpText: s__(
-      `CICD|Select the projects that can be accessed by API requests authenticated with this project's CI_JOB_TOKEN CI/CD variable. It is a security risk to disable this feature, because unauthorized projects might attempt to retrieve an active token and access the API. %{linkStart}Learn more.%{linkEnd}`,
+      `CICD|Prevent CI/CD job tokens from this project from being used to access other projects unless the other project is added to the allowlist. It is a security risk to disable this feature, because unauthorized projects might attempt to retrieve an active token and access the API. %{linkStart}Learn more%{linkEnd}.`,
     ),
     cardHeaderTitle: s__('CICD|Add an existing project to the scope'),
     settingDisabledMessage: s__(
@@ -34,7 +38,14 @@ export default {
     addProjectPlaceholder: __('Paste project path (i.e. gitlab-org/gitlab)'),
     projectsFetchError: __('There was a problem fetching the projects'),
     scopeFetchError: __('There was a problem fetching the job token scope value'),
+    outboundTokenAlertDeprecationMessage: s__(
+      `CICD|The %{boldStart}Limit CI_JOB_TOKEN%{boldEnd} scope is deprecated and will be removed the 17.0 milestone. Configure the %{boldStart}CI_JOB_TOKEN%{boldEnd} allowlist instead. %{linkStart}How do I do this?%{linkEnd}`,
+    ),
+    disableToggleWarning: s__('CICD|Disabling this feature is a permanent change.'),
   },
+  deprecationDocumentationLink: helpPagePath('ci/jobs/ci_job_token', {
+    anchor: 'limit-your-projects-job-token-access',
+  }),
   fields: [
     {
       key: 'project',
@@ -60,13 +71,14 @@ export default {
     GlAlert,
     GlButton,
     GlCard,
-    GlFormInput,
     GlLink,
+    GlIcon,
     GlLoadingIcon,
     GlSprintf,
     GlToggle,
     TokenProjectsTable,
   },
+  mixins: [glFeatureFlagMixin()],
   inject: {
     fullPath: {
       default: '',
@@ -116,13 +128,16 @@ export default {
     ciJobTokenHelpPage() {
       return helpPagePath('ci/jobs/ci_job_token#limit-your-projects-job-token-access');
     },
+    disableTokenToggle() {
+      return !this.jobTokenScopeEnabled;
+    },
   },
   methods: {
     async updateCIJobTokenScope() {
       try {
         const {
           data: {
-            ciCdSettingsUpdate: { errors },
+            projectCiCdSettingsUpdate: { errors },
           },
         } = await this.$apollo.mutate({
           mutation: updateCIJobTokenScopeMutation,
@@ -205,55 +220,77 @@ export default {
   <div>
     <gl-loading-icon v-if="$apollo.loading" size="lg" class="gl-mt-5" />
     <template v-else>
+      <gl-alert
+        class="gl-mt-5 gl-mb-3"
+        variant="warning"
+        :dismissible="false"
+        :show-icon="false"
+        data-testid="deprecation-alert"
+      >
+        <gl-sprintf :message="$options.i18n.outboundTokenAlertDeprecationMessage">
+          <template #bold="{ content }">
+            <strong>{{ content }}</strong>
+          </template>
+          <template #link="{ content }">
+            <gl-link
+              :href="$options.deprecationDocumentationLink"
+              class="inline-link"
+              target="_blank"
+            >
+              {{ content }}
+            </gl-link>
+          </template>
+        </gl-sprintf>
+      </gl-alert>
       <gl-toggle
         v-model="jobTokenScopeEnabled"
         :label="$options.i18n.toggleLabelTitle"
+        :disabled="disableTokenToggle"
         @change="updateCIJobTokenScope"
       >
+        <template #label>
+          <gl-sprintf :message="$options.i18n.toggleLabelTitle">
+            <template #italic="{ content }">
+              <i>{{ content }}</i>
+            </template>
+          </gl-sprintf>
+        </template>
         <template #help>
           <gl-sprintf :message="$options.i18n.toggleHelpText">
             <template #link="{ content }">
-              <gl-link :href="ciJobTokenHelpPage" class="inline-link" target="_blank">
-                {{ content }}
-              </gl-link>
+              <gl-link :href="ciJobTokenHelpPage" class="inline-link" target="_blank">{{
+                content
+              }}</gl-link>
             </template>
           </gl-sprintf>
+          <strong>{{ $options.i18n.disableToggleWarning }} </strong>
         </template>
       </gl-toggle>
 
       <div>
-        <gl-card class="gl-mt-5 gl-mb-3">
-          <template #header>
-            <h5 class="gl-my-0">{{ $options.i18n.cardHeaderTitle }}</h5>
-          </template>
-          <template #default>
-            <gl-form-input
-              v-model="targetProjectPath"
-              :placeholder="$options.i18n.addProjectPlaceholder"
-            />
-          </template>
-          <template #footer>
-            <gl-button variant="confirm" :disabled="isProjectPathEmpty" @click="addProject">
-              {{ $options.i18n.addProject }}
-            </gl-button>
-            <gl-button @click="clearTargetProjectPath">{{ $options.i18n.cancel }}</gl-button>
-          </template>
-        </gl-card>
-        <gl-alert
-          v-if="!jobTokenScopeEnabled"
-          class="gl-mb-3"
-          variant="warning"
-          :dismissible="false"
-          :show-icon="false"
-          data-testid="token-disabled-alert"
+        <gl-card
+          class="gl-new-card"
+          header-class="gl-new-card-header"
+          body-class="gl-new-card-body gl-px-0"
         >
-          {{ $options.i18n.settingDisabledMessage }}
-        </gl-alert>
-        <token-projects-table
-          :projects="projects"
-          :table-fields="$options.fields"
-          @removeProject="removeProject"
-        />
+          <template #header>
+            <div class="gl-new-card-title-wrapper">
+              <h5 class="gl-new-card-title">{{ $options.i18n.cardHeaderTitle }}</h5>
+              <span class="gl-new-card-count">
+                <gl-icon name="project" class="gl-mr-2" />
+                {{ projects.length }}
+              </span>
+            </div>
+            <div class="gl-new-card-actions">
+              <gl-button size="small" disabled>{{ $options.i18n.addProject }}</gl-button>
+            </div>
+          </template>
+          <token-projects-table
+            :projects="projects"
+            :table-fields="$options.fields"
+            @removeProject="removeProject"
+          />
+        </gl-card>
       </div>
     </template>
   </div>

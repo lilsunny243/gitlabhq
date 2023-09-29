@@ -1,4 +1,4 @@
-import { GlIcon, GlLink, GlLoadingIcon, GlSprintf } from '@gitlab/ui';
+import { GlIcon, GlLoadingIcon, GlSprintf } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
@@ -6,7 +6,9 @@ import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import PipelineStatus, { i18n } from '~/ci/pipeline_editor/components/header/pipeline_status.vue';
 import getPipelineQuery from '~/ci/pipeline_editor/graphql/queries/pipeline.query.graphql';
+import PipelineMiniGraph from '~/ci/pipeline_mini_graph/pipeline_mini_graph.vue';
 import PipelineEditorMiniGraph from '~/ci/pipeline_editor/components/header/pipeline_editor_mini_graph.vue';
+import getPipelineEtag from '~/ci/pipeline_editor/graphql/queries/client/pipeline_etag.query.graphql';
 import { mockCommitSha, mockProjectPipeline, mockProjectFullPath } from '../../mock_data';
 
 Vue.use(VueApollo);
@@ -16,9 +18,19 @@ describe('Pipeline Status', () => {
   let mockApollo;
   let mockPipelineQuery;
 
-  const createComponentWithApollo = () => {
+  const createComponentWithApollo = ({ ciGraphqlPipelineMiniGraph = false } = {}) => {
     const handlers = [[getPipelineQuery, mockPipelineQuery]];
     mockApollo = createMockApollo(handlers);
+
+    mockApollo.clients.defaultClient.cache.writeQuery({
+      query: getPipelineEtag,
+      data: {
+        etags: {
+          __typename: 'EtagValues',
+          pipeline: 'pipelines/1',
+        },
+      },
+    });
 
     wrapper = shallowMount(PipelineStatus, {
       apolloProvider: mockApollo,
@@ -26,15 +38,20 @@ describe('Pipeline Status', () => {
         commitSha: mockCommitSha,
       },
       provide: {
+        glFeatures: {
+          ciGraphqlPipelineMiniGraph,
+        },
         projectFullPath: mockProjectFullPath,
       },
-      stubs: { GlLink, GlSprintf },
+      stubs: { GlSprintf },
     });
   };
 
   const findIcon = () => wrapper.findComponent(GlIcon);
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findPipelineEditorMiniGraph = () => wrapper.findComponent(PipelineEditorMiniGraph);
+  const findPipelineMiniGraph = () => wrapper.findComponent(PipelineMiniGraph);
+
   const findPipelineId = () => wrapper.find('[data-testid="pipeline-id"]');
   const findPipelineCommit = () => wrapper.find('[data-testid="pipeline-commit"]');
   const findPipelineErrorMsg = () => wrapper.find('[data-testid="pipeline-error-msg"]');
@@ -48,7 +65,6 @@ describe('Pipeline Status', () => {
 
   afterEach(() => {
     mockPipelineQuery.mockReset();
-    wrapper.destroy();
   });
 
   describe('loading icon', () => {
@@ -78,7 +94,7 @@ describe('Pipeline Status', () => {
         await waitForPromises();
       });
 
-      it('query is called with correct variables', async () => {
+      it('query is called with correct variables', () => {
         expect(mockPipelineQuery).toHaveBeenCalledTimes(1);
         expect(mockPipelineQuery).toHaveBeenCalledWith({
           fullPath: mockProjectFullPath,
@@ -128,5 +144,29 @@ describe('Pipeline Status', () => {
         expect(findPipelineViewBtn().exists()).toBe(false);
       });
     });
+  });
+
+  describe('feature flag behavior', () => {
+    beforeEach(() => {
+      mockPipelineQuery.mockResolvedValue({
+        data: { project: mockProjectPipeline() },
+      });
+    });
+
+    it.each`
+      state    | showLegacyPipelineMiniGraph | showPipelineMiniGraph
+      ${true}  | ${false}                    | ${true}
+      ${false} | ${true}                     | ${false}
+    `(
+      'renders the correct component when the feature flag is set to $state',
+      async ({ state, showLegacyPipelineMiniGraph, showPipelineMiniGraph }) => {
+        createComponentWithApollo({ ciGraphqlPipelineMiniGraph: state });
+
+        await waitForPromises();
+
+        expect(findPipelineEditorMiniGraph().exists()).toBe(showLegacyPipelineMiniGraph);
+        expect(findPipelineMiniGraph().exists()).toBe(showPipelineMiniGraph);
+      },
+    );
   });
 });

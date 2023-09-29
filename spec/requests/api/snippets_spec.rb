@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_code_management do
+RSpec.describe API::Snippets, :aggregate_failures, factory_default: :keep, feature_category: :source_code_management do
   include SnippetHelpers
 
   let_it_be(:admin)            { create(:user, :admin) }
@@ -13,7 +13,8 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
   let_it_be_with_refind(:private_snippet) { create(:personal_snippet, :repository, :private, author: user) }
   let_it_be(:internal_snippet)            { create(:personal_snippet, :repository, :internal, author: user) }
 
-  let_it_be(:user_token)       { create(:personal_access_token, user: user) }
+  let_it_be(:user_token) { create(:personal_access_token, user: user) }
+  let_it_be(:admin_token) { create(:personal_access_token, :admin_mode, user: admin, scopes: [:sudo, :api]) }
   let_it_be(:other_user_token) { create(:personal_access_token, user: other_user) }
   let_it_be(:project) do
     create_default(:project, :public).tap do |p|
@@ -21,9 +22,17 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
     end
   end
 
-  describe 'GET /snippets/' do
+  shared_examples "returns unauthorized when not authenticated" do
+    it 'returns 401 for non-authenticated' do
+      get api(path)
+
+      expect(response).to have_gitlab_http_status(:unauthorized)
+    end
+  end
+
+  shared_examples "returns filtered snippets for user" do
     it 'returns snippets available for user' do
-      get api("/snippets/", personal_access_token: user_token)
+      get api(path, personal_access_token: user_token)
 
       expect(response).to have_gitlab_http_status(:ok)
       expect(response).to include_pagination_headers
@@ -36,32 +45,6 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
       expect(json_response.last).to have_key('raw_url')
       expect(json_response.last).to have_key('files')
       expect(json_response.last).to have_key('visibility')
-    end
-
-    it 'hides private snippets from regular user' do
-      get api("/snippets/", personal_access_token: other_user_token)
-
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(response).to include_pagination_headers
-      expect(json_response).to be_an Array
-      expect(json_response.size).to eq(0)
-    end
-
-    it 'returns 401 for non-authenticated' do
-      get api("/snippets/")
-
-      expect(response).to have_gitlab_http_status(:unauthorized)
-    end
-
-    it 'does not return snippets related to a project with disable feature visibility' do
-      public_snippet = create(:project_snippet, :public, author: user, project: project)
-      project.project_feature.update_attribute(:snippets_access_level, 0)
-
-      get api("/snippets/", personal_access_token: user_token)
-
-      json_response.each do |snippet|
-        expect(snippet["id"]).not_to eq(public_snippet.id)
-      end
     end
 
     context 'filtering snippets by created_after/created_before' do
@@ -82,6 +65,33 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
     end
   end
 
+  describe 'GET /snippets/' do
+    let(:path) { "/snippets" }
+
+    it_behaves_like "returns unauthorized when not authenticated"
+    it_behaves_like "returns filtered snippets for user"
+
+    it 'hides private snippets from regular user' do
+      get api(path, personal_access_token: other_user_token)
+
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(response).to include_pagination_headers
+      expect(json_response).to be_an Array
+      expect(json_response.size).to eq(0)
+    end
+
+    it 'does not return snippets related to a project with disable feature visibility' do
+      public_snippet = create(:project_snippet, :public, author: user, project: project)
+      project.project_feature.update_attribute(:snippets_access_level, 0)
+
+      get api(path, personal_access_token: user_token)
+
+      json_response.each do |snippet|
+        expect(snippet["id"]).not_to eq(public_snippet.id)
+      end
+    end
+  end
+
   describe 'GET /snippets/public' do
     let_it_be(:public_snippet_other)     { create(:personal_snippet, :repository, :public, author: other_user) }
     let_it_be(:private_snippet_other)    { create(:personal_snippet, :repository, :private, author: other_user) }
@@ -91,6 +101,8 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
     let_it_be(:internal_snippet_project) { create(:project_snippet, :repository, :internal, author: user) }
 
     let(:path) { "/snippets/public" }
+
+    it_behaves_like "returns unauthorized when not authenticated"
 
     it 'returns only public snippets from all users when authenticated' do
       get api(path, personal_access_token: user_token)
@@ -110,12 +122,6 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
       end
     end
 
-    it 'requires authentication' do
-      get api(path, nil)
-
-      expect(response).to have_gitlab_http_status(:unauthorized)
-    end
-
     context 'filtering public snippets by created_after/created_before' do
       let_it_be(:public_snippet_before_time_range) { create(:personal_snippet, :repository, :public, author: other_user, created_at: Time.parse("2021-08-20T00:00:00Z")) }
       let_it_be(:public_snippet_in_time_range)     { create(:personal_snippet, :repository, :public, author: other_user, created_at: Time.parse("2021-08-22T00:00:00Z")) }
@@ -128,6 +134,49 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
 
         expect(json_response.map { |snippet| snippet['id'] }).to contain_exactly(
           public_snippet_in_time_range.id)
+      end
+    end
+  end
+
+  describe 'GET /snippets/all' do
+    let(:path) { "/snippets/all" }
+
+    it_behaves_like "returns unauthorized when not authenticated"
+    it_behaves_like "returns filtered snippets for user"
+
+    context 'with additional snippets' do
+      let!(:hidden_snippet) { create(:personal_snippet, :repository, :private, author: other_user) }
+      let!(:viewable_snippet) { create(:personal_snippet, :repository, :internal, author: user) }
+
+      context 'and user is admin', :enable_admin_mode do
+        it 'returns all snippets' do
+          get api(path, personal_access_token: admin_token)
+
+          ids = json_response.map { |snippet| snippet['id'] }
+
+          expect(ids).to contain_exactly(
+            viewable_snippet.id,
+            hidden_snippet.id,
+            internal_snippet.id,
+            private_snippet.id,
+            public_snippet.id
+          )
+        end
+      end
+
+      context 'and user is not admin' do
+        it 'returns all internal and public snippets' do
+          get api(path, personal_access_token: user_token)
+
+          ids = json_response.map { |snippet| snippet['id'] }
+
+          expect(ids).to contain_exactly(
+            viewable_snippet.id,
+            internal_snippet.id,
+            private_snippet.id,
+            public_snippet.id
+          )
+        end
       end
     end
   end
@@ -448,10 +497,8 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
     end
 
     context "when admin" do
-      let_it_be(:token) { create(:personal_access_token, user: admin, scopes: [:sudo]) }
-
       subject do
-        put api("/snippets/#{snippet.id}", personal_access_token: token), params: { visibility: 'private', sudo: user.id }
+        put api("/snippets/#{snippet.id}", personal_access_token: admin_token), params: { visibility: 'private', sudo: user.id }
       end
 
       context 'when sudo is defined' do
@@ -499,23 +546,19 @@ RSpec.describe API::Snippets, factory_default: :keep, feature_category: :source_
   end
 
   describe "GET /snippets/:id/user_agent_detail" do
-    let(:snippet) { public_snippet }
+    let(:path) { "/snippets/#{public_snippet.id}/user_agent_detail" }
+
+    let_it_be(:user_agent_detail) { create(:user_agent_detail, subject: public_snippet) }
+
+    it_behaves_like 'GET request permissions for admin mode'
 
     it 'exposes known attributes' do
-      user_agent_detail = create(:user_agent_detail, subject: snippet)
-
-      get api("/snippets/#{snippet.id}/user_agent_detail", admin)
+      get api(path, admin, admin_mode: true)
 
       expect(response).to have_gitlab_http_status(:ok)
       expect(json_response['user_agent']).to eq(user_agent_detail.user_agent)
       expect(json_response['ip_address']).to eq(user_agent_detail.ip_address)
       expect(json_response['akismet_submitted']).to eq(user_agent_detail.submitted)
-    end
-
-    it "returns unauthorized for non-admin users" do
-      get api("/snippets/#{snippet.id}/user_agent_detail", user)
-
-      expect(response).to have_gitlab_http_status(:forbidden)
     end
   end
 end

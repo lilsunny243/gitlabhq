@@ -260,16 +260,16 @@ RSpec.describe Gitlab::Ci::Config::External::File::Project, feature_category: :p
     }
 
     context 'when project name and ref include masked variables' do
-      let(:project_name) { 'my_project_name' }
+      let_it_be(:project) { create(:project, :repository, path: 'my_project_path') }
+
       let(:branch_name) { 'merge-commit-analyze-after' }
-      let(:project) { create(:project, :repository, name: project_name) }
       let(:namespace_path) { project.namespace.full_path }
       let(:included_project_sha) { project.commit(branch_name).sha }
 
       let(:variables) do
         Gitlab::Ci::Variables::Collection.new(
           [
-            { key: 'VAR1', value: project_name, masked: true },
+            { key: 'VAR1', value: 'my_project_path', masked: true },
             { key: 'VAR2', value: branch_name, masked: true }
           ])
       end
@@ -287,6 +287,39 @@ RSpec.describe Gitlab::Ci::Config::External::File::Project, feature_category: :p
           extra: { project: "#{namespace_path}/xxxxxxxxxxxxxxx", ref: 'xxxxxxxxxxxxxxxxxxxxxxxxxx' }
         )
       }
+    end
+  end
+
+  describe '#to_hash' do
+    context 'when interpolation is being used' do
+      before do
+        project.repository.create_file(
+          user,
+          'template-file.yml',
+          template,
+          message: 'Add template',
+          branch_name: 'master'
+        )
+      end
+
+      let(:template) do
+        <<~YAML
+          spec:
+            inputs:
+              name:
+          ---
+          rspec:
+            script: rspec --suite $[[ inputs.name ]]
+        YAML
+      end
+
+      let(:params) do
+        { file: 'template-file.yml', ref: 'master', project: project.full_path, inputs: { name: 'abc' } }
+      end
+
+      it 'correctly interpolates the content' do
+        expect(project_file.to_hash).to eq({ rspec: { script: 'rspec --suite abc' } })
+      end
     end
   end
 end

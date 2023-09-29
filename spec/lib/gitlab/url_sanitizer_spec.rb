@@ -8,31 +8,38 @@ RSpec.describe Gitlab::UrlSanitizer do
   describe '.sanitize' do
     def sanitize_url(url)
       # We want to try with multi-line content because is how error messages are formatted
-      described_class.sanitize(%Q{
+      described_class.sanitize(%{
          remote: Not Found
-         fatal: repository '#{url}' not found
+         fatal: repository `#{url}` not found
       })
     end
 
     where(:input, :output) do
-      'http://user:pass@test.com/root/repoC.git/'  | 'http://*****:*****@test.com/root/repoC.git/'
-      'https://user:pass@test.com/root/repoA.git/' | 'https://*****:*****@test.com/root/repoA.git/'
-      'ssh://user@host.test/path/to/repo.git'      | 'ssh://*****@host.test/path/to/repo.git'
-
-      # git protocol does not support authentication but clean any details anyway
-      'git://user:pass@host.test/path/to/repo.git' | 'git://*****:*****@host.test/path/to/repo.git'
-      'git://host.test/path/to/repo.git'           | 'git://host.test/path/to/repo.git'
+      # http(s), ssh, git, relative, and schemeless URLs should all be masked correctly
+      urls = ['http://', 'https://', 'ssh://', 'git://', '//', ''].flat_map do |protocol|
+        [
+          ["#{protocol}test.com", "#{protocol}test.com"],
+          ["#{protocol}test.com/", "#{protocol}test.com/"],
+          ["#{protocol}test.com/path/to/repo.git", "#{protocol}test.com/path/to/repo.git"],
+          ["#{protocol}user@test.com", "#{protocol}*****@test.com"],
+          ["#{protocol}user:pass@test.com", "#{protocol}*****:*****@test.com"],
+          ["#{protocol}user:@test.com", "#{protocol}*****@test.com"],
+          ["#{protocol}:pass@test.com", "#{protocol}:*****@test.com"]
+        ]
+      end
 
       # SCP-style URLs are left unmodified
-      'user@server:project.git'      | 'user@server:project.git'
-      'user:pass@server:project.git' | 'user:pass@server:project.git'
+      urls << ['user@server:project.git', 'user@server:project.git']
+      urls << ['user:@server:project.git', 'user:@server:project.git']
+      urls << [':pass@server:project.git', ':pass@server:project.git']
+      urls << ['user:pass@server:project.git', 'user:pass@server:project.git']
 
       # return an empty string for invalid URLs
-      'ssh://' | ''
+      urls << ['ssh://', '']
     end
 
     with_them do
-      it { expect(sanitize_url(input)).to include("repository '#{output}' not found") }
+      it { expect(sanitize_url(input)).to include("repository `#{output}` not found") }
     end
   end
 
@@ -81,6 +88,25 @@ RSpec.describe Gitlab::UrlSanitizer do
 
     with_them do
       it { expect(described_class.valid_web?(url)).to eq(value) }
+    end
+  end
+
+  describe '.sanitize_masked_url' do
+    where(:original_url, :masked_url) do
+      'http://{domain}.com'     | 'http://{domain}.com'
+      'http://{domain}/{hook}'  | 'http://{domain}/{hook}'
+      'http://user:pass@{domain}/hook' | 'http://*****:*****@{domain}/hook'
+      'http://user:pass@{domain}:{port}/hook' | 'http://*****:*****@{domain}:{port}/hook'
+      'http://user:@{domain}:{port}/hook' | 'http://*****:*****@{domain}:{port}/hook'
+      'http://:pass@{domain}:{port}/hook' | 'http://*****:*****@{domain}:{port}/hook'
+      'http://user@{domain}:{port}/hook' | 'http://*****:*****@{domain}:{port}/hook'
+      'http://u:p@{domain}/hook?email=james@example.com' | 'http://*****:*****@{domain}/hook?email=james@example.com'
+      'http://{domain}/hook?email=james@example.com' | 'http://{domain}/hook?email=james@example.com'
+      'http://user:{pass}@example.com' | 'http://*****:*****@example.com'
+    end
+
+    with_them do
+      it { expect(described_class.sanitize_masked_url(original_url)).to eq(masked_url) }
     end
   end
 

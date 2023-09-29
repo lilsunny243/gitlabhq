@@ -1,12 +1,18 @@
 <script>
-import { GlIcon, GlTooltipDirective, GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import {
+  GlDisclosureDropdown,
+  GlDisclosureDropdownItem,
+  GlIcon,
+  GlTooltipDirective,
+} from '@gitlab/ui';
 import { sprintf, n__, s__ } from '~/locale';
 import MetadataItem from '~/vue_shared/components/registry/metadata_item.vue';
 import TitleArea from '~/vue_shared/components/registry/title_area.vue';
 import timeagoMixin from '~/vue_shared/mixins/timeago';
+import { formatDate } from '~/lib/utils/datetime_utility';
 import { numberToHumanSize } from '~/lib/utils/number_utils';
 import {
-  UPDATED_AT,
+  CREATED_AT,
   CLEANUP_UNSCHEDULED_TEXT,
   CLEANUP_SCHEDULED_TEXT,
   CLEANUP_ONGOING_TEXT,
@@ -16,6 +22,8 @@ import {
   CLEANUP_ONGOING_TOOLTIP,
   CLEANUP_UNFINISHED_TOOLTIP,
   CLEANUP_DISABLED_TOOLTIP,
+  DELETE_IMAGE_TEXT,
+  MORE_ACTIONS_TEXT,
   UNFINISHED_STATUS,
   UNSCHEDULED_STATUS,
   SCHEDULED_STATUS,
@@ -24,10 +32,11 @@ import {
 } from '../../constants/index';
 
 import getContainerRepositoryMetadata from '../../graphql/queries/get_container_repository_metadata.query.graphql';
+import { getImageName } from '../../utils';
 
 export default {
   name: 'DetailsHeader',
-  components: { GlIcon, TitleArea, MetadataItem, GlDropdown, GlDropdownItem },
+  components: { GlDisclosureDropdown, GlDisclosureDropdownItem, GlIcon, TitleArea, MetadataItem },
   directives: {
     GlTooltip: GlTooltipDirective,
   },
@@ -65,11 +74,11 @@ export default {
     visibilityIcon() {
       return this.imageDetails?.project?.visibility === 'public' ? 'eye' : 'eye-slash';
     },
-    timeAgo() {
-      return this.timeFormatted(this.imageDetails.updatedAt);
+    formattedCreatedAtDate() {
+      return formatDate(this.imageDetails.createdAt, 'mmm d, yyyy HH:MM', true);
     },
-    updatedText() {
-      return sprintf(UPDATED_AT, { time: this.timeAgo });
+    createdText() {
+      return sprintf(CREATED_AT, { time: this.formattedCreatedAtDate });
     },
     tagCountText() {
       if (this.$apollo.queries.containerRepository.loading) {
@@ -99,12 +108,16 @@ export default {
       return !this.imageDetails.name ? ROOT_IMAGE_TOOLTIP : '';
     },
     imageName() {
-      return this.imageDetails.name || this.imageDetails.project?.path;
+      return getImageName(this.imageDetails);
     },
     formattedSize() {
       const { size } = this.imageDetails;
       return size ? numberToHumanSize(Number(size)) : null;
     },
+  },
+  i18n: {
+    DELETE_IMAGE_TEXT,
+    MORE_ACTIONS_TEXT,
   },
 };
 </script>
@@ -145,25 +158,28 @@ export default {
     <template #metadata-updated>
       <metadata-item
         :icon="visibilityIcon"
-        :text="updatedText"
+        :text="createdText"
         size="xl"
-        data-testid="updated-and-visibility"
+        data-testid="created-and-visibility"
       />
     </template>
-    <template #right-actions>
-      <gl-dropdown
-        v-if="!deleteButtonDisabled"
-        icon="ellipsis_v"
-        text="More actions"
-        :text-sr-only="true"
+    <template v-if="!deleteButtonDisabled" #right-actions>
+      <gl-disclosure-dropdown
         category="tertiary"
+        icon="ellipsis_v"
+        placement="right"
+        :toggle-text="$options.i18n.MORE_ACTIONS_TEXT"
+        text-sr-only
         no-caret
-        right
       >
-        <gl-dropdown-item variant="danger" @click="$emit('delete')">
-          {{ __('Delete image repository') }}
-        </gl-dropdown-item>
-      </gl-dropdown>
+        <gl-disclosure-dropdown-item @action="$emit('delete')">
+          <template #list-item>
+            <span class="gl-text-red-500">
+              {{ $options.i18n.DELETE_IMAGE_TEXT }}
+            </span>
+          </template>
+        </gl-disclosure-dropdown-item>
+      </gl-disclosure-dropdown>
     </template>
   </title-area>
 </template>

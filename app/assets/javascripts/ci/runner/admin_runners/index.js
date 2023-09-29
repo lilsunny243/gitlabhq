@@ -1,6 +1,9 @@
 import { GlToast } from '@gitlab/ui';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
+
+import { provide } from 'ee_else_ce/ci/runner/admin_runners/provide';
+
 import { visitUrl } from '~/lib/utils/url_utility';
 import { updateOutdatedUrl } from '~/ci/runner/runner_search_utils';
 import createDefaultClient from '~/lib/graphql';
@@ -29,16 +32,7 @@ export const initAdminRunners = (selector = '#js-admin-runners') => {
     return null;
   }
 
-  const {
-    runnerInstallHelpPage,
-    newRunnerPath,
-    registrationToken,
-    onlineContactTimeoutSecs,
-    staleTimeoutSecs,
-    emptyStateSvgPath,
-    emptyStateFilteredSvgPath,
-  } = el.dataset;
-
+  const { newRunnerPath, registrationToken } = el.dataset;
   const { cacheConfig, typeDefs, localMutations } = createLocalState();
 
   const apolloProvider = new VueApollo({
@@ -49,12 +43,8 @@ export const initAdminRunners = (selector = '#js-admin-runners') => {
     el,
     apolloProvider,
     provide: {
-      runnerInstallHelpPage,
+      ...provide(el.dataset),
       localMutations,
-      onlineContactTimeoutSecs,
-      staleTimeoutSecs,
-      emptyStateSvgPath,
-      emptyStateFilteredSvgPath,
     },
     render(h) {
       return h(AdminRunnersApp, {

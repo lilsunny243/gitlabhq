@@ -21,21 +21,25 @@ module ExportFileHelper
 
     create(:label_link, label: label, target: issue)
 
-    ci_pipeline = create(:ci_pipeline,
-                         project: project,
-                         sha: merge_request.diff_head_sha,
-                         ref: merge_request.source_branch,
-                         statuses: [commit_status])
+    ci_pipeline = create(
+      :ci_pipeline,
+      project: project,
+      sha: merge_request.diff_head_sha,
+      ref: merge_request.source_branch,
+      statuses: [commit_status]
+    )
 
     create(:ci_build, pipeline: ci_pipeline, project: project)
     create(:milestone, project: project)
     create(:note, noteable: issue, project: project)
     create(:note, noteable: merge_request, project: project)
     create(:note, noteable: snippet, project: project)
-    create(:note_on_commit,
-           author: user,
-           project: project,
-           commit_id: ci_pipeline.sha)
+    create(
+      :note_on_commit,
+      author: user,
+      project: project,
+      commit_id: ci_pipeline.sha
+    )
 
     event = create(:event, :created, target: milestone, project: project, author: user, action: 5)
     create(:push_event_payload, event: event)
@@ -88,7 +92,7 @@ module ExportFileHelper
   end
 
   # Returns the offended ObjectWithParent object if a sensitive word is found inside a hash,
-  # excluding the whitelisted safe hashes.
+  # excluding the allowlisted safe hashes.
   def find_sensitive_attributes(sensitive_word, project_hash)
     loop do
       object_with_parent = deep_find_with_parent(sensitive_word, project_hash)

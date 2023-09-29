@@ -83,10 +83,7 @@ module API
       private
 
       def bypass_session_for_admin_mode?(user)
-        return user.is_a?(User) && Gitlab::CurrentSettings.admin_mode if Feature.disabled?(:admin_mode_for_api)
-
-        return false unless Gitlab::CurrentSettings.admin_mode
-        return false unless user.is_a?(User)
+        return false unless user.is_a?(User) && Gitlab::CurrentSettings.admin_mode
 
         Gitlab::Session.with_session(current_request.session) { Gitlab::Auth::CurrentUserMode.new(user).admin_mode? } ||
           Gitlab::Auth::RequestAuthenticator.new(current_request).valid_access_token?(scopes: [:admin_mode])
@@ -131,7 +128,7 @@ module API
       end
 
       def two_factor_required_but_not_setup?(user)
-        verifier = Gitlab::Auth::TwoFactorAuthVerifier.new(user)
+        verifier = Gitlab::Auth::TwoFactorAuthVerifier.new(user, request)
 
         if verifier.two_factor_authentication_required? && verifier.current_user_needs_to_setup_two_factor?
           verifier.two_factor_grace_period_expired?

@@ -8,7 +8,7 @@ RSpec.describe ::API::Entities::Project do
   let(:options) { { current_user: current_user } }
 
   let(:entity) do
-    ::API::Entities::Project.new(project, options)
+    described_class.new(project, options)
   end
 
   subject(:json) { entity.as_json }
@@ -26,7 +26,7 @@ RSpec.describe ::API::Entities::Project do
     end
   end
 
-  describe '.service_desk_address' do
+  describe '.service_desk_address', feature_category: :service_desk do
     before do
       allow(project).to receive(:service_desk_enabled?).and_return(true)
     end
@@ -68,6 +68,28 @@ RSpec.describe ::API::Entities::Project do
 
       it 'contains information about the shared group' do
         expect(json[:shared_with_groups]).to contain_exactly(include(group_id: group.id))
+      end
+    end
+  end
+
+  describe '.ci/cd settings' do
+    context 'when the user is not an admin' do
+      before do
+        project.add_reporter(current_user)
+      end
+
+      it 'does not return ci settings' do
+        expect(json[:ci_default_git_depth]).to be_nil
+      end
+    end
+
+    context 'when the user has admin privileges' do
+      before do
+        project.add_maintainer(current_user)
+      end
+
+      it 'returns ci settings' do
+        expect(json[:ci_default_git_depth]).to be_present
       end
     end
   end

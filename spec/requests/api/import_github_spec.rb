@@ -5,7 +5,8 @@ require 'spec_helper'
 RSpec.describe API::ImportGithub, feature_category: :importers do
   let(:token) { "asdasd12345" }
   let(:provider) { :github }
-  let(:access_params) { { github_access_token: token } }
+  let(:access_params) { { github_access_token: token, additional_access_tokens: additional_access_tokens } }
+  let(:additional_access_tokens) { nil }
   let(:provider_username) { user.username }
   let(:provider_user) { double('provider', login: provider_username).as_null_object }
   let(:provider_repo) do
@@ -51,7 +52,7 @@ RSpec.describe API::ImportGithub, feature_category: :importers do
     it 'returns 201 response when the project is imported successfully' do
       allow(Gitlab::LegacyGithubImport::ProjectCreator)
         .to receive(:new).with(provider_repo, provider_repo[:name], user.namespace, user, type: provider, **access_params)
-          .and_return(double(execute: project))
+        .and_return(double(execute: project))
 
       post api("/import/github", user), params: {
         target_namespace: user.namespace_path,
@@ -120,6 +121,41 @@ RSpec.describe API::ImportGithub, feature_category: :importers do
         expect(response).to have_gitlab_http_status(:unauthorized)
       end
     end
+
+    context 'with invalid timeout stategy' do
+      it 'returns 400 response' do
+        post api("/import/github", user), params: {
+          target_namespace: user.namespace_path,
+          personal_access_token: token,
+          repo_id: non_existing_record_id,
+          timeout_strategy: "invalid_strategy"
+        }
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+      end
+    end
+
+    context 'when additional access tokens are provided' do
+      let(:additional_access_tokens) { 'token1,token2' }
+
+      it 'returns 201' do
+        expected_access_params = { github_access_token: token, additional_access_tokens: %w[token1 token2] }
+
+        expect(Gitlab::LegacyGithubImport::ProjectCreator)
+          .to receive(:new)
+          .with(provider_repo, provider_repo[:name], user.namespace, user, type: provider, **expected_access_params)
+          .and_return(double(execute: project))
+
+        post api("/import/github", user), params: {
+          target_namespace: user.namespace_path,
+          personal_access_token: token,
+          repo_id: non_existing_record_id,
+          additional_access_tokens: 'token1,token2'
+        }
+
+        expect(response).to have_gitlab_http_status(:created)
+      end
+    end
   end
 
   describe "POST /import/github/cancel" do
@@ -174,72 +210,54 @@ RSpec.describe API::ImportGithub, feature_category: :importers do
     let_it_be(:user) { create(:user) }
     let(:params) { { personal_access_token: token } }
 
-    context 'when feature github_import_gists is enabled' do
+    context 'when gists import was started' do
       before do
-        stub_feature_flags(github_import_gists: true)
+        allow(Import::Github::GistsImportService)
+          .to receive(:new).with(user, client, access_params)
+          .and_return(double(execute: { status: :success }))
       end
 
-      context 'when gists import was started' do
-        before do
-          allow(Import::Github::GistsImportService)
-            .to receive(:new).with(user, client, access_params)
-            .and_return(double(execute: { status: :success }))
-        end
+      it 'returns 202' do
+        post api('/import/github/gists', user), params: params
 
-        it 'returns 202' do
-          post api('/import/github/gists', user), params: params
-
-          expect(response).to have_gitlab_http_status(:accepted)
-        end
-      end
-
-      context 'when gists import is in progress' do
-        before do
-          allow(Import::Github::GistsImportService)
-            .to receive(:new).with(user, client, access_params)
-            .and_return(double(execute: { status: :error, message: 'Import already in progress', http_status: :unprocessable_entity }))
-        end
-
-        it 'returns 422 error' do
-          post api('/import/github/gists', user), params: params
-
-          expect(response).to have_gitlab_http_status(:unprocessable_entity)
-          expect(json_response['errors']).to eq('Import already in progress')
-        end
-      end
-
-      context 'when unauthenticated user' do
-        it 'returns 403 error' do
-          post api('/import/github/gists'), params: params
-
-          expect(response).to have_gitlab_http_status(:unauthorized)
-        end
-      end
-
-      context 'when rate limit reached' do
-        before do
-          allow(Import::Github::GistsImportService)
-            .to receive(:new).with(user, client, access_params)
-            .and_raise(Gitlab::GithubImport::RateLimitError)
-        end
-
-        it 'returns 429 error' do
-          post api('/import/github/gists', user), params: params
-
-          expect(response).to have_gitlab_http_status(:too_many_requests)
-        end
+        expect(response).to have_gitlab_http_status(:accepted)
       end
     end
 
-    context 'when feature github_import_gists is disabled' do
+    context 'when gists import is in progress' do
       before do
-        stub_feature_flags(github_import_gists: false)
+        allow(Import::Github::GistsImportService)
+          .to receive(:new).with(user, client, access_params)
+          .and_return(double(execute: { status: :error, message: 'Import already in progress', http_status: :unprocessable_entity }))
       end
 
-      it 'returns 404 error' do
+      it 'returns 422 error' do
         post api('/import/github/gists', user), params: params
 
-        expect(response).to have_gitlab_http_status(:not_found)
+        expect(response).to have_gitlab_http_status(:unprocessable_entity)
+        expect(json_response['errors']).to eq('Import already in progress')
+      end
+    end
+
+    context 'when unauthenticated user' do
+      it 'returns 403 error' do
+        post api('/import/github/gists'), params: params
+
+        expect(response).to have_gitlab_http_status(:unauthorized)
+      end
+    end
+
+    context 'when rate limit reached' do
+      before do
+        allow(Import::Github::GistsImportService)
+          .to receive(:new).with(user, client, access_params)
+          .and_raise(Gitlab::GithubImport::RateLimitError)
+      end
+
+      it 'returns 429 error' do
+        post api('/import/github/gists', user), params: params
+
+        expect(response).to have_gitlab_http_status(:too_many_requests)
       end
     end
   end

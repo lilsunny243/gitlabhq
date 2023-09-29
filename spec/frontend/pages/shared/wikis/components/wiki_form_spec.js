@@ -7,15 +7,11 @@ import { mockTracking } from 'helpers/tracking_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import WikiForm from '~/pages/shared/wikis/components/wiki_form.vue';
 import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
-import {
-  CONTENT_EDITOR_LOADED_ACTION,
-  SAVED_USING_CONTENT_EDITOR_ACTION,
-  WIKI_CONTENT_EDITOR_TRACKING_LABEL,
-  WIKI_FORMAT_LABEL,
-  WIKI_FORMAT_UPDATED_ACTION,
-} from '~/pages/shared/wikis/constants';
+import { WIKI_FORMAT_LABEL, WIKI_FORMAT_UPDATED_ACTION } from '~/pages/shared/wikis/constants';
+import { DRAWIO_ORIGIN } from 'spec/test_constants';
 
 jest.mock('~/emoji');
+jest.mock('~/lib/graphql');
 
 describe('WikiForm', () => {
   let wrapper;
@@ -69,12 +65,12 @@ describe('WikiForm', () => {
     AsciiDoc: 'asciidoc',
     Org: 'org',
   };
-
   function createWrapper({
     mountFn = shallowMount,
     persisted = false,
     pageInfo,
     glFeatures = { wikiSwitchBetweenContentEditorRawMarkdown: false },
+    provide = { drawioUrl: null },
   } = {}) {
     wrapper = extendedWrapper(
       mountFn(WikiForm, {
@@ -85,12 +81,22 @@ describe('WikiForm', () => {
             ...(persisted ? pageInfoPersisted : pageInfoNew),
             ...pageInfo,
           },
+          ...provide,
         },
         stubs: {
           GlAlert,
           GlButton,
           GlFormInput,
           GlFormGroup,
+        },
+        mocks: {
+          $apollo: {
+            queries: {
+              currentUser: {
+                loading: false,
+              },
+            },
+          },
         },
       }),
     );
@@ -103,8 +109,6 @@ describe('WikiForm', () => {
 
   afterEach(() => {
     mock.restore();
-    wrapper.destroy();
-    wrapper = null;
   });
 
   it('displays markdown editor', () => {
@@ -118,6 +122,7 @@ describe('WikiForm', () => {
         renderMarkdownPath: pageInfoPersisted.markdownPreviewPath,
         uploadsPath: pageInfoPersisted.uploadsPath,
         autofocus: pageInfoPersisted.persisted,
+        markdownDocsPath: pageInfoPersisted.markdownHelpPath,
       }),
     );
 
@@ -125,10 +130,6 @@ describe('WikiForm', () => {
       id: 'wiki_content',
       name: 'wiki[content]',
     });
-
-    expect(markdownEditor.vm.$attrs['markdown-docs-path']).toEqual(
-      pageInfoPersisted.markdownHelpPath,
-    );
   });
 
   it.each`
@@ -227,7 +228,21 @@ describe('WikiForm', () => {
       });
 
       it('triggers wiki format tracking event', () => {
-        expect(trackingSpy).toHaveBeenCalledTimes(1);
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'wiki_format_updated', {
+          extra: {
+            old_format: 'markdown',
+            project_path: '/project/path/-/wikis/home',
+            value: 'markdown',
+          },
+          label: 'wiki_format',
+        });
+      });
+
+      it('tracks editor type used', () => {
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'save_markdown', {
+          label: 'markdown_editor',
+          property: 'Wiki',
+        });
       });
 
       it('does not trim page content', () => {
@@ -309,12 +324,6 @@ describe('WikiForm', () => {
       expect(findFormat().element.getAttribute('disabled')).toBeDefined();
     });
 
-    it('sends tracking event when editor loads', async () => {
-      expect(trackingSpy).toHaveBeenCalledWith(undefined, CONTENT_EDITOR_LOADED_ACTION, {
-        label: WIKI_CONTENT_EDITOR_TRACKING_LABEL,
-      });
-    });
-
     describe('when triggering form submit', () => {
       const updatedMarkdown = 'hello **world**';
 
@@ -323,11 +332,7 @@ describe('WikiForm', () => {
         await triggerFormSubmit();
       });
 
-      it('triggers tracking events on form submit', async () => {
-        expect(trackingSpy).toHaveBeenCalledWith(undefined, SAVED_USING_CONTENT_EDITOR_ACTION, {
-          label: WIKI_CONTENT_EDITOR_TRACKING_LABEL,
-        });
-
+      it('triggers tracking events on form submit', () => {
         expect(trackingSpy).toHaveBeenCalledWith(undefined, WIKI_FORMAT_UPDATED_ACTION, {
           label: WIKI_FORMAT_LABEL,
           extra: {
@@ -337,6 +342,22 @@ describe('WikiForm', () => {
           },
         });
       });
+    });
+  });
+
+  describe('when drawioURL is provided', () => {
+    it('enables drawio editor in the Markdown Editor', () => {
+      createWrapper({ provide: { drawioUrl: DRAWIO_ORIGIN } });
+
+      expect(findMarkdownEditor().props().drawioEnabled).toBe(true);
+    });
+  });
+
+  describe('when drawioURL is empty', () => {
+    it('disables drawio editor in the Markdown Editor', () => {
+      createWrapper();
+
+      expect(findMarkdownEditor().props().drawioEnabled).toBe(false);
     });
   });
 });

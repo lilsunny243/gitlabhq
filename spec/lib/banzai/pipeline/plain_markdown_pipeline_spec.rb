@@ -64,11 +64,11 @@ RSpec.describe Banzai::Pipeline::PlainMarkdownPipeline, feature_category: :team_
     describe 'backslash escapes are untouched in code blocks, code spans, autolinks, or raw HTML' do
       where(:markdown, :expected) do
         %q(`` \@\! ``)       | %q(<code>\@\!</code>)
-        %q(    \@\!)         | %Q(<code>\\@\\!\n</code>)
-        %Q(~~~\n\\@\\!\n~~~) | %Q(<code>\\@\\!\n</code>)
-        %q($1+\$2$)          | %q(<code data-math-style="inline">1+\\$2</code>)
+        %q(    \@\!)         | %(<code>\\@\\!\n</code>)
+        %(~~~\n\\@\\!\n~~~) | %(<code>\\@\\!\n</code>)
+        %q($1+\$2$) | %q(<code data-math-style="inline">1+\\$2</code>)
         %q(<http://example.com?find=\@>) | %q(<a href="http://example.com?find=%5C@">http://example.com?find=\@</a>)
-        %q[<a href="/bar\@)">]           | %q[<a href="/bar%5C@)">]
+        %q[<a href="/bar\@)">]           | %q[<a href="/bar\@)">]
       end
 
       with_them do
@@ -77,15 +77,15 @@ RSpec.describe Banzai::Pipeline::PlainMarkdownPipeline, feature_category: :team_
     end
 
     describe 'work in all other contexts, including URLs and link titles, link references, and info strings in fenced code blocks' do
-      let(:markdown) { %Q(``` foo\\@bar\nfoo\n```) }
+      let(:markdown) { %(``` foo\\@bar\nfoo\n```) }
 
       it 'renders correct html' do
-        correct_html_included(markdown, %Q(<pre data-sourcepos="1:1-3:3" lang="foo@bar"><code>foo\n</code></pre>))
+        correct_html_included(markdown, %(<pre lang="foo@bar"><code>foo\n</code></pre>))
       end
 
       where(:markdown, :expected) do
-        %q![foo](/bar\@ "\@title")!            | %q(<a href="/bar@" title="@title">foo</a>)
-        %Q![foo]\n\n[foo]: /bar\\@ "\\@title"! | %q(<a href="/bar@" title="@title">foo</a>)
+        %q![foo](/bar\@ "\@title")! | %q(<a href="/bar@" title="@title">foo</a>)
+        %![foo]\n\n[foo]: /bar\\@ "\\@title"! | %q(<a href="/bar@" title="@title">foo</a>)
       end
 
       with_them do
@@ -95,7 +95,7 @@ RSpec.describe Banzai::Pipeline::PlainMarkdownPipeline, feature_category: :team_
   end
 
   def correct_html_included(markdown, expected)
-    result = described_class.call(markdown, {})
+    result = described_class.call(markdown, { no_sourcepos: true })
 
     expect(result[:output].to_html).to include(expected)
 

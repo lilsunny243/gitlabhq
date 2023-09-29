@@ -4,7 +4,7 @@ require 'spec_helper'
 
 require 'googleauth'
 
-RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, :snowplow do
+RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, :snowplow, feature_category: :metrics do
   include PrometheusHelpers
   include ReactiveCachingHelpers
 
@@ -37,8 +37,8 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
         integration.manual_configuration = true
       end
 
-      it 'validates presence of api_url' do
-        expect(integration).to validate_presence_of(:api_url)
+      it 'does not validates presence of api_url' do
+        expect(integration).not_to validate_presence_of(:api_url)
       end
     end
 
@@ -90,37 +90,6 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
           end
         end
       end
-
-      context 'with self-monitoring project and internal Prometheus' do
-        before do
-          integration.api_url = 'http://localhost:9090'
-
-          stub_application_setting(self_monitoring_project_id: project.id)
-          stub_config(prometheus: { enable: true, server_address: 'localhost:9090' })
-        end
-
-        it 'allows self-monitoring project to connect to internal Prometheus' do
-          aggregate_failures do
-            ['127.0.0.1', '192.168.2.3'].each do |url|
-              allow(Addrinfo).to receive(:getaddrinfo).with(domain, any_args).and_return([Addrinfo.tcp(url, 80)])
-
-              expect(integration.can_query?).to be true
-            end
-          end
-        end
-
-        it 'does not allow self-monitoring project to connect to other local URLs' do
-          integration.api_url = 'http://localhost:8000'
-
-          aggregate_failures do
-            ['127.0.0.1', '192.168.2.3'].each do |url|
-              allow(Addrinfo).to receive(:getaddrinfo).with(domain, any_args).and_return([Addrinfo.tcp(url, 80)])
-
-              expect(integration.can_query?).to be false
-            end
-          end
-        end
-      end
     end
   end
 
@@ -150,7 +119,7 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
 
     context 'when configuration is not valid' do
       before do
-        integration.api_url = nil
+        integration.manual_configuration = nil
       end
 
       it 'returns failure message' do
@@ -218,27 +187,11 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
       it 'blocks local requests' do
         expect(integration.prometheus_client).to be_nil
       end
-
-      context 'with self-monitoring project and internal Prometheus URL' do
-        before do
-          stub_application_setting(allow_local_requests_from_web_hooks_and_services: false)
-          stub_application_setting(self_monitoring_project_id: project.id)
-
-          stub_config(prometheus: {
-            enable: true,
-            server_address: api_url
-          })
-        end
-
-        it 'allows local requests' do
-          expect(integration.prometheus_client).not_to be_nil
-          expect { integration.prometheus_client.ping }.not_to raise_error
-        end
-      end
     end
 
     context 'behind IAP' do
       let(:manual_configuration) { true }
+      let(:google_iap_service_account_json) { Gitlab::Json.generate(google_iap_service_account) }
 
       let(:google_iap_service_account) do
         {
@@ -259,7 +212,7 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
       end
 
       def stub_iap_request
-        integration.google_iap_service_account_json = Gitlab::Json.generate(google_iap_service_account)
+        integration.google_iap_service_account_json = google_iap_service_account_json
         integration.google_iap_audience_client_id = 'IAP_CLIENT_ID.apps.googleusercontent.com'
 
         stub_request(:post, 'https://oauth2.googleapis.com/token')
@@ -276,6 +229,17 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
         expect(integration.prometheus_client).not_to be_nil
         expect(integration.prometheus_client.send(:options)).to have_key(:headers)
         expect(integration.prometheus_client.send(:options)[:headers]).to eq(authorization: "Bearer FOO")
+      end
+
+      context 'with invalid IAP JSON' do
+        let(:google_iap_service_account_json) { 'invalid json' }
+
+        it 'does not include authorization header' do
+          stub_iap_request
+
+          expect(integration.prometheus_client).not_to be_nil
+          expect(integration.prometheus_client.send(:options)).not_to have_key(:headers)
+        end
       end
 
       context 'when passed with token_credential_uri', issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/284819' do
@@ -320,7 +284,7 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
       context 'cluster belongs to projects group' do
         let_it_be(:group) { create(:group) }
 
-        let(:project) { create(:project, :with_prometheus_integration, group: group) }
+        let_it_be(:project) { create(:project, :with_prometheus_integration, group: group) }
         let_it_be(:cluster) { create(:cluster_for_group, groups: [group]) }
 
         it 'returns true' do
@@ -458,6 +422,34 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
     end
   end
 
+  describe '#sync_http_integration after_save callback' do
+    context 'with corresponding HTTP integration' do
+      let_it_be_with_reload(:http_integration) { create(:alert_management_prometheus_integration, :legacy, project: project) }
+
+      it 'syncs the attribute' do
+        expect { integration.update!(manual_configuration: false) }
+          .to change { http_integration.reload.active }
+          .from(true).to(false)
+      end
+
+      context 'when changing a different attribute' do
+        it 'does not sync the attribute or execute extra queries' do
+          expect { integration.update!(api_url: 'https://any.url') }
+            .to issue_fewer_queries_than { integration.update!(manual_configuration: false) }
+        end
+      end
+    end
+
+    context 'without corresponding HTTP integration' do
+      let_it_be(:other_http_integration) { create(:alert_management_prometheus_integration, project: project) }
+
+      it 'does not sync the attribute or execute extra queries' do
+        expect { integration.update!(manual_configuration: false) }
+          .not_to change { other_http_integration.reload.active }
+      end
+    end
+  end
+
   describe '#editable?' do
     it 'is editable' do
       expect(integration.editable?).to be(true)
@@ -474,6 +466,47 @@ RSpec.describe Integrations::Prometheus, :use_clean_rails_memory_store_caching, 
 
       it 'remains editable' do
         expect(integration.editable?).to be(true)
+      end
+    end
+  end
+
+  describe '#google_iap_service_account_json' do
+    subject(:iap_details) { integration.google_iap_service_account_json }
+
+    before do
+      integration.google_iap_service_account_json = value
+    end
+
+    context 'with valid JSON' do
+      let(:masked_value) { described_class::MASKED_VALUE }
+      let(:json) { Gitlab::Json.parse(iap_details) }
+
+      let(:value) do
+        Gitlab::Json.generate({
+          type: 'service_account',
+          private_key: 'SECRET',
+          foo: 'secret',
+          nested: {
+            key: 'value'
+          }
+        })
+      end
+
+      it 'masks all JSON values', issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/384580' do
+        expect(json).to eq(
+          'type' => masked_value,
+          'private_key' => masked_value,
+          'foo' => masked_value,
+          'nested' => masked_value
+        )
+      end
+    end
+
+    context 'with invalid JSON' do
+      where(:value) { [nil, '', ' ', 'invalid json'] }
+
+      with_them do
+        it { is_expected.to eq(value) }
       end
     end
   end

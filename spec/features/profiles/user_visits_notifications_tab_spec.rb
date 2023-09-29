@@ -12,14 +12,6 @@ RSpec.describe 'User visits the notifications tab', :js, feature_category: :user
     visit(profile_notifications_path)
   end
 
-  it 'turns on the receive product marketing emails setting' do
-    expect(page).to have_content('Notifications')
-
-    expect do
-      check 'Receive product marketing emails'
-    end.to change { user.reload.email_opted_in }.to(true)
-  end
-
   it 'changes the project notifications setting' do
     expect(page).to have_content('Notifications')
 
@@ -30,7 +22,7 @@ RSpec.describe 'User visits the notifications tab', :js, feature_category: :user
   end
 
   context 'when project emails are disabled' do
-    let(:project) { create(:project, emails_disabled: true) }
+    let_it_be(:project) { create(:project, emails_enabled: false) }
 
     it 'notification button is disabled' do
       expect(page).to have_selector('[data-testid="notification-dropdown"] .disabled')

@@ -9,8 +9,10 @@
 #   project_ids_relation: int[] - project ids to use
 #   group
 #   options:
-#     only_owned: boolean
+#     exclude_shared: boolean
+#       When true, only projects within the group are included in the result.
 #     only_shared: boolean
+#       When true, only projects arising from group-project shares are included in the result.
 #     limit: integer
 #     include_subgroups: boolean
 #     include_ancestor_groups: boolean
@@ -24,6 +26,7 @@
 #     with_issues_enabled: boolean
 #     with_merge_requests_enabled: boolean
 #     min_access_level: int
+#     owned: boolean
 #
 class GroupProjectsFinder < ProjectsFinder
   DEFAULT_PROJECTS_LIMIT = 100
@@ -62,10 +65,10 @@ class GroupProjectsFinder < ProjectsFinder
     projects =
       if only_shared?
         [shared_projects]
-      elsif only_owned?
-        [owned_projects]
+      elsif exclude_shared?
+        [projects_within_group]
       else
-        [owned_projects, shared_projects]
+        [projects_within_group, shared_projects]
       end
 
     projects.map! do |project_relation|
@@ -83,7 +86,9 @@ class GroupProjectsFinder < ProjectsFinder
 
   def filter_by_visibility(relation)
     if current_user
-      if min_access_level?
+      if owned_projects?
+        relation.visible_to_user_and_access_level(current_user, Gitlab::Access::OWNER)
+      elsif min_access_level?
         relation.visible_to_user_and_access_level(current_user, params[:min_access_level])
       else
         relation.public_or_visible_to_user(current_user)
@@ -101,8 +106,12 @@ class GroupProjectsFinder < ProjectsFinder
     end
   end
 
-  def only_owned?
-    options.fetch(:only_owned, false)
+  def exclude_shared?
+    options.fetch(:exclude_shared, false)
+  end
+
+  def owned_projects?
+    params.fetch(:owned, false)
   end
 
   def only_shared?
@@ -119,7 +128,7 @@ class GroupProjectsFinder < ProjectsFinder
     options.fetch(:include_ancestor_groups, false)
   end
 
-  def owned_projects
+  def projects_within_group
     return group.projects unless include_subgroups? || include_ancestor_groups?
 
     union_relations = []

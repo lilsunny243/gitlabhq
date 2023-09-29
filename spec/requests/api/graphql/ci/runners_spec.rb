@@ -11,63 +11,145 @@ RSpec.describe 'Query.runners', feature_category: :runner_fleet do
     let_it_be(:instance_runner) { create(:ci_runner, :instance, version: 'abc', revision: '123', description: 'Instance runner', ip_address: '127.0.0.1') }
     let_it_be(:project_runner) { create(:ci_runner, :project, active: false, version: 'def', revision: '456', description: 'Project runner', projects: [project], ip_address: '127.0.0.1') }
 
-    let(:runners_graphql_data) { graphql_data['runners'] }
+    let(:runners_graphql_data) { graphql_data_at(:runners) }
 
     let(:params) { {} }
 
     let(:fields) do
       <<~QUERY
         nodes {
-          #{all_graphql_fields_for('CiRunner', excluded: %w[ownerProject])}
+          #{all_graphql_fields_for('CiRunner', excluded: %w[createdBy ownerProject])}
+          createdBy {
+            username
+            webPath
+            webUrl
+          }
           ownerProject {
             id
+            path
+            fullPath
+            webUrl
           }
         }
       QUERY
     end
 
-    let(:query) do
-      %(
-        query {
-          runners(type:#{runner_type},status:#{status}) {
-            #{fields}
+    context 'with filters' do
+      let(:query) do
+        %(
+          query {
+            runners(type: #{runner_type}, status: #{status}) {
+              #{fields}
+            }
           }
-        }
-      )
-    end
-
-    before do
-      allow_next_instance_of(::Gitlab::Ci::RunnerUpgradeCheck) do |instance|
-        allow(instance).to receive(:check_runner_upgrade_suggestion)
+        )
       end
 
-      post_graphql(query, current_user: current_user)
-    end
+      before do
+        allow_next_instance_of(::Gitlab::Ci::RunnerUpgradeCheck) do |instance|
+          allow(instance).to receive(:check_runner_upgrade_suggestion)
+        end
 
-    shared_examples 'a working graphql query returning expected runner' do
-      it_behaves_like 'a working graphql query'
+        post_graphql(query, current_user: current_user)
+      end
 
-      it 'returns expected runner' do
-        expect(runners_graphql_data['nodes']).to contain_exactly(a_graphql_entity_for(expected_runner))
+      shared_examples 'a working graphql query returning expected runner' do
+        it_behaves_like 'a working graphql query'
+
+        it 'returns expected runner' do
+          expect(runners_graphql_data['nodes']).to contain_exactly(a_graphql_entity_for(expected_runner))
+        end
+
+        it 'does not execute more queries per runner', :aggregate_failures do
+          # warm-up license cache and so on:
+          personal_access_token = create(:personal_access_token, user: current_user)
+          args = { current_user: current_user, token: { personal_access_token: personal_access_token } }
+          post_graphql(query, **args)
+          expect(graphql_data_at(:runners, :nodes)).not_to be_empty
+
+          admin2 = create(:admin)
+          personal_access_token = create(:personal_access_token, user: admin2)
+          args = { current_user: admin2, token: { personal_access_token: personal_access_token } }
+          control = ActiveRecord::QueryRecorder.new { post_graphql(query, **args) }
+
+          runner2 = create(:ci_runner, :instance, version: '14.0.0', tag_list: %w[tag5 tag6], creator: admin2)
+          runner3 = create(:ci_runner, :project, version: '14.0.1', projects: [project], tag_list: %w[tag3 tag8],
+            creator: current_user)
+
+          create(:ci_build, :failed, runner: runner2)
+          create(:ci_runner_machine, runner: runner2, version: '16.4.1')
+
+          create(:ci_build, :failed, runner: runner3)
+          create(:ci_runner_machine, runner: runner3, version: '16.4.0')
+
+          expect { post_graphql(query, **args) }.not_to exceed_query_limit(control)
+        end
+      end
+
+      context 'runner_type is INSTANCE_TYPE and status is ACTIVE' do
+        let(:runner_type) { 'INSTANCE_TYPE' }
+        let(:status) { 'ACTIVE' }
+
+        let!(:expected_runner) { instance_runner }
+
+        it_behaves_like 'a working graphql query returning expected runner'
+      end
+
+      context 'runner_type is PROJECT_TYPE and status is NEVER_CONTACTED' do
+        let(:runner_type) { 'PROJECT_TYPE' }
+        let(:status) { 'NEVER_CONTACTED' }
+
+        let!(:expected_runner) { project_runner }
+
+        it_behaves_like 'a working graphql query returning expected runner'
       end
     end
 
-    context 'runner_type is INSTANCE_TYPE and status is ACTIVE' do
-      let(:runner_type) { 'INSTANCE_TYPE' }
-      let(:status) { 'ACTIVE' }
+    context 'without filters' do
+      context 'with managers requested for multiple runners' do
+        let(:fields) do
+          <<~QUERY
+            nodes {
+              managers {
+                nodes {
+                  #{all_graphql_fields_for('CiRunnerManager', max_depth: 1)}
+                }
+              }
+            }
+          QUERY
+        end
 
-      let!(:expected_runner) { instance_runner }
+        let(:query) do
+          %(
+            query {
+              runners {
+                #{fields}
+              }
+            }
+          )
+        end
 
-      it_behaves_like 'a working graphql query returning expected runner'
-    end
+        it 'does not execute more queries per runner', :aggregate_failures do
+          # warm-up license cache and so on:
+          personal_access_token = create(:personal_access_token, user: current_user)
+          args = { current_user: current_user, token: { personal_access_token: personal_access_token } }
+          post_graphql(query, **args)
+          expect(graphql_data_at(:runners, :nodes)).not_to be_empty
 
-    context 'runner_type is PROJECT_TYPE and status is NEVER_CONTACTED' do
-      let(:runner_type) { 'PROJECT_TYPE' }
-      let(:status) { 'NEVER_CONTACTED' }
+          admin2 = create(:admin)
+          personal_access_token = create(:personal_access_token, user: admin2)
+          args = { current_user: admin2, token: { personal_access_token: personal_access_token } }
+          control = ActiveRecord::QueryRecorder.new { post_graphql(query, **args) }
 
-      let!(:expected_runner) { project_runner }
+          create(:ci_runner, :instance, :with_runner_manager, version: '14.0.0', tag_list: %w[tag5 tag6],
+            creator: admin2)
+          create(:ci_runner, :project, :with_runner_manager, version: '14.0.1', projects: [project],
+            tag_list: %w[tag3 tag8],
+            creator: current_user)
 
-      it_behaves_like 'a working graphql query returning expected runner'
+          expect { post_graphql(query, **args) }.not_to exceed_query_limit(control)
+        end
+      end
     end
   end
 

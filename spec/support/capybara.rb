@@ -5,6 +5,7 @@ require 'capybara/rails'
 require 'capybara/rspec'
 require 'capybara-screenshot/rspec'
 require 'selenium-webdriver'
+require 'gitlab/utils/all'
 
 # Give CI some extra time
 timeout = ENV['CI'] || ENV['CI_SERVER'] ? 30 : 10
@@ -24,13 +25,21 @@ JS_CONSOLE_FILTER = Regexp.union(
     'Download the Vue Devtools extension',
     'Download the Apollo DevTools',
     "Unrecognized feature: 'interest-cohort'",
-    'Does this page need fixes or improvements?'
+    'Does this page need fixes or improvements?',
+
+    # Needed after https://gitlab.com/gitlab-org/gitlab/-/merge_requests/60933
+    # which opts out gitlab from FloC by default
+    # see https://web.dev/floc/ for more info on FloC
+    "Origin trial controlled feature not enabled: 'interest-cohort'",
+
+    # ERR_CONNECTION error could happen due to automated test session disabling browser network request
+    'net::ERR_CONNECTION'
   ]
 )
 
 CAPYBARA_WINDOW_SIZE = [1366, 768].freeze
 
-SCREENSHOT_FILENAME_LENGTH = ENV['CI'] || ENV['CI_SERVER'] ? 255 : 99
+SCREENSHOT_FILENAME_LENGTH = ENV['CI'] || ENV['CI_SERVER'] ? 150 : 99
 
 @blackhole_tcp_server = nil
 
@@ -42,21 +51,20 @@ Capybara.register_server :puma_via_workhorse do |app, port, host, **options|
   file.close! # We just want the filename
 
   TestEnv.with_workhorse(host, port, socket_path) do
+    # In cases of multiple installations of chromedriver, prioritize the version installed by SeleniumManager
+    # selenium-manager doesn't work with Linux arm64 yet:
+    # https://github.com/SeleniumHQ/selenium/issues/11357
+    if RUBY_PLATFORM.include?('x86_64-linux') || RUBY_PLATFORM.include?('darwin')
+      chrome_options = Selenium::WebDriver::Chrome::Options.chrome
+      chromedriver_path = File.dirname(Selenium::WebDriver::SeleniumManager.driver_path(chrome_options))
+      ENV['PATH'] = "#{chromedriver_path}:#{ENV['PATH']}" # rubocop:disable RSpec/EnvAssignment
+    end
+
     Capybara.servers[:puma].call(app, nil, socket_path, **options)
   end
 end
 
 Capybara.register_driver :chrome do |app|
-  capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(
-    # This enables access to logs with `page.driver.manage.get_log(:browser)`
-    loggingPrefs: {
-      browser: "ALL",
-      client: "ALL",
-      driver: "ALL",
-      server: "ALL"
-    }
-  )
-
   options = Selenium::WebDriver::Chrome::Options.new
 
   # Force the browser's scale factor to prevent inconsistencies on high-res devices
@@ -82,9 +90,6 @@ Capybara.register_driver :chrome do |app|
     options.add_preference("download.prompt_for_download", false)
   end
 
-  # Chrome 75 defaults to W3C mode which doesn't allow console log access
-  options.add_option(:w3c, false)
-
   # Set up a proxy server to block all external traffic.
   @blackhole_tcp_server = TCPServer.new(0)
   Thread.new do
@@ -99,29 +104,21 @@ Capybara.register_driver :chrome do |app|
   Capybara::Selenium::Driver.new(
     app,
     browser: :chrome,
-    desired_capabilities: capabilities,
     options: options
   )
 end
 
 Capybara.register_driver :firefox do |app|
-  capabilities = Selenium::WebDriver::Remote::Capabilities.firefox(
-    log: {
-      level: :trace
-    }
-  )
-
   options = Selenium::WebDriver::Firefox::Options.new(log_level: :trace)
 
   options.add_argument("--window-size=#{CAPYBARA_WINDOW_SIZE.join(',')}")
 
   # Run headless by default unless WEBDRIVER_HEADLESS specified
-  options.add_argument("--headless") unless ENV['WEBDRIVER_HEADLESS'] =~ /^(false|no|0)$/i
+  options.add_argument("--headless") unless Gitlab::Utils.to_boolean(ENV['WEBDRIVER_HEADLESS'], default: false)
 
   Capybara::Selenium::Driver.new(
     app,
     browser: :firefox,
-    desired_capabilities: capabilities,
     options: options
   )
 end
@@ -213,20 +210,11 @@ RSpec.configure do |config|
     # fixed. If we raised the `JSException` the fixed test would be marked as
     # failed again.
     if example.exception && !example.exception.is_a?(RSpec::Core::Pending::PendingExampleFixedError)
-      begin
-        console = page.driver.browser.manage.logs.get(:browser)&.reject { |log| log.message =~ JS_CONSOLE_FILTER }
+      console = page.driver.browser.logs.get(:browser)&.reject { |log| log.message =~ JS_CONSOLE_FILTER }
 
-        if console.present?
-          message = "Unexpected browser console output:\n" + console.map(&:message).join("\n")
-          raise JSConsoleError, message
-        end
-      rescue Selenium::WebDriver::Error::WebDriverError => error
-        if error.message =~ %r{unknown command: session/[0-9a-zA-Z]+(?:/se)?/log}
-          message = "Unable to access Chrome javascript console logs. You may be using an outdated version of ChromeDriver."
-          raise JSConsoleError, message
-        else
-          raise error
-        end
+      if console.present?
+        message = "Unexpected browser console output:\n" + console.map(&:message).join("\n")
+        raise JSConsoleError, message
       end
     end
 
@@ -242,5 +230,6 @@ RSpec.configure do |config|
     # We don't reset the session when the example failed, because we need capybara-screenshot to have access to it.
     Capybara.reset_sessions! unless example.exception
     block_and_wait_for_requests_complete
+    block_and_wait_for_action_cable_requests_complete
   end
 end

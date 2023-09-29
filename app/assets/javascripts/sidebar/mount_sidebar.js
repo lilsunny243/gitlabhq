@@ -2,9 +2,7 @@ import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import { TYPENAME_ISSUE, TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
 import { convertToGraphQLId, getIdFromGraphQLId } from '~/graphql_shared/utils';
-import initInviteMembersModal from '~/invite_members/init_invite_members_modal';
-import initInviteMembersTrigger from '~/invite_members/init_invite_members_trigger';
-import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
+import { TYPE_ISSUE, TYPE_MERGE_REQUEST, WORKSPACE_PROJECT } from '~/issues/constants';
 import { gqlClient } from '~/issues/list/graphql';
 import {
   isInDesignPage,
@@ -17,6 +15,7 @@ import { __ } from '~/locale';
 import { apolloProvider } from '~/graphql_shared/issuable_client';
 import Translate from '~/vue_shared/translate';
 import UserSelect from '~/vue_shared/components/user_select/user_select.vue';
+import NewHeaderActionsPopover from '~/issues/show/components/new_header_actions_popover.vue';
 import CollapsedAssigneeList from './components/assignees/collapsed_assignee_list.vue';
 import SidebarAssignees from './components/assignees/sidebar_assignees.vue';
 import SidebarAssigneesWidget from './components/assignees/sidebar_assignees_widget.vue';
@@ -24,8 +23,6 @@ import SidebarConfidentialityWidget from './components/confidential/sidebar_conf
 import CopyEmailToClipboard from './components/copy/copy_email_to_clipboard.vue';
 import SidebarDueDateWidget from './components/date/sidebar_date_widget.vue';
 import SidebarEscalationStatus from './components/incidents/sidebar_escalation_status.vue';
-import { DropdownVariant } from './components/labels/labels_select_vue/constants';
-import { LabelType } from './components/labels/labels_select_widget/constants';
 import LabelsSelectWidget from './components/labels/labels_select_widget/labels_select_root.vue';
 import IssuableLockForm from './components/lock/issuable_lock_form.vue';
 import MilestoneDropdown from './components/milestone/milestone_dropdown.vue';
@@ -45,6 +42,7 @@ import { IssuableAttributeType } from './constants';
 import CrmContacts from './components/crm_contacts/crm_contacts.vue';
 import trackShowInviteMemberLink from './track_invite_members';
 import MoveIssueButton from './components/move/move_issue_button.vue';
+import ConfidentialityDropdown from './components/confidential/confidentiality_dropdown.vue';
 
 Vue.use(Translate);
 Vue.use(VueApollo);
@@ -81,7 +79,7 @@ function mountSidebarTodoWidget() {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -121,11 +119,10 @@ function mountSidebarAssigneesDeprecated(mediator) {
           issuableIid: String(iid),
           projectPath: fullPath,
           field: el.dataset.field,
-          signedIn: Object.prototype.hasOwnProperty.call(el.dataset, 'signedIn'),
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
           issuableId: id,
           assigneeAvailabilityStatus,
         },
@@ -142,14 +139,14 @@ function mountSidebarAssigneesWidget() {
 
   const { id, iid, fullPath, editable } = getSidebarOptions();
   const isIssuablePage = isInIssuePage() || isInIncidentPage() || isInDesignPage();
-  const issuableType = isIssuablePage ? TYPE_ISSUE : IssuableType.MergeRequest;
+  const issuableType = isIssuablePage ? TYPE_ISSUE : TYPE_MERGE_REQUEST;
   // eslint-disable-next-line no-new
   new Vue({
     el,
     name: 'SidebarAssigneesRoot',
     apolloProvider,
     provide: {
-      canUpdate: editable,
+      canUpdate: parseBoolean(editable),
       directlyInviteMembers: Object.prototype.hasOwnProperty.call(
         el.dataset,
         'directlyInviteMembers',
@@ -163,7 +160,7 @@ function mountSidebarAssigneesWidget() {
           issuableType,
           issuableId: id,
           allowMultipleAssignees: !el.dataset.maxAssignees || el.dataset.maxAssignees > 1,
-          editable,
+          editable: parseBoolean(editable),
         },
         scopedSlots: {
           collapsed: ({ users }) =>
@@ -204,8 +201,7 @@ function mountSidebarReviewers(mediator) {
           issuableIid: String(iid),
           projectPath: fullPath,
           field: el.dataset.field,
-          issuableType:
-            isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : IssuableType.MergeRequest,
+          issuableType: isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -275,8 +271,7 @@ function mountSidebarMilestoneWidget() {
           attrWorkspacePath: projectPath,
           workspacePath: projectPath,
           iid: issueIid,
-          issuableType:
-            isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : IssuableType.MergeRequest,
+          issuableType: isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : TYPE_MERGE_REQUEST,
           issuableAttribute: IssuableAttributeType.Milestone,
           icon: 'clock',
         },
@@ -313,7 +308,7 @@ export function mountMilestoneDropdown() {
           attrWorkspacePath: fullPath,
           canAdminMilestone,
           inputName,
-          issuableType: isInIssuePage() ? TYPE_ISSUE : IssuableType.MergeRequest,
+          issuableType: isInIssuePage() ? TYPE_ISSUE : TYPE_MERGE_REQUEST,
           milestoneId,
           milestoneTitle,
           projectMilestonesPath,
@@ -354,14 +349,13 @@ export function mountSidebarLabelsWidget() {
           footerManageLabelTitle: __('Manage project labels'),
           labelsCreateTitle: __('Create project label'),
           labelsFilterBasePath: el.dataset.projectIssuesPath,
-          variant: DropdownVariant.Sidebar,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
-          workspaceType: 'project',
+              : TYPE_MERGE_REQUEST,
+          workspaceType: WORKSPACE_PROJECT,
           attrWorkspacePath: el.dataset.projectPath,
-          labelCreateType: LabelType.project,
+          labelCreateType: WORKSPACE_PROJECT,
         },
         class: ['block labels js-labels-block'],
         scopedSlots: {
@@ -398,7 +392,7 @@ function mountSidebarConfidentialityWidget() {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -418,7 +412,7 @@ function mountSidebarDueDateWidget() {
     name: 'SidebarDueDateWidgetRoot',
     apolloProvider,
     provide: {
-      canUpdate: editable,
+      canUpdate: parseBoolean(editable),
     },
     render: (createElement) =>
       createElement(SidebarDueDateWidget, {
@@ -454,7 +448,7 @@ function mountSidebarReferenceWidget() {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -479,7 +473,7 @@ function mountIssuableLockForm(store) {
     render: (createElement) =>
       createElement(IssuableLockForm, {
         props: {
-          isEditable: editable,
+          isEditable: parseBoolean(editable),
         },
       }),
   });
@@ -506,7 +500,7 @@ function mountSidebarParticipantsWidget() {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -526,7 +520,7 @@ function mountSidebarSubscriptionsWidget() {
     name: 'SidebarSubscriptionsWidgetRoot',
     apolloProvider,
     provide: {
-      canUpdate: editable,
+      canUpdate: parseBoolean(editable),
     },
     render: (createElement) =>
       createElement(SidebarSubscriptionsWidget, {
@@ -536,7 +530,7 @@ function mountSidebarSubscriptionsWidget() {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
               ? TYPE_ISSUE
-              : IssuableType.MergeRequest,
+              : TYPE_MERGE_REQUEST,
         },
       }),
   });
@@ -552,6 +546,7 @@ function mountSidebarTimeTracking() {
     issuableType,
     timeTrackingLimitToHours,
     canCreateTimelogs,
+    editable,
   } = getSidebarOptions();
 
   if (!el) {
@@ -571,6 +566,7 @@ function mountSidebarTimeTracking() {
           issuableIid: iid.toString(),
           limitToHours: timeTrackingLimitToHours,
           canAddTimeEntries: canCreateTimelogs,
+          canSetTimeEstimate: parseBoolean(editable),
         },
       }),
   });
@@ -590,7 +586,7 @@ function mountSidebarSeverityWidget() {
     name: 'SidebarSeverityWidgetRoot',
     apolloProvider,
     provide: {
-      canUpdate: editable,
+      canUpdate: parseBoolean(editable),
     },
     render: (createElement) =>
       createElement(SidebarSeverityWidget, {
@@ -648,7 +644,7 @@ function mountCopyEmailToClipboard() {
   });
 }
 
-export function mountMoveIssuesButton() {
+export async function mountMoveIssuesButton() {
   const el = document.querySelector('.js-move-issues');
 
   if (!el) {
@@ -661,7 +657,7 @@ export function mountMoveIssuesButton() {
     el,
     name: 'MoveIssuesRoot',
     apolloProvider: new VueApollo({
-      defaultClient: gqlClient,
+      defaultClient: await gqlClient(),
     }),
     render: (createElement) =>
       createElement(MoveIssuesButton, {
@@ -698,6 +694,20 @@ export function mountSubscriptionsDropdown() {
     el,
     name: 'SubscriptionsDropdownRoot',
     render: (createElement) => createElement(SubscriptionsDropdown),
+  });
+}
+
+export function mountConfidentialityDropdown() {
+  const el = document.querySelector('.js-confidentiality-dropdown');
+
+  if (!el) {
+    return null;
+  }
+
+  return new Vue({
+    el,
+    name: 'ConfidentialityDropdownRoot',
+    render: (createElement) => createElement(ConfidentialityDropdown),
   });
 }
 
@@ -790,12 +800,25 @@ export function mountAssigneesDropdown() {
   });
 }
 
+function mountNewIssuePopover() {
+  const el = document.querySelector('.js-sidebar-header-popover');
+
+  if (!el) {
+    return null;
+  }
+
+  return new Vue({
+    el,
+    name: 'NewHeaderActionsPopover',
+    render: (createElement) =>
+      createElement(NewHeaderActionsPopover, { props: { issueType: TYPE_MERGE_REQUEST } }),
+  });
+}
+
 const isAssigneesWidgetShown =
   (isInIssuePage() || isInDesignPage() || isInMRPage()) && gon.features.issueAssigneesWidget;
 
 export function mountSidebar(mediator, store) {
-  initInviteMembersModal();
-  initInviteMembersTrigger();
   mountSidebarTodoWidget();
   if (isAssigneesWidgetShown) {
     mountSidebarAssigneesWidget();
@@ -817,6 +840,7 @@ export function mountSidebar(mediator, store) {
   mountSidebarSeverityWidget();
   mountSidebarEscalationStatus();
   mountMoveIssueButton();
+  mountNewIssuePopover();
 }
 
 export { getSidebarOptions };

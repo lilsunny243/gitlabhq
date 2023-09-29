@@ -94,10 +94,6 @@ $white-gc-bg: #eaf2f5;
 }
 
 // Line numbers
-.file-line-num {
-  @include line-link($black, 'link');
-}
-
 .file-line-blame {
   @include line-link($black, 'git');
 }
@@ -192,8 +188,8 @@ pre.code,
     }
 
     &.hll {
-      --highlight-border-color: #{$orange-200};
-      background-color: $orange-50;
+      --highlight-border-color: #{$blue-300};
+      background-color: $blue-50;
     }
   }
 
@@ -247,8 +243,8 @@ pre.code,
     }
 
     &.hll {
-      --highlight-border-color: #{$orange-200};
-      background-color: $orange-50;
+      --highlight-border-color: #{$blue-300};
+      background-color: $blue-50;
     }
   }
 
@@ -257,7 +253,7 @@ pre.code,
   }
 
   .line-coverage,
-  .line-codequality {
+  .line-inline-findings {
     &.old,
     &.old-nomappinginraw {
       background-color: $line-removed;
@@ -269,8 +265,8 @@ pre.code,
     }
 
     &.hll {
-      --highlight-border-color: #{$orange-200};
-      background-color: $orange-50;
+      --highlight-border-color: #{$blue-300};
+      background-color: $blue-50;
     }
   }
 }

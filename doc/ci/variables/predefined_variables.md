@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# Predefined variables reference **(FREE)**
+# Predefined variables reference **(FREE ALL)**
 
 Predefined [CI/CD variables](index.md) are available in every GitLab CI/CD pipeline.
 
@@ -27,6 +27,7 @@ as it can cause the pipeline to behave unexpectedly.
 | `CHAT_USER_ID`                           | 14.4   | all    | The chat service's user ID of the user who triggered the [ChatOps](../chatops/index.md) command. |
 | `CI`                                     | all    | 0.4    | Available for all jobs executed in CI/CD. `true` when available. |
 | `CI_API_V4_URL`                          | 11.7   | all    | The GitLab API v4 root URL. |
+| `CI_API_GRAPHQL_URL`                     | 15.11  | all    | The GitLab API GraphQL root URL. |
 | `CI_BUILDS_DIR`                          | all    | 11.10  | The top-level directory where builds are executed. |
 | `CI_COMMIT_AUTHOR`                       | 13.11  | all    | The author of the commit in `Name <email>` format. |
 | `CI_COMMIT_BEFORE_SHA`                   | 11.2   | all    | The previous latest commit present on a branch or tag. Is always `0000000000000000000000000000000000000000` in merge request pipelines and for the first commit in pipelines for branches or tags. |
@@ -34,7 +35,7 @@ as it can cause the pipeline to behave unexpectedly.
 | `CI_COMMIT_DESCRIPTION`                  | 10.8   | all    | The description of the commit. If the title is shorter than 100 characters, the message without the first line. |
 | `CI_COMMIT_MESSAGE`                      | 10.8   | all    | The full commit message. |
 | `CI_COMMIT_REF_NAME`                     | 9.0    | all    | The branch or tag name for which project is built. |
-| `CI_COMMIT_REF_PROTECTED`                | 11.11  | all    | `true` if the job is running for a protected reference. |
+| `CI_COMMIT_REF_PROTECTED`                | 11.11  | all    | `true` if the job is running for a protected reference, `false` otherwise. |
 | `CI_COMMIT_REF_SLUG`                     | 9.0    | all    | `CI_COMMIT_REF_NAME` in lowercase, shortened to 63 bytes, and with everything except `0-9` and `a-z` replaced with `-`. No leading / trailing `-`. Use in URLs, host names and domain names. |
 | `CI_COMMIT_SHA`                          | 9.0    | all    | The commit revision the project is built for. |
 | `CI_COMMIT_SHORT_SHA`                    | 11.7   | all    | The first eight characters of `CI_COMMIT_SHA`. |
@@ -58,24 +59,24 @@ as it can cause the pipeline to behave unexpectedly.
 | `CI_DEPLOY_USER`                         | 10.8   | all    | The authentication username of the [GitLab Deploy Token](../../user/project/deploy_tokens/index.md#gitlab-deploy-token), if the project has one. |
 | `CI_DISPOSABLE_ENVIRONMENT`              | all    | 10.1   | Only available if the job is executed in a disposable environment (something that is created only for this job and disposed of/destroyed after the execution - all executors except `shell` and `ssh`). `true` when available. |
 | `CI_ENVIRONMENT_NAME`                    | 8.15   | all    | The name of the environment for this job. Available if [`environment:name`](../yaml/index.md#environmentname) is set. |
-| `CI_ENVIRONMENT_SLUG`                    | 8.15   | all    | The simplified version of the environment name, suitable for inclusion in DNS, URLs, Kubernetes labels, and so on. Available if [`environment:name`](../yaml/index.md#environmentname) is set. The slug is [truncated to 24 characters](https://gitlab.com/gitlab-org/gitlab/-/issues/20941). |
+| `CI_ENVIRONMENT_SLUG`                    | 8.15   | all    | The simplified version of the environment name, suitable for inclusion in DNS, URLs, Kubernetes labels, and so on. Available if [`environment:name`](../yaml/index.md#environmentname) is set. The slug is [truncated to 24 characters](https://gitlab.com/gitlab-org/gitlab/-/issues/20941). A random suffix is automatically added to [uppercase environment names](https://gitlab.com/gitlab-org/gitlab/-/issues/415526). |
 | `CI_ENVIRONMENT_URL`                     | 9.3    | all    | The URL of the environment for this job. Available if [`environment:url`](../yaml/index.md#environmenturl) is set. |
 | `CI_ENVIRONMENT_ACTION`                  | 13.11  | all    | The action annotation specified for this job's environment. Available if [`environment:action`](../yaml/index.md#environmentaction) is set. Can be `start`, `prepare`, or `stop`. |
 | `CI_ENVIRONMENT_TIER`                    | 14.0   | all    | The [deployment tier of the environment](../environments/index.md#deployment-tier-of-environments) for this job. |
 | `CI_RELEASE_DESCRIPTION`                 | 15.5   | all    | The description of the release. Available only on pipelines for tags. Description length is limited to first 1024 characters.|
-| `CI_GITLAB_FIPS_MODE`                    | 14.10  | all    | The configuration setting for whether FIPS mode is enabled in the GitLab instance. |
+| `CI_GITLAB_FIPS_MODE`                    | 14.10  | all    | Only available if [FIPS mode](../../development/fips_compliance.md) is enabled in the GitLab instance. `true` when available. |
 | `CI_HAS_OPEN_REQUIREMENTS`               | 13.1   | all    | Only available if the pipeline's project has an open [requirement](../../user/project/requirements/index.md). `true` when available. |
 | `CI_JOB_ID`                              | 9.0    | all    | The internal ID of the job, unique across all jobs in the GitLab instance. |
 | `CI_JOB_IMAGE`                           | 12.9   | 12.9   | The name of the Docker image running the job. |
-| `CI_JOB_JWT`                             | 12.10  | all    | A RS256 JSON web token to authenticate with third party systems that support JWT authentication, for example [HashiCorp's Vault](../secrets/index.md). |
-| `CI_JOB_JWT_V1`                          | 14.6   | all    | The same value as `CI_JOB_JWT`. |
-| `CI_JOB_JWT_V2`                          | 14.6   | all    | A newly formatted RS256 JSON web token to increase compatibility. Similar to `CI_JOB_JWT`, except the issuer (`iss`) claim is changed from `gitlab.com` to `https://gitlab.com`, `sub` has changed from `job_id` to a string that contains the project path, and an `aud` claim is added. Format is subject to change. Be aware, the `aud` field is a constant value. Trusting JWTs in multiple relying parties can lead to [one RP sending a JWT to another one and acting maliciously as a job](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/72555#note_769112331). **Note:** The `CI_JOB_JWT_V2` variable is available for testing, but the full feature is planned to be generally available when [issue 360657](https://gitlab.com/gitlab-org/gitlab/-/issues/360657) is complete.|
+| `CI_JOB_JWT` (Deprecated)                | 12.10  | all    | A RS256 JSON web token to authenticate with third party systems that support JWT authentication, for example [HashiCorp's Vault](../secrets/index.md). [Deprecated in GitLab 15.9](../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated) and scheduled to be removed in GitLab 17.0. Use [ID tokens](../yaml/index.md#id_tokens) instead. |
+| `CI_JOB_JWT_V1` (Deprecated)             | 14.6   | all    | The same value as `CI_JOB_JWT`. [Deprecated in GitLab 15.9](../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated) and scheduled to be removed in GitLab 17.0. Use [ID tokens](../yaml/index.md#id_tokens) instead. |
+| `CI_JOB_JWT_V2` (Deprecated)             | 14.6   | all    | A newly formatted RS256 JSON web token to increase compatibility. Similar to `CI_JOB_JWT`, except the issuer (`iss`) claim is changed from `gitlab.com` to `https://gitlab.com`, `sub` has changed from `job_id` to a string that contains the project path, and an `aud` claim is added. The `aud` field is a constant value. Trusting JWTs in multiple relying parties can lead to [one RP sending a JWT to another one and acting maliciously as a job](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/72555#note_769112331). [Deprecated in GitLab 15.9](../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated) and scheduled to be removed in GitLab 17.0. Use [ID tokens](../yaml/index.md#id_tokens) instead. |
 | `CI_JOB_MANUAL`                          | 8.12   | all    | Only available if the job was started manually. `true` when available. |
 | `CI_JOB_NAME`                            | 9.0    | 0.5    | The name of the job. |
 | `CI_JOB_NAME_SLUG`                       | 15.4   | all    | `CI_JOB_NAME_SLUG` in lowercase, shortened to 63 bytes, and with everything except `0-9` and `a-z` replaced with `-`. No leading / trailing `-`. Use in paths. |
 | `CI_JOB_STAGE`                           | 9.0    | 0.5    | The name of the job's stage. |
 | `CI_JOB_STATUS`                          | all    | 13.5   | The status of the job as each runner stage is executed. Use with [`after_script`](../yaml/index.md#after_script). Can be `success`, `failed`, or `canceled`. |
-| `CI_JOB_TIMEOUT`                         | 15.7   | 15.7   | The job timeout value. |
+| `CI_JOB_TIMEOUT`                         | 15.7   | 15.7   | The job timeout, in seconds. |
 | `CI_JOB_TOKEN`                           | 9.0    | 1.2    | A token to authenticate with [certain API endpoints](../jobs/ci_job_token.md). The token is valid as long as the job is running. |
 | `CI_JOB_URL`                             | 11.1   | 0.5    | The job details URL. |
 | `CI_JOB_STARTED_AT`                      | 13.10  | all    | The UTC datetime when a job started, in [ISO 8601](https://www.rfc-editor.org/rfc/rfc3339#appendix-A) format. |
@@ -91,6 +92,7 @@ as it can cause the pipeline to behave unexpectedly.
 | `CI_PIPELINE_TRIGGERED`                  | all    | all    | `true` if the job was [triggered](../triggers/index.md). |
 | `CI_PIPELINE_URL`                        | 11.1   | 0.5    | The URL for the pipeline details. |
 | `CI_PIPELINE_CREATED_AT`                 | 13.10  | all    | The UTC datetime when the pipeline was created, in [ISO 8601](https://www.rfc-editor.org/rfc/rfc3339#appendix-A) format. |
+| `CI_PIPELINE_NAME`                       | 16.3   | all    | The pipeline name defined in [`workflow:name`](../yaml/index.md#workflowname) |
 | `CI_PROJECT_DIR`                         | all    | all    | The full path the repository is cloned to, and where the job runs from. If the GitLab Runner `builds_dir` parameter is set, this variable is set relative to the value of `builds_dir`. For more information, see the [Advanced GitLab Runner configuration](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section). |
 | `CI_PROJECT_ID`                          | all    | all    | The ID of the current project. This ID is unique across all projects on the GitLab instance. |
 | `CI_PROJECT_NAME`                        | 8.10   | 0.5    | The name of the directory for the project. For example if the project URL is `gitlab.example.com/group-name/project-1`, `CI_PROJECT_NAME` is `project-1`. |
@@ -104,12 +106,12 @@ as it can cause the pipeline to behave unexpectedly.
 | `CI_PROJECT_DESCRIPTION`                 | 15.1   | all    | The project description as displayed in the GitLab web interface. |
 | `CI_PROJECT_URL`                         | 8.10   | 0.5    | The HTTP(S) address of the project. |
 | `CI_PROJECT_VISIBILITY`                  | 10.3   | all    | The project visibility. Can be `internal`, `private`, or `public`. |
-| `CI_PROJECT_CLASSIFICATION_LABEL`        | 14.2   | all    | The project [external authorization classification label](../../user/admin_area/settings/external_authorization.md). |
+| `CI_PROJECT_CLASSIFICATION_LABEL`        | 14.2   | all    | The project [external authorization classification label](../../administration/settings/external_authorization.md). |
 | `CI_REGISTRY_IMAGE`                      | 8.10   | 0.5    | The address of the project's Container Registry. Only available if the Container Registry is enabled for the project. |
 | `CI_REGISTRY_PASSWORD`                   | 9.0    | all    | The password to push containers to the project's GitLab Container Registry. Only available if the Container Registry is enabled for the project. This password value is the same as the `CI_JOB_TOKEN` and is valid only as long as the job is running. Use the `CI_DEPLOY_PASSWORD` for long-lived access to the registry |
 | `CI_REGISTRY_USER`                       | 9.0    | all    | The username to push containers to the project's GitLab Container Registry. Only available if the Container Registry is enabled for the project. |
 | `CI_REGISTRY`                            | 8.10   | 0.5    | The address of the GitLab Container Registry. Only available if the Container Registry is enabled for the project. This variable includes a `:port` value if one is specified in the registry configuration. |
-| `CI_REPOSITORY_URL`                      | 9.0    | all    | The URL to clone the Git repository. |
+| `CI_REPOSITORY_URL`                      | 9.0    | all    | The full path to Git clone (HTTP) the repository with a [CI/CD job token](../jobs/ci_job_token.md), in the format `https://gitlab-ci-token:$CI_JOB_TOKEN@gitlab.example.com/my-group/my-project.git`. |
 | `CI_RUNNER_DESCRIPTION`                  | 8.10   | 0.5    | The description of the runner. |
 | `CI_RUNNER_EXECUTABLE_ARCH`              | all    | 10.6   | The OS/architecture of the GitLab Runner executable. Might not be the same as the environment of the executor. |
 | `CI_RUNNER_ID`                           | 8.10   | 0.5    | The unique ID of the runner being used. |
@@ -121,6 +123,8 @@ as it can cause the pipeline to behave unexpectedly.
 | `CI_SERVER_NAME`                         | all    | all    | The name of CI/CD server that coordinates jobs. |
 | `CI_SERVER_PORT`                         | 12.8   | all    | The port of the GitLab instance URL, without host or protocol. For example `8080`. |
 | `CI_SERVER_PROTOCOL`                     | 12.8   | all    | The protocol of the GitLab instance URL, without host or port. For example `https`. |
+| `CI_SERVER_SHELL_SSH_HOST`               | 15.11  | all    | The SSH host of the GitLab instance, used for access to Git repositories via SSH. For example `gitlab.com`. |
+| `CI_SERVER_SHELL_SSH_PORT`               | 15.11  | all    | The SSH port of the GitLab instance, used for access to Git repositories via SSH. For example `22`. |
 | `CI_SERVER_REVISION`                     | all    | all    | GitLab revision that schedules jobs. |
 | `CI_SERVER_TLS_CA_FILE`                  | all    | all    | File containing the TLS CA certificate to verify the GitLab server when `tls-ca-file` set in [runner settings](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section). |
 | `CI_SERVER_TLS_CERT_FILE`                | all    | all    | File containing the TLS certificate to verify the GitLab server when `tls-cert-file` set in [runner settings](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section). |
@@ -139,7 +143,8 @@ as it can cause the pipeline to behave unexpectedly.
 | `GITLAB_USER_ID`                         | 8.12   | all    | The ID of the user who started the pipeline, unless the job is a manual job. In manual jobs, the value is the ID of the user who started the job. |
 | `GITLAB_USER_LOGIN`                      | 10.0   | all    | The username of the user who started the pipeline, unless the job is a manual job. In manual jobs, the value is the username of the user who started the job. |
 | `GITLAB_USER_NAME`                       | 10.0   | all    | The name of the user who started the pipeline, unless the job is a manual job. In manual jobs, the value is the name of the user who started the job. |
-| `TRIGGER_PAYLOAD`                        | 13.9   | all    | The webhook payload. Only available when a pipeline is [triggered with a webhook](../triggers/index.md#use-a-webhook-payload). |
+| `KUBECONFIG`                             | 14.2   | all    | The path to the `kubeconfig` file with contexts for every shared agent connection. Only available when a [GitLab agent is authorized to access the project](../../user/clusters/agent/ci_cd_workflow.md#authorize-the-agent). |
+| `TRIGGER_PAYLOAD`                        | 13.9   | all    | The webhook payload. Only available when a pipeline is [triggered with a webhook](../triggers/index.md#access-webhook-payload). |
 
 ## Predefined variables for merge request pipelines
 
@@ -160,13 +165,15 @@ These variables are available when:
 | `CI_MERGE_REQUEST_PROJECT_PATH`             | 11.6   | all    | The path of the project of the merge request. For example `namespace/awesome-project`. |
 | `CI_MERGE_REQUEST_PROJECT_URL`              | 11.6   | all    | The URL of the project of the merge request. For example, `http://192.168.10.15:3000/namespace/awesome-project`. |
 | `CI_MERGE_REQUEST_REF_PATH`                 | 11.6   | all    | The ref path of the merge request. For example, `refs/merge-requests/1/head`. |
+| `CI_MERGE_REQUEST_SQUASH_ON_MERGE`          | 16.4   | all    | `true` when the [squash on merge](../../user/project/merge_requests/squash_and_merge.md) option is set. |
 | `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME`       | 11.6   | all    | The source branch name of the merge request. |
+| `CI_MERGE_REQUEST_SOURCE_BRANCH_PROTECTED`  | 16.4   | all    | `true` when the source branch of the merge request is [protected](../../user/project/protected_branches.md). |
 | `CI_MERGE_REQUEST_SOURCE_BRANCH_SHA`        | 11.9   | all    | The HEAD SHA of the source branch of the merge request. The variable is empty in merge request pipelines. The SHA is present only in [merged results pipelines](../pipelines/merged_results_pipelines.md). |
 | `CI_MERGE_REQUEST_SOURCE_PROJECT_ID`        | 11.6   | all    | The ID of the source project of the merge request. |
 | `CI_MERGE_REQUEST_SOURCE_PROJECT_PATH`      | 11.6   | all    | The path of the source project of the merge request. |
 | `CI_MERGE_REQUEST_SOURCE_PROJECT_URL`       | 11.6   | all    | The URL of the source project of the merge request. |
 | `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`       | 11.6   | all    | The target branch name of the merge request. |
-| `CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED`  | 15.2   | all    | The protection status for the target branch of the merge request. |
+| `CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED`  | 15.2   | all    | `true` when the target branch of the merge request is [protected](../../user/project/protected_branches.md). |
 | `CI_MERGE_REQUEST_TARGET_BRANCH_SHA`        | 11.9   | all    | The HEAD SHA of the target branch of the merge request. The variable is empty in merge request pipelines. The SHA is present only in [merged results pipelines](../pipelines/merged_results_pipelines.md). |
 | `CI_MERGE_REQUEST_TITLE`                    | 11.9   | all    | The title of the merge request. |
 | `CI_MERGE_REQUEST_EVENT_TYPE`               | 12.3   | all    | The event type of the merge request. Can be `detached`, `merged_result` or `merge_train`. |

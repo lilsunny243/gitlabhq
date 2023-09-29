@@ -56,6 +56,11 @@ export default {
       required: false,
       default: false,
     },
+    size: {
+      type: String,
+      required: false,
+      default: 'sm',
+    },
   },
   computed: {
     primaryAction() {
@@ -63,7 +68,7 @@ export default {
         text: this.primaryText,
         attributes: {
           variant: this.primaryVariant,
-          'data-qa-selector': 'confirm_ok_button',
+          'data-testid': 'confirm-ok-button',
         },
       };
     },
@@ -103,9 +108,10 @@ export default {
 <template>
   <gl-modal
     ref="modal"
-    size="sm"
     modal-id="confirmationModal"
     body-class="gl-display-flex"
+    data-testid="confirmation-modal"
+    :size="size"
     :title="title"
     :action-primary="primaryAction"
     :action-cancel="cancelAction"

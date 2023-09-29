@@ -11,13 +11,19 @@ module Ci
     include Gitlab::OptimisticLocking
     include Gitlab::Utils::StrongMemoize
     include AtomicInternalId
-    include EnumWithNil
     include Ci::HasRef
     include ShaAttribute
     include FromUnion
     include UpdatedAtFilterable
     include EachBatch
     include FastDestroyAll::Helpers
+    include SafelyChangeColumnDefault
+
+    columns_changing_default :partition_id
+
+    include IgnorableColumns
+    ignore_column :id_convert_to_bigint, remove_with: '16.3', remove_after: '2023-08-22'
+    ignore_column :auto_canceled_by_id_convert_to_bigint, remove_with: '16.6', remove_after: '2023-10-22'
 
     MAX_OPEN_MERGE_REQUESTS_REFS = 4
 
@@ -46,57 +52,78 @@ module Ci
 
     belongs_to :project, inverse_of: :all_pipelines
     belongs_to :user
-    belongs_to :auto_canceled_by, class_name: 'Ci::Pipeline'
+    belongs_to :auto_canceled_by, class_name: 'Ci::Pipeline', inverse_of: :auto_canceled_pipelines
     belongs_to :pipeline_schedule, class_name: 'Ci::PipelineSchedule'
     belongs_to :merge_request, class_name: 'MergeRequest'
-    belongs_to :external_pull_request
+    belongs_to :external_pull_request, class_name: 'Ci::ExternalPullRequest'
     belongs_to :ci_ref, class_name: 'Ci::Ref', foreign_key: :ci_ref_id, inverse_of: :pipelines
 
     has_internal_id :iid, scope: :project, presence: false,
-                          track_if: -> { !importing? },
-                          ensure_if: -> { !importing? },
-                          init: ->(pipeline, scope) do
-                                  if pipeline
-                                    pipeline.project&.all_pipelines&.maximum(:iid) || pipeline.project&.all_pipelines&.count
-                                  elsif scope
-                                    ::Ci::Pipeline.where(**scope).maximum(:iid)
-                                  end
-                                end
+      track_if: -> { !importing? },
+      ensure_if: -> { !importing? },
+      init: ->(pipeline, scope) do
+        if pipeline
+          pipeline.project&.all_pipelines&.maximum(:iid) || pipeline.project&.all_pipelines&.count
+        elsif scope
+          ::Ci::Pipeline.where(**scope).maximum(:iid)
+        end
+      end
 
     has_many :stages, -> { order(position: :asc) }, inverse_of: :pipeline
+
+    #
+    # In https://gitlab.com/groups/gitlab-org/-/epics/9991, we aim to convert all CommitStatus related models to
+    # Ci:Job models. With that epic, we aim to replace `statuses` with `jobs`.
+    #
+    # DEPRECATED:
     has_many :statuses, class_name: 'CommitStatus', foreign_key: :commit_id, inverse_of: :pipeline
+    has_many :processables, class_name: 'Ci::Processable', foreign_key: :commit_id, inverse_of: :pipeline
     has_many :latest_statuses_ordered_by_stage, -> { latest.order(:stage_idx, :stage) }, class_name: 'CommitStatus', foreign_key: :commit_id, inverse_of: :pipeline
     has_many :latest_statuses, -> { latest }, class_name: 'CommitStatus', foreign_key: :commit_id, inverse_of: :pipeline
-    has_many :statuses_order_id_desc, -> { order_id_desc }, class_name: 'CommitStatus', foreign_key: :commit_id
-    has_many :processables, class_name: 'Ci::Processable', foreign_key: :commit_id, inverse_of: :pipeline
+    has_many :statuses_order_id_desc, -> { order_id_desc }, class_name: 'CommitStatus', foreign_key: :commit_id,
+      inverse_of: :pipeline
     has_many :bridges, class_name: 'Ci::Bridge', foreign_key: :commit_id, inverse_of: :pipeline
     has_many :builds, foreign_key: :commit_id, inverse_of: :pipeline
     has_many :generic_commit_statuses, foreign_key: :commit_id, inverse_of: :pipeline, class_name: 'GenericCommitStatus'
+    #
+    # NEW:
+    has_many :all_jobs, class_name: 'CommitStatus', foreign_key: :commit_id, inverse_of: :pipeline
+    has_many :current_jobs, -> { latest }, class_name: 'CommitStatus', foreign_key: :commit_id, inverse_of: :pipeline
+    has_many :all_processable_jobs, class_name: 'Ci::Processable', foreign_key: :commit_id, inverse_of: :pipeline
+    has_many :current_processable_jobs, -> { latest }, class_name: 'Ci::Processable', foreign_key: :commit_id, inverse_of: :pipeline
+
     has_many :job_artifacts, through: :builds
     has_many :build_trace_chunks, class_name: 'Ci::BuildTraceChunk', through: :builds, source: :trace_chunks
-    has_many :trigger_requests, dependent: :destroy, foreign_key: :commit_id # rubocop:disable Cop/ActiveRecordDependent
+    has_many :trigger_requests, dependent: :destroy, foreign_key: :commit_id, inverse_of: :pipeline # rubocop:disable Cop/ActiveRecordDependent
     has_many :variables, class_name: 'Ci::PipelineVariable'
     has_many :latest_builds, -> { latest.with_project_and_metadata }, foreign_key: :commit_id, inverse_of: :pipeline, class_name: 'Ci::Build'
     has_many :downloadable_artifacts, -> do
-      not_expired.or(where_exists(::Ci::Pipeline.artifacts_locked.where('ci_pipelines.id = ci_builds.commit_id'))).downloadable.with_job
+      not_expired.or(where_exists(Ci::Pipeline.artifacts_locked.where("#{Ci::Pipeline.quoted_table_name}.id = #{Ci::Build.quoted_table_name}.commit_id"))).downloadable.with_job
     end, through: :latest_builds, source: :job_artifacts
-    has_many :latest_successful_builds, -> { latest.success.with_project_and_metadata }, foreign_key: :commit_id, inverse_of: :pipeline, class_name: 'Ci::Build'
+    has_many :latest_successful_jobs, -> { latest.success.with_project_and_metadata }, foreign_key: :commit_id, inverse_of: :pipeline, class_name: 'Ci::Processable'
 
     has_many :messages, class_name: 'Ci::PipelineMessage', inverse_of: :pipeline
 
     # Merge requests for which the current pipeline is running against
     # the merge request's latest commit.
-    has_many :merge_requests_as_head_pipeline, foreign_key: "head_pipeline_id", class_name: 'MergeRequest'
+    has_many :merge_requests_as_head_pipeline, foreign_key: :head_pipeline_id, class_name: 'MergeRequest',
+      inverse_of: :head_pipeline
+
     has_many :pending_builds, -> { pending }, foreign_key: :commit_id, class_name: 'Ci::Build', inverse_of: :pipeline
-    has_many :failed_builds, -> { latest.failed }, foreign_key: :commit_id, class_name: 'Ci::Build', inverse_of: :pipeline
+    has_many :failed_builds, -> { latest.failed }, foreign_key: :commit_id, class_name: 'Ci::Build',
+      inverse_of: :pipeline
     has_many :retryable_builds, -> { latest.failed_or_canceled.includes(:project) }, foreign_key: :commit_id, class_name: 'Ci::Build', inverse_of: :pipeline
-    has_many :cancelable_statuses, -> { cancelable }, foreign_key: :commit_id, class_name: 'CommitStatus'
-    has_many :manual_actions, -> { latest.manual_actions.includes(:project) }, foreign_key: :commit_id, class_name: 'Ci::Build', inverse_of: :pipeline
+    has_many :cancelable_statuses, -> { cancelable }, foreign_key: :commit_id, class_name: 'CommitStatus',
+      inverse_of: :pipeline
+    has_many :manual_actions, -> { latest.manual_actions.includes(:project) }, foreign_key: :commit_id, class_name: 'Ci::Processable', inverse_of: :pipeline
     has_many :scheduled_actions, -> { latest.scheduled_actions.includes(:project) }, foreign_key: :commit_id, class_name: 'Ci::Build', inverse_of: :pipeline
 
-    has_many :auto_canceled_pipelines, class_name: 'Ci::Pipeline', foreign_key: 'auto_canceled_by_id'
-    has_many :auto_canceled_jobs, class_name: 'CommitStatus', foreign_key: 'auto_canceled_by_id'
-    has_many :sourced_pipelines, class_name: 'Ci::Sources::Pipeline', foreign_key: :source_pipeline_id
+    has_many :auto_canceled_pipelines, class_name: 'Ci::Pipeline', foreign_key: :auto_canceled_by_id,
+      inverse_of: :auto_canceled_by
+    has_many :auto_canceled_jobs, class_name: 'CommitStatus', foreign_key: :auto_canceled_by_id,
+      inverse_of: :auto_canceled_by
+    has_many :sourced_pipelines, class_name: 'Ci::Sources::Pipeline', foreign_key: :source_pipeline_id,
+      inverse_of: :source_pipeline
 
     has_one :source_pipeline, class_name: 'Ci::Sources::Pipeline', inverse_of: :pipeline
 
@@ -114,7 +141,9 @@ module Ci
 
     has_one :pipeline_metadata, class_name: 'Ci::PipelineMetadata', inverse_of: :pipeline
 
-    has_many :daily_build_group_report_results, class_name: 'Ci::DailyBuildGroupReportResult', foreign_key: :last_pipeline_id
+    has_many :daily_build_group_report_results, class_name: 'Ci::DailyBuildGroupReportResult',
+      foreign_key: :last_pipeline_id, inverse_of: :last_pipeline
+
     has_many :latest_builds_report_results, through: :latest_builds, source: :report_results
     has_many :pipeline_artifacts, class_name: 'Ci::PipelineArtifact', inverse_of: :pipeline, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
 
@@ -133,7 +162,7 @@ module Ci
 
     validates :status, presence: { unless: :importing? }
     validate :valid_commit_sha, unless: :importing?
-    validates :source, exclusion: { in: %w(unknown), unless: :importing? }, on: :create
+    validates :source, exclusion: { in: %w[unknown], unless: :importing? }, on: :create
 
     after_create :keep_around_commits, unless: :importing?
     after_find :observe_age_in_minutes, unless: :importing?
@@ -143,9 +172,9 @@ module Ci
 
     # We use `Enums::Ci::Pipeline.sources` here so that EE can more easily extend
     # this `Hash` with new values.
-    enum_with_nil source: Enums::Ci::Pipeline.sources
+    enum source: Enums::Ci::Pipeline.sources
 
-    enum_with_nil config_source: Enums::Ci::Pipeline.config_sources
+    enum config_source: Enums::Ci::Pipeline.config_sources
 
     # We use `Enums::Ci::Pipeline.failure_reasons` here so that EE can more easily
     # extend this `Hash` with new values.
@@ -310,9 +339,16 @@ module Ci
         end
       end
 
+      # This needs to be kept in sync with `Ci::PipelineRef#should_delete?`
       after_transition any => ::Ci::Pipeline.stopped_statuses do |pipeline|
         pipeline.run_after_commit do
-          pipeline.persistent_ref.delete
+          if Feature.enabled?(:pipeline_delete_gitaly_refs_in_batches, pipeline.project)
+            pipeline.persistent_ref.async_delete
+          elsif Feature.enabled?(:pipeline_cleanup_ref_worker_async, pipeline.project)
+            ::Ci::PipelineCleanupRefWorker.perform_async(pipeline.id)
+          else
+            pipeline.persistent_ref.delete
+          end
         end
       end
 
@@ -336,6 +372,21 @@ module Ci
           AutoDevops::DisableWorker.perform_async(pipeline.id) if pipeline.auto_devops_source?
         end
       end
+
+      after_transition any => [:running, *::Ci::Pipeline.completed_statuses] do |pipeline|
+        project = pipeline&.project
+
+        next unless project
+
+        pipeline.run_after_commit do
+          next if pipeline.child?
+          next unless project.only_allow_merge_if_pipeline_succeeds?(inherit_group_setting: true)
+
+          pipeline.all_merge_requests.opened.each do |merge_request|
+            GraphqlTriggers.merge_request_merge_status_updated(merge_request)
+          end
+        end
+      end
     end
 
     scope :internal, -> { where(source: internal_sources) }
@@ -343,6 +394,10 @@ module Ci
     scope :ci_sources, -> { where(source: Enums::Ci::Pipeline.ci_sources.values) }
     scope :ci_branch_sources, -> { where(source: Enums::Ci::Pipeline.ci_branch_sources.values) }
     scope :ci_and_parent_sources, -> { where(source: Enums::Ci::Pipeline.ci_and_parent_sources.values) }
+    scope :ci_and_security_orchestration_sources, -> do
+      where(source: Enums::Ci::Pipeline.ci_and_security_orchestration_sources.values)
+    end
+
     scope :for_user, -> (user) { where(user: user) }
     scope :for_sha, -> (sha) { where(sha: sha) }
     scope :where_not_sha, -> (sha) { where.not(sha: sha) }
@@ -357,22 +412,30 @@ module Ci
 
       joins(:pipeline_metadata).where(name_column.eq(name))
     end
+    scope :for_status, -> (status) { where(status: status) }
     scope :created_after, -> (time) { where(arel_table[:created_at].gt(time)) }
     scope :created_before_id, -> (id) { where(arel_table[:id].lt(id)) }
     scope :before_pipeline, -> (pipeline) { created_before_id(pipeline.id).outside_pipeline_family(pipeline) }
     scope :with_pipeline_source, -> (source) { where(source: source) }
+    scope :preload_pipeline_metadata, -> { preload(:pipeline_metadata) }
 
     scope :outside_pipeline_family, ->(pipeline) do
       where.not(id: pipeline.same_family_pipeline_ids)
     end
 
     scope :with_reports, -> (reports_scope) do
-      where('EXISTS (?)', ::Ci::Build.latest.with_artifacts(reports_scope).where('ci_pipelines.id=ci_builds.commit_id').select(1))
+      where('EXISTS (?)',
+        ::Ci::Build
+          .latest
+          .with_artifacts(reports_scope)
+          .where("#{quoted_table_name}.id = #{Ci::Build.quoted_table_name}.commit_id")
+          .select(1)
+      )
     end
 
     scope :with_only_interruptible_builds, -> do
       where('NOT EXISTS (?)',
-        Ci::Build.where('ci_builds.commit_id = ci_pipelines.id')
+        Ci::Build.where("#{Ci::Build.quoted_table_name}.commit_id = #{quoted_table_name}.id")
                  .with_status(STARTED_STATUSES)
                  .not_interruptible
       )
@@ -382,10 +445,14 @@ module Ci
     # In general, please use `Ci::PipelinesForMergeRequestFinder` instead,
     # for checking permission of the actor.
     scope :triggered_by_merge_request, -> (merge_request) do
-      where(source: :merge_request_event,
-            merge_request: merge_request,
-            project: [merge_request.source_project, merge_request.target_project])
+      where(
+        source: :merge_request_event,
+        merge_request: merge_request,
+        project: [merge_request.source_project, merge_request.target_project]
+      )
     end
+
+    scope :order_id_desc, -> { order(id: :desc) }
 
     # Returns the pipelines in descending order (= newest first), optionally
     # limited to a number of references.
@@ -623,32 +690,6 @@ module Ci
       canceled? && auto_canceled_by_id?
     end
 
-    # Cancel a pipelines cancelable jobs and optionally it's child pipelines cancelable jobs
-    # retries - # of times to retry if errors
-    # cascade_to_children - if true cancels all related child pipelines for parent child pipelines
-    # auto_canceled_by_pipeline_id - store the pipeline_id of the pipeline that triggered cancellation
-    # execute_async - if true cancel the children asyncronously
-    def cancel_running(retries: 1, cascade_to_children: true, auto_canceled_by_pipeline_id: nil, execute_async: true)
-      Gitlab::AppJsonLogger.info(
-        event: 'pipeline_cancel_running',
-        pipeline_id: id,
-        auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id,
-        cascade_to_children: cascade_to_children,
-        execute_async: execute_async,
-        **Gitlab::ApplicationContext.current
-      )
-
-      update(auto_canceled_by_id: auto_canceled_by_pipeline_id) if auto_canceled_by_pipeline_id
-
-      cancel_jobs(cancelable_statuses, retries: retries, auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id)
-
-      if cascade_to_children
-        # cancel any bridges that could spin up new child pipelines
-        cancel_jobs(bridges_in_self_and_project_descendants.cancelable, retries: retries, auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id)
-        cancel_children(auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id, execute_async: execute_async)
-      end
-    end
-
     # rubocop: disable CodeReuse/ServiceClass
     def retry_failed(current_user)
       Ci::RetryPipelineService.new(project, current_user)
@@ -657,7 +698,7 @@ module Ci
     # rubocop: enable CodeReuse/ServiceClass
 
     def lazy_ref_commit
-      BatchLoader.for(ref).batch do |refs, loader|
+      BatchLoader.for(ref).batch(key: project.id) do |refs, loader|
         next unless project.repository_exists?
 
         project.repository.list_commits_by_ref_name(refs).then do |commits|
@@ -818,8 +859,7 @@ module Ci
         when 'manual' then block
         when 'scheduled' then delay
         else
-          raise Ci::HasStatus::UnknownStatusError,
-                "Unknown status `#{new_status}`"
+          raise Ci::HasStatus::UnknownStatusError, "Unknown status `#{new_status}`"
         end
       end
     end
@@ -924,11 +964,15 @@ module Ci
       Ci::Bridge.latest.where(pipeline: self_and_project_descendants)
     end
 
+    def jobs_in_self_and_project_descendants
+      Ci::Processable.latest.where(pipeline: self_and_project_descendants)
+    end
+
     def environments_in_self_and_project_descendants(deployment_status: nil)
       # We limit to 100 unique environments for application safety.
       # See: https://gitlab.com/gitlab-org/gitlab/-/issues/340781#note_699114700
       expanded_environment_names =
-        builds_in_self_and_project_descendants.joins(:metadata)
+        jobs_in_self_and_project_descendants.joins(:metadata)
                                       .where.not(Ci::BuildMetadata.table_name => { expanded_environment_name: nil })
                                       .distinct("#{Ci::BuildMetadata.quoted_table_name}.expanded_environment_name")
                                       .limit(100)
@@ -1282,7 +1326,7 @@ module Ci
       types_to_collect = report_types.empty? ? ::Ci::JobArtifact::SECURITY_REPORT_FILE_TYPES : report_types
 
       ::Gitlab::Ci::Reports::Security::Reports.new(self).tap do |security_reports|
-        latest_report_builds(reports_scope).each do |build|
+        latest_report_builds_in_self_and_project_descendants(reports_scope).includes(pipeline: { project: :route }).each do |build| # rubocop:disable Rails/FindEach
           build.collect_security_reports!(security_reports, report_types: types_to_collect)
         end
       end
@@ -1294,7 +1338,7 @@ module Ci
 
     def cluster_agent_authorizations
       strong_memoize(:cluster_agent_authorizations) do
-        ::Clusters::AgentAuthorizationsFinder.new(project).execute
+        ::Clusters::Agents::Authorizations::CiAccess::Finder.new(project).execute
       end
     end
 
@@ -1322,43 +1366,12 @@ module Ci
       merge_request.merge_request_diff_for(merge_request_diff_sha)
     end
 
+    def reduced_build_attributes_list_for_rules?
+      ::Feature.enabled?(:reduced_build_attributes_list_for_rules, project)
+    end
+    strong_memoize_attr :reduced_build_attributes_list_for_rules?
+
     private
-
-    def cancel_jobs(jobs, retries: 1, auto_canceled_by_pipeline_id: nil)
-      retry_lock(jobs, retries, name: 'ci_pipeline_cancel_running') do |statuses|
-        preloaded_relations = [:project, :pipeline, :deployment, :taggings]
-
-        statuses.find_in_batches do |status_batch|
-          relation = CommitStatus.where(id: status_batch)
-          Preloaders::CommitStatusPreloader.new(relation).execute(preloaded_relations)
-
-          relation.each do |job|
-            job.auto_canceled_by_id = auto_canceled_by_pipeline_id if auto_canceled_by_pipeline_id
-            job.cancel
-          end
-        end
-      end
-    end
-
-    # For parent child-pipelines only (not multi-project)
-    def cancel_children(auto_canceled_by_pipeline_id: nil, execute_async: true)
-      all_child_pipelines.each do |child_pipeline|
-        if execute_async
-          ::Ci::CancelPipelineWorker.perform_async(
-            child_pipeline.id,
-            auto_canceled_by_pipeline_id
-          )
-        else
-          child_pipeline.cancel_running(
-            # cascade_to_children is false because we iterate through children
-            # we also cancel bridges prior to prevent more children
-            cascade_to_children: false,
-            execute_async: execute_async,
-            auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id
-          )
-        end
-      end
-    end
 
     def add_message(severity, content)
       messages.build(severity: severity, content: content)

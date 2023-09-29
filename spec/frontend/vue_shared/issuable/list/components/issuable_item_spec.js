@@ -15,6 +15,8 @@ const createComponent = ({
   showCheckbox = true,
   slots = {},
   showWorkItemTypeIcon = false,
+  isActive = false,
+  preventRedirect = false,
 } = {}) =>
   shallowMount(IssuableItem, {
     propsData: {
@@ -24,6 +26,8 @@ const createComponent = ({
       showDiscussions: true,
       showCheckbox,
       showWorkItemTypeIcon,
+      isActive,
+      preventRedirect,
     },
     slots,
     stubs: {
@@ -39,19 +43,15 @@ describe('IssuableItem', () => {
 
   const mockLabels = mockIssuable.labels.nodes;
   const mockAuthor = mockIssuable.author;
-  const originalUrl = gon.gitlab_url;
   let wrapper;
 
   const findTimestampWrapper = () => wrapper.find('[data-testid="issuable-timestamp"]');
   const findWorkItemTypeIcon = () => wrapper.findComponent(WorkItemTypeIcon);
+  const findIssuableTitleLink = () => wrapper.findComponentByTestId('issuable-title-link');
+  const findIssuableItemWrapper = () => wrapper.findByTestId('issuable-item-wrapper');
 
   beforeEach(() => {
     gon.gitlab_url = MOCK_GITLAB_URL;
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    gon.gitlab_url = originalUrl;
   });
 
   describe('computed', () => {
@@ -60,6 +60,14 @@ describe('IssuableItem', () => {
         wrapper = createComponent();
 
         expect(wrapper.vm.author).toEqual(mockIssuable.author);
+      });
+    });
+
+    describe('externalAuthor', () => {
+      it('returns `externalAuthor` reference', () => {
+        wrapper = createComponent();
+
+        expect(wrapper.vm.externalAuthor).toEqual(mockIssuable.externalAuthor);
       });
     });
 
@@ -337,14 +345,14 @@ describe('IssuableItem', () => {
       });
     });
 
-    it('renders spam icon when issuable is hidden', async () => {
+    it('renders spam icon when issuable is hidden', () => {
       wrapper = createComponent({ issuable: { ...mockIssuable, hidden: true } });
 
       const hiddenIcon = wrapper.findComponent(GlIcon);
 
       expect(hiddenIcon.props('name')).toBe('spam');
       expect(hiddenIcon.attributes()).toMatchObject({
-        title: 'This issue is hidden because its author has been banned',
+        title: 'This issue is hidden because its author has been banned.',
         arialabel: 'Hidden',
       });
     });
@@ -435,6 +443,15 @@ describe('IssuableItem', () => {
 
       expect(authorEl.exists()).toBe(true);
       expect(authorEl.text()).toBe(mockAuthor.name);
+    });
+
+    it('renders issuable external author info via author slot', () => {
+      wrapper = createComponent({
+        issuableSymbol: '#',
+        issuable: { ...mockIssuable, externalAuthor: 'client@example.com' },
+      });
+
+      expect(wrapper.findByTestId('external-author').text()).toBe('client@example.com via');
     });
 
     it('renders timeframe via slot', () => {
@@ -557,6 +574,37 @@ describe('IssuableItem', () => {
           expect(wrapper.findAllComponents(GlLabel).at(labelPosition).props('scoped')).toBe(scoped);
         });
       });
+    });
+  });
+
+  describe('when preventing redirect on clicking the link', () => {
+    it('emits an event on item click', () => {
+      const { iid, webUrl } = mockIssuable;
+
+      wrapper = createComponent({
+        preventRedirect: true,
+      });
+
+      findIssuableTitleLink().vm.$emit('click', new MouseEvent('click'));
+
+      expect(wrapper.emitted('select-issuable')).toEqual([[{ iid, webUrl }]]);
+    });
+
+    it('does not apply highlighted class when item is not active', () => {
+      wrapper = createComponent({
+        preventRedirect: true,
+      });
+
+      expect(findIssuableItemWrapper().classes('gl-bg-blue-50')).toBe(false);
+    });
+
+    it('applies highlghted class when item is active', () => {
+      wrapper = createComponent({
+        isActive: true,
+        preventRedirect: true,
+      });
+
+      expect(findIssuableItemWrapper().classes('gl-bg-blue-50')).toBe(true);
     });
   });
 });

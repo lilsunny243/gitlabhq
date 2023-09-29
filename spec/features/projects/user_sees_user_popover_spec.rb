@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User sees user popover', :js, feature_category: :projects do
-  include Spec::Support::Helpers::Features::NotesHelpers
+RSpec.describe 'User sees user popover', :js, feature_category: :groups_and_projects do
+  include Features::NotesHelpers
 
   let_it_be(:user) { create(:user, pronouns: 'they/them') }
   let_it_be(:project) { create(:project, :repository, creator: user) }
@@ -27,7 +27,7 @@ RSpec.describe 'User sees user popover', :js, feature_category: :projects do
     end
 
     it 'displays user popover' do
-      find('.js-user-link').hover
+      find('.detail-page-description .js-user-link').hover
 
       expect(page).to have_css(popover_selector, visible: true)
 

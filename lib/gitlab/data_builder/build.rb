@@ -12,13 +12,14 @@ module Gitlab
 
         author_url = build_author_url(build.commit, commit)
 
-        data = {
+        attrs = {
           object_kind: 'build',
 
           ref: build.ref,
           tag: build.tag,
           before_sha: build.before_sha,
           sha: build.sha,
+          retries_count: build.retries_count,
 
           # TODO: should this be not prefixed with build_?
           # Leaving this way to have backward compatibility
@@ -67,12 +68,13 @@ module Gitlab
             visibility_level: project.visibility_level
           },
 
+          project: project.hook_attrs(backward: false),
+
           environment: build_environment(build)
         }
 
-        data[:retries_count] = build.retries_count if Feature.enabled?(:job_webhook_retries_count, project)
-
-        data
+        attrs[:source_pipeline] = source_pipeline_attrs(commit.source_pipeline) if commit.source_pipeline.present?
+        attrs
       end
 
       private
@@ -101,6 +103,20 @@ module Gitlab
         {
           name: build.expanded_environment_name,
           action: build.environment_action
+        }
+      end
+
+      def source_pipeline_attrs(source_pipeline)
+        project = source_pipeline.source_project
+
+        {
+          project: {
+            id: project.id,
+            web_url: project.web_url,
+            path_with_namespace: project.full_path
+          },
+          job_id: source_pipeline.source_job_id,
+          pipeline_id: source_pipeline.source_pipeline_id
         }
       end
     end

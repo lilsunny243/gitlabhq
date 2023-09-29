@@ -1,8 +1,23 @@
 <script>
-import { GlDropdown, GlDropdownForm, GlDropdownItem, GlDropdownDivider } from '@gitlab/ui';
+import {
+  GlDisclosureDropdown,
+  GlDropdownForm,
+  GlDisclosureDropdownItem,
+  GlDisclosureDropdownGroup,
+  GlIcon,
+} from '@gitlab/ui';
 import { s__ } from '~/locale';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import RunnerInstructionsModal from '~/vue_shared/components/runner_instructions/runner_instructions_modal.vue';
-import { INSTANCE_TYPE, GROUP_TYPE, PROJECT_TYPE } from '../../constants';
+import {
+  INSTANCE_TYPE,
+  GROUP_TYPE,
+  PROJECT_TYPE,
+  I18N_REGISTER_INSTANCE_TYPE,
+  I18N_REGISTER_GROUP_TYPE,
+  I18N_REGISTER_PROJECT_TYPE,
+  I18N_REGISTER_RUNNER,
+} from '../../constants';
 import RegistrationToken from './registration_token.vue';
 import RegistrationTokenResetDropdownItem from './registration_token_reset_dropdown_item.vue';
 
@@ -11,16 +26,21 @@ export default {
     showInstallationInstructions: s__(
       'Runners|Show runner installation and registration instructions',
     ),
+    supportForRegistrationTokensDeprecated: s__(
+      'Runners|Support for registration tokens is deprecated',
+    ),
   },
   components: {
-    GlDropdown,
+    GlDisclosureDropdown,
+    GlDisclosureDropdownItem,
+    GlDisclosureDropdownGroup,
     GlDropdownForm,
-    GlDropdownItem,
-    GlDropdownDivider,
+    GlIcon,
     RegistrationToken,
     RunnerInstructionsModal,
     RegistrationTokenResetDropdownItem,
   },
+  mixins: [glFeatureFlagMixin()],
   props: {
     registrationToken: {
       type: String,
@@ -40,16 +60,16 @@ export default {
     };
   },
   computed: {
-    dropdownText() {
+    actionText() {
       switch (this.type) {
         case INSTANCE_TYPE:
-          return s__('Runners|Register an instance runner');
+          return I18N_REGISTER_INSTANCE_TYPE;
         case GROUP_TYPE:
-          return s__('Runners|Register a group runner');
+          return I18N_REGISTER_GROUP_TYPE;
         case PROJECT_TYPE:
-          return s__('Runners|Register a project runner');
+          return I18N_REGISTER_PROJECT_TYPE;
         default:
-          return s__('Runners|Register a runner');
+          return I18N_REGISTER_RUNNER;
       }
     },
   },
@@ -60,33 +80,51 @@ export default {
     onTokenReset(token) {
       this.currentRegistrationToken = token;
 
-      this.$refs.runnerRegistrationDropdown.hide(true);
+      this.$refs.runnerRegistrationDropdown.close();
+    },
+    onCopy() {
+      this.$refs.runnerRegistrationDropdown.close();
     },
   },
 };
 </script>
 
 <template>
-  <gl-dropdown
+  <gl-disclosure-dropdown
     ref="runnerRegistrationDropdown"
-    menu-class="gl-w-auto!"
-    :text="dropdownText"
-    variant="confirm"
+    :toggle-text="actionText"
+    toggle-class="gl-px-3!"
+    variant="default"
+    category="tertiary"
     v-bind="$attrs"
+    icon="ellipsis_v"
+    text-sr-only
+    no-caret
   >
-    <gl-dropdown-item @click.capture.native.stop="onShowInstructionsClick">
-      {{ $options.i18n.showInstallationInstructions }}
-      <runner-instructions-modal
-        ref="runnerInstructionsModal"
-        :registration-token="currentRegistrationToken"
-        data-testid="runner-instructions-modal"
-      />
-    </gl-dropdown-item>
-    <gl-dropdown-divider />
     <gl-dropdown-form class="gl-p-4!">
-      <registration-token input-id="token-value" :value="currentRegistrationToken" />
+      <registration-token input-id="token-value" :value="currentRegistrationToken" @copy="onCopy">
+        <template #label-description>
+          <gl-icon name="warning" class="gl-text-orange-500" />
+          <span class="gl-text-secondary">
+            {{ $options.i18n.supportForRegistrationTokensDeprecated }}
+          </span>
+        </template>
+      </registration-token>
     </gl-dropdown-form>
-    <gl-dropdown-divider />
-    <registration-token-reset-dropdown-item :type="type" @tokenReset="onTokenReset" />
-  </gl-dropdown>
+    <gl-disclosure-dropdown-group bordered>
+      <gl-disclosure-dropdown-item @action="onShowInstructionsClick">
+        <template #list-item>
+          {{ $options.i18n.showInstallationInstructions }}
+          <runner-instructions-modal
+            ref="runnerInstructionsModal"
+            :registration-token="currentRegistrationToken"
+            data-testid="runner-instructions-modal"
+          />
+        </template>
+      </gl-disclosure-dropdown-item>
+    </gl-disclosure-dropdown-group>
+    <gl-disclosure-dropdown-group bordered>
+      <registration-token-reset-dropdown-item :type="type" @tokenReset="onTokenReset" />
+    </gl-disclosure-dropdown-group>
+  </gl-disclosure-dropdown>
 </template>

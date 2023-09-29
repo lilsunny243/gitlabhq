@@ -14,13 +14,15 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
 
     let(:creator) { create(:user, developer_projects: [project]) }
     let!(:pipeline) do
-      create(:ci_pipeline,
-             project: project,
-             user: creator,
-             ref: project.default_branch,
-             sha: project.commit.sha,
-             status: :success,
-             created_at: 5.months.ago)
+      create(
+        :ci_pipeline,
+        project: project,
+        user: creator,
+        ref: project.default_branch,
+        sha: project.commit.sha,
+        status: :success,
+        created_at: 5.months.ago
+      )
     end
 
     context 'commit status is Generic Commit Status' do
@@ -38,7 +40,11 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
           wait_for_requests
         end
 
-        it { expect(page).to have_content pipeline.sha[0..7] }
+        it 'contains commit short id' do
+          page.within('[data-testid="pipeline-details-header"]') do
+            expect(page).to have_content pipeline.sha[0..7]
+          end
+        end
 
         it 'contains generic commit status build' do
           page.within('[data-testid="jobs-tab-table"]') do
@@ -60,11 +66,13 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
 
         describe 'Project commits' do
           let!(:pipeline_from_other_branch) do
-            create(:ci_pipeline,
-                   project: project,
-                   ref: 'fix',
-                   sha: project.commit.sha,
-                   status: :failed)
+            create(
+              :ci_pipeline,
+              project: project,
+              ref: 'fix',
+              sha: project.commit.sha,
+              status: :failed
+            )
           end
 
           before do
@@ -87,7 +95,6 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
 
           it 'shows pipeline data' do
             expect(page).to have_content pipeline.sha[0..7]
-            expect(page).to have_content pipeline.git_commit_message.gsub!(/\s+/, ' ')
             expect(page).to have_content pipeline.user.name
           end
         end
@@ -107,16 +114,16 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
         describe 'Cancel all builds' do
           it 'cancels commit', :js, :sidekiq_might_not_need_inline do
             visit pipeline_path(pipeline)
-            click_on 'Cancel running'
-            expect(page).to have_content 'canceled'
+            click_on 'Cancel pipeline'
+            expect(page).to have_content 'Canceled'
           end
         end
 
         describe 'Cancel build' do
           it 'cancels build', :js, :sidekiq_might_not_need_inline do
             visit pipeline_path(pipeline)
-            find('[data-testid="cancelPipeline"]').click
-            expect(page).to have_content 'canceled'
+            find('[data-testid="cancel-pipeline"]').click
+            expect(page).to have_content 'Canceled'
           end
         end
       end
@@ -131,9 +138,8 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
 
         it 'renders header' do
           expect(page).to have_content pipeline.sha[0..7]
-          expect(page).to have_content pipeline.git_commit_message.gsub!(/\s+/, ' ')
           expect(page).to have_content pipeline.user.name
-          expect(page).not_to have_link('Cancel running')
+          expect(page).not_to have_link('Cancel pipeline')
           expect(page).not_to have_link('Retry')
         end
 
@@ -156,7 +162,7 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
           expect(page).to have_content pipeline.git_commit_message.gsub!(/\s+/, ' ')
           expect(page).to have_content pipeline.user.name
 
-          expect(page).not_to have_link('Cancel running')
+          expect(page).not_to have_link('Cancel pipeline')
           expect(page).not_to have_link('Retry')
         end
       end
@@ -165,11 +171,32 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
 
   context 'viewing commits for a branch' do
     let(:branch_name) { 'master' }
+    let(:ref_selector) { '.ref-selector' }
+    let(:ref_with_hash) { 'ref-#-hash' }
+
+    def switch_ref_to(ref_name)
+      first(ref_selector).click
+      wait_for_requests
+
+      page.within ref_selector do
+        fill_in 'Search by Git revision', with: ref_name
+        wait_for_requests
+        find('li', text: ref_name, match: :prefer_exact).click
+      end
+    end
 
     before do
       project.add_maintainer(user)
       sign_in(user)
+      project.repository.create_branch(ref_with_hash, branch_name)
       visit project_commits_path(project, branch_name)
+    end
+
+    it 'includes a date on which the commits were authored' do
+      commits = project.repository.commits(branch_name, limit: 40)
+      commits.chunk { |c| c.committed_date.in_time_zone.to_date }.each do |day, _daily_commits|
+        expect(page).to have_content(day.strftime("%b %d, %Y"))
+      end
     end
 
     it 'includes the committed_date for each commit' do
@@ -180,11 +207,17 @@ RSpec.describe 'Commits', feature_category: :source_code_management do
       end
     end
 
+    it 'switches ref to ref containing a hash', :js do
+      switch_ref_to(ref_with_hash)
+
+      expect(page).to have_selector ref_selector, text: ref_with_hash
+    end
+
     it 'shows the ref switcher with the multi-file editor enabled', :js do
       set_cookie('new_repo', 'true')
       visit project_commits_path(project, branch_name)
 
-      expect(find('.ref-selector')).to have_content branch_name
+      expect(find(ref_selector)).to have_content branch_name
     end
   end
 

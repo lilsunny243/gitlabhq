@@ -207,14 +207,18 @@ export const Tracker = {
 
     const mappedConfig = {};
     if (config.forms) {
-      mappedConfig.forms = renameKey(config.forms, 'allow', 'whitelist');
+      mappedConfig.forms = renameKey(config.forms, 'allow', 'allowlist');
     }
 
     if (config.fields) {
-      mappedConfig.fields = renameKey(config.fields, 'allow', 'whitelist');
+      mappedConfig.fields = renameKey(config.fields, 'allow', 'allowlist');
     }
 
-    const enabler = () => window.snowplow('enableFormTracking', mappedConfig, userProvidedContexts);
+    const enabler = () =>
+      window.snowplow('enableFormTracking', {
+        options: mappedConfig,
+        context: userProvidedContexts,
+      });
 
     if (document.readyState === 'complete') {
       enabler();
@@ -253,12 +257,20 @@ export const Tracker = {
     const customUrl = `${pageUrl}${appendHash ? window.location.hash : ''}`;
     window.snowplow('setCustomUrl', customUrl);
 
+    // If Browser SDK is enabled set Custom url and Referrer url
+    if (window.glClient) {
+      window.glClient?.setCustomUrl(customUrl);
+    }
     if (document.referrer) {
       const node = referrers.find((links) => links.originalUrl === document.referrer);
 
       if (node) {
         pageLinks.referrer = node.url;
         window.snowplow('setReferrerUrl', pageLinks.referrer);
+
+        if (window.glClient) {
+          window.glClient?.setReferrerUrl(pageLinks.referrer);
+        }
       }
     }
 

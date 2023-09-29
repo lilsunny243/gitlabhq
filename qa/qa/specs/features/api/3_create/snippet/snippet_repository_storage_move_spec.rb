@@ -1,18 +1,17 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', product_group: :editor do
+  RSpec.describe 'Create', product_group: :source_code do
     describe 'Snippet repository storage', :requires_admin, :orchestrated, :repository_storage do
       let(:source_storage) { { type: :gitaly, name: 'default' } }
       let(:destination_storage) { { type: :gitaly, name: QA::Runtime::Env.additional_repository_storage } }
 
       let(:snippet) do
-        Resource::Snippet.fabricate_via_api! do |snippet|
-          snippet.title = 'Snippet to move storage of'
-          snippet.file_name = 'original_file'
-          snippet.file_content = 'Original file content'
-          snippet.api_client = Runtime::API::Client.as_admin
-        end
+        create(:snippet,
+          title: 'Snippet to move storage of',
+          file_name: 'original_file',
+          file_content: 'Original file content',
+          api_client: Runtime::API::Client.as_admin)
       end
 
       praefect_manager = Service::PraefectManager.new

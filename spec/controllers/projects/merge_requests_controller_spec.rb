@@ -68,72 +68,6 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
       end
     end
 
-    context 'when add_prepared_state_to_mr feature flag on' do
-      before do
-        stub_feature_flags(add_prepared_state_to_mr: true)
-      end
-
-      context 'when the merge request is not prepared' do
-        before do
-          merge_request.update!(prepared_at: nil, created_at: 10.minutes.ago)
-        end
-
-        it 'prepares the merge request' do
-          expect(NewMergeRequestWorker).to receive(:perform_async)
-
-          go
-        end
-
-        context 'when the merge request was created less than 5 minutes ago' do
-          it 'does not prepare the merge request again' do
-            travel_to(4.minutes.from_now) do
-              merge_request.update!(created_at: Time.current - 4.minutes)
-
-              expect(NewMergeRequestWorker).not_to receive(:perform_async)
-
-              go
-            end
-          end
-        end
-
-        context 'when the merge request was created 5 minutes ago' do
-          it 'prepares the merge request' do
-            travel_to(6.minutes.from_now) do
-              merge_request.update!(created_at: Time.current - 6.minutes)
-
-              expect(NewMergeRequestWorker).to receive(:perform_async)
-
-              go
-            end
-          end
-        end
-      end
-
-      context 'when the merge request is prepared' do
-        before do
-          merge_request.update!(prepared_at: Time.current, created_at: 10.minutes.ago)
-        end
-
-        it 'prepares the merge request' do
-          expect(NewMergeRequestWorker).not_to receive(:perform_async)
-
-          go
-        end
-      end
-    end
-
-    context 'when add_prepared_state_to_mr feature flag is off' do
-      before do
-        stub_feature_flags(add_prepared_state_to_mr: false)
-      end
-
-      it 'does not prepare the merge request again' do
-        expect(NewMergeRequestWorker).not_to receive(:perform_async)
-
-        go
-      end
-    end
-
     describe 'as html' do
       it 'sets the endpoint_metadata_url' do
         go
@@ -575,6 +509,16 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
       it 'returns :failed' do
         expect(json_response).to eq('status' => 'failed')
       end
+
+      context 'for logging' do
+        let(:expected_params) { { merge_action_status: 'failed' } }
+        let(:subject_proc) { proc { subject } }
+
+        subject { post :merge, params: base_params }
+
+        it_behaves_like 'storing arguments in the application context'
+        it_behaves_like 'not executing any extra queries for the application context'
+      end
     end
 
     context 'when the sha parameter does not match the source SHA' do
@@ -584,6 +528,16 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
 
       it 'returns :sha_mismatch' do
         expect(json_response).to eq('status' => 'sha_mismatch')
+      end
+
+      context 'for logging' do
+        let(:expected_params) { { merge_action_status: 'sha_mismatch' } }
+        let(:subject_proc) { proc { subject } }
+
+        subject { post :merge, params: base_params.merge(sha: 'foo') }
+
+        it_behaves_like 'storing arguments in the application context'
+        it_behaves_like 'not executing any extra queries for the application context'
       end
     end
 
@@ -604,6 +558,16 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
         expect(MergeWorker).to receive(:perform_async).with(merge_request.id, anything, { 'sha' => merge_request.diff_head_sha })
 
         merge_with_sha
+      end
+
+      context 'for logging' do
+        let(:expected_params) { { merge_action_status: 'success' } }
+        let(:subject_proc) { proc { subject } }
+
+        subject { merge_with_sha }
+
+        it_behaves_like 'storing arguments in the application context'
+        it_behaves_like 'not executing any extra queries for the application context'
       end
 
       context 'when squash is passed as 1' do
@@ -628,21 +592,17 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
         let(:message) { 'My custom squash commit message' }
 
         it 'passes the same message to SquashService', :sidekiq_inline do
-          params = { squash: '1',
-                     squash_commit_message: message,
-                     sha: merge_request.diff_head_sha }
-          expected_squash_params = { squash_commit_message: message,
-                                     sha: merge_request.diff_head_sha,
-                                     merge_request: merge_request }
-
-          expect_next_instance_of(MergeRequests::SquashService, project: project, current_user: user, params: expected_squash_params) do |squash_service|
+          expect_next_instance_of(MergeRequests::SquashService,
+            merge_request: merge_request,
+            current_user: user,
+            commit_message: message) do |squash_service|
             expect(squash_service).to receive(:execute).and_return({
               status: :success,
               squash_sha: SecureRandom.hex(20)
             })
           end
 
-          merge_with_sha(params)
+          merge_with_sha(squash: '1', squash_commit_message: message, sha: merge_request.diff_head_sha)
         end
       end
 
@@ -671,6 +631,16 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
           expect(service).to receive(:execute).with(merge_request)
 
           merge_when_pipeline_succeeds
+        end
+
+        context 'for logging' do
+          let(:expected_params) { { merge_action_status: 'merge_when_pipeline_succeeds' } }
+          let(:subject_proc) { proc { subject } }
+
+          subject { merge_when_pipeline_succeeds }
+
+          it_behaves_like 'storing arguments in the application context'
+          it_behaves_like 'not executing any extra queries for the application context'
         end
 
         context 'when project.only_allow_merge_if_pipeline_succeeds? is true' do
@@ -811,7 +781,7 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :code_review
       it "deletes the merge request" do
         delete :destroy, params: { namespace_id: project.namespace, project_id: project, id: merge_request.iid, destroy_confirm: true }
 
-        expect(response).to have_gitlab_http_status(:found)
+        expect(response).to have_gitlab_http_status(:see_other)
         expect(controller).to set_flash[:notice].to(/The merge request was successfully deleted\./)
       end
 

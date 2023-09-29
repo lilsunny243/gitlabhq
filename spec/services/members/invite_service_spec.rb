@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Members::InviteService, :aggregate_failures, :clean_gitlab_redis_shared_state, :sidekiq_inline do
+RSpec.describe Members::InviteService, :aggregate_failures, :clean_gitlab_redis_shared_state, :sidekiq_inline,
+  feature_category: :groups_and_projects do
   let_it_be(:project, reload: true) { create(:project) }
   let_it_be(:user) { project.first_owner }
   let_it_be(:project_user) { create(:user) }
@@ -218,6 +219,18 @@ RSpec.describe Members::InviteService, :aggregate_failures, :clean_gitlab_redis_
         expect(result[:message][params[:email]]).to eq("Invite email is invalid")
       end
     end
+
+    context 'with email that has trailing spaces' do
+      let(:params) { { email: ' foo@bar.com ' } }
+
+      it 'returns an error' do
+        expect_not_to_create_members
+        expect(result[:status]).to eq(:error)
+        expect(result[:message][params[:email]]).to eq("Invite email is invalid")
+      end
+
+      it_behaves_like 'does not record an onboarding progress action'
+    end
   end
 
   context 'with duplicate invites' do
@@ -308,11 +321,11 @@ RSpec.describe Members::InviteService, :aggregate_failures, :clean_gitlab_redis_
 
       let(:params) { { email: unconfirmed_user.email } }
 
-      it 'adds an existing user to members' do
+      it 'adds a new member as an invite for unconfirmed primary email' do
         expect_to_create_members(count: 1)
         expect(result[:status]).to eq(:success)
-        expect(project.users).to include unconfirmed_user
-        expect(project.members.last).not_to be_invite
+        expect(project.users).not_to include unconfirmed_user
+        expect(project.members.last).to be_invite
       end
     end
 

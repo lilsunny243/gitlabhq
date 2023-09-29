@@ -127,21 +127,22 @@ module Gitlab
         def to_sentry_error(error)
           Gitlab::ErrorTracking::Error.new(
             id: error.fingerprint.to_s,
-            title: error.name,
+            title: "#{error.name}: #{error.description}",
             message: error.description,
             culprit: error.actor,
             first_seen: error.first_seen_at,
             last_seen: error.last_seen_at,
             status: error.status,
             count: error.event_count,
-            user_count: error.approximated_user_count
+            user_count: error.approximated_user_count,
+            frequency: error.stats&.frequency&.dig(:'24h') || []
           )
         end
 
         def to_sentry_detailed_error(error)
           Gitlab::ErrorTracking::DetailedError.new(
             id: error.fingerprint.to_s,
-            title: error.name,
+            title: "#{error.name}: #{error.description}",
             message: error.description,
             culprit: error.actor,
             first_seen: error.first_seen_at.to_s,
@@ -155,7 +156,8 @@ module Gitlab
             external_base_url: external_base_url,
             integrated: true,
             first_release_version: release_from(oldest_event_for(error.fingerprint)),
-            last_release_version: release_from(newest_event_for(error.fingerprint))
+            last_release_version: release_from(newest_event_for(error.fingerprint)),
+            frequency: error.stats&.frequency&.dig(:'24h') || []
           )
         end
 
@@ -175,7 +177,7 @@ module Gitlab
           ErrorRepository::Pagination.new(pagination_hash['next'], pagination_hash['prev'])
         end
 
-        LINK_PATTERN = %r{cursor=(?<cursor>[^&]+).*; rel="(?<direction>\w+)"}.freeze
+        LINK_PATTERN = %r{cursor=(?<cursor>[^&]+).*; rel="(?<direction>\w+)"}
 
         def parse_pagination_link(content)
           match = LINK_PATTERN.match(content)

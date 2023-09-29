@@ -1,6 +1,7 @@
 import { getByTestId, fireEvent } from '@testing-library/dom';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import DiffRow from '~/diffs/components/diff_row.vue';
 import { mapParallel } from '~/diffs/components/diff_row_utils';
@@ -33,6 +34,14 @@ describe('DiffRow', () => {
       left: { old_line: 1, discussions: [] },
       right: { new_line: 1, discussions: [] },
     },
+    {
+      left: {},
+      right: {},
+      isMetaLineLeft: true,
+      isMetaLineRight: false,
+      isContextLineLeft: true,
+      isContextLineRight: false,
+    },
   ];
 
   const createWrapper = ({ props, state = {}, actions, isLoggedIn = true }) => {
@@ -62,7 +71,8 @@ describe('DiffRow', () => {
         const hits = coverageFileData[file]?.[line];
         if (hits) {
           return { text: `Test coverage: ${hits} hits`, class: 'coverage' };
-        } else if (hits === 0) {
+        }
+        if (hits === 0) {
           return { text: 'No test coverage', class: 'no-coverage' };
         }
 
@@ -89,10 +99,6 @@ describe('DiffRow', () => {
   };
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-
-    window.gon = {};
     showCommentForm.mockReset();
     enterdragging.mockReset();
     stopdragging.mockReset();
@@ -276,6 +282,12 @@ describe('DiffRow', () => {
       expect(findInteropAttributes(wrapper, '[data-testid="left-side"]')).toEqual(leftSide);
       expect(findInteropAttributes(wrapper, '[data-testid="right-side"]')).toEqual(rightSide);
     });
+  });
+
+  it('renders comment button when isMetaLineLeft is false and isMetaLineRight is true', () => {
+    wrapper = createWrapper({ props: { line: testLines[4], inline: false } });
+
+    expect(wrapper.find('.add-diff-note').exists()).toBe(true);
   });
 });
 

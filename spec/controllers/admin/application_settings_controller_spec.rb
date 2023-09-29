@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_setting do
+RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_setting, feature_category: :shared do
   include StubENV
   include UsageDataHelpers
 
@@ -59,7 +59,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'GET #usage_data', feature_category: :service_ping do
+  describe 'GET #usage_data', :with_license, feature_category: :service_ping do
     before do
       stub_usage_data_connections
       stub_database_flavor_check
@@ -204,8 +204,29 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
       expect(ApplicationSetting.current.valid_runner_registrars).to eq(['project'])
     end
 
+    it 'updates GitLab for Slack app settings' do
+      settings = {
+        slack_app_enabled: true,
+        slack_app_id: 'slack_app_id',
+        slack_app_secret: 'slack_app_secret',
+        slack_app_signing_secret: 'slack_app_signing_secret',
+        slack_app_verification_token: 'slack_app_verification_token'
+      }
+
+      put :update, params: { application_setting: settings }
+
+      expect(response).to redirect_to(general_admin_application_settings_path)
+      expect(ApplicationSetting.current).to have_attributes(
+        slack_app_enabled: true,
+        slack_app_id: 'slack_app_id',
+        slack_app_secret: 'slack_app_secret',
+        slack_app_signing_secret: 'slack_app_signing_secret',
+        slack_app_verification_token: 'slack_app_verification_token'
+      )
+    end
+
     context 'boolean attributes' do
-      shared_examples_for 'updates booolean attribute' do |attribute|
+      shared_examples_for 'updates boolean attribute' do |attribute|
         specify do
           existing_value = ApplicationSetting.current.public_send(attribute)
           new_value = !existing_value
@@ -217,10 +238,11 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
         end
       end
 
-      it_behaves_like 'updates booolean attribute', :user_defaults_to_private_profile
-      it_behaves_like 'updates booolean attribute', :can_create_group
-      it_behaves_like 'updates booolean attribute', :admin_mode
-      it_behaves_like 'updates booolean attribute', :require_admin_approval_after_user_signup
+      it_behaves_like 'updates boolean attribute', :user_defaults_to_private_profile
+      it_behaves_like 'updates boolean attribute', :can_create_group
+      it_behaves_like 'updates boolean attribute', :admin_mode
+      it_behaves_like 'updates boolean attribute', :require_admin_approval_after_user_signup
+      it_behaves_like 'updates boolean attribute', :remember_me_enabled
     end
 
     context "personal access token prefix settings" do
@@ -398,6 +420,17 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
         expect(application_settings.reload.invitation_flow_enforcement).to eq(true)
       end
     end
+
+    context 'maximum includes' do
+      let(:application_settings) { ApplicationSetting.current }
+
+      it 'updates ci_max_includes setting' do
+        put :update, params: { application_setting: { ci_max_includes: 200 } }
+
+        expect(response).to redirect_to(general_admin_application_settings_path)
+        expect(application_settings.reload.ci_max_includes).to eq(200)
+      end
+    end
   end
 
   describe 'PUT #reset_registration_token', feature_category: :user_management do
@@ -451,6 +484,43 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
       subject
 
       expect(response).to redirect_to("https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf")
+    end
+  end
+
+  describe 'GET #slack_app_manifest_download', feature_category: :integrations do
+    before do
+      sign_in(admin)
+    end
+
+    subject { get :slack_app_manifest_download }
+
+    it 'downloads the GitLab for Slack app manifest' do
+      allow(Slack::Manifest).to receive(:to_h).and_return({ foo: 'bar' })
+
+      subject
+
+      expect(response.body).to eq('{"foo":"bar"}')
+      expect(response.headers['Content-Disposition']).to eq(
+        'attachment; filename="slack_manifest.json"; filename*=UTF-8\'\'slack_manifest.json'
+      )
+    end
+  end
+
+  describe 'GET #slack_app_manifest_share', feature_category: :integrations do
+    before do
+      sign_in(admin)
+    end
+
+    subject { get :slack_app_manifest_share }
+
+    it 'redirects the user to the Slack Manifest share URL' do
+      allow(Slack::Manifest).to receive(:to_h).and_return({ foo: 'bar' })
+
+      subject
+
+      expect(response).to redirect_to(
+        "https://api.slack.com/apps?new_app=1&manifest_json=%7B%22foo%22%3A%22bar%22%7D"
+      )
     end
   end
 

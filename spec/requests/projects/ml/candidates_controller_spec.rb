@@ -6,32 +6,58 @@ RSpec.describe Projects::Ml::CandidatesController, feature_category: :mlops do
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:user) { project.first_owner }
   let_it_be(:experiment) { create(:ml_experiments, project: project, user: user) }
-  let_it_be(:candidate) { create(:ml_candidates, experiment: experiment, user: user) }
+  let_it_be(:candidate) do
+    create(:ml_candidates, experiment: experiment, user: user, project: project).tap do |c|
+      c.update!(ci_build: create(:ci_build))
+    end
+  end
 
   let(:ff_value) { true }
   let(:candidate_iid) { candidate.iid }
+  let(:read_model_experiments) { true }
+  let(:write_model_experiments) { true }
 
   before do
-    stub_feature_flags(ml_experiment_tracking: false)
-    stub_feature_flags(ml_experiment_tracking: project) if ff_value
-
+    allow(Ability).to receive(:allowed?).and_call_original
+    allow(Ability).to receive(:allowed?)
+                        .with(user, :read_model_experiments, project)
+                        .and_return(read_model_experiments)
+    allow(Ability).to receive(:allowed?)
+                        .with(user, :write_model_experiments, project)
+                        .and_return(write_model_experiments)
     sign_in(user)
   end
 
-  shared_examples '404 if feature flag disabled' do
-    context 'when :ml_experiment_tracking disabled' do
-      let(:ff_value) { false }
+  shared_examples 'renders 404' do
+    it 'renders 404' do
+      expect(response).to have_gitlab_http_status(:not_found)
+    end
+  end
 
-      it 'is 404' do
-        expect(response).to have_gitlab_http_status(:not_found)
-      end
+  shared_examples '404 if candidate does not exist' do
+    context 'when experiment does not exist' do
+      let(:candidate_iid) { non_existing_record_id }
+
+      it_behaves_like 'renders 404'
+    end
+  end
+
+  shared_examples 'requires read_model_experiments' do
+    context 'when user does not have access' do
+      let(:read_model_experiments) { false }
+
+      it_behaves_like 'renders 404'
     end
   end
 
   describe 'GET show' do
-    let(:params) { basic_params.merge(id: experiment.iid) }
+    let(:can_read_build) { true }
 
     before do
+      allow(Ability).to receive(:allowed?)
+                          .with(user, :read_build, candidate.ci_build)
+                          .and_return(can_read_build)
+
       show_candidate
     end
 
@@ -48,20 +74,60 @@ RSpec.describe Projects::Ml::CandidatesController, feature_category: :mlops do
       expect { show_candidate }.not_to exceed_all_query_limit(control_count)
     end
 
-    context 'when candidate does not exist' do
-      let(:candidate_iid) { non_existing_record_id.to_s }
-
-      it 'returns 404' do
-        expect(response).to have_gitlab_http_status(:not_found)
+    context 'when user has permission to read the build' do
+      it 'includes ci build info' do
+        expect(assigns[:include_ci_info]).to eq(true)
       end
     end
 
-    it_behaves_like '404 if feature flag disabled'
+    context 'when user has no permission to read the build' do
+      let(:can_read_build) { false }
+
+      it 'sets include_ci_job to false' do
+        expect(assigns[:include_ci_info]).to eq(false)
+      end
+    end
+
+    it_behaves_like '404 if candidate does not exist'
+    it_behaves_like 'requires read_model_experiments'
+  end
+
+  describe 'DELETE #destroy' do
+    let_it_be(:candidate_for_deletion) do
+      create(:ml_candidates, project: project, experiment: experiment, user: user)
+    end
+
+    let(:candidate_iid) { candidate_for_deletion.iid }
+
+    before do
+      destroy_candidate
+    end
+
+    it 'deletes the experiment', :aggregate_failures do
+      expect(response).to have_gitlab_http_status(:found)
+      expect(flash[:notice]).to eq('Candidate removed')
+      expect(response).to redirect_to("/#{project.full_path}/-/ml/experiments/#{experiment.iid}")
+      expect { Ml::Candidate.find(id: candidate_for_deletion.id) }.to raise_error(ActiveRecord::RecordNotFound)
+    end
+
+    it_behaves_like '404 if candidate does not exist'
+
+    describe 'requires write_model_experiments' do
+      let(:write_model_experiments) { false }
+
+      it 'is 404' do
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
   end
 
   private
 
   def show_candidate
-    get project_ml_candidate_path(project, candidate_iid)
+    get project_ml_candidate_path(project, iid: candidate_iid)
+  end
+
+  def destroy_candidate
+    delete project_ml_candidate_path(project, candidate_iid)
   end
 end

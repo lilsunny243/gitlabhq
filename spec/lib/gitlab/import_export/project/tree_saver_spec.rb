@@ -7,30 +7,25 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
   let_it_be(:exportable_path) { 'project' }
   let_it_be(:user) { create(:user) }
   let_it_be(:group) { create(:group) }
+  let_it_be(:private_project) { create(:project, :private, group: group) }
+  let_it_be(:private_mr) { create(:merge_request, source_project: private_project, project: private_project) }
   let_it_be(:project) { setup_project }
 
-  shared_examples 'saves project tree successfully' do |ndjson_enabled|
+  shared_examples 'saves project tree successfully' do
     include ImportExport::CommonUtil
 
-    subject { get_json(full_path, exportable_path, relation_name, ndjson_enabled) }
+    subject { get_json(full_path, exportable_path, relation_name) }
 
     describe 'saves project tree attributes' do
       let_it_be(:shared) { project.import_export_shared }
 
       let(:relation_name) { :projects }
 
-      let_it_be(:full_path) do
-        if ndjson_enabled
-          File.join(shared.export_path, 'tree')
-        else
-          File.join(shared.export_path, Gitlab::ImportExport.project_filename)
-        end
-      end
+      let_it_be(:full_path) { File.join(shared.export_path, 'tree') }
 
       before_all do
         RSpec::Mocks.with_temporary_scope do
           stub_all_feature_flags
-          stub_feature_flags(project_export_as_ndjson: ndjson_enabled)
 
           project.add_maintainer(user)
 
@@ -125,6 +120,17 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
           expect(reviewer).not_to be_nil
           expect(reviewer['user_id']).to eq(user.id)
         end
+
+        it 'has merge requests system notes' do
+          system_notes = subject.first['notes'].select { |note| note['system'] }
+
+          expect(system_notes.size).to eq(1)
+          expect(system_notes.first['note']).to eq('merged')
+        end
+
+        it 'has no merge_when_pipeline_succeeds' do
+          expect(subject.first['merge_when_pipeline_succeeds']).to be_nil
+        end
       end
 
       context 'with snippets' do
@@ -155,6 +161,12 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
         let(:relation_name) { :issues }
 
         it { is_expected.not_to be_empty }
+
+        it 'has a work_item_type' do
+          issue = subject.first
+
+          expect(issue['work_item_type']).to eq('base_type' => 'task')
+        end
 
         it 'has issue comments' do
           notes = subject.first['notes']
@@ -293,6 +305,14 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
 
         it { is_expected.not_to be_empty }
       end
+
+      context 'with pipeline schedules' do
+        let(:relation_name) { :pipeline_schedules }
+
+        it 'has no owner_id' do
+          expect(subject.first['owner_id']).to be_nil
+        end
+      end
     end
 
     describe '#saves project tree' do
@@ -300,13 +320,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
       let_it_be(:group) { create(:group) }
 
       let(:project) { setup_project }
-      let(:full_path) do
-        if ndjson_enabled
-          File.join(shared.export_path, 'tree')
-        else
-          File.join(shared.export_path, Gitlab::ImportExport.project_filename)
-        end
-      end
+      let(:full_path) { File.join(shared.export_path, 'tree') }
 
       let(:shared) { project.import_export_shared }
       let(:params) { {} }
@@ -314,7 +328,6 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
       let(:project_tree_saver ) { described_class.new(project: project, current_user: user, shared: shared, params: params) }
 
       before do
-        stub_feature_flags(project_export_as_ndjson: ndjson_enabled)
         project.add_maintainer(user)
 
         FileUtils.rm_rf(export_path)
@@ -425,13 +438,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
     end
   end
 
-  context 'with JSON' do
-    it_behaves_like "saves project tree successfully", false
-  end
-
-  context 'with NDJSON' do
-    it_behaves_like "saves project tree successfully", true
-  end
+  it_behaves_like "saves project tree successfully"
 
   context 'when streaming has to retry', :aggregate_failures do
     let(:shared) { double('shared', export_path: exportable_path) }
@@ -492,7 +499,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
       group: group,
       approvals_before_merge: 1)
 
-    issue = create(:issue, assignees: [user], project: project)
+    issue = create(:issue, :task, assignees: [user], project: project)
     snippet = create(:project_snippet, project: project)
     project_label = create(:label, project: project)
     group_label = create(:group_label, group: group)
@@ -512,6 +519,9 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
     create(:milestone, project: project)
     discussion_note = create(:discussion_note, noteable: issue, project: project)
     mr_note = create(:note, noteable: merge_request, project: project)
+    create(:system_note, noteable: merge_request, project: project, author: user, note: 'merged')
+    private_system_note = "mentioned in merge request #{private_mr.to_reference(project)}"
+    create(:system_note, noteable: merge_request, project: project, author: user, note: private_system_note)
     create(:note, noteable: snippet, project: project)
     create(:note_on_commit,
       author: user,
@@ -537,6 +547,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeSaver, :with_license, feature_
 
     design = create(:design, :with_file, versions_count: 2, issue: issue)
     create(:diff_note_on_design, noteable: design, project: project, author: user)
+    create(:ci_pipeline_schedule, project: project, owner: user)
 
     project
   end

@@ -5,9 +5,9 @@ module Types
     class AgentType < BaseObject
       graphql_name 'ClusterAgent'
 
-      authorize :read_cluster
+      authorize :read_cluster_agent
 
-      connection_type_class(Types::CountableConnectionType)
+      connection_type_class Types::CountableConnectionType
 
       field :created_at,
             Types::TimeType,
@@ -33,7 +33,7 @@ module Types
             null: true,
             authorize: :read_project
 
-      field :tokens, Types::Clusters::AgentTokenType.connection_type,
+      field :tokens,
             description: 'Tokens associated with the cluster agent.',
             null: true,
             resolver: ::Resolvers::Clusters::AgentTokensResolver

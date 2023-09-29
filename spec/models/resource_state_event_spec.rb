@@ -45,8 +45,11 @@ RSpec.describe ResourceStateEvent, feature_category: :team_planning, type: :mode
     describe '#issue_usage_metrics' do
       describe 'when an issue is closed' do
         subject(:close_issue) do
-          create(described_class.name.underscore.to_sym, issue: issue,
-                                                         state: described_class.states[:closed])
+          create(
+            described_class.name.underscore.to_sym,
+            issue: issue,
+            state: described_class.states[:closed]
+          )
         end
 
         it 'tracks closed issues' do
@@ -55,18 +58,23 @@ RSpec.describe ResourceStateEvent, feature_category: :team_planning, type: :mode
           close_issue
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CLOSED }
-          let(:project) { issue.project }
-          let(:user) { issue.author }
+        it_behaves_like 'internal event tracking' do
           subject(:service_action) { close_issue }
+
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CLOSED }
+          let(:project) { issue.project }
+          let(:namespace) { issue.project.namespace }
+          let(:user) { issue.author }
         end
       end
 
       describe 'when an issue is reopened' do
         subject(:reopen_issue) do
-          create(described_class.name.underscore.to_sym, issue: issue,
-                                                         state: described_class.states[:reopened])
+          create(
+            described_class.name.underscore.to_sym,
+            issue: issue,
+            state: described_class.states[:reopened]
+          )
         end
 
         it 'tracks reopened issues' do
@@ -75,11 +83,13 @@ RSpec.describe ResourceStateEvent, feature_category: :team_planning, type: :mode
           reopen_issue
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_REOPENED }
+        it_behaves_like 'internal event tracking' do
+          subject(:service_action) { reopen_issue }
+
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_REOPENED }
           let(:project) { issue.project }
           let(:user) { issue.author }
-          subject(:service_action) { reopen_issue }
+          let(:namespace) { issue.project.namespace }
         end
       end
 

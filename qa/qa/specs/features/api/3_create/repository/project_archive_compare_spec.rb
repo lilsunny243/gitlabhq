@@ -6,7 +6,7 @@ require 'digest'
 module QA
   RSpec.describe 'Create' do
     describe 'Compare archives of different user projects with the same name and check they\'re different',
-             product_group: :source_code do
+      product_group: :source_code do
       include Support::API
       let(:project_name) { "project-archive-download-#{SecureRandom.hex(8)}" }
 
@@ -46,12 +46,7 @@ module QA
       end
 
       def create_project(user, api_client, project_name)
-        project = Resource::Project.fabricate_via_api! do |project|
-          project.personal_namespace = user.username
-          project.add_name_uuid = false
-          project.name = project_name
-          project.api_client = api_client
-        end
+        project = create(:project, name: project_name, api_client: api_client, add_name_uuid: false, personal_namespace: user.username)
 
         Resource::Repository::Commit.fabricate_via_api! do |commit|
           commit.project = project

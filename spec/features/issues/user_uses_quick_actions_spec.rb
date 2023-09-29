@@ -8,11 +8,11 @@ require 'spec_helper'
 # Because this kind of spec takes more time to run there is no need to add new ones
 # for each existing quick action unless they test something not tested by existing tests.
 RSpec.describe 'Issues > User uses quick actions', :js, feature_category: :team_planning do
-  include Spec::Support::Helpers::Features::NotesHelpers
+  include Features::NotesHelpers
 
   context "issuable common quick actions" do
     let(:new_url_opts) { {} }
-    let(:maintainer) { create(:user) }
+    let(:maintainer) { create(:user, :no_super_sidebar) }
     let(:project) { create(:project, :public) }
     let!(:label_bug) { create(:label, project: project, title: 'bug') }
     let!(:label_feature) { create(:label, project: project, title: 'feature') }
@@ -25,7 +25,7 @@ RSpec.describe 'Issues > User uses quick actions', :js, feature_category: :team_
   end
 
   describe 'issue-only commands' do
-    let(:user) { create(:user) }
+    let(:user) { create(:user, :no_super_sidebar) }
     let(:project) { create(:project, :public, :repository) }
     let(:issue) { create(:issue, project: project, due_date: Date.new(2016, 8, 28)) }
 

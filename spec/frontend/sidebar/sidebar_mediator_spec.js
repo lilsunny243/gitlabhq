@@ -7,7 +7,7 @@ import SidebarMediator from '~/sidebar/sidebar_mediator';
 import SidebarStore from '~/sidebar/stores/sidebar_store';
 import Mock from './mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/vue_shared/plugins/global_toast');
 jest.mock('~/commons/nav/user_merge_requests');
 
@@ -25,8 +25,6 @@ describe('Sidebar mediator', () => {
     SidebarService.singleton = null;
     SidebarStore.singleton = null;
     SidebarMediator.singleton = null;
-
-    jest.clearAllMocks();
   });
 
   it('assigns yourself', () => {

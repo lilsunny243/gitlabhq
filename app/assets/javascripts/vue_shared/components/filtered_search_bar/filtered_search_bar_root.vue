@@ -12,11 +12,12 @@ import {
 import RecentSearchesStorageKeys from 'ee_else_ce/filtered_search/recent_searches_storage_keys';
 import RecentSearchesService from '~/filtered_search/services/recent_searches_service';
 import RecentSearchesStore from '~/filtered_search/stores/recent_searches_store';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
+import { stripQuotes } from '~/lib/utils/text_utility';
 import { __ } from '~/locale';
 
 import { SORT_DIRECTION } from './constants';
-import { filterEmptySearchTerm, stripQuotes, uniqueTokens } from './filtered_search_utils';
+import { filterEmptySearchTerm, uniqueTokens } from './filtered_search_utils';
 
 export default {
   components: {
@@ -72,7 +73,8 @@ export default {
     },
     searchInputPlaceholder: {
       type: String,
-      required: true,
+      required: false,
+      default: __('Search or filter results…'),
     },
     suggestionsListClass: {
       type: String,
@@ -98,6 +100,16 @@ export default {
       type: Boolean,
       required: false,
       default: false,
+    },
+    termsAsTokens: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    searchTextOptionLabel: {
+      type: String,
+      required: false,
+      default: __('Search for this text'),
     },
   },
   data() {
@@ -333,7 +345,7 @@ export default {
 </script>
 
 <template>
-  <div class="vue-filtered-search-bar-container gl-md-display-flex">
+  <div class="vue-filtered-search-bar-container gl-md-display-flex gl-min-w-0">
     <gl-form-checkbox
       v-if="showCheckbox"
       class="gl-align-self-center"
@@ -356,7 +368,9 @@ export default {
       :close-button-title="__('Close')"
       :clear-recent-searches-text="__('Clear recent searches')"
       :no-recent-searches-text="__(`You don't have any recent searches`)"
+      :search-text-option-label="searchTextOptionLabel"
       :show-friendly-text="showFriendlyText"
+      :terms-as-tokens="termsAsTokens"
       class="flex-grow-1"
       @history-item-selected="handleHistoryItemSelected"
       @clear="onClear"

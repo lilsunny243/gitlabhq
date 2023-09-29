@@ -1,5 +1,7 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlLoadingIcon } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState } from 'vuex';
 import { __ } from '~/locale';
 import GLTerminal from '~/terminal/terminal';
@@ -35,7 +37,8 @@ export default {
     loadingText() {
       if (isStartingStatus(this.status)) {
         return __('Starting...');
-      } else if (this.status === STOPPING) {
+      }
+      if (this.status === STOPPING) {
         return __('Stopping...');
       }
 

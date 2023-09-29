@@ -1,4 +1,4 @@
-import { GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdownItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import LeaveGroupDropdownItem from '~/members/components/action_dropdowns/leave_group_dropdown_item.vue';
@@ -26,14 +26,10 @@ describe('LeaveGroupDropdownItem', () => {
     });
   };
 
-  const findDropdownItem = () => wrapper.findComponent(GlDropdownItem);
+  const findDropdownItem = () => wrapper.findComponent(GlDisclosureDropdownItem);
 
   beforeEach(() => {
     createComponent();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('renders a slot with red text', () => {

@@ -6,30 +6,25 @@
   }
 
   .archived-job {
-    top: $header-height;
+    top: $calc-application-header-height;
     border-radius: 2px 2px 0 0;
     color: var(--orange-600, $orange-600);
     background-color: var(--orange-50, $orange-50);
     border: 1px solid var(--border-color, $border-color);
-
-    .with-performance-bar & {
-      top: calc(#{$header-height} + #{$performance-bar-height});
-    }
   }
 
   .top-bar {
     @include build-log-top-bar(50px);
+    z-index: 2;
+    border-radius: $border-radius-default $border-radius-default 0 0;
+    box-shadow: 0 -4px 0 0 var(--white);
 
     &.has-archived-block {
-      top: calc(#{$header-height} + 28px);
-
-      .with-performance-bar & {
-        top: calc(#{$header-height} + #{$performance-bar-height} + 28px);
-      }
+      top: calc(#{$calc-application-header-height} + 28px);
     }
 
     &.affix {
-      top: $header-height;
+      top: $calc-application-header-height;
 
       // with sidebar
       &.sidebar-expanded {
@@ -96,38 +91,20 @@
 .right-sidebar.build-sidebar {
   padding: 0;
 
+  @include media-breakpoint-up(lg) {
+    @include gl-border-l-0;
+  }
+
   &.right-sidebar-collapsed {
     display: none;
   }
 
   .sidebar-container {
-    padding-right: 100px;
-    height: 100%;
+    @include gl-sticky;
+    top: #{$top-bar-height - 1px};
+    max-height: calc(100vh - #{$top-bar-height - 1px});
     overflow-y: scroll;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .blocks-container {
-    padding: 0 $gl-padding;
-    width: 289px;
-  }
-
-  .trigger-variables-btn-container {
-    justify-content: space-between;
-    align-items: center;
-
-    .trigger-variables-btn {
-      margin-top: -5px;
-      margin-bottom: -5px;
-    }
-  }
-
-  .trigger-build-variables {
-    margin: 0;
-    overflow-x: auto;
-    width: 100%;
-    -ms-overflow-style: scrollbar;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -150,38 +127,20 @@
     vertical-align: top;
   }
 
-  .badge.badge-pill {
-    margin-left: 2px;
+  .blocks-container {
+    width: 289px;
   }
 
-  .stage-item {
-    cursor: pointer;
-
-    &:hover {
-      color: var(--gl-text-color, $gl-text-color);
-    }
+  .block {
+    width: 262px;
   }
 
   .builds-container {
-    background-color: var(--white, $white);
-    border-top: 1px solid var(--border-color, $border-color);
-    border-bottom: 1px solid var(--border-color, $border-color);
-    max-height: 300px;
-    width: 289px;
     overflow: auto;
 
-    a {
-      padding: $gl-padding 10px $gl-padding 40px;
-      width: 270px;
-
-      &:hover {
-        color: var(--gl-text-color, $gl-text-color);
-      }
-    }
-
     .icon-arrow-right {
-      left: 15px;
-      top: 20px;
+      left: 8px;
+      top: 12px;
     }
 
     .build-job {
@@ -200,9 +159,11 @@
   .container-fluid.container-limited {
     max-width: 100%;
   }
+}
 
-  .content-wrapper {
-    padding-bottom: 6px;
+.build-sidebar-item {
+  &:last-of-type {
+    @include gl-mb-0;
   }
 }
 
@@ -211,14 +172,5 @@
 
   &:last-of-type {
     margin-bottom: 0;
-  }
-}
-
-@include media-breakpoint-down(md) {
-  .content-list {
-    &.builds-content-list {
-      width: 100%;
-      overflow: auto;
-    }
   }
 }

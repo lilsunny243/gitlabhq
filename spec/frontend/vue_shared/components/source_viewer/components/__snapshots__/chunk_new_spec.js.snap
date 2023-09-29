@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Chunk component rendering isHighlighted is true renders line numbers 1`] = `
+<div
+  class="diff-line-num gl-border-r gl-display-flex gl-p-0! gl-z-index-3 line-links line-numbers"
+  data-testid="line-numbers"
+>
+  <a
+    class="file-line-blame gl-shadow-none! gl-user-select-none"
+    href="some/blame/path.js#L71"
+  />
+  <a
+    class="file-line-num gl-shadow-none! gl-user-select-none"
+    data-line-number="71"
+    href="#L71"
+    id="reference-0"
+  >
+    71
+  </a>
+</div>
+`;

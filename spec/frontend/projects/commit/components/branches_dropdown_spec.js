@@ -1,6 +1,7 @@
 import { GlCollapsibleListbox } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import BranchesDropdown from '~/projects/commit/components/branches_dropdown.vue';
@@ -41,8 +42,6 @@ describe('BranchesDropdown', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     spyFetchBranches.mockReset();
   });
 
@@ -61,7 +60,7 @@ describe('BranchesDropdown', () => {
   });
 
   describe('Selecting Dropdown Item', () => {
-    it('emits event', async () => {
+    it('emits event', () => {
       findDropdown().vm.$emit('select', '_anything_');
 
       expect(wrapper.emitted()).toHaveProperty('input');
@@ -70,13 +69,11 @@ describe('BranchesDropdown', () => {
 
   describe('When searching', () => {
     it('invokes fetchBranches', async () => {
-      const spy = jest.spyOn(wrapper.vm, 'fetchBranches');
-
       findDropdown().vm.$emit('search', '_anything_');
 
       await nextTick();
 
-      expect(spy).toHaveBeenCalledWith('_anything_');
+      expect(spyFetchBranches).toHaveBeenCalledWith(expect.any(Object), '_anything_');
     });
   });
 });

@@ -52,7 +52,8 @@ RSpec.describe 'Query.project(fullPath).pipelines.job(id)', feature_category: :c
         'duration' => 25,
         'kind' => 'BUILD',
         'queuedDuration' => 2.0,
-        'status' => job_2.status.upcase
+        'status' => job_2.status.upcase,
+        'failureMessage' => job_2.present.failure_message
       )
     end
 
@@ -78,7 +79,7 @@ RSpec.describe 'Query.project(fullPath).pipelines.job(id)', feature_category: :c
       post_graphql(query, current_user: user)
 
       expect(graphql_data_at(*path)).to match a_hash_including(
-        'text' => 'pending',
+        'text' => 'Pending',
         'label' => 'pending',
         'action' => a_hash_including('buttonTitle' => 'Cancel this job', 'icon' => 'cancel')
       )

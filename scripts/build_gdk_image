@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+source "$(dirname "$0")/utils.sh"
+
+REGISTRY="${CI_REGISTRY}/${CI_PROJECT_PATH}"
+SHA_TAG="${CI_COMMIT_SHA}"
+BRANCH_TAG="${CI_COMMIT_REF_SLUG}"
+
+IMAGE="${REGISTRY}/gitlab-qa-gdk"
+
+if [[ -n "${CI}" ]]; then
+  OUTPUT_OPTION="--push"
+else
+  OUTPUT_OPTION="--load"
+fi
+
+echoinfo "Building GDK image" "yes"
+
+docker buildx build \
+  --cache-to="type=registry,mode=max,image-manifest=true,ref=${IMAGE}/cache:${BRANCH_TAG}" \
+  --cache-from="${IMAGE}/cache:${BRANCH_TAG}" \
+  --cache-from="${IMAGE}/cache:master" \
+  --file="qa/gdk/Dockerfile.gdk" \
+  --platform=${ARCH:-amd64} \
+  --tag="${IMAGE}:${SHA_TAG}" \
+  --tag="${IMAGE}:${BRANCH_TAG}" \
+  ${OUTPUT_OPTION} \
+  .
+
+echosuccess "Built image '${REGISTRY}/gitlab-qa-gdk:${SHA_TAG}'"

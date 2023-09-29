@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ml::Experiment do
+RSpec.describe Ml::Experiment, feature_category: :mlops do
   let_it_be(:exp) { create(:ml_experiments) }
   let_it_be(:exp2) { create(:ml_experiments, project: exp.project) }
 
@@ -14,6 +14,27 @@ RSpec.describe Ml::Experiment do
     it { is_expected.to belong_to(:user) }
     it { is_expected.to have_many(:candidates) }
     it { is_expected.to have_many(:metadata) }
+    it { is_expected.to belong_to(:model).class_name('Ml::Model') }
+  end
+
+  describe '#destroy' do
+    it 'allow experiment without model to be destroyed' do
+      experiment = create(:ml_experiments, project: exp.project)
+
+      expect { experiment.destroy! }.to change { Ml::Experiment.count }.by(-1)
+    end
+
+    it 'throws error when destroying experiment with model' do
+      experiment = create(:ml_models, project: exp.project).default_experiment
+
+      expect { experiment.destroy! }.to raise_error(ActiveRecord::ActiveRecordError)
+    end
+  end
+
+  describe '.package_name' do
+    describe '.package_name' do
+      it { expect(exp.package_name).to eq("ml_experiment_#{exp.iid}") }
+    end
   end
 
   describe '#by_project_id_and_iid' do
@@ -58,6 +79,45 @@ RSpec.describe Ml::Experiment do
     end
   end
 
+  describe '.find_or_create' do
+    let(:name) { exp.name }
+    let(:project) { exp.project }
+
+    subject(:find_or_create) { described_class.find_or_create(project, name, exp.user) }
+
+    context 'when experiments exists' do
+      it 'fetches existing experiment', :aggregate_failures do
+        expect { find_or_create }.not_to change { Ml::Experiment.count }
+
+        expect(find_or_create).to eq(exp)
+      end
+    end
+
+    context 'when experiments does not exist' do
+      let(:name) { 'a new experiment' }
+
+      it 'creates the experiment', :aggregate_failures do
+        expect { find_or_create }.to change { Ml::Experiment.count }.by(1)
+
+        expect(find_or_create.name).to eq(name)
+        expect(find_or_create.user).to eq(exp.user)
+        expect(find_or_create.project).to eq(project)
+      end
+    end
+
+    context 'when experiment name exists but project is different' do
+      let(:project) { create(:project) }
+
+      it 'creates a model', :aggregate_failures do
+        expect { find_or_create }.to change { Ml::Experiment.count }.by(1)
+
+        expect(find_or_create.name).to eq(name)
+        expect(find_or_create.user).to eq(exp.user)
+        expect(find_or_create.project).to eq(project)
+      end
+    end
+  end
+
   describe '#with_candidate_count' do
     let_it_be(:exp3) do
       create(:ml_experiments, project: exp.project).tap do |e|
@@ -72,6 +132,24 @@ RSpec.describe Ml::Experiment do
       expect(subject[exp.id]).to eq(0)
       expect(subject[exp2.id]).to eq(1)
       expect(subject[exp3.id]).to eq(3)
+    end
+  end
+
+  describe '#package_for_experiment?' do
+    using RSpec::Parameterized::TableSyntax
+
+    subject { described_class.package_for_experiment?(package_name) }
+
+    where(:package_name, :id) do
+      'ml_experiment_1234' | true
+      'ml_experiment_1234abc' | false
+      'ml_experiment_abc' | false
+      'ml_experiment_' | false
+      'blah' | false
+    end
+
+    with_them do
+      it { is_expected.to be(id) }
     end
   end
 end

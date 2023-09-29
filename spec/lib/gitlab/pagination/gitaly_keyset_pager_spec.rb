@@ -106,7 +106,7 @@ RSpec.describe Gitlab::Pagination::GitalyKeysetPager do
         context 'when next page could be available' do
           let(:branches) { [branch1, branch2] }
 
-          let(:expected_next_page_link) { %Q(<#{incoming_api_projects_url}?#{query.merge(page_token: branch2.name).to_query}>; rel="next") }
+          let(:expected_next_page_link) { %(<#{incoming_api_projects_url}?#{query.merge(page_token: branch2.name).to_query}>; rel="next") }
 
           it 'uses keyset pagination and adds link headers' do
             expect(request_context).to receive(:header).with('Link', expected_next_page_link)
@@ -127,17 +127,27 @@ RSpec.describe Gitlab::Pagination::GitalyKeysetPager do
       end
     end
 
-    context 'with "none" pagination option' do
+    context "with 'none' pagination option" do
       let(:expected_result) { double(:result) }
       let(:query) { { pagination: 'none' } }
 
-      it 'uses offset pagination' do
-        expect(finder).to receive(:execute).with(gitaly_pagination: false).and_return(expected_result)
-        expect(Kaminari).not_to receive(:paginate_array)
-        expect(Gitlab::Pagination::OffsetPagination).not_to receive(:new)
+      context "with a finder that is not a TreeFinder" do
+        it_behaves_like 'offset pagination'
+      end
 
-        actual_result = pager.paginate(finder)
-        expect(actual_result).to eq(expected_result)
+      context "with a finder that is a TreeFinder" do
+        before do
+          allow(finder).to receive(:is_a?).with(::Repositories::TreeFinder).and_return(true)
+        end
+
+        it "doesn't uses offset pagination" do
+          expect(finder).to receive(:execute).with(gitaly_pagination: false).and_return(expected_result)
+          expect(Kaminari).not_to receive(:paginate_array)
+          expect(Gitlab::Pagination::OffsetPagination).not_to receive(:new)
+
+          actual_result = pager.paginate(finder)
+          expect(actual_result).to eq(expected_result)
+        end
       end
     end
   end

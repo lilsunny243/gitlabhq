@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { MarkdownCell, CodeCell } from './cells';
 
@@ -58,6 +59,10 @@ export default {
   display: flex;
   width: 100%;
   margin-bottom: 10px;
+}
+
+.output .text-cell {
+  overflow-x: auto;
 }
 
 .cell pre {

@@ -2,7 +2,7 @@
 
 module Ci
   ##
-  # This module implements a way to set the `partion_id` value on a dependent
+  # This module implements a way to set the `partition_id` value on a dependent
   # resource from a parent record.
   # Usage:
   #
@@ -31,12 +31,13 @@ module Ci
         Ci::BuildTraceChunk
         Ci::BuildTraceMetadata
         Ci::BuildPendingState
+        Ci::JobAnnotation
         Ci::JobArtifact
         Ci::JobVariable
         Ci::Pipeline
         Ci::PendingBuild
         Ci::RunningBuild
-        Ci::RunnerMachineBuild
+        Ci::RunnerManagerBuild
         Ci::PipelineVariable
         Ci::Sources::Pipeline
         Ci::Stage
@@ -69,15 +70,17 @@ module Ci
     end
 
     class_methods do
-      def partitionable(scope:, through: nil)
+      def partitionable(scope:, through: nil, partitioned: false)
         handle_partitionable_through(through)
         handle_partitionable_scope(scope)
+        handle_partitionable_ddl(partitioned)
       end
 
       private
 
       def handle_partitionable_through(options)
         return unless options
+        return if Gitlab::Utils.to_boolean(ENV['DISABLE_PARTITIONABLE_SWITCH'], default: false)
 
         define_singleton_method(:routing_table_name) { options[:table] }
         define_singleton_method(:routing_table_name_flag) { options[:flag] }
@@ -94,6 +97,20 @@ module Ci
             record.respond_to?(:partition_id) ? record.partition_id : record
           end
         end
+      end
+
+      def handle_partitionable_ddl(partitioned)
+        return unless partitioned
+
+        include ::PartitionedTable
+
+        partitioned_by :partition_id,
+          strategy: :ci_sliding_list,
+          next_partition_if: proc { false },
+          detach_partition_if: proc { false },
+          # Most of the db tasks are run in a weekly basis, e.g. execute_batched_migrations.
+          # Therefore, let's start with 1.week and see how it'd go.
+          analyze_interval: 1.week
       end
     end
   end

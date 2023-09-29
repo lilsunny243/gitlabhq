@@ -10,7 +10,8 @@ module Gitlab::Ci
           @project = project
           @customization = {
             key_width: opts[:key_width] ? opts[:key_width].to_i : nil,
-            key_text: opts[:key_text]
+            key_text: opts[:key_text],
+            value_width: opts[:value_width] ? opts[:value_width].to_i : nil
           }
 
           # In the future, we should support `order_by=semver` for showing the
@@ -18,7 +19,8 @@ module Gitlab::Ci
           @release = ::ReleasesFinder.new(
             project,
             current_user,
-            order_by: opts[:order_by]).execute.first
+            order_by_for_latest: opts[:order_by],
+            latest: true).execute.first
         end
 
         def entity

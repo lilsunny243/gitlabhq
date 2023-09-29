@@ -424,14 +424,27 @@ describe('Release edit/new getters', () => {
 
   describe('formattedReleaseNotes', () => {
     it.each`
-      description        | includeTagNotes | tagNotes       | included
-      ${'release notes'} | ${true}         | ${'tag notes'} | ${true}
-      ${'release notes'} | ${true}         | ${''}          | ${false}
-      ${'release notes'} | ${false}        | ${'tag notes'} | ${false}
+      description        | includeTagNotes | tagNotes       | included | showCreateFrom
+      ${'release notes'} | ${true}         | ${'tag notes'} | ${true}  | ${false}
+      ${'release notes'} | ${true}         | ${''}          | ${false} | ${false}
+      ${'release notes'} | ${false}        | ${'tag notes'} | ${false} | ${false}
+      ${'release notes'} | ${true}         | ${'tag notes'} | ${true}  | ${true}
+      ${'release notes'} | ${true}         | ${''}          | ${false} | ${true}
+      ${'release notes'} | ${false}        | ${'tag notes'} | ${false} | ${true}
     `(
-      'should include tag notes=$included when includeTagNotes=$includeTagNotes and tagNotes=$tagNotes',
-      ({ description, includeTagNotes, tagNotes, included }) => {
-        const state = { release: { description }, includeTagNotes, tagNotes };
+      'should include tag notes=$included when includeTagNotes=$includeTagNotes and tagNotes=$tagNotes and showCreateFrom=$showCreateFrom',
+      ({ description, includeTagNotes, tagNotes, included, showCreateFrom }) => {
+        let state;
+
+        if (showCreateFrom) {
+          state = {
+            release: { description, tagMessage: tagNotes },
+            includeTagNotes,
+            showCreateFrom,
+          };
+        } else {
+          state = { release: { description }, includeTagNotes, tagNotes, showCreateFrom };
+        }
 
         const text = `### ${s__('Releases|Tag message')}\n\n${tagNotes}\n`;
         if (included) {
@@ -455,6 +468,22 @@ describe('Release edit/new getters', () => {
       const originalReleasedAt = new Date();
       const releasedAt = new Date(2022, 5, 30);
       expect(getters.releasedAtChanged({ originalReleasedAt, release: { releasedAt } })).toBe(true);
+    });
+  });
+
+  describe('localStorageKey', () => {
+    it('returns a string key with the project path for local storage', () => {
+      const projectPath = 'test/project';
+      expect(getters.localStorageKey({ projectPath })).toBe('test/project/release/new');
+    });
+  });
+
+  describe('localStorageCreateFromKey', () => {
+    it('returns a string key with the project path for local storage', () => {
+      const projectPath = 'test/project';
+      expect(getters.localStorageCreateFromKey({ projectPath })).toBe(
+        'test/project/release/new/createFrom',
+      );
     });
   });
 });

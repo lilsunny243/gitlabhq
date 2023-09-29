@@ -63,7 +63,7 @@ and delays before CI pipelines start running.
 
 Potential causes include:
 
-- The GitLab instance may need more Sidekiq workers. By default, a single-node Omnibus GitLab
+- The GitLab instance may need more Sidekiq workers. By default, a single-node Linux package installation
   runs one worker, restricting the execution of Sidekiq jobs to a maximum of one CPU core.
   [Read more about running multiple Sidekiq workers](extra_sidekiq_processes.md).
 
@@ -105,7 +105,14 @@ Gather data on the state of the Sidekiq workers with the following Ruby script.
 
    If the performance issue is intermittent:
 
-   - Run this in a cron job every five minutes. Write the files to a location with enough space: allow for 500 KB per file.
+   - Run this in a cron job every five minutes. Write the files to a location with enough space: allow for at least 500 KB per file.
+
+     ```shell
+     cat > /etc/cron.d/sidekiqcheck <<EOF
+     */5 * * * *  root  /opt/gitlab/bin/gitlab-rails runner /var/opt/gitlab/sidekiqcheck.rb > /tmp/sidekiqcheck_$(date '+\%Y\%m\%d-\%H:\%M').out 2>&1
+     EOF
+     ```
+
    - Refer back to the data to see what went wrong.
 
 1. Analyze the output. The following commands assume that you have a directory of output files.
@@ -494,9 +501,70 @@ has number of drawbacks, as mentioned in [Why Ruby's Timeout is dangerous (and T
 >
 > Nobody writes code to defend against an exception being raised on literally any line. That's not even possible. So Thread.raise is basically like a sneak attack on your code that could result in almost anything. It would probably be okay if it were pure-functional code that did not modify any state. But this is Ruby, so that's unlikely :)
 
-## Omnibus GitLab 14.0 and later: remove the `sidekiq-cluster` service
+## Manually trigger a cron job
 
-Omnibus GitLab instances that were configured to run `sidekiq-cluster` prior to GitLab 14.0
+By visiting `/admin/background_jobs`, you can look into what jobs are scheduled/running/pending on your instance.
+
+You can trigger a cron job from the UI by selecting the "Enqueue Now" button. To trigger a cron job programmatically first open a [Rails console](../operations/rails_console.md).
+
+To find the cron job you want to test:
+
+```irb
+job = Sidekiq::Cron::Job.find('job-name')
+
+# get status of job:
+job.status
+
+# enqueue job right now!
+job.enque!
+```
+
+For example, to trigger the `update_all_mirrors_worker` cron job that updates the repository mirrors:
+
+```irb
+irb(main):001:0> job = Sidekiq::Cron::Job.find('update_all_mirrors_worker')
+=>
+#<Sidekiq::Cron::Job:0x00007f147f84a1d0
+...
+irb(main):002:0> job.status
+=> "enabled"
+irb(main):003:0> job.enque!
+=> 257
+```
+
+The list of available jobs can be found in the [workers](https://gitlab.com/gitlab-org/gitlab/-/tree/master/app/workers) directory.
+
+For more information about Sidekiq jobs, see the [Sidekiq-cron](https://github.com/sidekiq-cron/sidekiq-cron#work-with-job) documentation.
+
+## Clearing a Sidekiq job deduplication idempotency key
+
+Occasionally, jobs that are expected to run (for example, cron jobs) are observed to not run at all. When checking the logs, there might be instances where jobs are seen to not run with a `"job_status": "deduplicated"`.
+
+This can happen when a job failed and the idempotency key was not cleared properly. For example, [stopping Sidekiq kills any remaining jobs after 25 seconds](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/4918).
+
+[By default, the key expires after 6 hours](https://gitlab.com/gitlab-org/gitlab/-/blob/87c92f06eb92716a26679cd339f3787ae7edbdc3/lib/gitlab/sidekiq_middleware/duplicate_jobs/duplicate_job.rb#L23),
+but if you want to clear the idempotency key immediately, follow the following steps (the example provided is for `Geo::VerificationBatchWorker`):
+
+1. Find the worker class and `args` of the job in the Sidekiq logs:
+
+  ```plaintext
+  { ... "class":"Geo::VerificationBatchWorker","args":["container_repository"] ... }
+  ```
+
+1. Start a [Rails console session](../operations/rails_console.md#starting-a-rails-console-session).
+1. Run the following snippet:
+
+  ```ruby
+  worker_class = Geo::VerificationBatchWorker
+  args = ["container_repository"]
+  dj = Gitlab::SidekiqMiddleware::DuplicateJobs::DuplicateJob.new({ 'class' => worker_class.name, 'args' => args }, worker_class.queue)
+  dj.send(:idempotency_key)
+  dj.delete!
+  ```
+
+## GitLab 14.0 and later: remove the `sidekiq-cluster` service (Linux package installations)
+
+Linux package instances that were configured to run `sidekiq-cluster` prior to GitLab 14.0
 might still have this service running along side `sidekiq` in later releases.
 
 The code to manage `sidekiq-cluster` was removed in GitLab 14.0.
@@ -550,3 +618,7 @@ This change might reduce the amount of work Sidekiq can do. Symptoms like delays
 indicate that additional Sidekiq processes would be beneficial.
 Consider [adding additional Sidekiq processes](extra_sidekiq_processes.md)
 to compensate for removing the `sidekiq-cluster` service.
+
+## Related topics
+
+- [Elasticsearch workers overload Sidekiq](../../integration/advanced_search/elasticsearch_troubleshooting.md#elasticsearch-workers-overload-sidekiq).

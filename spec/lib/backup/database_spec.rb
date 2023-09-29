@@ -2,22 +2,21 @@
 
 require 'spec_helper'
 
-RSpec.configure do |rspec|
-  rspec.expect_with :rspec do |c|
-    c.max_formatted_output_length = nil
-  end
-end
-
-RSpec.describe Backup::Database, feature_category: :backup_restore do
+RSpec.describe Backup::Database, :reestablished_active_record_base, feature_category: :backup_restore do
   let(:progress) { StringIO.new }
   let(:output) { progress.string }
-  let(:one_db_configured?) { Gitlab::Database.database_base_models.one? }
-  let(:database_models_for_backup) { Gitlab::Database.database_base_models_with_gitlab_shared }
+  let(:one_database_configured?) { base_models_for_backup.one? }
   let(:timeout_service) do
     instance_double(Gitlab::Database::TransactionTimeoutSettings, restore_timeouts: nil, disable_timeouts: nil)
   end
 
-  before(:all) do
+  let(:base_models_for_backup) do
+    Gitlab::Database.database_base_models_with_gitlab_shared.select do |database_name|
+      Gitlab::Database.has_database?(database_name)
+    end
+  end
+
+  before(:all) do # rubocop:disable RSpec/BeforeAll
     Rake::Task.define_task(:environment)
     Rake.application.rake_require 'active_record/railties/databases'
     Rake.application.rake_require 'tasks/gitlab/backup'
@@ -32,59 +31,85 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
 
     subject { described_class.new(progress, force: force) }
 
-    before do
-      database_models_for_backup.each do |database_name, base_model|
-        base_model.connection.rollback_transaction unless base_model.connection.open_transactions.zero?
-        allow(base_model.connection).to receive(:execute).and_call_original
-      end
-    end
-
     it 'creates gzipped database dumps' do
       Dir.mktmpdir do |dir|
         subject.dump(dir, backup_id)
 
-        database_models_for_backup.each_key do |database_name|
+        base_models_for_backup.each_key do |database_name|
           filename = database_name == 'main' ? 'database.sql.gz' : "#{database_name}_database.sql.gz"
           expect(File.exist?(File.join(dir, filename))).to eq(true)
         end
       end
     end
 
-    it 'uses snapshots' do
-      Dir.mktmpdir do |dir|
-        base_model = Gitlab::Database.database_base_models['main']
-        expect(base_model.connection).to receive(:begin_transaction).with(
-          isolation: :repeatable_read
-        ).and_call_original
-        expect(base_model.connection).to receive(:execute).with(
-          "SELECT pg_export_snapshot() as snapshot_id;"
-        ).and_call_original
-        expect(base_model.connection).to receive(:rollback_transaction).and_call_original
+    context 'when using multiple databases' do
+      before do
+        skip_if_shared_database(:ci)
+      end
 
-        subject.dump(dir, backup_id)
+      it 'uses snapshots' do
+        Dir.mktmpdir do |dir|
+          expect_next_instances_of(Backup::DatabaseModel, 2) do |adapter|
+            expect(adapter.connection).to receive(:begin_transaction).with(
+              isolation: :repeatable_read
+            ).and_call_original
+            expect(adapter.connection).to receive(:select_value).with(
+              "SELECT pg_export_snapshot()"
+            ).and_call_original
+            expect(adapter.connection).to receive(:rollback_transaction).and_call_original
+          end
+
+          subject.dump(dir, backup_id)
+        end
+      end
+
+      it 'disables transaction time out' do
+        number_of_databases = base_models_for_backup.count
+        expect(Gitlab::Database::TransactionTimeoutSettings)
+          .to receive(:new).exactly(2 * number_of_databases).times.and_return(timeout_service)
+        expect(timeout_service).to receive(:disable_timeouts).exactly(number_of_databases).times
+        expect(timeout_service).to receive(:restore_timeouts).exactly(number_of_databases).times
+
+        Dir.mktmpdir do |dir|
+          subject.dump(dir, backup_id)
+        end
       end
     end
 
-    it 'disables transaction time out' do
-      number_of_databases = Gitlab::Database.database_base_models_with_gitlab_shared.count
-      expect(Gitlab::Database::TransactionTimeoutSettings)
-        .to receive(:new).exactly(2 * number_of_databases).times.and_return(timeout_service)
-      expect(timeout_service).to receive(:disable_timeouts).exactly(number_of_databases).times
-      expect(timeout_service).to receive(:restore_timeouts).exactly(number_of_databases).times
+    context 'when using a single databases' do
+      before do
+        skip_if_database_exists(:ci)
+      end
 
-      Dir.mktmpdir do |dir|
-        subject.dump(dir, backup_id)
+      it 'does not use snapshots' do
+        Dir.mktmpdir do |dir|
+          base_model = Backup::DatabaseModel.new('main')
+          expect(base_model.connection).not_to receive(:begin_transaction).with(
+            isolation: :repeatable_read
+          ).and_call_original
+          expect(base_model.connection).not_to receive(:select_value).with(
+            "SELECT pg_export_snapshot()"
+          ).and_call_original
+          expect(base_model.connection).not_to receive(:rollback_transaction).and_call_original
+
+          subject.dump(dir, backup_id)
+        end
       end
     end
 
     describe 'pg_dump arguments' do
       let(:snapshot_id) { 'fake_id' }
-      let(:pg_args) do
-        [
+      let(:default_pg_args) do
+        args = [
           '--clean',
-          '--if-exists',
-          "--snapshot=#{snapshot_id}"
+          '--if-exists'
         ]
+
+        if Gitlab::Database.database_mode == Gitlab::Database::MODE_MULTIPLE_DATABASES
+          args + ["--snapshot=#{snapshot_id}"]
+        else
+          args
+        end
       end
 
       let(:dumper) { double }
@@ -93,24 +118,35 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
       before do
         allow(Backup::Dump::Postgres).to receive(:new).and_return(dumper)
         allow(dumper).to receive(:dump).with(any_args).and_return(true)
+      end
 
-        database_models_for_backup.each do |database_name, base_model|
-          allow(base_model.connection).to receive(:execute).with(
-            "SELECT pg_export_snapshot() as snapshot_id;"
-          ).and_return(['snapshot_id' => snapshot_id])
+      shared_examples 'pg_dump arguments' do
+        it 'calls Backup::Dump::Postgres with correct pg_dump arguments' do
+          number_of_databases = base_models_for_backup.count
+          if number_of_databases > 1
+            expect_next_instances_of(Backup::DatabaseModel, number_of_databases) do |model|
+              expect(model.connection).to receive(:select_value).with(
+                "SELECT pg_export_snapshot()"
+              ).and_return(snapshot_id)
+            end
+          end
+
+          expect(dumper).to receive(:dump).with(anything, anything, expected_pg_args)
+
+          subject.dump(destination_dir, backup_id)
         end
       end
 
-      it 'calls Backup::Dump::Postgres with correct pg_dump arguments' do
-        expect(dumper).to receive(:dump).with(anything, anything, pg_args)
+      context 'when no PostgreSQL schemas are specified' do
+        let(:expected_pg_args) { default_pg_args }
 
-        subject.dump(destination_dir, backup_id)
+        include_examples 'pg_dump arguments'
       end
 
       context 'when a PostgreSQL schema is used' do
         let(:schema) { 'gitlab' }
-        let(:additional_args) do
-          pg_args + ['-n', schema] + Gitlab::Database::EXTRA_SCHEMAS.flat_map do |schema|
+        let(:expected_pg_args) do
+          default_pg_args + ['-n', schema] + Gitlab::Database::EXTRA_SCHEMAS.flat_map do |schema|
             ['-n', schema.to_s]
           end
         end
@@ -119,11 +155,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
           allow(Gitlab.config.backup).to receive(:pg_schema).and_return(schema)
         end
 
-        it 'calls Backup::Dump::Postgres with correct pg_dump arguments' do
-          expect(dumper).to receive(:dump).with(anything, anything, additional_args)
-
-          subject.dump(destination_dir, backup_id)
-        end
+        include_examples 'pg_dump arguments'
       end
     end
 
@@ -134,13 +166,32 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
 
       it 'restores timeouts' do
         Dir.mktmpdir do |dir|
-          number_of_databases = Gitlab::Database.database_base_models_with_gitlab_shared.count
+          number_of_databases = base_models_for_backup.count
           expect(Gitlab::Database::TransactionTimeoutSettings)
             .to receive(:new).exactly(number_of_databases).times.and_return(timeout_service)
           expect(timeout_service).to receive(:restore_timeouts).exactly(number_of_databases).times
 
           expect { subject.dump(dir, backup_id) }.to raise_error StandardError
         end
+      end
+    end
+
+    context 'when using GITLAB_BACKUP_* environment variables' do
+      before do
+        stub_env('GITLAB_BACKUP_PGHOST', 'test.invalid.')
+      end
+
+      it 'will override database.yml configuration' do
+        # Expect an error because we can't connect to test.invalid.
+        expect do
+          Dir.mktmpdir { |dir| subject.dump(dir, backup_id) }
+        end.to raise_error(Backup::DatabaseBackupError)
+
+        expect do
+          ApplicationRecord.connection.select_value('select 1')
+        end.not_to raise_error
+
+        expect(ENV['PGHOST']).to be_nil
       end
     end
   end
@@ -165,7 +216,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
       it 'warns the user and waits' do
         expect(subject).to receive(:sleep)
 
-        if one_db_configured?
+        if one_database_configured?
           expect(Rake::Task['gitlab:db:drop_tables']).to receive(:invoke)
         else
           expect(Rake::Task['gitlab:db:drop_tables:main']).to receive(:invoke)
@@ -183,7 +234,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
 
     context 'with an empty .gz file' do
       it 'returns successfully' do
-        if one_db_configured?
+        if one_database_configured?
           expect(Rake::Task['gitlab:db:drop_tables']).to receive(:invoke)
         else
           expect(Rake::Task['gitlab:db:drop_tables:main']).to receive(:invoke)
@@ -203,7 +254,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
       end
 
       it 'raises a backup error' do
-        if one_db_configured?
+        if one_database_configured?
           expect(Rake::Task['gitlab:db:drop_tables']).to receive(:invoke)
         else
           expect(Rake::Task['gitlab:db:drop_tables:main']).to receive(:invoke)
@@ -219,7 +270,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
       let(:cmd) { %W[#{Gem.ruby} -e $stderr.write("#{noise}#{visible_error}")] }
 
       it 'filters out noise from errors and has a post restore warning' do
-        if one_db_configured?
+        if one_database_configured?
           expect(Rake::Task['gitlab:db:drop_tables']).to receive(:invoke)
         else
           expect(Rake::Task['gitlab:db:drop_tables:main']).to receive(:invoke)
@@ -235,29 +286,29 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
     end
 
     context 'with PostgreSQL settings defined in the environment' do
-      let(:cmd) { %W[#{Gem.ruby} -e] + ["$stderr.puts ENV.to_h.select { |k, _| k.start_with?('PG') }"] }
       let(:config) { YAML.load_file(File.join(Rails.root, 'config', 'database.yml'))['test'] }
 
       before do
-        stub_const 'ENV', ENV.to_h.merge({
+        stub_env(ENV.to_h.merge({
           'GITLAB_BACKUP_PGHOST' => 'test.example.com',
           'PGPASSWORD' => 'donotchange'
-        })
+        }))
       end
 
       it 'overrides default config values' do
-        if one_db_configured?
+        if one_database_configured?
           expect(Rake::Task['gitlab:db:drop_tables']).to receive(:invoke)
         else
           expect(Rake::Task['gitlab:db:drop_tables:main']).to receive(:invoke)
         end
 
+        expect(ENV).to receive(:merge!).with(hash_including { 'PGHOST' => 'test.example.com' })
+        expect(ENV).not_to receive(:[]=).with('PGPASSWORD', anything)
+
         subject.restore(backup_dir)
 
-        expect(output).to include(%("PGHOST"=>"test.example.com"))
-        expect(output).to include(%("PGPASSWORD"=>"donotchange"))
-        expect(output).to include(%("PGPORT"=>"#{config['port']}")) if config['port']
-        expect(output).to include(%("PGUSER"=>"#{config['username']}")) if config['username']
+        expect(ENV['PGPORT']).to eq(config['port']) if config['port']
+        expect(ENV['PGUSER']).to eq(config['username']) if config['username']
       end
     end
 
@@ -270,7 +321,7 @@ RSpec.describe Backup::Database, feature_category: :backup_restore do
         end
 
         it 'raises an error about missing source file' do
-          if one_db_configured?
+          if one_database_configured?
             expect(Rake::Task['gitlab:db:drop_tables']).not_to receive(:invoke)
           else
             expect(Rake::Task['gitlab:db:drop_tables:main']).not_to receive(:invoke)

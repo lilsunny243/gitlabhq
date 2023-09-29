@@ -4,22 +4,34 @@ module Spam
   class SpamActionService
     include SpamConstants
 
-    def initialize(spammable:, spam_params:, user:, action:, extra_features: {})
+    def initialize(spammable:, user:, action:, extra_features: {})
       @target = spammable
-      @spam_params = spam_params
       @user = user
       @action = action
       @extra_features = extra_features
     end
 
-    # rubocop:disable Metrics/AbcSize
     def execute
-      # If spam_params is passed as `nil`, no check will be performed. This is the easiest way to allow
-      # composed services which may not need to do spam checking to "opt out".  For example, when
-      # MoveService is calling CreateService, spam checking is not necessary, as no new content is
-      # being created.
-      return ServiceResponse.success(message: 'Skipped spam check because spam_params was not present') unless spam_params
+      return ServiceResponse.success(message: 'Skipped spam check because user was not present') unless user
 
+      if target.supports_recaptcha? && spam_params
+        execute_with_captcha_support
+      else
+        execute_spam_check
+      end
+    end
+
+    delegate :check_for_spam?, to: :target
+
+    private
+
+    attr_reader :user, :action, :target, :spam_log, :extra_features
+
+    def spam_params
+      Gitlab::RequestContext.instance.spam_params
+    end
+
+    def execute_with_captcha_support
       recaptcha_verified = Captcha::CaptchaVerificationService.new(spam_params: spam_params).execute
 
       if recaptcha_verified
@@ -28,20 +40,17 @@ module Spam
         SpamLog.verify_recaptcha!(user_id: user.id, id: spam_params.spam_log_id)
         ServiceResponse.success(message: "CAPTCHA successfully verified")
       else
-        return ServiceResponse.success(message: 'Skipped spam check because user was allowlisted') if allowlisted?(user)
-        return ServiceResponse.success(message: 'Skipped spam check because it was not required') unless check_for_spam?(user: user)
-
-        perform_spam_service_check
-        ServiceResponse.success(message: "Spam check performed. Check #{target.class.name} spammable model for any errors or CAPTCHA requirement")
+        execute_spam_check
       end
     end
-    # rubocop:enable Metrics/AbcSize
 
-    delegate :check_for_spam?, to: :target
+    def execute_spam_check
+      return ServiceResponse.success(message: 'Skipped spam check because user was allowlisted') if allowlisted?(user)
+      return ServiceResponse.success(message: 'Skipped spam check because it was not required') unless check_for_spam?(user: user)
 
-    private
-
-    attr_reader :user, :action, :target, :spam_params, :spam_log, :extra_features
+      perform_spam_service_check
+      ServiceResponse.success(message: "Spam check performed. Check #{target.class.name} spammable model for any errors or CAPTCHA requirement")
+    end
 
     ##
     # In order to be proceed to the spam check process, the target must be
@@ -53,7 +62,7 @@ module Spam
     end
 
     def allowlisted?(user)
-      user.try(:gitlab_employee?) || user.try(:gitlab_bot?) || user.try(:gitlab_service_user?)
+      user.try(:gitlab_bot?) || user.try(:gitlab_service_user?)
     end
 
     ##
@@ -67,10 +76,9 @@ module Spam
       spam_verdict_service.execute.tap do |result|
         case result
         when BLOCK_USER
-          # TODO: improve BLOCK_USER handling, non-existent until now
-          # https://gitlab.com/gitlab-org/gitlab/-/issues/329666
           target.spam!
           create_spam_log
+          ban_user!
         when DISALLOW
           target.spam!
           create_spam_log
@@ -95,8 +103,8 @@ module Spam
           user_id: user.id,
           title: target.spam_title,
           description: target.spam_description,
-          source_ip: spam_params.ip_address,
-          user_agent: spam_params.user_agent,
+          source_ip: spam_params&.ip_address,
+          user_agent: spam_params&.user_agent,
           noteable_type: noteable_type,
           # Now, all requests are via the API, so hardcode it to true to simplify the logic and API
           # of this service.  See https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/2266
@@ -110,6 +118,12 @@ module Spam
       target.spam_log = spam_log
     end
 
+    def ban_user!
+      UserCustomAttribute.set_banned_by_spam_log(target.spam_log)
+
+      user.ban!
+    end
+
     def spam_verdict_service
       context = {
         action: action,
@@ -117,17 +131,18 @@ module Spam
       }
 
       options = {
-        ip_address: spam_params.ip_address,
-        user_agent: spam_params.user_agent,
-        referer: spam_params.referer
+        ip_address: spam_params&.ip_address,
+        user_agent: spam_params&.user_agent,
+        referer: spam_params&.referer
       }
 
-      SpamVerdictService.new(target: target,
-                             user: user,
-                             options: options,
-                             context: context,
-                             extra_features: extra_features
-                            )
+      SpamVerdictService.new(
+        target: target,
+        user: user,
+        options: options,
+        context: context,
+        extra_features: extra_features
+      )
     end
 
     def noteable_type

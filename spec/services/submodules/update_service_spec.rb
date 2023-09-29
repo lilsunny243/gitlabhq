@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Submodules::UpdateService do
+RSpec.describe Submodules::UpdateService, feature_category: :source_code_management do
   let(:project) { create(:project, :repository) }
   let(:repository) { project.repository }
   let(:user) { create(:user, :commit_email) }
@@ -86,13 +86,15 @@ RSpec.describe Submodules::UpdateService do
             end
           end
 
-          context 'has traversal path' do
-            let(:submodule) { '../six' }
+          # Can be re-enabled when problem from https://gitlab.com/gitlab-org/gitlab/-/issues/413964#note_1421909142
+          # is fixed
+          # context 'has traversal path' do
+          #   let(:submodule) { '../six' }
 
-            it_behaves_like 'returns error result' do
-              let(:error_message) { 'Invalid submodule path' }
-            end
-          end
+          #   it_behaves_like 'returns error result' do
+          #     let(:error_message) { 'Invalid submodule path' }
+          #   end
+          # end
         end
 
         context 'commit_sha' do

@@ -1,17 +1,11 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable, product_group: :package_registry do
-    describe 'Generic Repository' do
+  RSpec.describe 'Package', :object_storage, product_group: :package_registry do
+    describe 'Generic Repository', :external_api_calls do
       include Runtime::Fixtures
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'generic-package-project'
-          project.visibility = :private
-        end
-      end
-
+      let(:project) { create(:project, :private, name: 'generic-package-project') }
       let(:package) do
         Resource::Package.init do |package|
           package.name = "my_package-#{SecureRandom.hex(8)}"
@@ -65,7 +59,7 @@ module QA
         Page::Project::Job::Show.perform do |job|
           expect(job).to be_successful(timeout: 800)
 
-          job.click_element(:pipeline_path)
+          job.go_to_pipeline
         end
 
         Page::Project::Pipeline::Show.perform do |pipeline|
@@ -83,7 +77,7 @@ module QA
       end
 
       it 'uploads a generic package and downloads it', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348017' do
-        Page::Project::Menu.perform(&:click_packages_link)
+        Page::Project::Menu.perform(&:go_to_package_registry)
 
         Page::Project::Packages::Index.perform do |index|
           expect(index).to have_package(package.name)

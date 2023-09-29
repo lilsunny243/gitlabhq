@@ -27,16 +27,10 @@ RSpec.describe JiraConnectHelper, feature_category: :integrations do
       it 'includes Jira Connect app attributes' do
         is_expected.to include(
           :groups_path,
-          :add_subscriptions_path,
           :subscriptions_path,
-          :users_path,
           :subscriptions,
           :gitlab_user_path
         )
-      end
-
-      it 'assigns users_path with value' do
-        expect(subject[:users_path]).to eq(jira_connect_users_path)
       end
 
       context 'with oauth_metadata' do
@@ -67,16 +61,6 @@ RSpec.describe JiraConnectHelper, feature_category: :integrations do
             'redirect_uri' => 'http://test.host/-/jira_connect/oauth_callbacks',
             'state' => parsed_oauth_metadata[:state]
           )
-        end
-
-        context 'jira_connect_oauth feature is disabled' do
-          before do
-            stub_feature_flags(jira_connect_oauth: false)
-          end
-
-          it 'does not assign oauth_metadata' do
-            expect(oauth_metadata).to be_nil
-          end
         end
 
         context 'with self-managed instance' do

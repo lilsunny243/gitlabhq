@@ -23,43 +23,46 @@ RSpec.describe Gitlab::Database::Migrations::ConstraintsHelpers do
     end
   end
 
-  describe '#check_constraint_exists?' do
+  describe '#check_constraint_exists?', :aggregate_failures do
     before do
-      ActiveRecord::Migration.connection.execute(
-        'ALTER TABLE projects ADD CONSTRAINT check_1 CHECK (char_length(path) <= 5) NOT VALID'
-      )
-
-      ActiveRecord::Migration.connection.execute(
-        'CREATE SCHEMA new_test_schema'
-      )
-
-      ActiveRecord::Migration.connection.execute(
-        'CREATE TABLE new_test_schema.projects (id integer, name character varying)'
-      )
-
-      ActiveRecord::Migration.connection.execute(
-        'ALTER TABLE new_test_schema.projects ADD CONSTRAINT check_2 CHECK (char_length(name) <= 5)'
-      )
+      ActiveRecord::Migration.connection.execute(<<~SQL)
+        ALTER TABLE projects ADD CONSTRAINT check_1 CHECK (char_length(path) <= 5) NOT VALID;
+        CREATE SCHEMA new_test_schema;
+        CREATE TABLE new_test_schema.projects (id integer, name character varying);
+        ALTER TABLE new_test_schema.projects ADD CONSTRAINT check_2 CHECK (char_length(name) <= 5);
+      SQL
     end
 
     it 'returns true if a constraint exists' do
       expect(model)
         .to be_check_constraint_exists(:projects, 'check_1')
+
+      expect(described_class)
+        .to be_check_constraint_exists(:projects, 'check_1', connection: model.connection)
     end
 
     it 'returns false if a constraint does not exist' do
       expect(model)
         .not_to be_check_constraint_exists(:projects, 'this_does_not_exist')
+
+      expect(described_class)
+        .not_to be_check_constraint_exists(:projects, 'this_does_not_exist', connection: model.connection)
     end
 
     it 'returns false if a constraint with the same name exists in another table' do
       expect(model)
         .not_to be_check_constraint_exists(:users, 'check_1')
+
+      expect(described_class)
+        .not_to be_check_constraint_exists(:users, 'check_1', connection: model.connection)
     end
 
     it 'returns false if a constraint with the same name exists for the same table in another schema' do
       expect(model)
         .not_to be_check_constraint_exists(:projects, 'check_2')
+
+      expect(described_class)
+        .not_to be_check_constraint_exists(:projects, 'check_2', connection: model.connection)
     end
   end
 
@@ -673,6 +676,45 @@ RSpec.describe Gitlab::Database::Migrations::ConstraintsHelpers do
         expect(model).to receive(:execute).with("ALTER TABLE \"test_table\" DROP CONSTRAINT \"constraint_name\" \n")
 
         model.drop_constraint(:test_table, :constraint_name, cascade: false)
+      end
+    end
+  end
+
+  describe '#switch_constraint_names' do
+    before do
+      ActiveRecord::Migration.connection.create_table(:_test_table) do |t|
+        t.references :supplier, foreign_key: { to_table: :_test_table, name: :supplier_fk }
+        t.references :customer, foreign_key: { to_table: :_test_table, name: :customer_fk }
+      end
+    end
+
+    context 'when inside a transaction' do
+      it 'raises an error' do
+        expect(model).to receive(:transaction_open?).and_return(true)
+
+        expect do
+          model.switch_constraint_names(:_test_table, :supplier_fk, :customer_fk)
+        end.to raise_error(RuntimeError)
+      end
+    end
+
+    context 'when outside a transaction' do
+      before do
+        allow(model).to receive(:transaction_open?).and_return(false)
+      end
+
+      it 'executes the statement to swap the constraint names' do
+        expect { model.switch_constraint_names(:_test_table, :supplier_fk, :customer_fk) }
+          .to change { constrained_column_for(:customer_fk) }.from(:customer_id).to(:supplier_id)
+          .and change { constrained_column_for(:supplier_fk) }.from(:supplier_id).to(:customer_id)
+      end
+
+      def constrained_column_for(fk_name)
+        Gitlab::Database::PostgresForeignKey
+          .find_by!(referenced_table_name: :_test_table, name: fk_name)
+          .constrained_columns
+          .first
+          .to_sym
       end
     end
   end

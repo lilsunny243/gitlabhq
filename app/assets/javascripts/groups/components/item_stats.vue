@@ -2,12 +2,7 @@
 import { GlBadge } from '@gitlab/ui';
 import isProjectPendingRemoval from 'ee_else_ce/groups/mixins/is_project_pending_removal';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
-import {
-  ITEM_TYPE,
-  VISIBILITY_TYPE_ICON,
-  GROUP_VISIBILITY_TYPE,
-  PROJECT_VISIBILITY_TYPE,
-} from '../constants';
+import { ITEM_TYPE } from '../constants';
 import ItemStatsValue from './item_stats_value.vue';
 
 export default {
@@ -24,15 +19,6 @@ export default {
     },
   },
   computed: {
-    visibilityIcon() {
-      return VISIBILITY_TYPE_ICON[this.item.visibility];
-    },
-    visibilityTooltip() {
-      if (this.item.type === ITEM_TYPE.GROUP) {
-        return GROUP_VISIBILITY_TYPE[this.item.visibility];
-      }
-      return PROJECT_VISIBILITY_TYPE[this.item.visibility];
-    },
     isProject() {
       return this.item.type === ITEM_TYPE.PROJECT;
     },
@@ -50,6 +36,9 @@ export default {
 
 <template>
   <div class="stats gl-text-gray-500">
+    <div v-if="isProjectPendingRemoval">
+      <gl-badge class="gl-mr-2" variant="warning">{{ __('pending deletion') }}</gl-badge>
+    </div>
     <item-stats-value
       v-if="displayValue(item.subgroupCount)"
       :title="__('Subgroups')"
@@ -79,9 +68,6 @@ export default {
       css-class="project-stars"
       icon-name="star"
     />
-    <div v-if="isProjectPendingRemoval">
-      <gl-badge variant="warning">{{ __('pending deletion') }}</gl-badge>
-    </div>
     <div v-if="isProject" class="last-updated">
       <time-ago-tooltip :time="item.lastActivityAt" tooltip-placement="bottom" />
     </div>

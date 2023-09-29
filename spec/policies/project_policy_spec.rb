@@ -441,6 +441,36 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
     end
   end
 
+  context 'importing work items' do
+    %w(reporter developer maintainer owner).each do |role|
+      context "with #{role}" do
+        let(:current_user) { send(role) }
+
+        it { is_expected.to be_allowed(:import_work_items) }
+      end
+    end
+
+    %w(guest anonymous).each do |role|
+      context "with #{role}" do
+        let(:current_user) { send(role) }
+
+        it { is_expected.to be_disallowed(:import_work_items) }
+      end
+    end
+
+    context 'with an admin' do
+      let(:current_user) { admin }
+
+      context 'when admin mode is enabled', :enable_admin_mode do
+        it { expect_allowed(:import_work_items) }
+      end
+
+      context 'when admin mode is disabled' do
+        it { expect_disallowed(:import_work_items) }
+      end
+    end
+  end
+
   context 'reading usage quotas' do
     %w(maintainer owner).each do |role|
       context "with #{role}" do
@@ -548,6 +578,11 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
         expect(described_class.new(maintainer, project)).to be_allowed(:admin_incident_management_timeline_event_tag)
         expect(described_class.new(owner, project)).to be_allowed(:admin_incident_management_timeline_event_tag)
       end
+
+      it 'allows to read import error' do
+        expect(described_class.new(maintainer, project)).to be_allowed(:read_import_error)
+        expect(described_class.new(owner, project)).to be_allowed(:read_import_error)
+      end
     end
 
     context 'when user is a developer/guest/reporter' do
@@ -555,6 +590,12 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
         expect(described_class.new(developer, project)).to be_disallowed(:admin_incident_management_timeline_event_tag)
         expect(described_class.new(guest, project)).to be_disallowed(:admin_incident_management_timeline_event_tag)
         expect(described_class.new(reporter, project)).to be_disallowed(:admin_incident_management_timeline_event_tag)
+      end
+
+      it 'disallows reading the import error' do
+        expect(described_class.new(developer, project)).to be_disallowed(:read_import_error)
+        expect(described_class.new(guest, project)).to be_disallowed(:read_import_error)
+        expect(described_class.new(reporter, project)).to be_disallowed(:read_import_error)
       end
     end
 
@@ -697,6 +738,39 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
     end
   end
 
+  describe 'read_prometheus', feature_category: :metrics do
+    using RSpec::Parameterized::TableSyntax
+
+    before do
+      project.project_feature.update!(metrics_dashboard_access_level: ProjectFeature::ENABLED)
+    end
+
+    let(:policy) { :read_prometheus }
+
+    where(:project_visibility, :role, :allowed) do
+      :public   | :anonymous | false
+      :public   | :guest     | false
+      :public   | :reporter  | true
+      :internal | :anonymous | false
+      :internal | :guest     | false
+      :internal | :reporter  | true
+      :private  | :anonymous | false
+      :private  | :guest     | false
+      :private  | :reporter  | true
+    end
+
+    with_them do
+      let(:current_user) { public_send(role) }
+      let(:project) { public_send("#{project_visibility}_project") }
+
+      if params[:allowed]
+        it { is_expected.to be_allowed(policy) }
+      else
+        it { is_expected.not_to be_allowed(policy) }
+      end
+    end
+  end
+
   describe 'update_max_artifacts_size' do
     context 'when no user' do
       let(:current_user) { anonymous }
@@ -754,7 +828,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
   end
 
   context 'alert bot' do
-    let(:current_user) { User.alert_bot }
+    let(:current_user) { Users::Internal.alert_bot }
 
     it { is_expected.to be_allowed(:reporter_access) }
 
@@ -808,7 +882,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
   end
 
   context 'support bot' do
-    let(:current_user) { User.support_bot }
+    let(:current_user) { Users::Internal.support_bot }
 
     context 'with service desk disabled' do
       it { expect_allowed(:public_access) }
@@ -972,7 +1046,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { guest }
 
           it { is_expected.to be_allowed(:metrics_dashboard) }
-          it { is_expected.to be_allowed(:read_prometheus) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
           it { is_expected.to be_allowed(:read_deployment) }
           it { is_expected.to be_allowed(:read_metrics_user_starred_dashboard) }
           it { is_expected.to be_allowed(:create_metrics_user_starred_dashboard) }
@@ -982,7 +1056,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { anonymous }
 
           it { is_expected.to be_allowed(:metrics_dashboard) }
-          it { is_expected.to be_allowed(:read_prometheus) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
           it { is_expected.to be_allowed(:read_deployment) }
           it { is_expected.to be_disallowed(:read_metrics_user_starred_dashboard) }
           it { is_expected.to be_disallowed(:create_metrics_user_starred_dashboard) }
@@ -1008,12 +1082,14 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { guest }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
 
         context 'with anonymous' do
           let(:current_user) { anonymous }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
       end
 
@@ -1036,7 +1112,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { guest }
 
           it { is_expected.to be_allowed(:metrics_dashboard) }
-          it { is_expected.to be_allowed(:read_prometheus) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
           it { is_expected.to be_allowed(:read_deployment) }
           it { is_expected.to be_allowed(:read_metrics_user_starred_dashboard) }
           it { is_expected.to be_allowed(:create_metrics_user_starred_dashboard) }
@@ -1046,6 +1122,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { anonymous }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
       end
     end
@@ -1068,12 +1145,14 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { guest }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
 
         context 'with anonymous' do
           let(:current_user) { anonymous }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
       end
 
@@ -1092,12 +1171,14 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           let(:current_user) { guest }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
 
         context 'with anonymous' do
           let(:current_user) { anonymous }
 
           it { is_expected.to be_disallowed(:metrics_dashboard) }
+          it { is_expected.to be_disallowed(:read_prometheus) }
         end
       end
     end
@@ -1219,7 +1300,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
         it { is_expected.to be_allowed(:create_package) }
         it { is_expected.to be_allowed(:read_package) }
         it { is_expected.to be_allowed(:read_project) }
-        it { is_expected.to be_disallowed(:destroy_package) }
+        it { is_expected.to be_allowed(:destroy_package) }
 
         it_behaves_like 'package access with repository disabled'
       end
@@ -1395,6 +1476,28 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
 
         it 'allows managing google cloud' do
           expect_allowed(:admin_project_google_cloud)
+        end
+      end
+    end
+  end
+
+  context 'infrastructure aws feature' do
+    %w(guest reporter developer).each do |role|
+      context role do
+        let(:current_user) { send(role) }
+
+        it 'disallows managing aws' do
+          expect_disallowed(:admin_project_aws)
+        end
+      end
+    end
+
+    %w(maintainer owner).each do |role|
+      context role do
+        let(:current_user) { send(role) }
+
+        it 'allows managing aws' do
+          expect_allowed(:admin_project_aws)
         end
       end
     end
@@ -2016,7 +2119,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
       :public   | ProjectFeature::ENABLED   | :anonymous  | true
       :public   | ProjectFeature::PRIVATE   | :maintainer | true
       :public   | ProjectFeature::PRIVATE   | :developer  | true
-      :public   | ProjectFeature::PRIVATE   | :guest      | true
+      :public   | ProjectFeature::PRIVATE   | :guest      | false
       :public   | ProjectFeature::PRIVATE   | :anonymous  | false
       :public   | ProjectFeature::DISABLED  | :maintainer | false
       :public   | ProjectFeature::DISABLED  | :developer  | false
@@ -2028,7 +2131,7 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
       :internal | ProjectFeature::ENABLED   | :anonymous  | false
       :internal | ProjectFeature::PRIVATE   | :maintainer | true
       :internal | ProjectFeature::PRIVATE   | :developer  | true
-      :internal | ProjectFeature::PRIVATE   | :guest      | true
+      :internal | ProjectFeature::PRIVATE   | :guest      | false
       :internal | ProjectFeature::PRIVATE   | :anonymous  | false
       :internal | ProjectFeature::DISABLED  | :maintainer | false
       :internal | ProjectFeature::DISABLED  | :developer  | false
@@ -2275,6 +2378,12 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
   describe 'infrastructure feature' do
     using RSpec::Parameterized::TableSyntax
 
+    before do
+      # assuming the default setting terraform_state.enabled=true
+      # the terraform_state permissions should follow the same logic as the other features
+      stub_config(terraform_state: { enabled: true })
+    end
+
     let(:guest_permissions) { [] }
 
     let(:developer_permissions) do
@@ -2334,6 +2443,31 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
         if allowed
           expect_allowed(*permissions_abilities(role))
         else
+          expect_disallowed(*permissions_abilities(role))
+        end
+      end
+    end
+
+    context 'when terraform state management is disabled' do
+      before do
+        stub_config(terraform_state: { enabled: false })
+      end
+
+      with_them do
+        let(:current_user) { user_subject(role) }
+        let(:project) { project_subject(project_visibility) }
+
+        let(:developer_permissions) do
+          [:read_terraform_state]
+        end
+
+        let(:maintainer_permissions) do
+          developer_permissions + [:admin_terraform_state]
+        end
+
+        it 'always disallows the terraform_state feature' do
+          project.project_feature.update!(infrastructure_access_level: access_level)
+
           expect_disallowed(*permissions_abilities(role))
         end
       end
@@ -2613,26 +2747,62 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
           expect_allowed(:build_read_container_image)
         end
       end
+    end
 
-      def permissions_abilities(role)
-        case role
-        when :admin
-          if project_visibility == :private || access_level == ProjectFeature::PRIVATE
-            maintainer_operations_permissions - admin_excluded_permissions
-          else
-            maintainer_operations_permissions
-          end
-        when :maintainer, :owner
-          maintainer_operations_permissions
-        when :developer
-          developer_operations_permissions
-        when :reporter, :guest
-          guest_operations_permissions
-        when :anonymous
-          anonymous_operations_permissions
-        else
-          raise "Unknown role #{role}"
+    context 'with external guest users' do
+      where(:project_visibility, :access_level, :allowed) do
+        :public   | ProjectFeature::ENABLED  | true
+        :public   | ProjectFeature::PRIVATE  | false
+        :public   | ProjectFeature::DISABLED | false
+
+        :internal | ProjectFeature::ENABLED  | true
+        :internal | ProjectFeature::PRIVATE  | false
+        :internal | ProjectFeature::DISABLED | false
+
+        :private  | ProjectFeature::ENABLED  | false
+        :private  | ProjectFeature::PRIVATE  | false
+        :private  | ProjectFeature::DISABLED | false
+      end
+
+      with_them do
+        let(:current_user) { guest }
+        let(:project) { send("#{project_visibility}_project") }
+
+        before do
+          project.project_feature.update!(container_registry_access_level: access_level)
+          current_user.update_column(:external, true)
         end
+
+        it 'allows/disallows the abilities based on the container_registry feature access level' do
+          if allowed
+            expect_allowed(*permissions_abilities(:guest))
+            expect_disallowed(*(all_permissions - permissions_abilities(:guest)))
+          else
+            expect_disallowed(*all_permissions)
+          end
+        end
+      end
+    end
+
+    # Overrides `permissions_abilities` defined below to be suitable for container_image policies
+    def permissions_abilities(role)
+      case role
+      when :admin
+        if project_visibility == :private || access_level == ProjectFeature::PRIVATE
+          maintainer_operations_permissions - admin_excluded_permissions
+        else
+          maintainer_operations_permissions
+        end
+      when :maintainer, :owner
+        maintainer_operations_permissions
+      when :developer
+        developer_operations_permissions
+      when :reporter, :guest
+        guest_operations_permissions
+      when :anonymous
+        anonymous_operations_permissions
+      else
+        raise "Unknown role #{role}"
       end
     end
   end
@@ -2687,6 +2857,14 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
 
           it { is_expected.to be_allowed(:register_project_runners) }
         end
+
+        context 'with specific project runner registration disabled' do
+          before do
+            project.update!(runner_registration_enabled: false)
+          end
+
+          it { is_expected.to be_allowed(:register_project_runners) }
+        end
       end
 
       context 'when admin mode is disabled' do
@@ -2702,6 +2880,14 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
       context 'with project runner registration disabled' do
         before do
           stub_application_setting(valid_runner_registrars: ['group'])
+        end
+
+        it { is_expected.to be_disallowed(:register_project_runners) }
+      end
+
+      context 'with specific project runner registration disabled' do
+        before do
+          project.update!(runner_registration_enabled: false)
         end
 
         it { is_expected.to be_disallowed(:register_project_runners) }
@@ -2739,145 +2925,163 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
     end
   end
 
-  describe 'create_project_runners' do
-    context 'create_runner_workflow flag enabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: true)
-      end
+  describe 'create_runner' do
+    context 'admin' do
+      let(:current_user) { admin }
 
-      context 'admin' do
-        let(:current_user) { admin }
-
-        context 'when admin mode is enabled', :enable_admin_mode do
-          it { is_expected.to be_allowed(:create_project_runners) }
-
-          context 'with project runner registration disabled' do
-            before do
-              stub_application_setting(valid_runner_registrars: ['group'])
-            end
-
-            it { is_expected.to be_allowed(:create_project_runners) }
-          end
-        end
-
-        context 'when admin mode is disabled' do
-          it { is_expected.to be_disallowed(:create_project_runners) }
-        end
-      end
-
-      context 'with owner' do
-        let(:current_user) { owner }
-
-        it { is_expected.to be_allowed(:create_project_runners) }
+      context 'when admin mode is enabled', :enable_admin_mode do
+        it { is_expected.to be_allowed(:create_runner) }
 
         context 'with project runner registration disabled' do
           before do
             stub_application_setting(valid_runner_registrars: ['group'])
           end
 
-          it { is_expected.to be_disallowed(:create_project_runners) }
+          it { is_expected.to be_allowed(:create_runner) }
+        end
+
+        context 'with specific project runner registration disabled' do
+          before do
+            project.update!(runner_registration_enabled: false)
+          end
+
+          it { is_expected.to be_allowed(:create_runner) }
         end
       end
 
-      context 'with maintainer' do
-        let(:current_user) { maintainer }
-
-        it { is_expected.to be_allowed(:create_project_runners) }
-      end
-
-      context 'with reporter' do
-        let(:current_user) { reporter }
-
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
-
-      context 'with guest' do
-        let(:current_user) { guest }
-
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
-
-      context 'with developer' do
-        let(:current_user) { developer }
-
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
-
-      context 'with anonymous' do
-        let(:current_user) { nil }
-
-        it { is_expected.to be_disallowed(:create_project_runners) }
+      context 'when admin mode is disabled' do
+        it { is_expected.to be_disallowed(:create_runner) }
       end
     end
 
-    context 'create_runner_workflow flag disabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: false)
-      end
+    context 'with owner' do
+      let(:current_user) { owner }
 
-      context 'admin' do
-        let(:current_user) { admin }
+      it { is_expected.to be_allowed(:create_runner) }
 
-        context 'when admin mode is enabled', :enable_admin_mode do
-          it { is_expected.to be_disallowed(:create_project_runners) }
-
-          context 'with project runner registration disabled' do
-            before do
-              stub_application_setting(valid_runner_registrars: ['group'])
-            end
-
-            it { is_expected.to be_disallowed(:create_project_runners) }
-          end
+      context 'with project runner registration disabled' do
+        before do
+          stub_application_setting(valid_runner_registrars: ['group'])
         end
 
-        context 'when admin mode is disabled' do
-          it { is_expected.to be_disallowed(:create_project_runners) }
+        it { is_expected.to be_disallowed(:create_runner) }
+      end
+
+      context 'with specific project runner registration disabled' do
+        before do
+          project.update!(runner_registration_enabled: false)
         end
+
+        it { is_expected.to be_disallowed(:create_runner) }
+      end
+    end
+
+    context 'with maintainer' do
+      let(:current_user) { maintainer }
+
+      it { is_expected.to be_allowed(:create_runner) }
+    end
+
+    context 'with reporter' do
+      let(:current_user) { reporter }
+
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+
+    context 'with guest' do
+      let(:current_user) { guest }
+
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+
+    context 'with developer' do
+      let(:current_user) { developer }
+
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+
+    context 'with anonymous' do
+      let(:current_user) { nil }
+
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+  end
+
+  describe 'admin_project_runners' do
+    context 'admin' do
+      let(:current_user) { admin }
+
+      context 'when admin mode is enabled', :enable_admin_mode do
+        it { is_expected.to be_allowed(:create_runner) }
       end
 
-      context 'with owner' do
-        let(:current_user) { owner }
-
-        it { is_expected.to be_disallowed(:create_project_runners) }
-
-        context 'with project runner registration disabled' do
-          before do
-            stub_application_setting(valid_runner_registrars: ['group'])
-          end
-
-          it { is_expected.to be_disallowed(:create_project_runners) }
-        end
+      context 'when admin mode is disabled' do
+        it { is_expected.to be_disallowed(:create_runner) }
       end
+    end
 
-      context 'with maintainer' do
-        let(:current_user) { maintainer }
+    context 'with owner' do
+      let(:current_user) { owner }
 
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
+      it { is_expected.to be_allowed(:create_runner) }
+    end
 
-      context 'with reporter' do
-        let(:current_user) { reporter }
+    context 'with maintainer' do
+      let(:current_user) { maintainer }
 
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
+      it { is_expected.to be_allowed(:create_runner) }
+    end
 
-      context 'with guest' do
-        let(:current_user) { guest }
+    context 'with reporter' do
+      let(:current_user) { reporter }
 
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
 
-      context 'with developer' do
-        let(:current_user) { developer }
+    context 'with guest' do
+      let(:current_user) { guest }
 
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
 
-      context 'with anonymous' do
-        let(:current_user) { nil }
+    context 'with developer' do
+      let(:current_user) { developer }
 
-        it { is_expected.to be_disallowed(:create_project_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+
+    context 'with anonymous' do
+      let(:current_user) { nil }
+
+      it { is_expected.to be_disallowed(:create_runner) }
+    end
+  end
+
+  describe 'read_project_runners' do
+    subject(:policy) { described_class.new(user, project) }
+
+    context 'with maintainer' do
+      let(:user) { maintainer }
+
+      it { is_expected.to be_allowed(:read_project_runners) }
+    end
+
+    context 'with admin', :enable_admin_mode do
+      let(:user) { admin }
+
+      it { is_expected.to be_allowed(:read_project_runners) }
+    end
+
+    context 'with reporter' do
+      let(:user) { reporter }
+
+      it { is_expected.to be_disallowed(:read_project_runners) }
+    end
+
+    context 'when the user is not part of the project' do
+      let(:user) { non_member }
+
+      it { is_expected.to be_disallowed(:read_project_runners) }
     end
   end
 
@@ -2999,6 +3203,115 @@ RSpec.describe ProjectPolicy, feature_category: :system_access do
       let(:can_download_code) { false }
 
       it { expect_disallowed(:read_code) }
+    end
+  end
+
+  describe 'read_namespace_catalog' do
+    let(:current_user) { owner }
+
+    specify { is_expected.to be_disallowed(:read_namespace_catalog) }
+  end
+
+  describe 'add_catalog_resource' do
+    let(:current_user) { owner }
+
+    specify { is_expected.to be_disallowed(:read_namespace_catalog) }
+  end
+
+  describe 'read_model_registry' do
+    let(:project_with_feature) { project }
+    let(:current_user) { owner }
+
+    before do
+      stub_feature_flags(model_registry: false)
+      stub_feature_flags(model_registry: project_with_feature) if project_with_feature
+    end
+
+    context 'feature flag is enabled' do
+      specify { is_expected.to be_allowed(:read_model_registry) }
+    end
+
+    context 'feature flag is disabled' do
+      let(:project_with_feature) { nil }
+
+      specify { is_expected.not_to be_allowed(:read_model_registry) }
+    end
+  end
+
+  describe ':read_model_experiments' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:ff_ml_experiment_tracking, :current_user, :access_level, :allowed) do
+      false | ref(:owner)      | Featurable::ENABLED  | false
+      true  | ref(:guest)      | Featurable::ENABLED  | true
+      true  | ref(:guest)      | Featurable::PRIVATE  | true
+      true  | ref(:guest)      | Featurable::DISABLED | false
+      true  | ref(:non_member) | Featurable::ENABLED  | true
+      true  | ref(:non_member) | Featurable::PRIVATE  | false
+      true  | ref(:non_member) | Featurable::DISABLED | false
+    end
+    with_them do
+      before do
+        stub_feature_flags(ml_experiment_tracking: ff_ml_experiment_tracking)
+        project.project_feature.update!(model_experiments_access_level: access_level)
+      end
+
+      if params[:allowed]
+        it { is_expected.to be_allowed(:read_model_experiments) }
+      else
+        it { is_expected.not_to be_allowed(:read_model_experiments) }
+      end
+    end
+  end
+
+  describe ':write_model_experiments' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:ff_ml_experiment_tracking, :current_user, :access_level, :allowed) do
+      false | ref(:owner)      | Featurable::ENABLED  | false
+      true  | ref(:reporter)   | Featurable::ENABLED  | true
+      true  | ref(:reporter)   | Featurable::PRIVATE  | true
+      true  | ref(:reporter)   | Featurable::DISABLED | false
+      true  | ref(:guest)      | Featurable::ENABLED  | false
+      true  | ref(:non_member) | Featurable::ENABLED  | false
+    end
+    with_them do
+      before do
+        stub_feature_flags(ml_experiment_tracking: ff_ml_experiment_tracking)
+        project.project_feature.update!(model_experiments_access_level: access_level)
+      end
+
+      if params[:allowed]
+        it { is_expected.to be_allowed(:write_model_experiments) }
+      else
+        it { is_expected.not_to be_allowed(:write_model_experiments) }
+      end
+    end
+  end
+
+  describe 'when project is created and owned by a banned user' do
+    let_it_be(:project) { create(:project, :public) }
+
+    let(:current_user) { guest }
+
+    before do
+      allow(project).to receive(:created_and_owned_by_banned_user?).and_return(true)
+    end
+
+    it { expect_disallowed(:read_project) }
+
+    context 'when current user is an admin', :enable_admin_mode do
+      let(:current_user) { admin }
+
+      it { expect_allowed(:read_project) }
+    end
+
+    context 'when hide_projects_of_banned_users FF is disabled' do
+      before do
+        stub_feature_flags(hide_projects_of_banned_users: false)
+      end
+
+      it { expect_allowed(:read_project) }
     end
   end
 

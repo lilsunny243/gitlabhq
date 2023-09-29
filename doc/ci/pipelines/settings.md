@@ -2,11 +2,10 @@
 stage: Verify
 group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/user/project/pipelines/settings.html'
 type: reference, howto
 ---
 
-# Customize pipeline configuration **(FREE)**
+# Customize pipeline configuration **(FREE ALL)**
 
 You can customize how pipelines run for your project.
 
@@ -25,14 +24,14 @@ For public and internal projects, you can change who can see your:
 
 To change the visibility of your pipelines and related features:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Select or clear the **Public pipelines** checkbox.
    When it is selected, pipelines and related features are visible:
 
    - For [**Public**](../../user/public_access.md) projects, to everyone.
-   - For **Internal** projects, to all authenticated users except [external users](../../user/admin_area/external_users.md).
+   - For **Internal** projects, to all authenticated users except [external users](../../administration/external_users.md).
    - For **Private** projects, to all project members (Guest or higher).
 
    When it is cleared:
@@ -41,7 +40,7 @@ To change the visibility of your pipelines and related features:
      and the **CI/CD** menu items are visible only to project members (Reporter or higher).
      Other users, including guest users, can only view the status of pipelines and jobs, and only
      when viewing merge requests or commits.
-   - For **Internal** projects, pipelines are visible to all authenticated users except [external users](../../user/admin_area/external_users.md).
+   - For **Internal** projects, pipelines are visible to all authenticated users except [external users](../../administration/external_users.md).
      Related features are visible only to project members (Reporter or higher).
    - For **Private** projects, pipelines and related features are visible to project members (Reporter or higher) only.
 
@@ -57,8 +56,8 @@ This setting has no effect when:
 
 To change the pipeline visibility for non-project members:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. For **CI/CD**, choose:
    - **Only project members**: Only project members can view pipelines.
@@ -73,8 +72,8 @@ is selected.
 
 You can set pending or running pipelines to cancel automatically when a pipeline for new changes runs on the same branch. You can enable this in the project settings:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General Pipelines**.
 1. Select the **Auto-cancel redundant pipelines** checkbox.
 1. Select **Save changes**.
@@ -95,10 +94,11 @@ newer one, which may not be what you want.
 
 To avoid this scenario:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Select the **Prevent outdated deployment jobs** checkbox.
+1. Optional. Clear the **Allow job retries for rollback deployments** checkbox.
 1. Select **Save changes**.
 
 For more information, see [Deployment safety](../environments/deployment_safety.md#prevent-outdated-deployment-jobs).
@@ -112,8 +112,8 @@ directory. However, you can specify an alternate filename path, including locati
 
 To customize the path:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. In the **CI/CD configuration file** field, enter the filename. If the file:
    - Is not in the root directory, include the path.
@@ -161,15 +161,15 @@ able to edit it.
 
 You can choose how your repository is fetched from GitLab when a job runs.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Under **Git strategy**, select an option:
    - `git clone` is slower because it clones the repository from scratch
      for every job. However, the local working copy is always pristine.
    - `git fetch` is faster because it re-uses the local working copy (and falls
      back to clone if it doesn't exist). This is recommended, especially for
-     [large repositories](../large_repositories/index.md#git-strategy).
+     [large repositories](../../user/project/repository/managing_large_repositories.md#git-strategy).
 
 The configured Git strategy can be overridden by the [`GIT_STRATEGY` variable](../runners/configure_runners.md#git-strategy)
 in the `.gitlab-ci.yml` file.
@@ -182,8 +182,8 @@ in the `.gitlab-ci.yml` file.
 You can limit the number of changes that GitLab CI/CD fetches when it clones
 a repository.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Under **Git strategy**, under **Git shallow clone**, enter a value.
    The maximum value is `1000`. To disable shallow clone and make GitLab CI/CD
@@ -192,15 +192,15 @@ a repository.
 In GitLab versions 14.7 and later, newly created projects have a default `git depth`
 value of `20`. GitLab versions 14.6 and earlier have a default `git depth` value of `50`.
 
-This value can be overridden by the [`GIT_DEPTH` variable](../large_repositories/index.md#shallow-cloning)
+This value can be overridden by the [`GIT_DEPTH` variable](../../user/project/repository/managing_large_repositories.md#shallow-cloning)
 in the `.gitlab-ci.yml` file.
 
 ## Set a limit for how long jobs can run
 
 You can define how long a job can run before it times out.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. In the **Timeout** field, enter the number of minutes, or a human-readable value like `2 hours`.
    Must be 10 minutes or more, and less than one month. Default is 60 minutes.
@@ -209,119 +209,7 @@ Jobs that exceed the timeout are marked as failed.
 
 You can override this value [for individual runners](../runners/configure_runners.md#set-maximum-job-timeout-for-a-runner).
 
-## Merge request test coverage results
-
-If you use test coverage in your code, you can use a regular expression to
-find coverage results in the job log. You can then include these results
-in the merge request in GitLab.
-
-If the pipeline succeeds, the coverage is shown in the merge request widget and
-in the jobs table. If multiple jobs in the pipeline have coverage reports, they are
-averaged.
-
-![MR widget coverage](img/pipelines_test_coverage_mr_widget.png)
-
-![Build status coverage](img/pipelines_test_coverage_build.png)
-
-### Add test coverage results using `coverage` keyword
-
-To add test coverage results to a merge request using the project's `.gitlab-ci.yml` file, provide a regular expression
-using the [`coverage`](../yaml/index.md#coverage) keyword.
-
-### Test coverage examples
-
-Use this regex for commonly used test tools.
-
-<!-- vale gitlab.Spelling = NO -->
-
-- Simplecov (Ruby). Example: `/\(\d+.\d+\%\) covered/`.
-- pytest-cov (Python). Example: `/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/`.
-- Scoverage (Scala). Example: `/Statement coverage[A-Za-z\.*]\s*:\s*([^%]+)/`.
-- `pest --coverage --colors=never` (PHP). Example: `/^\s*Cov:\s*\d+\.\d+?%$/`.
-- `phpunit --coverage-text --colors=never` (PHP). Example: `/^\s*Lines:\s*\d+.\d+\%/`.
-- gcovr (C/C++). Example: `/^TOTAL.*\s+(\d+\%)$/`.
-- `tap --coverage-report=text-summary` (NodeJS). Example: `/^Statements\s*:\s*([^%]+)/`.
-- `nyc npm test` (NodeJS). Example: `/All files[^|]*\|[^|]*\s+([\d\.]+)/`.
-- `jest --ci --coverage` (NodeJS). Example: `/All files[^|]*\|[^|]*\s+([\d\.]+)/`.
-- excoveralls (Elixir). Example: `/\[TOTAL\]\s+(\d+\.\d+)%/`.
-- `mix test --cover` (Elixir). Example: `/\d+.\d+\%\s+\|\s+Total/`.
-- JaCoCo (Java/Kotlin). Example: `/Total.*?([0-9]{1,3})%/`.
-- `go test -cover` (Go). Example: `/coverage: \d+.\d+% of statements/`.
-- .NET (OpenCover). Example: `/(Visited Points).*\((.*)\)/`.
-- .NET (`dotnet test` line coverage). Example: `/Total\s*\|\s*(\d+(?:\.\d+)?)/`.
-- tarpaulin (Rust). Example: `/^\d+.\d+% coverage/`.
-- Pester (PowerShell). Example: `/Covered (\d+\.\d+%)/`.
-
-<!-- vale gitlab.Spelling = YES -->
-
-### View code coverage history
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/209121) the ability to download a `.csv` in GitLab 12.10.
-> - Graph [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/33743) in GitLab 13.1.
-
-To see the evolution of your project code coverage over time,
-you can view a graph or download a CSV file with this data.
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Repository**.
-
-The historic data for each job is listed in the dropdown list above the graph.
-
-To view a CSV file of the data, select **Download raw data (`.csv`)**.
-
-![Code coverage graph of a project over time](img/code_coverage_graph_v13_1.png)
-
-Code coverage data is also [available at the group level](../../user/group/repositories_analytics/index.md).
-
-### Coverage check approval rule **(PREMIUM)**
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15765) in GitLab 14.0.
-> - [Made configurable in Project Settings](https://gitlab.com/gitlab-org/gitlab/-/issues/331001) in GitLab 14.1.
-
-You can implement merge request approvals to require approval by selected users or a group
-when merging a merge request would cause the project's test coverage to decline.
-
-Follow these steps to enable the `Coverage-Check` MR approval rule:
-
-1. Set up a [`coverage`](../yaml/index.md#coverage) regular expression for all jobs you want to include in the overall coverage value.
-1. Go to your project and select **Settings > Merge requests**.
-1. Under **Merge request approvals**, select **Enable** next to the `Coverage-Check` approval rule.
-1. Select the **Target branch**.
-1. Set the number of **Approvals required** to greater than zero.
-1. Select the users or groups to provide approval.
-1. Select **Add approval rule**.
-
-![Coverage-Check approval rule](img/coverage_check_approval_rule_14_1.png)
-
-### Remove color codes from code coverage
-
-Some test coverage tools output with ANSI color codes that aren't
-parsed correctly by the regular expression. This causes coverage
-parsing to fail.
-
-Some coverage tools don't provide an option to disable color
-codes in the output. If so, pipe the output of the coverage tool through a
-small one line script that strips the color codes off.
-
-For example:
-
-```shell
-lein cloverage | perl -pe 's/\e\[?.*?[\@-~]//g'
-```
-
 ## Pipeline badges
 
 You can use [pipeline badges](../../user/project/badges.md) to indicate the pipeline status and
 test coverage of your projects. These badges are determined by the latest successful pipeline.
-
-<!-- ## Troubleshooting
-
-Include any troubleshooting steps that you can foresee. If you know beforehand what issues
-one might have when setting this up, or when something is changed, or on upgrading, it's
-important to describe those, too. Think of things that may go wrong and include them here.
-This is important to minimize requests for support, and to avoid doc comments with
-questions that you know someone might ask.
-
-Each scenario can be a third-level heading, for example `### Getting error message X`.
-If you have none to add when creating a doc, leave this section in place
-but commented out to help encourage others to add to it in the future. -->

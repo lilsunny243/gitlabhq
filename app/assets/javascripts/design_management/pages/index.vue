@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlLoadingIcon, GlButton, GlAlert, GlLink, GlSprintf } from '@gitlab/ui';
 import { GlBreakpointInstance } from '@gitlab/ui/dist/utils';
@@ -37,6 +38,11 @@ import {
   MAXIMUM_FILE_UPLOAD_LIMIT_REACHED,
 } from '../utils/error_messages';
 import { trackDesignCreate, trackDesignUpdate } from '../utils/tracking';
+
+export const i18n = {
+  dropzoneDescriptionText: __('Drag your designs here or %{linkStart}click to upload%{linkEnd}.'),
+  designLoadingError: __('An error occurred while loading designs. Please try again.'),
+};
 
 export default {
   components: {
@@ -104,7 +110,7 @@ export default {
       return this.permissions.createDesign;
     },
     showToolbar() {
-      return this.canCreateDesign && this.allVersions.length > 0;
+      return this.allVersions.length > 0;
     },
     hasDesigns() {
       return this.designs.length > 0;
@@ -340,9 +346,7 @@ export default {
     animation: 200,
     ghostClass: 'gl-visibility-hidden',
   },
-  i18n: {
-    dropzoneDescriptionText: __('Drag your designs here or %{linkStart}click to upload%{linkEnd}.'),
-  },
+  i18n,
 };
 </script>
 
@@ -350,6 +354,7 @@ export default {
   <div
     data-testid="designs-root"
     class="gl-mt-4"
+    :class="{ 'gl-new-card': showToolbar }"
     @mouseenter="toggleOnPasteListener"
     @mouseleave="toggleOffPasteListener"
   >
@@ -362,11 +367,7 @@ export default {
     >
       {{ uploadError }}
     </gl-alert>
-    <header
-      v-if="showToolbar"
-      class="gl-display-flex gl-my-0 gl-text-gray-900"
-      data-testid="design-toolbar-wrapper"
-    >
+    <header v-if="showToolbar" class="gl-new-card-header" data-testid="design-toolbar-wrapper">
       <div
         class="gl-display-flex gl-justify-content-space-between gl-align-items-center gl-w-full gl-flex-wrap gl-gap-3"
       >
@@ -375,6 +376,7 @@ export default {
           <design-version-dropdown />
         </div>
         <div
+          v-if="canCreateDesign"
           v-show="hasDesigns"
           class="gl-display-flex gl-align-items-center"
           data-testid="design-selector-toolbar"
@@ -417,10 +419,15 @@ export default {
         </div>
       </div>
     </header>
-    <div>
-      <gl-loading-icon v-if="isLoading" size="lg" />
+    <div
+      :class="{
+        'gl-mx-5': showToolbar,
+        'gl-new-card-body gl-mx-3!': hasDesigns,
+      }"
+    >
+      <gl-loading-icon v-if="isLoading" size="sm" class="gl-py-4" />
       <gl-alert v-else-if="error" variant="danger" :dismissible="false">
-        {{ __('An error occurred while loading designs. Please try again.') }}
+        {{ $options.i18n.designLoadingError }}
       </gl-alert>
       <header
         v-else-if="isDesignCollectionCopying"
@@ -482,17 +489,21 @@ export default {
             v-if="canSelectDesign(design.filename)"
             :checked="isDesignSelected(design.filename)"
             type="checkbox"
-            class="design-checkbox"
+            class="design-checkbox gl-absolute gl-top-4 gl-left-6 gl-ml-2"
             data-qa-selector="design_checkbox"
             :data-qa-design="design.filename"
             @change="changeSelectedDesigns(design.filename)"
           />
         </li>
         <template #header>
-          <li :class="designDropzoneWrapperClass" data-testid="design-dropzone-wrapper">
+          <li
+            v-if="canCreateDesign"
+            :class="designDropzoneWrapperClass"
+            data-testid="design-dropzone-wrapper"
+          >
             <design-dropzone
               :enable-drag-behavior="isDraggingDesign"
-              :class="{ 'design-list-item design-list-item-new': !isDesignListEmpty }"
+              :class="{ 'design-list-item': !isDesignListEmpty }"
               :display-as-card="hasDesigns"
               v-bind="$options.dropzoneProps"
               data-qa-selector="design_dropzone_content"

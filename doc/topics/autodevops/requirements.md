@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Requirements for Auto DevOps **(FREE)**
+# Requirements for Auto DevOps **(FREE ALL)**
 
 Before enabling [Auto DevOps](index.md), we recommend you to prepare it for
 deployment. If you don't, you can use it to build and test your apps, and
@@ -41,8 +41,8 @@ that works best for your needs:
 
 You can choose the deployment method when enabling Auto DevOps or later:
 
-1. In GitLab, on the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Choose the deployment strategy.
 1. Select **Save changes**.
@@ -54,17 +54,16 @@ to minimize downtime and risk.
 ## Auto DevOps base domain
 
 The Auto DevOps base domain is required to use
-[Auto Review Apps](stages.md#auto-review-apps), [Auto Deploy](stages.md#auto-deploy), and
-[Auto Monitoring](stages.md#auto-monitoring).
+[Auto Review Apps](stages.md#auto-review-apps) and [Auto Deploy](stages.md#auto-deploy).
 
 To define the base domain, either:
 
 - In the project, group, or instance level: go to your cluster settings and add it there.
 - In the project or group level: add it as an environment variable: `KUBE_INGRESS_BASE_DOMAIN`.
-- In the instance level: go to **Main menu > Admin > Settings > CI/CD > Continuous Integration and Delivery** and add it there.
+- In the instance level: go to the Admin Area, then **Settings > CI/CD > Continuous Integration and Delivery** and add it there.
 
-The base domain variable `KUBE_INGRESS_BASE_DOMAIN` follows the same order of precedence
-as other environment [variables](../../ci/variables/index.md#cicd-variable-precedence).
+The base domain variable `KUBE_INGRESS_BASE_DOMAIN` follows the same order of
+[precedence as other environment variables](../../ci/variables/index.md#cicd-variable-precedence).
 
 If you don't specify the base domain in your projects and groups, Auto DevOps uses the instance-wide **Auto DevOps domain**.
 
@@ -72,17 +71,17 @@ Auto DevOps requires a wildcard DNS `A` record that matches the base domains. Fo
 a base domain of `example.com`, you'd need a DNS entry like:
 
 ```plaintext
-*.example.com   3600     A     1.2.3.4
+*.example.com   3600     A     10.0.2.2
 ```
 
-In this case, the deployed applications are served from `example.com`, and `1.2.3.4`
+In this case, the deployed applications are served from `example.com`, and `10.0.2.2`
 is the IP address of your load balancer, generally NGINX ([see requirements](requirements.md)).
 Setting up the DNS record is beyond the scope of this document; check with your
 DNS provider for information.
 
 Alternatively, you can use free public services like [nip.io](https://nip.io)
 which provide automatic wildcard DNS without any configuration. For [nip.io](https://nip.io),
-set the Auto DevOps base domain to `1.2.3.4.nip.io`.
+set the Auto DevOps base domain to `10.0.2.2.nip.io`.
 
 After completing setup, all requests hit the load balancer, which routes requests
 to the Kubernetes pods running your application.
@@ -91,8 +90,8 @@ to the Kubernetes pods running your application.
 
 To make full use of Auto DevOps with Kubernetes, you need:
 
-- **Kubernetes** (for [Auto Review Apps](stages.md#auto-review-apps),
-  [Auto Deploy](stages.md#auto-deploy), and [Auto Monitoring](stages.md#auto-monitoring))
+- **Kubernetes** (for [Auto Review Apps](stages.md#auto-review-apps) and
+  [Auto Deploy](stages.md#auto-deploy))
 
   To enable deployments, you need:
 
@@ -108,10 +107,7 @@ To make full use of Auto DevOps with Kubernetes, you need:
      or manually by using the [`ingress-nginx`](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx)
      Helm chart.
 
-     NOTE:
-     For metrics to appear when using the [Prometheus cluster integration](../../user/clusters/integrations.md#prometheus-cluster-integration), you must [enable Prometheus metrics](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx#prometheus-metrics).
-
-     When deploying [using custom charts](customize.md#custom-helm-chart), you must also
+     When deploying [using custom charts](customize.md#custom-helm-chart), you must
      [annotate](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
      the Ingress manifest to be scraped by Prometheus using
      `prometheus.io/scrape: "true"` and `prometheus.io/port: "10254"`.
@@ -120,8 +116,8 @@ To make full use of Auto DevOps with Kubernetes, you need:
      If your cluster is installed on bare metal, see
      [Auto DevOps Requirements for bare metal](#auto-devops-requirements-for-bare-metal).
 
-- **Base domain** (for [Auto Review Apps](stages.md#auto-review-apps),
-  [Auto Deploy](stages.md#auto-deploy), and [Auto Monitoring](stages.md#auto-monitoring))
+- **Base domain** (for [Auto Review Apps](stages.md#auto-review-apps) and
+  [Auto Deploy](stages.md#auto-deploy))
 
   You must [specify the Auto DevOps base domain](#auto-devops-base-domain),
   which all of your Auto DevOps applications use. This domain must be configured
@@ -142,21 +138,6 @@ To make full use of Auto DevOps with Kubernetes, you need:
   for the entire GitLab instance, or [project runners](../../ci/runners/runners_scope.md#project-runners)
   that are assigned to specific projects.
 
-- **Prometheus** (for [Auto Monitoring](stages.md#auto-monitoring))
-
-  To enable Auto Monitoring, you need Prometheus installed either inside or
-  outside your cluster, and configured to scrape your Kubernetes cluster.
-  If you've configured the GitLab integration with Kubernetes, you can
-  instruct GitLab to query an in-cluster Prometheus by enabling
-  the [Prometheus cluster integration](../../user/clusters/integrations.md#prometheus-cluster-integration).
-
-  The [Prometheus integration](../../user/project/integrations/prometheus.md)
-  integration must be activated for the project, or activated at the group or instance level.
-  For more information, see [Project integration management](../../user/admin_area/settings/project_integration_management.md).
-
-  To get response metrics (in addition to system metrics), you must
-  [configure Prometheus to monitor NGINX](../../user/project/integrations/prometheus_library/nginx_ingress.md#configuring-nginx-ingress-monitoring).
-
 - **cert-manager** (optional, for TLS/HTTPS)
 
   To enable HTTPS endpoints for your application, you can [install cert-manager](https://cert-manager.io/docs/installation/supported-releases/),
@@ -166,8 +147,8 @@ To make full use of Auto DevOps with Kubernetes, you need:
   certificates are valid and up-to-date.
 
 If you don't have Kubernetes or Prometheus configured, then
-[Auto Review Apps](stages.md#auto-review-apps),
-[Auto Deploy](stages.md#auto-deploy), and [Auto Monitoring](stages.md#auto-monitoring)
+[Auto Review Apps](stages.md#auto-review-apps) and
+[Auto Deploy](stages.md#auto-deploy)
 are skipped.
 
 After all requirements are met, you can [enable Auto DevOps](index.md#enable-or-disable-auto-devops).

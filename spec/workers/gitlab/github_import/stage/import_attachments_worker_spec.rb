@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Stage::ImportAttachmentsWorker do
+RSpec.describe Gitlab::GithubImport::Stage::ImportAttachmentsWorker, feature_category: :importers do
   subject(:worker) { described_class.new }
 
   let_it_be(:project) { create(:project) }
@@ -10,7 +10,7 @@ RSpec.describe Gitlab::GithubImport::Stage::ImportAttachmentsWorker do
   let(:stage_enabled) { true }
 
   before do
-    settings.write({ attachments_import: stage_enabled })
+    settings.write({ optional_stages: { attachments_import: stage_enabled } })
   end
 
   describe '#import' do

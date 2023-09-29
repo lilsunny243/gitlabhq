@@ -8,7 +8,12 @@ owning-stage: "~devops::verify"
 participating-stages: []
 ---
 
+<!-- vale gitlab.FutureTense = NO -->
+
 # CI/CD Catalog
+
+NOTE:
+This document covers the future plans for the CI/CD Catalog feature. For information on the features already available for use in GitLab, see the [CI/CD Components documentation](../../../ci/components/index.md).
 
 ## Summary
 
@@ -98,12 +103,13 @@ identifying abstract concepts and are subject to changes as we refine the design
 - **Catalog resource** is the single item displayed in the catalog. A components repository is a catalog resource.
 - **Version** is a specific revision of catalog resource. It maps to the released tag in the project,
   which allows components to be pinned to a specific revision.
+- **Steps** is a collection of instructions for how jobs can be executed.
 
 ## Definition of pipeline component
 
 A pipeline component is a reusable single-purpose building block that abstracts away a single pipeline configuration unit.
 Components are used to compose a part or entire pipeline configuration.
-It can optionally take input parameters and set output data to be adaptable and reusable in different pipeline contexts,
+It can optionally take input parameters to be adaptable and reusable in different pipeline contexts,
 while encapsulating and isolating implementation details.
 
 Components allow a pipeline to be assembled by using abstractions instead of having all the details defined in one place.
@@ -131,7 +137,7 @@ Eventually, we want to make CI Catalog Components predictable. Including a
 component by its path, using a fixed `@` version, should always return the same
 configuration, regardless of a context from which it is getting included from.
 The resulting configuration should be the same for a given component version
-and the set of inputs passed using `with:` keyword, hence it should be
+and the set of inputs passed using `include:inputs` keyword, therefore it should be
 [deterministic](https://en.wikipedia.org/wiki/Deterministic_algorithm).
 
 A component should not produce side effects by being included and should be
@@ -201,7 +207,6 @@ A component YAML file:
 - Must specify its **type** in the filename, which defines how it can be used (raw configuration to be `include`d, child pipeline workflow, job step).
 - Must define its **content** based on the type.
 - Must specify **input parameters** that it accepts. Components should depend on input parameters for dynamic values and not environment variables.
-- Can optionally define **output data** that it returns.
 - Should be **validated statically** (for example: using JSON schema validators).
 
 ```yaml
@@ -347,13 +352,13 @@ When using the component we pass the input parameters as follows:
 ```yaml
 include:
   - component: gitlab.com/org/my-component@1.0
-    with:
+    inputs:
       website: ${MY_WEBSITE} # variables expansion
       test_run: system
       environment: $[[ inputs.environment ]] # interpolation of upstream inputs
 ```
 
-Variables expansion must be supported for `with:` syntax as well as interpolation of
+Variables expansion must be supported for `include:inputs` syntax as well as interpolation of
 possible [inputs provided upstream](#input-parameters-for-pipelines).
 
 Input parameters are validated as soon as possible:
@@ -383,8 +388,8 @@ With `$[[ inputs.XXX ]]` inputs are interpolated immediately after parsing the c
 
 ### CI configuration interpolation perspectives and limitations
 
-With `spec:` users will be able to define input arguments for CI configuration.
-With `with:` keywords, they will pass these arguments to CI components.
+With `spec:inputs` users will be able to define input arguments for CI configuration.
+With `include:inputs`, they will pass these arguments to CI components.
 
 `inputs` in `$[[ inputs.something ]]` is going to be an initial "object" or
 "container" that we will provide, to allow users to access their arguments in
@@ -427,25 +432,25 @@ enforce contracts.
 ### Input parameters for existing `include:` syntax
 
 Because we are adding input parameters to components used via `include:component` we have an opportunity to
-extend it to other `include:` types support inputs via `with:` syntax:
+extend it to other `include:` types support inputs through `inputs:` syntax:
 
 ```yaml
 include:
   - component: gitlab.com/org/my-component@1.0
-    with:
+    inputs:
       foo: bar
   - local: path/to/file.yml
-    with:
+    inputs:
       foo: bar
   - project: org/another
     file: .gitlab-ci.yml
-    with:
+    inputs:
       foo: bar
   - remote: http://example.com/ci/config
-    with:
+    inputs:
       foo: bar
   - template: Auto-DevOps.gitlab-ci.yml
-    with:
+    inputs:
       foo: bar
 ```
 
@@ -459,15 +464,15 @@ spec:
 # rest of the configuration
 ```
 
-If a YAML includes content using `with:` but the including YAML doesn't define `inputs:` in the specifications,
+If a YAML includes content using `include:inputs` but the including YAML doesn't define `spec:inputs` in the specifications,
 an error should be raised.
 
-|`with:`| `inputs:` | result |
-| --- | --- | --- |
-| specified | |  raise error  |
-| specified | specified | validate inputs |
-| | specified | use defaults |
-| | | legacy `include:` without input passing |
+| `include:inputs` | `spec:inputs` | result                                  |
+|------------------|---------------|-----------------------------------------|
+| specified        |               | raise error                             |
+| specified        | specified     | validate inputs                         |
+|                  | specified     | use defaults                            |
+|                  |               | legacy `include:` without input passing |
 
 ### Input parameters for pipelines
 
@@ -487,7 +492,7 @@ Today we have different use cases where using explicit input parameters would be
 deploy-app:
   trigger:
     project: org/deployer
-    with:
+    inputs:
       provider: aws
       deploy_environment: staging
 ```
@@ -590,6 +595,31 @@ constrained by the lack of data available to properly visualize resources in
 the CI Catalog. To do that, we may need to find all resources that are
 being released and index their data and metadata.
 For example: index the content of `spec:` section for CI components.
+
+See an [example of development workflow](dev_workflow.md) for a components repository.
+
+## Availability of CI catalog as a feature
+
+We plan to introduce 2 features of CI catalog as separate views:
+
+1. **Namespace Catalog (GitLab Ultimate):** allows organizations to share and discover catalog resources
+   created inside the top-level namespace.
+   Users will be able to access the Namespace Catalog from a project or subgroup inside the top-level
+   namespace.
+1. **Community Catalog (GitLab free):** allows anyone in a GitLab instance to share and discover catalog
+   resources. The Community Catalog presents only resources/projects that are public.
+
+If a resource in a Namespace Catalog is made public (changing the project's visibility) the resource is
+available in both Namespace Catalog (because it comes from there) as well as the Community Catalog
+(because it's public).
+
+![Namespace and Community Catalogs](img/catalogs.png)
+
+There is only 1 CI catalog. The Namespace and Community Catalogs are different views of the CI catalog.
+
+Project admins are responsible for setting the project private or public.
+The CI Catalog should not provide security functionalities like prevent projects from appearing in the Community Catalog.
+If the project is public it's visible to the world anyway.
 
 ## Note about future resource types
 
@@ -701,6 +731,6 @@ Domain experts:
 | Area                         | Who
 |------------------------------|------------------------|
 | Verify / Pipeline authoring  | Avielle Wolfe          |
-| Verify / Pipeline authoring  | Laura Montemayor-Rodriguez  |
+| Verify / Pipeline authoring  | Laura Montemayor       |
 
 <!-- vale gitlab.Spelling = YES -->

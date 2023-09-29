@@ -12,7 +12,6 @@
 #   include_examples 'incident issue'
 RSpec.shared_examples 'incident issue' do
   it 'has incident as issue type' do
-    expect(issue.issue_type).to eq('incident')
     expect(issue.work_item_type.base_type).to eq('incident')
   end
 end
@@ -29,7 +28,6 @@ end
 #   include_examples 'not an incident issue'
 RSpec.shared_examples 'not an incident issue' do
   it 'has not incident as issue type' do
-    expect(issue.issue_type).not_to eq('incident')
     expect(issue.work_item_type.base_type).not_to eq('incident')
   end
 end
@@ -42,7 +40,7 @@ end
 
 RSpec.shared_examples 'incident management label service' do
   let_it_be(:project) { create(:project, :private) }
-  let_it_be(:user) { User.alert_bot }
+  let_it_be(:user) { Users::Internal.alert_bot }
   let(:service) { described_class.new(project, user) }
 
   subject(:execute) { service.execute }

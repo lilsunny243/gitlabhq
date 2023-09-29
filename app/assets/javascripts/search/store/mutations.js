@@ -33,7 +33,7 @@ export default {
     state.frequentItems[key] = data;
   },
   [types.RECEIVE_NAVIGATION_COUNT](state, { key, count }) {
-    const item = { ...state.navigation[key], count };
+    const item = { ...state.navigation[key], count, count_link: null };
     state.navigation = { ...state.navigation, [key]: item };
   },
   [types.REQUEST_AGGREGATIONS](state) {
@@ -44,5 +44,8 @@ export default {
   },
   [types.RECEIVE_AGGREGATIONS_ERROR](state) {
     state.aggregations = { fetching: false, error: true, data: [] };
+  },
+  [types.SET_LABEL_SEARCH_STRING](state, value) {
+    state.searchLabelString = value;
   },
 };

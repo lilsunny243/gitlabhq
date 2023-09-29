@@ -1,6 +1,7 @@
 import { GlButton, GlIcon } from '@gitlab/ui';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { useLocalStorageSpy } from 'helpers/local_storage_helper';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
@@ -33,7 +34,6 @@ describe('Frequent Items App Component', () => {
   const createComponent = (props = {}) => {
     const session = currentSession[TEST_NAMESPACE];
     gon.api_version = session.apiVersion;
-    gon.features = { fullPathProjectSearch: true };
 
     wrapper = mountExtended(App, {
       store,
@@ -69,7 +69,6 @@ describe('Frequent Items App Component', () => {
 
   afterEach(() => {
     mock.restore();
-    wrapper.destroy();
   });
 
   describe('default', () => {

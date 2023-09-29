@@ -1,6 +1,6 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -19,6 +19,8 @@ are very appreciative of the work done by translators and proofreaders!
   - Tsegaselassie Tadesse - [GitLab](https://gitlab.com/tsega), [Crowdin](https://crowdin.com/profile/tsegaselassi)
 - Arabic
   - Proofreaders needed.
+- Belarusian
+  - Anton Katsuba - [GitLab](https://gitlab.com/coinvariant), [Crowdin](https://crowdin.com/profile/aerialfiddle)
 - Bosnian
   - Haris Delalić - [GitLab](https://gitlab.com/haris.delalic), [Crowdin](https://crowdin.com/profile/haris.delalic)
 - Bulgarian
@@ -29,7 +31,7 @@ are very appreciative of the work done by translators and proofreaders!
   - Huang Tao - [GitLab](https://gitlab.com/htve), [Crowdin](https://crowdin.com/profile/htve)
   - Victor Wu - [GitLab](https://gitlab.com/_victorwu_), [Crowdin](https://crowdin.com/profile/victorwu)
   - Xiaogang Wen - [GitLab](https://gitlab.com/xiaogang_cn), [Crowdin](https://crowdin.com/profile/xiaogang_gitlab)
-  - Shuang Zhang - [GitLab](https://gitlab.com/tonygodspeed92), [Crowdin](https://crowdin.com/profile/tonygodspeed92)
+  - Qi Zhao - [GitLab](https://gitlab.com/zhaoqi01), [Crowdin](https://crowdin.com/profile/zhaoqi01)
 - Chinese Traditional 繁體中文
   - Weizhe Ding - [GitLab](https://gitlab.com/d.weizhe), [Crowdin](https://crowdin.com/profile/d.weizhe)
   - Yi-Jyun Pan - [GitLab](https://gitlab.com/pan93412), [Crowdin](https://crowdin.com/profile/pan93412)
@@ -126,6 +128,9 @@ are very appreciative of the work done by translators and proofreaders!
   - Proofreaders needed.
 - Spanish
   - Pedro Garcia - [GitLab](https://gitlab.com/pedgarrod), [Crowdin](https://crowdin.com/profile/breaking_pitt)
+  - David Elizondo - [GitLab](https://gitlab.com/daelmo), [Crowdin](https://crowdin.com/profile/daelmo)
+  - Pablo Reyes - [GitLab](https://gitlab.com/pabloryst9n), [Crowdin](https://crowdin.com/profile/pabloryst9n)
+
 - Swedish
   - Johannes Nilsson - [GitLab](https://gitlab.com/nlssn), [Crowdin](https://crowdin.com/profile/nlssn)
 - Turkish

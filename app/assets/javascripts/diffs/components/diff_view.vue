@@ -1,9 +1,11 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapState, mapActions } from 'vuex';
+import { throttle } from 'lodash';
 import { IdState } from 'vendor/vue-virtual-scroller';
-import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import DraftNote from '~/batch_comments/components/draft_note.vue';
 import draftCommentsMixin from '~/diffs/mixins/draft_comments';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { getCommentedLines } from '~/notes/components/multiline_comment_utils';
 import { hide } from '~/tooltips';
 import { pickDirection } from '../utils/diff_line';
@@ -48,7 +50,7 @@ export default {
   },
   data() {
     return {
-      codeQualityExpandedLines: [],
+      inlineFindingsExpandedLines: [],
     };
   },
   idState() {
@@ -61,6 +63,7 @@ export default {
     ...mapGetters('diffs', ['commitId', 'fileLineCoverage']),
     ...mapState('diffs', [
       'codequalityDiff',
+      'sastDiff',
       'highlightedRow',
       'coverageLoaded',
       'selectedCommentPosition',
@@ -78,9 +81,18 @@ export default {
         this.diffLines,
       );
     },
-    hasCodequalityChanges() {
-      return this.codequalityDiff?.files?.[this.diffFile.file_path]?.length > 0;
+    hasInlineFindingsChanges() {
+      return (
+        this.codequalityDiff?.files?.[this.diffFile.file_path]?.length > 0 ||
+        this.sastDiff?.added?.length > 0
+      );
     },
+    sastReportsInInlineDiff() {
+      return this.glFeatures.sastReportsInInlineDiff;
+    },
+  },
+  created() {
+    this.onDragOverThrottled = throttle((line) => this.onDragOver(line), 100, { leading: true });
   },
   methods: {
     ...mapActions(['setSelectedCommentPosition']),
@@ -97,17 +109,17 @@ export default {
       }
       this.idState.dragStart = line;
     },
-    hideCodeQualityFindings(line) {
-      const index = this.codeQualityExpandedLines.indexOf(line);
+    hideInlineFindings(line) {
+      const index = this.inlineFindingsExpandedLines.indexOf(line);
       if (index > -1) {
-        this.codeQualityExpandedLines.splice(index, 1);
+        this.inlineFindingsExpandedLines.splice(index, 1);
       }
     },
     toggleCodeQualityFindings(line) {
-      if (!this.codeQualityExpandedLines.includes(line)) {
-        this.codeQualityExpandedLines.push(line);
+      if (!this.inlineFindingsExpandedLines.includes(line)) {
+        this.inlineFindingsExpandedLines.push(line);
       } else {
-        this.hideCodeQualityFindings(line);
+        this.hideInlineFindings(line);
       }
     },
     onDragOver(line) {
@@ -174,7 +186,8 @@ export default {
     getCountBetweenIndex(index) {
       if (index === 0) {
         return -1;
-      } else if (!this.diffLines[index + 1]) {
+      }
+      if (!this.diffLines[index + 1]) {
         return -1;
       }
 
@@ -184,7 +197,10 @@ export default {
       );
     },
     getCodeQualityLine(line) {
-      return (line.left ?? line.right)?.codequality?.[0]?.line;
+      return (
+        (line.left ?? line.right)?.codequality?.[0]?.line ||
+        (line.left ?? line.right)?.sast?.[0]?.line
+      );
     },
     lineDrafts(line, side) {
       return (line[side]?.lineDrafts || []).filter((entry) => entry.isDraft);
@@ -201,7 +217,7 @@ export default {
   <div
     :class="[
       $options.userColorScheme,
-      { 'inline-diff-view': inline, 'with-codequality': hasCodequalityChanges },
+      { 'inline-diff-view': inline, 'with-inline-findings': hasInlineFindingsChanges },
     ]"
     :data-commit-id="commitId"
     class="diff-grid diff-table code diff-wrap-lines js-syntax-highlight text-file"
@@ -250,7 +266,7 @@ export default {
         :is-last-highlighted-line="isLastHighlightedLine(line) || index === commentedLines.endLine"
         :inline="inline"
         :index="index"
-        :code-quality-expanded="codeQualityExpandedLines.includes(getCodeQualityLine(line))"
+        :inline-findings-expanded="inlineFindingsExpandedLines.includes(getCodeQualityLine(line))"
         :file-line-coverage="fileLineCoverage"
         :coverage-loaded="coverageLoaded"
         @showCommentForm="(code) => singleLineComment(code, line)"
@@ -260,18 +276,18 @@ export default {
           ({ lineCode, expanded }) =>
             toggleLineDiscussions({ lineCode, fileHash: diffFile.file_hash, expanded })
         "
-        @enterdragging="onDragOver"
+        @enterdragging="onDragOverThrottled"
         @startdragging="onStartDragging"
         @stopdragging="onStopDragging"
       />
+      <!-- Don't display InlineFindings expanded section when sastReportsInInlineDiff is false  -->
       <diff-line
         v-if="
-          glFeatures.refactorCodeQualityInlineFindings &&
-          codeQualityExpandedLines.includes(getCodeQualityLine(line))
+          inlineFindingsExpandedLines.includes(getCodeQualityLine(line)) && !sastReportsInInlineDiff
         "
         :key="line.line_code"
         :line="line"
-        @hideCodeQualityFindings="hideCodeQualityFindings"
+        @hideInlineFindings="hideInlineFindings"
       />
       <div
         v-if="line.renderCommentRow"

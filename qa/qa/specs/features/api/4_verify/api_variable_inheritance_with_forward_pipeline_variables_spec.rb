@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner, product_group: :pipeline_authoring do
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_security do
     describe 'Pipeline API defined variable inheritance' do
       include_context 'variable inheritance test prep'
 
@@ -34,10 +34,7 @@ module QA
           upstream_project.pipelines.size == 1 && upstream_pipeline.status == 'success'
         end
 
-        Resource::Pipeline.fabricate_via_api! do |pipeline|
-          pipeline.project = upstream_project
-          pipeline.variables = [{ key: key, value: value, variable_type: 'env_var' }]
-        end
+        create(:pipeline, project: upstream_project, variables: [{ key: key, value: value, variable_type: 'env_var' }])
 
         # Wait for this pipeline to be created
         Support::Waiter.wait_until { upstream_project.pipelines.size > 1 }
@@ -70,15 +67,13 @@ module QA
       def expect_downstream_pipeline_to_inherit_variable
         pipeline = downstream_pipeline(upstream_project, 'child1_trigger')
         expect(pipeline).to have_variable(key: key, value: value),
-                            "Expected to find `{key: 'TEST_VAR', value: 'This is great!'}`" \
-            " but got #{pipeline.pipeline_variables}"
+          "Expected to find `{key: 'TEST_VAR', value: 'This is great!'}` but got #{pipeline.pipeline_variables}"
       end
 
       def expect_downstream_pipeline_not_to_inherit_variable(project, bridge_name)
         pipeline = downstream_pipeline(project, bridge_name)
         expect(pipeline).not_to have_variable(key: key, value: value),
-                                "Did not expect to find `{key: 'TEST_VAR', value: 'This is great!'}`" \
-            " but got #{pipeline.pipeline_variables}"
+          "Did not expect to find `{key: 'TEST_VAR', value: 'This is great!'}` but got #{pipeline.pipeline_variables}"
       end
     end
   end

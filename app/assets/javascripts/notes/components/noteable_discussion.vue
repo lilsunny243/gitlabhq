@@ -1,8 +1,9 @@
 <script>
 import { GlTooltipDirective, GlIcon } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters } from 'vuex';
 import DraftNote from '~/batch_comments/components/draft_note.vue';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { clearDraft, getDiscussionReplyKey } from '~/lib/utils/autosave';
 import { isLoggedIn } from '~/lib/utils/common_utils';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
@@ -11,9 +12,11 @@ import { s__, __, sprintf } from '~/locale';
 import diffLineNoteFormMixin from '~/notes/mixins/diff_line_note_form';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
 import UserAvatarLink from '~/vue_shared/components/user_avatar/user_avatar_link.vue';
+import { containsSensitiveToken, confirmSensitiveAction } from '~/lib/utils/secret_detection';
 import eventHub from '../event_hub';
 import noteable from '../mixins/noteable';
 import resolvable from '../mixins/resolvable';
+import { createNoteErrorMessages } from '../utils';
 import DiffDiscussionHeader from './diff_discussion_header.vue';
 import DiffWithNote from './diff_with_note.vue';
 import DiscussionActions from './discussion_actions.vue';
@@ -94,6 +97,18 @@ export default {
       'showJumpToNextDiscussion',
       'getUserData',
     ]),
+    diffFile() {
+      const diffFile = this.discussion.diff_file;
+      if (!diffFile) return null;
+
+      return {
+        ...diffFile,
+        view_path: window.location.href.replace(
+          /\/-\/merge_requests.*/,
+          `/-/blob/${diffFile.content_sha}/${diffFile.new_path}`,
+        ),
+      };
+    },
     currentUser() {
       return this.getUserData;
     },
@@ -155,11 +170,22 @@ export default {
       return !this.discussionResolved ? this.discussion.resolve_with_issue_path : '';
     },
     canShowReplyActions() {
-      if (this.shouldRenderDiffs && !this.discussion.diff_file.diff_refs) {
+      if (this.shouldRenderDiffs && !this.discussion.diff_file?.diff_refs) {
         return false;
       }
 
       return true;
+    },
+    isDiscussionInternal() {
+      return this.discussion.notes[0]?.internal;
+    },
+    discussionHolderClass() {
+      return {
+        'is-replying gl-pt-0!': this.isReplying,
+        'internal-note': this.isDiscussionInternal,
+        'public-note': !this.isDiscussionInternal,
+        'gl-pt-0!': !this.discussion.diff_discussion && this.isReplying,
+      };
     },
   },
   created() {
@@ -207,12 +233,21 @@ export default {
       this.isReplying = false;
       clearDraft(this.autosaveKey);
     }),
-    saveReply(noteText, form, callback) {
+    async saveReply(noteText, form, callback) {
       if (!noteText) {
         this.cancelReplyForm();
         callback();
         return;
       }
+
+      if (containsSensitiveToken(noteText)) {
+        const confirmed = await confirmSensitiveAction();
+        if (!confirmed) {
+          callback();
+          return;
+        }
+      }
+
       const postData = {
         in_reply_to_discussion_id: this.discussion.reply_id,
         target_type: this.getNoteableData.targetType,
@@ -234,26 +269,24 @@ export default {
       };
 
       this.saveNote(replyData)
-        .then((res) => {
-          if (res.hasAlert !== true) {
-            this.isReplying = false;
-            clearDraft(this.autosaveKey);
-          }
+        .then(() => {
+          this.isReplying = false;
+          clearDraft(this.autosaveKey);
+
           callback();
         })
         .catch((err) => {
-          this.removePlaceholderNotes();
           this.handleSaveError(err); // The 'err' parameter is being used in JH, don't remove it
-          this.$refs.noteForm.note = noteText;
+          this.removePlaceholderNotes();
+
           callback(err);
         });
     },
-    handleSaveError() {
-      const msg = __(
-        'Your comment could not be submitted! Please check your network connection and try again.',
-      );
+    handleSaveError({ response }) {
+      const errorMessage = createNoteErrorMessages(response.data, response.status)[0];
+
       createAlert({
-        message: msg,
+        message: errorMessage,
         parent: this.$el,
       });
     },
@@ -274,6 +307,7 @@ export default {
     <div class="timeline-content">
       <div
         :data-discussion-id="discussion.id"
+        :data-discussion-resolvable="discussion.resolvable"
         :data-discussion-resolved="discussion.resolved"
         class="discussion js-discussion-container"
         data-qa-selector="discussion_content"
@@ -309,8 +343,9 @@ export default {
                 />
                 <li
                   v-else-if="canShowReplyActions && showReplies"
-                  :class="{ 'is-replying': isReplying }"
-                  class="discussion-reply-holder gl-border-t-0! clearfix"
+                  data-testid="reply-wrapper"
+                  class="discussion-reply-holder gl-border-t-0! gl-pb-5! clearfix"
+                  :class="discussionHolderClass"
                 >
                   <discussion-actions
                     v-if="!isReplying && userCanReply"
@@ -326,6 +361,7 @@ export default {
                     v-if="isReplying"
                     ref="noteForm"
                     :discussion="discussion"
+                    :diff-file="diffFile"
                     :line="diffLine"
                     :save-button-title="saveButtonTitle"
                     :autosave-key="autosaveKey"

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::UploadsController do
+RSpec.describe Groups::UploadsController, feature_category: :portfolio_management do
   include WorkhorseHelpers
 
   let(:model) { create(:group, :public) }
@@ -40,8 +40,8 @@ RSpec.describe Groups::UploadsController do
     let(:user)  { create(:user) }
     let(:jpg)   { fixture_file_upload('spec/fixtures/rails_sample.jpg', 'image/jpg') }
     let(:txt)   { fixture_file_upload('spec/fixtures/doc_sample.txt', 'text/plain') }
-    let(:secret) { FileUploader.generate_secret }
-    let(:uploader_class) { FileUploader }
+    let(:uploader_class) { NamespaceFileUploader }
+    let(:secret) { uploader_class.generate_secret }
 
     let(:upload_service) do
       UploadService.new(model, jpg, uploader_class).execute
@@ -52,9 +52,9 @@ RSpec.describe Groups::UploadsController do
     end
 
     before do
-      allow(FileUploader).to receive(:generate_secret).and_return(secret)
+      allow(uploader_class).to receive(:generate_secret).and_return(secret)
 
-      allow_next_instance_of(FileUploader) do |instance|
+      allow_next_instance_of(uploader_class) do |instance|
         allow(instance).to receive(:image?).and_return(true)
       end
 
@@ -71,6 +71,26 @@ RSpec.describe Groups::UploadsController do
           show_upload
 
           expect(response).to have_gitlab_http_status(:ok)
+        end
+
+        context 'when uploader class does not match the upload' do
+          let(:uploader_class) { FileUploader }
+
+          it 'responds with status 404' do
+            show_upload
+
+            expect(response).to have_gitlab_http_status(:not_found)
+          end
+        end
+
+        context 'when filename does not match' do
+          let(:invalid_filename) { 'invalid_filename.jpg' }
+
+          it 'responds with status 404' do
+            get :show, params: params.merge(secret: secret, filename: invalid_filename)
+
+            expect(response).to have_gitlab_http_status(:not_found)
+          end
         end
       end
 

@@ -1,3 +1,87 @@
+// stylelint-disable length-zero-no-unit
+:root {
+  --performance-bar-height: 0px;
+  --system-header-height: 0px;
+  --header-height: 0px;
+  --top-bar-height: 0px;
+  --system-footer-height: 0px;
+  --mr-review-bar-height: 0px;
+
+  --application-bar-left: 0px;
+  --application-bar-right: 0px;
+
+  @each $name, $size in $grid-breakpoints {
+    --breakpoint-#{$name}: #{$size};
+  }
+}
+
+.with-performance-bar {
+  --performance-bar-height: #{$performance-bar-height};
+}
+
+.with-system-header {
+  --system-header-height: #{$system-header-height};
+}
+
+.with-header {
+  --header-height: #{$header-height};
+}
+
+.with-top-bar {
+  --top-bar-height: #{$top-bar-height};
+}
+
+.with-system-footer {
+  --system-footer-height: #{$system-footer-height};
+}
+
+.review-bar-visible {
+  --mr-review-bar-height: #{$mr-review-bar-height};
+}
+
+@include media-breakpoint-up(sm) {
+  .right-sidebar-collapsed {
+    --application-bar-right: #{$right-sidebar-collapsed-width};
+
+    &.is-merge-request,
+    &.build-sidebar {
+      --application-bar-right: 0px;
+    }
+  }
+
+  .right-sidebar-expanded {
+    --application-bar-right: #{$right-sidebar-width};
+  }
+
+  .build-sidebar {
+    --application-bar-right: 0px;
+  }
+}
+
+@include media-breakpoint-up(md) {
+  .page-with-contextual-sidebar {
+    --application-bar-left: #{$contextual-sidebar-collapsed-width};
+  }
+}
+
+@include media-breakpoint-up(xl) {
+  .page-with-contextual-sidebar {
+    --application-bar-left: #{$contextual-sidebar-width};
+  }
+
+  .page-with-icon-sidebar {
+    --application-bar-left: #{$contextual-sidebar-collapsed-width};
+  }
+
+  .page-with-super-sidebar {
+    --application-bar-left: #{$super-sidebar-width};
+  }
+
+  .page-with-super-sidebar-collapsed {
+    --application-bar-left: 0px;
+  }
+}
+
 /** COLORS **/
 .cgray { color: $gl-text-color; }
 .clgray { color: $gray-200; }
@@ -253,23 +337,9 @@ li.note {
   }
 }
 
-img.emoji {
-  height: 16px;
-  vertical-align: top;
-  width: 20px;
-}
-
 .chart {
   overflow: hidden;
   height: 220px;
-}
-
-.footer-links {
-  margin-bottom: 20px;
-
-  a {
-    margin-right: 15px;
-  }
 }
 
 .card.card-body {
@@ -451,7 +521,8 @@ img.emoji {
     width: 100%;
 
     > .dropdown-menu,
-    > .btn {
+    > .btn,
+    > .gl-new-dropdown-toggle > .gl-button-text {
       width: 100%;
     }
   }
@@ -488,3 +559,36 @@ img.emoji {
 See https://gitlab.com/gitlab-org/gitlab/issues/36857 for more details.
 **/
 .gl-line-height-14 { line-height: $gl-line-height-14; }
+
+// TODO: To be removed once `split` option for new dropdowns is implemented.
+//  See issue at https://gitlab.com/gitlab-org/gitlab-ui/-/issues/2263
+.gl-new-dropdown.split:nth-child(n+2) {
+  .gl-new-dropdown-toggle {
+    margin-left: 1px;
+
+    &.btn-tertiary,
+    &.disabled {
+      margin-left: -1px;
+    }
+  }
+}
+
+// --- moved from labels.scss when moving to page_bundles ---
+// Fix scoped label padding in cases where old markdown uses the old label structure */
+.gl-label-text + .gl-label-text {
+  @include gl-pl-2;
+  @include gl-pr-3;
+}
+
+// used in the Markdown rendering of labels
+.scoped-label-tooltip-title {
+  color: var(--indigo-300, $indigo-300);
+}
+
+.gl-label-scoped {
+  box-shadow: 0 0 0 2px currentColor inset;
+
+  &.gl-label-sm {
+    box-shadow: 0 0 0 1px inset;
+  }
+}

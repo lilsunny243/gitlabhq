@@ -2,11 +2,10 @@
 stage: Verify
 group: Runner
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 type: index
 ---
 
-# Services **(FREE)**
+# Services **(FREE ALL)**
 
 When you configure CI/CD, you specify an image, which is used to create the container
 where your jobs run. To specify this image, you use the `image` keyword.
@@ -27,7 +26,7 @@ It's easier and faster to use an existing image and run it as an additional cont
 than to install `mysql`, for example, every time the project is built.
 
 You're not limited to only database services. You can add as many
-services you need to `.gitlab-ci.yml` or manually modify `config.toml`.
+services you need to `.gitlab-ci.yml` or manually modify the [`config.toml`](https://docs.gitlab.com/runner/configuration/advanced-configuration.html).
 Any image found at [Docker Hub](https://hub.docker.com/) or your private Container Registry can be
 used as a service.
 
@@ -49,7 +48,7 @@ socket or `localhost`. Read more in [accessing the services](#accessing-the-serv
 ## How the health check of services works
 
 Services are designed to provide additional features which are **network accessible**.
-They may be a database like MySQL, or Redis, and even `docker:stable-dind` which
+They may be a database like MySQL, or Redis, and even `docker:dind` which
 allows you to use Docker-in-Docker. It can be practically anything that's
 required for the CI/CD job to proceed, and is accessed by network.
 
@@ -146,13 +145,11 @@ default:
   image:
     name: ruby:2.6
     entrypoint: ["/bin/bash"]
-
   services:
     - name: my-postgres:11.7
       alias: db-postgres
       entrypoint: ["/usr/local/bin/db-postgres"]
       command: ["start"]
-
   before_script:
     - bundle install
 
@@ -190,7 +187,7 @@ following these rules:
 - Slash (`/`) is replaced with double underscores (`__`) and the primary alias
   is created.
 - Slash (`/`) is replaced with a single dash (`-`) and the secondary alias is
-  created (requires GitLab Runner v1.1.0 or higher).
+  created (requires GitLab Runner v1.1.0 or later).
 
 To override the default behavior, you can
 [specify a service alias](#available-settings-for-services).
@@ -241,18 +238,17 @@ variables:
   PGDATA: "/var/lib/postgresql/data"
   POSTGRES_INITDB_ARGS: "--encoding=UTF8 --data-checksums"
 
-services:
-  - name: postgres:11.7
-    alias: db
-    entrypoint: ["docker-entrypoint.sh"]
-    command: ["postgres"]
-
-image:
-  name: ruby:2.6
-  entrypoint: ["/bin/bash"]
-
-before_script:
-  - bundle install
+default:
+  services:
+    - name: postgres:11.7
+      alias: db
+      entrypoint: ["docker-entrypoint.sh"]
+      command: ["postgres"]
+  image:
+    name: ruby:2.6
+    entrypoint: ["/bin/bash"]
+  before_script:
+    - bundle install
 
 test:
   script:
@@ -322,28 +318,26 @@ Before the new extended Docker configuration options, you would need to:
 
 - Create your own image based on the `super/sql:latest` image.
 - Add the default command.
-- Use the image in the job's configuration:
+- Use the image in the job's configuration.
 
-  ```dockerfile
-  # my-super-sql:latest image's Dockerfile
+  - `my-super-sql:latest` image's Dockerfile:
 
-  FROM super/sql:latest
-  CMD ["/usr/bin/super-sql", "run"]
-  ```
+    ```dockerfile
+    FROM super/sql:latest
+    CMD ["/usr/bin/super-sql", "run"]
+    ```
 
-  ```yaml
-  # .gitlab-ci.yml
+  - In the job in the `.gitlab-ci.yml`:
 
-  services:
-    - my-super-sql:latest
-  ```
+    ```yaml
+    services:
+      - my-super-sql:latest
+    ```
 
 After the new extended Docker configuration options, you can
 set a `command` in the `.gitlab-ci.yml` file instead:
 
 ```yaml
-# .gitlab-ci.yml
-
 services:
   - name: super/sql:latest
     command: ["/usr/bin/super-sql", "run"]
@@ -415,7 +409,7 @@ To enable service logging, add the `CI_DEBUG_SERVICES` variable to the project's
 
 ```yaml
 variables:
-    CI_DEBUG_SERVICES: "true"
+  CI_DEBUG_SERVICES: "true"
 ```
 
 Accepted values are:
@@ -499,5 +493,10 @@ Docker privileged mode applies to services. This means that the service image co
 
 ## Shared /builds directory
 
-Services can access files from the build because all services have the job
-directory mounted as a volume under `/builds`.
+The build directory is mounted as a volume under `/builds` and is shared
+between the job and services. The job checks the project out into
+`/builds/$CI_PROJECT_PATH` after the services are running. As a result, if your
+service needs files from the project or, for example, wants to put files there
+to serve as artifacts, it may need to wait for that directory to exist and
+have `$CI_COMMIT_SHA` checked out. Any changes made before the job finishes its
+checkout process are removed by the checkout process.

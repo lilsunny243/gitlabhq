@@ -35,8 +35,10 @@ class EnvironmentSerializer < BaseSerializer
   def itemize(resource)
     items = resource.order('folder ASC')
       .group('COALESCE(environment_type, id::text)', 'COALESCE(environment_type, name)')
-      .select('COALESCE(environment_type, id::text), COALESCE(environment_type, name) AS folder',
-              'COUNT(*) AS size', 'MAX(id) AS last_id')
+      .select(
+        'COALESCE(environment_type, id::text), COALESCE(environment_type, name) AS folder',
+        'COUNT(*) AS size', 'MAX(id) AS last_id'
+      )
 
     # It makes a difference when you call `paginate` method, because
     # although `page` is effective at the end, it calls counting methods
@@ -81,7 +83,7 @@ class EnvironmentSerializer < BaseSerializer
   def deployment_associations
     {
       user: [],
-      cluster: [],
+      deployment_cluster: { cluster: [] },
       project: {
         route: [],
         namespace: :route
@@ -92,7 +94,7 @@ class EnvironmentSerializer < BaseSerializer
         pipeline: {
           manual_actions: [:metadata, :deployment],
           scheduled_actions: [:metadata],
-          latest_successful_builds: []
+          latest_successful_jobs: []
         },
         project: project_associations
       }

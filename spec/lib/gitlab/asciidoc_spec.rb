@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'nokogiri'
 
 module Gitlab
-  RSpec.describe Asciidoc do
+  RSpec.describe Asciidoc, feature_category: :wiki do
     include FakeBlobHelpers
 
     before do
@@ -20,7 +20,7 @@ module Gitlab
         expected_asciidoc_opts = {
             safe: :secure,
             backend: :gitlab_html5,
-            attributes: described_class::DEFAULT_ADOC_ATTRS.merge({ "kroki-server-url" => nil }),
+            attributes: described_class::DEFAULT_ADOC_ATTRS.merge({ "kroki-server-url" => nil, "allow-uri-read" => false }),
             extensions: be_a(Proc)
         }
 
@@ -35,7 +35,7 @@ module Gitlab
           expected_asciidoc_opts = {
               safe: :secure,
               backend: :gitlab_html5,
-              attributes: described_class::DEFAULT_ADOC_ATTRS.merge({ "kroki-server-url" => nil }),
+              attributes: described_class::DEFAULT_ADOC_ATTRS.merge({ "kroki-server-url" => nil, "allow-uri-read" => false }),
               extensions: be_a(Proc)
           }
 
@@ -97,8 +97,8 @@ module Gitlab
           output = <<~HTML
             <div>
             <div>
-            <div class=\"gl-relative markdown-code-block js-markdown-code\">
-            <pre lang=\"plaintext\" class=\"code highlight js-syntax-highlight language-plaintext\" data-canonical-lang=\"mypre\" v-pre=\"true\"><code></code></pre>
+            <div class="gl-relative markdown-code-block js-markdown-code">
+            <pre data-canonical-lang="mypre" class="code highlight js-syntax-highlight language-plaintext" lang="plaintext" v-pre="true"><code></code></pre>
             <copy-code></copy-code>
             </div>
             </div>
@@ -369,7 +369,7 @@ module Gitlab
             <div>
             <div>
             <div class="gl-relative markdown-code-block js-markdown-code">
-            <pre lang="javascript" class="code highlight js-syntax-highlight language-javascript" data-canonical-lang="js" v-pre="true"><code><span id="LC1" class="line" lang="javascript"><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">'</span><span class="s1">hello world</span><span class="dl">'</span><span class="p">)</span></span></code></pre>
+            <pre data-canonical-lang="js" class="code highlight js-syntax-highlight language-javascript" lang="javascript" v-pre="true"><code><span id="LC1" class="line" lang="javascript"><span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">'</span><span class="s1">hello world</span><span class="dl">'</span><span class="p">)</span></span></code></pre>
             <copy-code></copy-code>
             </div>
             </div>
@@ -399,7 +399,7 @@ module Gitlab
             <div>class.cpp</div>
             <div>
             <div class="gl-relative markdown-code-block js-markdown-code">
-            <pre lang="cpp" class="code highlight js-syntax-highlight language-cpp" data-canonical-lang="c++" v-pre="true"><code><span id="LC1" class="line" lang="cpp"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span></span>
+            <pre data-canonical-lang="c++" class="code highlight js-syntax-highlight language-cpp" lang="cpp" v-pre="true"><code><span id="LC1" class="line" lang="cpp"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span></span>
             <span id="LC2" class="line" lang="cpp"></span>
             <span id="LC3" class="line" lang="cpp"><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span></span>
             <span id="LC4" class="line" lang="cpp">  <span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="o">&lt;&lt;</span><span class="s">"*"</span><span class="o">&lt;&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span></span>
@@ -457,7 +457,7 @@ module Gitlab
             stem:[2+2] is 4
           MD
 
-          expect(render(input, context)).to include('<pre data-math-style="display" lang="plaintext" class="code math js-render-math" data-canonical-lang="" v-pre="true"><code><span id="LC1" class="line" lang="plaintext">eta_x gamma</span></code></pre>')
+          expect(render(input, context)).to include('<pre data-math-style="display" class="code math js-render-math" lang="plaintext" v-pre="true"><code><span id="LC1" class="line" lang="plaintext">eta_x gamma</span></code></pre>')
           expect(render(input, context)).to include('<p><code data-math-style="inline" class="code math js-render-math">2+2</code> is 4</p>')
         end
       end
@@ -730,6 +730,19 @@ module Gitlab
           include_examples 'invalid include'
         end
 
+        context 'with a URI that returns 404' do
+          let(:include_path) { 'https://example.com/some_file.adoc' }
+
+          before do
+            stub_request(:get, include_path).to_return(status: 404, body: 'not found')
+            allow_any_instance_of(ApplicationSetting).to receive(:wiki_asciidoc_allow_uri_includes).and_return(true)
+          end
+
+          it 'renders Unresolved directive placeholder' do
+            is_expected.to include("<strong>[ERROR: include::#{include_path}[] - unresolved directive]</strong>")
+          end
+        end
+
         context 'with path to a textual file' do
           let(:include_path) { 'sample.adoc' }
 
@@ -804,6 +817,59 @@ module Gitlab
           end
         end
 
+        describe 'the effect of max-includes' do
+          before do
+            create_file 'doc/preface.adoc', 'source: preface'
+            create_file 'doc/chapter-1.adoc', 'source: chapter-1'
+            create_file 'license.adoc', 'source: license'
+            stub_request(:get, 'https://example.com/some_file.adoc')
+              .to_return(status: 200, body: 'source: interwebs')
+            stub_request(:get, 'https://example.com/other_file.adoc')
+              .to_return(status: 200, body: 'source: intertubes')
+            allow_any_instance_of(ApplicationSetting).to receive(:wiki_asciidoc_allow_uri_includes).and_return(true)
+          end
+
+          let(:input) do
+            <<~ADOC
+              Source: requested file
+
+              include::doc/preface.adoc[]
+              include::https://example.com/some_file.adoc[]
+              include::doc/chapter-1.adoc[]
+              include::https://example.com/other_file.adoc[]
+              include::license.adoc[]
+            ADOC
+          end
+
+          it 'includes the content of all sources' do
+            expect(output.gsub(/<[^>]+>/, '').gsub(/\n\s*/, "\n").strip).to eq <<~ADOC.strip
+              Source: requested file
+              source: preface
+              source: interwebs
+              source: chapter-1
+              source: intertubes
+              source: license
+            ADOC
+          end
+
+          context 'when the document includes more than MAX_INCLUDES' do
+            before do
+              stub_const("#{described_class}::MAX_INCLUDES", 2)
+            end
+
+            it 'includes only the content of the first 2 sources' do
+              expect(output.gsub(/<[^>]+>/, '').gsub(/\n\s*/, "\n").strip).to eq <<~ADOC.strip
+                Source: requested file
+                source: preface
+                source: interwebs
+                doc/chapter-1.adoc
+                https://example.com/other_file.adoc
+                license.adoc
+              ADOC
+            end
+          end
+        end
+
         context 'recursive includes with relative paths' do
           let(:input) do
             <<~ADOC
@@ -811,29 +877,53 @@ module Gitlab
 
               include::doc/README.adoc[]
 
-              include::license.adoc[]
+              include::https://example.com/some_file.adoc[]
+
+              include::license.adoc[lines=1]
             ADOC
           end
 
           before do
+            stub_request(:get, 'https://example.com/some_file.adoc')
+              .to_return(status: 200, body: <<~ADOC)
+                Source: some file from Example.com
+
+                include::https://example.com/other_file[lines=1..2]
+
+                End some file from Example.com
+              ADOC
+
+            stub_request(:get, 'https://example.com/other_file')
+              .to_return(status: 200, body: <<~ADOC)
+                Source: other file from Example.com
+                Other file line 2
+                Other file line 3
+              ADOC
+
             create_file 'doc/README.adoc', <<~ADOC
               Source: doc/README.adoc
 
-              include::../license.adoc[]
+              include::../license.adoc[lines=1;3]
 
               include::api/hello.adoc[]
             ADOC
             create_file 'license.adoc', <<~ADOC
               Source: license.adoc
+              License content
+              License end
             ADOC
             create_file 'doc/api/hello.adoc', <<~ADOC
               Source: doc/api/hello.adoc
 
-              include::./common.adoc[]
+              include::./common.adoc[lines=2..3]
             ADOC
             create_file 'doc/api/common.adoc', <<~ADOC
+              Common start
               Source: doc/api/common.adoc
+              Common end
             ADOC
+
+            allow_any_instance_of(ApplicationSetting).to receive(:wiki_asciidoc_allow_uri_includes).and_return(true)
           end
 
           it 'includes content of the included files recursively' do
@@ -841,8 +931,14 @@ module Gitlab
               Source: requested file
               Source: doc/README.adoc
               Source: license.adoc
+              License end
               Source: doc/api/hello.adoc
               Source: doc/api/common.adoc
+              Common end
+              Source: some file from Example.com
+              Source: other file from Example.com
+              Other file line 2
+              End some file from Example.com
               Source: license.adoc
             ADOC
           end

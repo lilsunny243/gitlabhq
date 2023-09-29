@@ -4,7 +4,7 @@ module MigrationsHelpers
   def active_record_base(database: nil)
     database_name = database || self.class.metadata[:database] || :main
 
-    unless Gitlab::Database::DATABASE_NAMES.include?(database_name.to_s)
+    unless ::Gitlab::Database.all_database_connections.include?(database_name)
       raise ArgumentError, "#{database_name} is not a valid argument"
     end
 
@@ -92,7 +92,7 @@ module MigrationsHelpers
   end
 
   def reset_column_information(klass)
-    klass.reset_column_information
+    klass.reset_column_information if klass.instance_variable_get(:@table_name)
   end
 
   # In some migration tests, we're using factories to create records,

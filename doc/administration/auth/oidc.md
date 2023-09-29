@@ -1,11 +1,11 @@
 ---
 type: reference
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# OpenID Connect OmniAuth provider **(FREE SELF)**
+# Use OpenID Connect as an OAuth 2.0 authentication provider **(FREE SELF)**
 
 GitLab can use [OpenID Connect](https://openid.net/specs/openid-connect-core-1_0.html)
 as an OmniAuth provider.
@@ -16,31 +16,31 @@ The OpenID Connect provides you with a client's details and secret for you to us
 
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    cd /home/git/gitlab
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](../../integration/omniauth.md#configure-common-settings)
+1. Configure the [common settings](../../integration/omniauth.md#configure-common-settings)
    to add `openid_connect` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration.
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
      {
-       name: "openid_connect",
+       name: "openid_connect", # do not change this parameter
        label: "Provider name", # optional label for login button, defaults to "Openid Connect"
        icon: "<custom_provider_icon>",
        args: {
@@ -63,10 +63,55 @@ The OpenID Connect provides you with a client's details and secret for you to us
    ]
    ```
 
-   For installation from source:
+   For Linux package installations with multiple identity providers:
+
+   ```ruby
+   { 'name' => 'openid_connect',
+     'label' => '...',
+     'icon' => '...',
+     'args' => {
+       'name' => 'openid_connect',
+       'strategy_class': 'OmniAuth::Strategies::OpenIDConnect',
+       'scope' => ['openid', 'profile', 'email'],
+       'discovery' => true,
+       'response_type' => 'code',
+       'issuer' => 'https://...',
+       'client_auth_method' => 'query',
+       'uid_field' => '...',
+       'client_options' => {
+         `identifier`: "<your_oidc_client_id>",
+         `secret`: "<your_oidc_client_secret>",
+         'redirect_uri' => 'https://.../users/auth/openid_connect/callback'
+      }
+    }
+   },
+   { 'name' => 'openid_connect_2fa',
+     'label' => '...',
+     'icon' => '...',
+     'args' => {
+       'name' => 'openid_connect_2fa',
+       'strategy_class': 'OmniAuth::Strategies::OpenIDConnect',
+       'scope' => ['openid', 'profile', 'email'],
+       'discovery' => true,
+       'response_type' => 'code',
+       'issuer' => 'https://...',
+       'client_auth_method' => 'query',
+       'uid_field' => '...',
+       'client_options' => {
+        ...
+        'redirect_uri' => 'https://.../users/auth/openid_connect_2fa/callback'
+      }
+    }
+   }
+   ```
+
+   NOTE:
+   For more information on using multiple identity providers with OIDC, see [issue 5992](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/5992).
+
+   For self-compiled installations:
 
    ```yaml
-     - { name: 'openid_connect',
+     - { name: 'openid_connect', # do not change this parameter
          label: 'Provider name', # optional label for login button, defaults to "Openid Connect"
          icon: '<custom_provider_icon>',
          args: {
@@ -89,10 +134,7 @@ The OpenID Connect provides you with a client's details and secret for you to us
    ```
 
    NOTE:
-   For more information on each configuration option, refer to the:
-
-   - [OmniAuth OpenID Connect usage documentation](https://github.com/m0n9oose/omniauth_openid_connect#usage).
-   - [OpenID Connect Core 1.0 specification](https://openid.net/specs/openid-connect-core-1_0.html).
+   For more information on each configuration option, refer to the [OmniAuth OpenID Connect usage documentation](https://github.com/omniauth/omniauth_openid_connect#usage) and [OpenID Connect Core 1.0 specification](https://openid.net/specs/openid-connect-core-1_0.html).
 
 1. For the provider configuration, change the values for the provider to match your
    OpenID Connect client setup. Use the following as a guide:
@@ -129,7 +171,7 @@ The OpenID Connect provides you with a client's details and secret for you to us
    - `client_options` are the OpenID Connect client-specific options. Specifically:
      - `identifier` is the client identifier as configured in the OpenID Connect service provider.
      - `secret` is the client secret as configured in the OpenID Connect service provider. For example,
-       [OmniAuth OpenIDConnect](https://github.com/omniauth/omniauth_openid_connect)) requires this. If the service provider doesn't require a secret,
+       [OmniAuth OpenID Connect](https://github.com/omniauth/omniauth_openid_connect) requires this. If the service provider doesn't require a secret,
        provide any value and it is ignored.
      - `redirect_uri` is the GitLab URL to redirect the user to after successful login
        (for example, `http://example.com/users/auth/openid_connect/callback`).
@@ -142,10 +184,10 @@ The OpenID Connect provides you with a client's details and secret for you to us
        - `jwks_uri` is the URL to the endpoint where the Token signer publishes its keys.
 
 1. Save the configuration file.
-1. For changes to take effect, if you installed GitLab:
+1. For changes to take effect, if you:
 
-   - With Omnibus, [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - From source, [restart GitLab](../restart_gitlab.md#installations-from-source).
+   - Used the Linux package to install GitLab, [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - Self-compiled your GitLab installation, [restart GitLab](../restart_gitlab.md#self-compiled-installations).
 
 On the sign in page, you have an OpenID Connect option below the regular sign in form.
 Select this option to begin the authentication process. The OpenID Connect provider
@@ -155,7 +197,7 @@ by the client. You are redirected to GitLab and signed in.
 ## Example configurations
 
 The following configurations illustrate how to set up OpenID with
-different providers with Omnibus GitLab.
+different providers when using the Linux package installation.
 
 ### Configure Google
 
@@ -165,7 +207,7 @@ for more details:
 ```ruby
 gitlab_rails['omniauth_providers'] = [
   {
-    name: "openid_connect",
+    name: "openid_connect", # do not change this parameter
     label: "Google OpenID", # optional label for login button, defaults to "Openid Connect"
     args: {
       name: "openid_connect",
@@ -198,12 +240,12 @@ you need the following information:
   [Microsoft Quickstart Register an Application](https://learn.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app) documentation
   to obtain the tenant ID, client ID, and client secret for your app.
 
-Example Omnibus configuration block:
+Example configuration block for Linux package installations:
 
 ```ruby
 gitlab_rails['omniauth_providers'] = [
   {
-    name: "openid_connect",
+    name: "openid_connect", # do not change this parameter
     label: "Azure OIDC", # optional label for login button, defaults to "Openid Connect"
     args: {
       name: "openid_connect",
@@ -330,12 +372,12 @@ but `LocalAccounts` authenticates against local Active Directory accounts. Befor
    ```
 
 1. Configure the issuer URL with the custom policy used for `signup_signin`. For example, this is
-   the Omnibus configuration with a custom policy for `b2c_1a_signup_signin`:
+   the configuration with a custom policy for `b2c_1a_signup_signin` for Linux package installations:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
    {
-     name: "openid_connect",
+     name: "openid_connect", # do not change this parameter
      label: "Azure B2C OIDC", # optional label for login button, defaults to "Openid Connect"
      args: {
        name: "openid_connect",
@@ -390,12 +432,12 @@ HS256 or HS358) to sign tokens. Public key encryption algorithms are:
 1. Select **Realm Settings > Tokens > Default Signature Algorithm**.
 1. Configure the signature algorithm.
 
-Example Omnibus configuration block:
+Example configuration block for Linux package installations:
 
 ```ruby
 gitlab_rails['omniauth_providers'] = [
   {
-    name: "openid_connect",
+    name: "openid_connect", # do not change this parameter
     label: "Keycloak", # optional label for login button, defaults to "Openid Connect"
     args: {
       name: "openid_connect",
@@ -475,7 +517,7 @@ To use symmetric key encryption:
    ```ruby
    gitlab_rails['omniauth_providers'] = [
      {
-       name: "openid_connect",
+       name: "openid_connect", # do not change this parameter
        label: "Keycloak", # optional label for login button, defaults to "Openid Connect"
        args: {
          name: "openid_connect",
@@ -512,14 +554,14 @@ For your app, complete the following steps on Casdoor:
    ensure the Casdoor app has the following
    `Redirect URI`: `https://gitlab.example.com/users/auth/openid_connect/callback`.
 
-See the [Casdoor documentation](https://casdoor.org/docs/integration/ruby/gitlab) for more details.
+See the [Casdoor documentation](https://casdoor.org/docs/integration/ruby/gitlab/) for more details.
 
-Example Omnibus GitLab configuration (file path: `/etc/gitlab/gitlab.rb`):
+Example configuration for Linux package installations (file path: `/etc/gitlab/gitlab.rb`):
 
 ```ruby
 gitlab_rails['omniauth_providers'] = [
     {
-        name: "openid_connect",
+        name: "openid_connect", # do not change this parameter
         label: "Casdoor", # optional label for login button, defaults to "Openid Connect"
         args: {
             name: "openid_connect",
@@ -539,10 +581,10 @@ gitlab_rails['omniauth_providers'] = [
 ]
 ```
 
-Example installations from source configuration (file path: `config/gitlab.yml`):
+Example configuration for self-compiled installations (file path: `config/gitlab.yml`):
 
 ```yaml
-  - { name: 'openid_connect',
+  - { name: 'openid_connect', # do not change this parameter
       label: 'Casdoor', # optional label for login button, defaults to "Openid Connect"
       args: {
         name: 'openid_connect',
@@ -561,6 +603,494 @@ Example installations from source configuration (file path: `config/gitlab.yml`)
     }
 ```
 
+## Configure multiple OpenID Connect providers
+
+You can configure your application to use multiple OpenID Connect (OIDC) providers. You do this by explicitly setting the `strategy_class` in your configuration file.
+
+You should do this in either of the following scenarios:
+
+- [Migrating to the OpenID Connect protocol](../../integration/azure.md#migrate-to-the-openid-connect-protocol).
+- Offering different levels of authentication.
+
+NOTE:
+This is not compatible with [configuring users based on OIDC group membership](#configure-users-based-on-oidc-group-membership). For more information, see [issue 408248](https://gitlab.com/gitlab-org/gitlab/-/issues/408248).
+
+The following example configurations show how to offer different levels of authentication, one option with 2FA and one without 2FA.
+
+For Linux package installations:
+
+```ruby
+gitlab_rails['omniauth_providers'] = [
+  {
+    name: "openid_connect",
+    label: "Provider name", # optional label for login button, defaults to "Openid Connect"
+    icon: "<custom_provider_icon>",
+    args: {
+      name: "openid_connect",
+      strategy_class: "OmniAuth::Strategies::OpenIDConnect",
+      scope: ["openid","profile","email"],
+      response_type: "code",
+      issuer: "<your_oidc_url>",
+      discovery: true,
+      client_auth_method: "query",
+      uid_field: "<uid_field>",
+      send_scope_to_token_endpoint: "false",
+      pkce: true,
+      client_options: {
+        identifier: "<your_oidc_client_id>",
+        secret: "<your_oidc_client_secret>",
+        redirect_uri: "<your_gitlab_url>/users/auth/openid_connect/callback"
+      }
+    }
+  },
+  {
+    name: "openid_connect_2fa",
+    label: "Provider name 2FA", # optional label for login button, defaults to "Openid Connect"
+    icon: "<custom_provider_icon>",
+    args: {
+      name: "openid_connect_2fa",
+      strategy_class: "OmniAuth::Strategies::OpenIDConnect",
+      scope: ["openid","profile","email"],
+      response_type: "code",
+      issuer: "<your_oidc_url>",
+      discovery: true,
+      client_auth_method: "query",
+      uid_field: "<uid_field>",
+      send_scope_to_token_endpoint: "false",
+      pkce: true,
+      client_options: {
+        identifier: "<your_oidc_client_id>",
+        secret: "<your_oidc_client_secret>",
+        redirect_uri: "<your_gitlab_url>/users/auth/openid_connect_2fa/callback"
+      }
+    }
+  }
+]
+```
+
+For self-compiled installations:
+
+```yaml
+  - { name: 'openid_connect',
+      label: 'Provider name', # optional label for login button, defaults to "Openid Connect"
+      icon: '<custom_provider_icon>',
+      args: {
+        name: 'openid_connect',
+        strategy_class: "OmniAuth::Strategies::OpenIDConnect",
+        scope: ['openid','profile','email'],
+        response_type: 'code',
+        issuer: '<your_oidc_url>',
+        discovery: true,
+        client_auth_method: 'query',
+        uid_field: '<uid_field>',
+        send_scope_to_token_endpoint: false,
+        pkce: true,
+        client_options: {
+          identifier: '<your_oidc_client_id>',
+          secret: '<your_oidc_client_secret>',
+          redirect_uri: '<your_gitlab_url>/users/auth/openid_connect/callback'
+        }
+      }
+    }
+  - { name: 'openid_connect_2fa',
+      label: 'Provider name 2FA', # optional label for login button, defaults to "Openid Connect"
+      icon: '<custom_provider_icon>',
+      args: {
+        name: 'openid_connect_2fa',
+        strategy_class: "OmniAuth::Strategies::OpenIDConnect",
+        scope: ['openid','profile','email'],
+        response_type: 'code',
+        issuer: '<your_oidc_url>',
+        discovery: true,
+        client_auth_method: 'query',
+        uid_field: '<uid_field>',
+        send_scope_to_token_endpoint: false,
+        pkce: true,
+        client_options: {
+          identifier: '<your_oidc_client_id>',
+          secret: '<your_oidc_client_secret>',
+          redirect_uri: '<your_gitlab_url>/users/auth/openid_connect_2fa/callback'
+        }
+      }
+    }
+```
+
+In this use case, you might want to synchronize the `extern_uid` across the
+different providers based on an existing known identifier in your
+corporate directory.
+
+To do this, you set the `uid_field`. The following example code shows how to
+do this:
+
+```python
+def sync_missing_provider(self, user: User, extern_uid: str)
+  existing_identities = []
+  for identity in user.identities:
+      existing_identities.append(identity.get("provider"))
+
+  local_extern_uid = extern_uid.lower()
+  for provider in ("openid_connect_2fa", "openid_connect"):
+      identity = [
+          identity
+          for identity in user.identities
+          if identity.get("provider") == provider
+          and identity.get("extern_uid").lower() != local_extern_uid
+      ]
+      if provider not in existing_identities or identity:
+          if identity and identity[0].get("extern_uid") != "":
+              logger.error(f"Found different identity for provider {provider} for user {user.id}")
+              continue
+          else:
+              logger.info(f"Add identity 'provider': {provider}, 'extern_uid': {extern_uid} for user {user.id}")
+              user.provider = provider
+              user.extern_uid = extern_uid
+              user = self.save_user(user)
+  return user
+```
+
+For more information, see the [GitLab API user method documentation](https://python-gitlab.readthedocs.io/en/stable/gl_objects/users.html#examples).
+
+## Configure users based on OIDC group membership **(PREMIUM ALL)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/209898) in GitLab 15.10.
+
+You can configure OIDC group membership to:
+
+- Require users to be members of a certain group.
+- Assign users [external](../external_users.md), administrator or
+  [auditor](../auditor_users.md) roles based on group membership.
+
+GitLab checks these groups on each sign in and updates user attributes as necessary.
+This feature **does not** allow you to automatically add users to GitLab
+[groups](../../user/group/index.md).
+
+### Required groups
+
+Your identity provider (IdP) must pass group information to GitLab in the OIDC response. To use this
+response to require users to be members of a certain group, configure GitLab to identify:
+
+- Where to look for the groups in the OIDC response, using the `groups_attribute` setting.
+- Which group membership is required to sign in, using the `required_groups` setting.
+
+If you do not set `required_groups` or leave the setting empty, any user authenticated by the IdP through OIDC can use GitLab.
+
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitlab_rails['omniauth_providers'] = [
+     {
+       name: "openid_connect",
+       label: "Provider name",
+       args: {
+         name: "openid_connect",
+         scope: ["openid","profile","email"],
+         response_type: "code",
+         issuer: "<your_oidc_url>",
+         discovery: true,
+         client_auth_method: "query",
+         uid_field: "<uid_field>",
+         client_options: {
+           identifier: "<your_oidc_client_id>",
+           secret: "<your_oidc_client_secret>",
+           redirect_uri: "<your_gitlab_url>/users/auth/openid_connect/callback",
+           gitlab: {
+             groups_attribute: "groups",
+             required_groups: ["Developer"]
+           }
+         }
+       }
+     }
+   ]
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation)
+   for the changes to take effect.
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     omniauth:
+       providers:
+        - { name: 'openid_connect',
+            label: 'Provider name',
+         args: {
+           name: 'openid_connect',
+           scope: ['openid','profile','email'],
+           response_type: 'code',
+           issuer: '<your_oidc_url>',
+           discovery: true,
+           client_auth_method: 'query',
+           uid_field: '<uid_field>',
+           client_options: {
+             identifier: '<your_oidc_client_id>',
+             secret: '<your_oidc_client_secret>',
+             redirect_uri: '<your_gitlab_url>/users/auth/openid_connect/callback',
+             gitlab: {
+               groups_attribute: "groups",
+               required_groups: ["Developer"]
+             }
+           }
+         }
+       }
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#self-compiled-installations)
+   for the changes to take effect.
+
+::EndTabs
+
+### External groups
+
+Your IdP must pass group information to GitLab in the OIDC response. To use this
+response to identify users as [external users](../external_users.md)
+based on group membership, configure GitLab to identify:
+
+- Where to look for the groups in the OIDC response, using the `groups_attribute` setting.
+- Which group memberships should identify a user as an
+  [external user](../external_users.md), using the
+ `external_groups` setting.
+
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitlab_rails['omniauth_providers'] = [
+     {
+       name: "openid_connect",
+       label: "Provider name",
+       args: {
+         name: "openid_connect",
+         scope: ["openid","profile","email"],
+         response_type: "code",
+         issuer: "<your_oidc_url>",
+         discovery: true,
+         client_auth_method: "query",
+         uid_field: "<uid_field>",
+         client_options: {
+           identifier: "<your_oidc_client_id>",
+           secret: "<your_oidc_client_secret>",
+           redirect_uri: "<your_gitlab_url>/users/auth/openid_connect/callback",
+           gitlab: {
+             groups_attribute: "groups",
+             external_groups: ["Freelancer"]
+           }
+         }
+       }
+     }
+   ]
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation)
+   for the changes to take effect.
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     omniauth:
+       providers:
+        - { name: 'openid_connect',
+            label: 'Provider name',
+         args: {
+           name: 'openid_connect',
+           scope: ['openid','profile','email'],
+           response_type: 'code',
+           issuer: '<your_oidc_url>',
+           discovery: true,
+           client_auth_method: 'query',
+           uid_field: '<uid_field>',
+           client_options: {
+             identifier: '<your_oidc_client_id>',
+             secret: '<your_oidc_client_secret>',
+             redirect_uri: '<your_gitlab_url>/users/auth/openid_connect/callback',
+             gitlab: {
+               groups_attribute: "groups",
+               external_groups: ["Freelancer"]
+             }
+           }
+         }
+       }
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#self-compiled-installations)
+   for the changes to take effect.
+
+::EndTabs
+
+### Auditor groups **(PREMIUM SELF)**
+
+Your IdP must pass group information to GitLab in the OIDC response. To use this
+response to assign users as auditors based on group membership, configure GitLab to identify:
+
+- Where to look for the groups in the OIDC response, using the `groups_attribute` setting.
+- Which group memberships grant the user auditor access, using the `auditor_groups`
+  setting.
+
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitlab_rails['omniauth_providers'] = [
+     {
+       name: "openid_connect",
+       label: "Provider name",
+       args: {
+         name: "openid_connect",
+         scope: ["openid","profile","email","groups"],
+         response_type: "code",
+         issuer: "<your_oidc_url>",
+         discovery: true,
+         client_auth_method: "query",
+         uid_field: "<uid_field>",
+         client_options: {
+           identifier: "<your_oidc_client_id>",
+           secret: "<your_oidc_client_secret>",
+           redirect_uri: "<your_gitlab_url>/users/auth/openid_connect/callback",
+           gitlab: {
+             groups_attribute: "groups",
+             auditor_groups: ["Auditor"]
+           }
+         }
+       }
+     }
+   ]
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation)
+   for the changes to take effect.
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     omniauth:
+       providers:
+        - { name: 'openid_connect',
+            label: 'Provider name',
+         args: {
+           name: 'openid_connect',
+           scope: ['openid','profile','email','groups'],
+           response_type: 'code',
+           issuer: '<your_oidc_url>',
+           discovery: true,
+           client_auth_method: 'query',
+           uid_field: '<uid_field>',
+           client_options: {
+             identifier: '<your_oidc_client_id>',
+             secret: '<your_oidc_client_secret>',
+             redirect_uri: '<your_gitlab_url>/users/auth/openid_connect/callback',
+             gitlab: {
+               groups_attribute: "groups",
+               auditor_groups: ["Auditor"]
+             }
+           }
+         }
+       }
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#self-compiled-installations)
+   for the changes to take effect.
+
+::EndTabs
+
+### Administrator groups
+
+Your IdP must pass group information to GitLab in the OIDC response. To use this
+response to assign users as administrator based on group membership, configure GitLab to identify:
+
+- Where to look for the groups in the OIDC response, using the `groups_attribute` setting.
+- Which group memberships grant the user administrator access, using the
+ `admin_groups` setting.
+
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitlab_rails['omniauth_providers'] = [
+     {
+       name: "openid_connect",
+       label: "Provider name",
+       args: {
+         name: "openid_connect",
+         scope: ["openid","profile","email"],
+         response_type: "code",
+         issuer: "<your_oidc_url>",
+         discovery: true,
+         client_auth_method: "query",
+         uid_field: "<uid_field>",
+         client_options: {
+           identifier: "<your_oidc_client_id>",
+           secret: "<your_oidc_client_secret>",
+           redirect_uri: "<your_gitlab_url>/users/auth/openid_connect/callback",
+           gitlab: {
+             groups_attribute: "groups",
+             admin_groups: ["Admin"]
+           }
+         }
+       }
+     }
+   ]
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation)
+   for the changes to take effect.
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     omniauth:
+       providers:
+        - { name: 'openid_connect',
+            label: 'Provider name',
+         args: {
+           name: 'openid_connect',
+           scope: ['openid','profile','email'],
+           response_type: 'code',
+           issuer: '<your_oidc_url>',
+           discovery: true,
+           client_auth_method: 'query',
+           uid_field: '<uid_field>',
+           client_options: {
+             identifier: '<your_oidc_client_id>',
+             secret: '<your_oidc_client_secret>',
+             redirect_uri: '<your_gitlab_url>/users/auth/openid_connect/callback',
+             gitlab: {
+               groups_attribute: "groups",
+               admin_groups: ["Admin"]
+             }
+           }
+         }
+       }
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#self-compiled-installations)
+   for the changes to take effect.
+
+::EndTabs
+
 ## Troubleshooting
 
 1. Ensure `discovery` is set to `true`. If you set it to `false`, you must
@@ -568,7 +1098,7 @@ Example installations from source configuration (file path: `config/gitlab.yml`)
 
 1. Check your system clock to ensure the time is synchronized properly.
 
-1. As mentioned in [the OmniAuth OpenID Connect documentation](https://github.com/m0n9oose/omniauth_openid_connect),
+1. As mentioned in [the OmniAuth OpenID Connect documentation](https://github.com/omniauth/omniauth_openid_connect),
    make sure `issuer` corresponds to the base URL of the Discovery URL. For
    example, `https://accounts.google.com` is used for the URL
    `https://accounts.google.com/.well-known/openid-configuration`.

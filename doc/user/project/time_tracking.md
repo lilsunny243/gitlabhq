@@ -1,12 +1,11 @@
 ---
 type: reference
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/time_tracking.html'
 stage: Plan
 group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Time tracking **(FREE)**
+# Time tracking **(FREE ALL)**
 
 You can estimate and track the time you spend on [issues](issues/index.md)
 and [merge requests](merge_requests/index.md).
@@ -186,8 +185,8 @@ The following time units are available:
 In GitLab self-managed instances, you can limit the display of time units to hours.
 To do so:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Settings > Preferences**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Settings > Preferences**.
 1. Expand **Localization**.
 1. Under **Time tracking**, select the **Limit display of time tracking units to hours** checkbox.
 1. Select **Save changes**.

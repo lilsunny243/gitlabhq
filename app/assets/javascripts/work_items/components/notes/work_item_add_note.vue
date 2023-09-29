@@ -1,12 +1,11 @@
 <script>
-import { GlAvatar, GlButton } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
-import { clearDraft } from '~/lib/utils/autosave';
 import Tracking from '~/tracking';
 import { ASC } from '~/notes/constants';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { getWorkItemQuery } from '../../utils';
+import { __ } from '~/locale';
+import { clearDraft } from '~/lib/utils/autosave';
 import createNoteMutation from '../../graphql/notes/create_work_item_note.mutation.graphql';
+import workItemByIidQuery from '../../graphql/work_item_by_iid.query.graphql';
 import { TRACKING_CATEGORY_SHOW, i18n } from '../../constants';
 import WorkItemNoteSignedOut from './work_item_note_signed_out.vue';
 import WorkItemCommentLocked from './work_item_comment_locked.vue';
@@ -17,29 +16,19 @@ export default {
     avatarUrl: window.gon.current_user_avatar_url,
   },
   components: {
-    GlAvatar,
-    GlButton,
     WorkItemNoteSignedOut,
     WorkItemCommentLocked,
     WorkItemCommentForm,
   },
-  mixins: [glFeatureFlagMixin(), Tracking.mixin()],
+  mixins: [Tracking.mixin()],
+  inject: ['fullPath'],
   props: {
     workItemId: {
       type: String,
       required: true,
     },
-    fullPath: {
+    workItemIid: {
       type: String,
-      required: true,
-    },
-    fetchByIid: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    queryVariables: {
-      type: Object,
       required: true,
     },
     discussionId: {
@@ -66,28 +55,53 @@ export default {
       required: false,
       default: ASC,
     },
+    markdownPreviewPath: {
+      type: String,
+      required: true,
+    },
+    autocompleteDataSources: {
+      type: Object,
+      required: false,
+      default: () => ({}),
+    },
+    isNewDiscussion: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    isInternalThread: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    isWorkItemConfidential: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {
       workItem: {},
-      isEditing: false,
+      isEditing: this.isNewDiscussion,
       isSubmitting: false,
       isSubmittingWithKeydown: false,
     };
   },
   apollo: {
     workItem: {
-      query() {
-        return getWorkItemQuery(this.fetchByIid);
-      },
+      query: workItemByIidQuery,
       variables() {
-        return this.queryVariables;
+        return {
+          fullPath: this.fullPath,
+          iid: this.workItemIid,
+        };
       },
       update(data) {
-        return this.fetchByIid ? data.workspace.workItems.nodes[0] : data.workItem;
+        return data.workspace.workItems.nodes[0];
       },
       skip() {
-        return !this.queryVariables.id && !this.queryVariables.iid;
+        return !this.workItemIid;
       },
       error() {
         this.$emit('error', i18n.fetchError);
@@ -109,22 +123,43 @@ export default {
         property: `type_${this.workItemType}`,
       };
     },
-    markdownPreviewPath() {
-      return `${gon.relative_url_root || ''}/${this.fullPath}/preview_markdown?target_type=${
-        this.workItemType
-      }`;
-    },
-    timelineEntryClass() {
+    timelineEntryInnerClass() {
       return {
-        'timeline-entry gl-mb-3': true,
-        'gl-p-4': this.addPadding,
+        'timeline-entry-inner': this.isNewDiscussion,
+      };
+    },
+    timelineContentClass() {
+      return {
+        'timeline-content': true,
+        'gl-border-0! gl-pl-0!': !this.addPadding,
+      };
+    },
+    parentClass() {
+      return {
+        'gl-relative gl-display-flex gl-align-items-flex-start gl-flex-nowrap': !this.isEditing,
       };
     },
     isProjectArchived() {
       return this.workItem?.project?.archived;
     },
-    canUpdate() {
-      return this.workItem?.userPermissions?.updateWorkItem;
+    canCreateNote() {
+      return this.workItem?.userPermissions?.createNote;
+    },
+    workItemState() {
+      return this.workItem?.state;
+    },
+    commentButtonText() {
+      return this.isNewDiscussion ? __('Comment') : __('Reply');
+    },
+    timelineEntryClass() {
+      return {
+        'timeline-entry note-form': this.isNewDiscussion,
+        // eslint-disable-next-line @gitlab/require-i18n-strings
+        'note note-wrapper note-comment discussion-reply-holder gl-border-t-0! clearfix': !this
+          .isNewDiscussion,
+        'gl-pt-0! is-replying': this.isEditing,
+        'internal-note': this.isInternalThread,
+      };
     },
   },
   watch: {
@@ -138,10 +173,9 @@ export default {
     },
   },
   methods: {
-    async updateWorkItem(commentText) {
+    async updateWorkItem({ commentText, isNoteInternal = false }) {
       this.isSubmitting = true;
       this.$emit('replying', commentText);
-
       try {
         this.track('add_work_item_comment');
 
@@ -152,27 +186,59 @@ export default {
               noteableId: this.workItemId,
               body: commentText,
               discussionId: this.discussionId || null,
+              internal: isNoteInternal,
             },
           },
           update(store, createNoteData) {
-            if (createNoteData.data?.createNote?.errors?.length) {
+            const numErrors = createNoteData.data?.createNote?.errors?.length;
+
+            if (numErrors) {
+              const { errors } = createNoteData.data.createNote;
+
+              // TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/346557
+              // When a note only contains quick actions,
+              // additional "helpful" messages are embedded in the errors field.
+              // For instance, a note solely composed of "/assign @foobar" would
+              // return a message "Commands only Assigned @root." as an error on creation
+              // even though the quick action successfully executed.
+              if (
+                numErrors === 2 &&
+                errors[0].includes('Commands only') &&
+                errors[1].includes('Command names')
+              ) {
+                return;
+              }
+
               throw new Error(createNoteData.data?.createNote?.errors[0]);
             }
           },
         });
-        clearDraft(this.autosaveKey);
+        /**
+         * https://gitlab.com/gitlab-org/gitlab/-/issues/388314
+         *
+         * Once form is successfully submitted, emit replied event,
+         * mark isSubmitting to false and clear storage before hiding the form.
+         * This will restrict comment form to restore the value while textarea
+         * input triggered due to keyboard event meta+enter.
+         *
+         */
         this.$emit('replied');
+        clearDraft(this.autosaveKey);
         this.cancelEditing();
       } catch (error) {
         this.$emit('error', error.message);
         Sentry.captureException(error);
+      } finally {
+        this.isSubmitting = false;
       }
-
-      this.isSubmitting = false;
     },
     cancelEditing() {
-      this.isEditing = false;
+      this.isEditing = this.isNewDiscussion;
       this.$emit('cancelEditing');
+    },
+    showReplyForm() {
+      this.isEditing = true;
+      this.$emit('startReplying');
     },
   },
 };
@@ -182,27 +248,44 @@ export default {
   <li :class="timelineEntryClass">
     <work-item-note-signed-out v-if="!signedIn" />
     <work-item-comment-locked
-      v-else-if="!canUpdate"
+      v-else-if="!canCreateNote"
       :work-item-type="workItemType"
       :is-project-archived="isProjectArchived"
     />
-    <div v-else class="gl-relative gl-display-flex gl-align-items-flex-start gl-flex-wrap-nowrap">
-      <gl-avatar :src="$options.constantOptions.avatarUrl" :size="32" class="gl-mr-3" />
-      <work-item-comment-form
-        v-if="isEditing"
-        :work-item-type="workItemType"
-        :aria-label="__('Add a comment')"
-        :is-submitting="isSubmitting"
-        :autosave-key="autosaveKey"
-        @submitForm="updateWorkItem"
-        @cancelEditing="cancelEditing"
-      />
-      <gl-button
-        v-else
-        class="gl-flex-grow-1 gl-justify-content-start! gl-text-secondary!"
-        @click="isEditing = true"
-        >{{ __('Add a comment') }}</gl-button
-      >
+    <div v-else :class="timelineEntryInnerClass">
+      <div :class="timelineContentClass">
+        <div :class="parentClass">
+          <work-item-comment-form
+            v-if="isEditing"
+            :work-item-type="workItemType"
+            :aria-label="__('Add a reply')"
+            :is-submitting="isSubmitting"
+            :autosave-key="autosaveKey"
+            :is-new-discussion="isNewDiscussion"
+            :autocomplete-data-sources="autocompleteDataSources"
+            :markdown-preview-path="markdownPreviewPath"
+            :work-item-state="workItemState"
+            :work-item-id="workItemId"
+            :autofocus="autofocus"
+            :comment-button-text="commentButtonText"
+            :is-work-item-confidential="isWorkItemConfidential"
+            @submitForm="updateWorkItem"
+            @cancelEditing="cancelEditing"
+            @error="$emit('error', $event)"
+          />
+          <textarea
+            v-else
+            ref="textarea"
+            rows="1"
+            class="reply-placeholder-text-field gl-font-regular!"
+            data-testid="note-reply-textarea"
+            :placeholder="__('Reply')"
+            :aria-label="__('Reply to comment')"
+            @focus="showReplyForm"
+            @click="showReplyForm"
+          ></textarea>
+        </div>
+      </div>
     </div>
   </li>
 </template>

@@ -8,8 +8,10 @@ import {
   GlFormInputGroup,
   GlSprintf,
   GlLink,
+  GlAlert,
 } from '@gitlab/ui';
-import { createAlert, VARIANT_INFO } from '~/flash';
+import { MountingPortal } from 'portal-vue';
+import { createAlert, VARIANT_INFO } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { formatDate } from '~/lib/utils/datetime_utility';
 import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
@@ -26,6 +28,8 @@ export default {
     ClipboardButton,
     GlSprintf,
     GlLink,
+    GlAlert,
+    MountingPortal,
   },
 
   props: {
@@ -66,6 +70,11 @@ export default {
     },
   },
   methods: {
+    getWritePackageRegistryHelpText() {
+      return this.tokenType === 'group'
+        ? this.$options.translations.groupWritePackageRegistryHelp
+        : this.$options.translations.projectWritePackageRegistryHelp;
+    },
     defaultData() {
       return {
         expiresAt: null,
@@ -110,7 +119,7 @@ export default {
             id: 'deploy_token_write_package_registry',
             isShown: this.$props.packagesRegistryEnabled,
             value: false,
-            helpText: this.$options.translations.writePackageRegistryHelp,
+            helpText: this.getWritePackageRegistryHelpText(),
             scopeName: 'write_package_registry',
           },
         ],
@@ -165,12 +174,17 @@ export default {
 </script>
 <template>
   <div>
-    <div v-if="newTokenDetails" class="created-deploy-token-container info-well">
-      <div class="well-segment">
-        <h5>{{ $options.translations.newTokenMessage }}</h5>
+    <mounting-portal append mount-to="#new-deploy-token-alert">
+      <gl-alert
+        v-if="newTokenDetails"
+        variant="success"
+        class="gl-mb-4"
+        @dismiss="newTokenDetails = null"
+      >
+        <h5 class="gl-mt-0!">{{ $options.translations.newTokenMessage }}</h5>
         <gl-form-group>
           <template #description>
-            <div class="deploy-token-help-block gl-mt-2 text-success">
+            <div class="deploy-token-help-block gl-mt-2">
               <gl-sprintf
                 :message="$options.translations.newTokenUsernameDescription"
                 :placeholders="placeholders.link"
@@ -195,9 +209,9 @@ export default {
             </template>
           </gl-form-input-group>
         </gl-form-group>
-        <gl-form-group>
+        <gl-form-group class="gl-mb-0">
           <template #description>
-            <div class="deploy-token-help-block gl-mt-2 text-danger">
+            <div class="deploy-token-help-block gl-mt-2">
               <gl-sprintf
                 :message="$options.translations.newTokenDescription"
                 :placeholders="placeholders.i"
@@ -217,10 +231,10 @@ export default {
             </template>
           </gl-form-input-group>
         </gl-form-group>
-      </div>
-    </div>
-    <h5>{{ $options.translations.addTokenHeader }}</h5>
-    <p class="profile-settings-content">
+      </gl-alert>
+    </mounting-portal>
+    <h4 class="gl-mt-0">{{ $options.translations.addTokenHeader }}</h4>
+    <p>
       <gl-sprintf
         :message="$options.translations.addTokenDescription"
         :placeholders="placeholders.link"
@@ -235,7 +249,12 @@ export default {
       :description="$options.translations.addTokenNameDescription"
       label-for="deploy_token_name"
     >
-      <gl-form-input id="deploy_token_name" v-model="name" name="deploy_token_name" />
+      <gl-form-input
+        id="deploy_token_name"
+        v-model="name"
+        class="gl-form-input-xl"
+        name="deploy_token_name"
+      />
     </gl-form-group>
     <gl-form-group
       :label="$options.translations.addTokenExpiryLabel"
@@ -244,6 +263,7 @@ export default {
     >
       <gl-form-input
         id="deploy_token_expires_at"
+        class="gl-form-input-xl"
         name="deploy_token_expires_at"
         :value="formattedExpiryDate"
         data-qa-selector="deploy_token_expires_at_field"
@@ -263,7 +283,7 @@ export default {
           </template>
         </gl-sprintf>
       </template>
-      <gl-form-input id="deploy_token_username" v-model="username" />
+      <gl-form-input id="deploy_token_username" v-model="username" class="gl-form-input-xl" />
     </gl-form-group>
     <gl-form-group
       :label="$options.translations.addTokenScopesLabel"
@@ -290,6 +310,9 @@ export default {
     <div>
       <gl-button variant="confirm" @click="createDeployToken">
         {{ $options.translations.addTokenButton }}
+      </gl-button>
+      <gl-button class="gl-ml-3 js-toggle-button">
+        {{ $options.translations.cancelTokenCreation }}
       </gl-button>
     </div>
     <gl-datepicker v-model="expiresAt" target="#deploy_token_expires_at" container="body" />

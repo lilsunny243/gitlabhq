@@ -7,6 +7,7 @@ class MergeRequestDiff < ApplicationRecord
   include EachBatch
   include Gitlab::Utils::StrongMemoize
   include BulkInsertableAssociations
+  include ShaAttribute
 
   # Don't display more than 100 commits at once
   COMMITS_SAFE_SIZE = 100
@@ -32,7 +33,9 @@ class MergeRequestDiff < ApplicationRecord
     -> { order(:merge_request_diff_id, :relative_order) },
     inverse_of: :merge_request_diff
 
-  has_many :merge_request_diff_commits, -> { order(:merge_request_diff_id, :relative_order) }
+  has_many :merge_request_diff_commits, -> { order(:merge_request_diff_id, :relative_order) }, inverse_of: :merge_request_diff
+
+  sha_attribute :patch_id_sha
 
   validates :base_commit_sha, :head_commit_sha, :start_commit_sha, sha: true
   validates :merge_request_id, uniqueness: { scope: :diff_type }, if: :merge_head?
@@ -207,6 +210,8 @@ class MergeRequestDiff < ApplicationRecord
   # and save it to the database as serialized data
   def save_git_content
     ensure_commit_shas
+    set_patch_id_sha
+
     save_commits
     save_diffs
 
@@ -218,6 +223,16 @@ class MergeRequestDiff < ApplicationRecord
     reset
 
     keep_around_commits unless importing?
+  end
+
+  def set_patch_id_sha
+    return unless base_commit_sha && head_commit_sha
+    return if base_commit_sha == head_commit_sha
+
+    self.patch_id_sha = project.repository&.get_patch_id(
+      base_commit_sha,
+      head_commit_sha
+    )
   end
 
   def set_as_latest_diff
@@ -592,8 +607,8 @@ class MergeRequestDiff < ApplicationRecord
   end
 
   def remove_cached_external_diff
-    Gitlab::Utils.check_path_traversal!(external_diff_cache_dir)
-    Gitlab::Utils.check_allowed_absolute_path!(external_diff_cache_dir, [Dir.tmpdir])
+    Gitlab::PathTraversal.check_path_traversal!(external_diff_cache_dir)
+    Gitlab::PathTraversal.check_allowed_absolute_path!(external_diff_cache_dir, [Dir.tmpdir])
 
     return unless Dir.exist?(external_diff_cache_dir)
 
@@ -622,10 +637,12 @@ class MergeRequestDiff < ApplicationRecord
   end
 
   def diffs_in_batch_collection(batch_page, batch_size, diff_options:)
-    Gitlab::Diff::FileCollection::MergeRequestDiffBatch.new(self,
-                                                            batch_page,
-                                                            batch_size,
-                                                            diff_options: diff_options)
+    Gitlab::Diff::FileCollection::MergeRequestDiffBatch.new(
+      self,
+      batch_page,
+      batch_size,
+      diff_options: diff_options
+    )
   end
 
   def encode_in_base64?(diff_text)

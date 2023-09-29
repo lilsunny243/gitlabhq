@@ -128,8 +128,22 @@ function disable_sign_ups() {
     true
   fi
 
-  # Create the root token + Disable sign-ups
-  local disable_signup_rb="token = User.find_by_username('root').personal_access_tokens.create(scopes: [:api], name: 'Token to disable sign-ups'); token.set_token('${REVIEW_APPS_ROOT_TOKEN}'); begin; token.save!; rescue(ActiveRecord::RecordNotUnique); end; Gitlab::CurrentSettings.current_application_settings.update!(signup_enabled: false)"
+# Create the root token + Disable sign-ups
+#
+# We use this weird syntax because we need to pass a one-liner ruby command to a Kubernetes container via kubectl.
+read -r -d '' multiline_ruby_code <<RUBY
+user = User.find_by_username('root');
+(puts 'Error: Could not find root user. Check that the database was properly seeded'; exit(1)) unless user;
+token = user.personal_access_tokens.create(scopes: [:api], name: 'Token to disable sign-ups', expires_at: 30.days.from_now);
+token.set_token('${REVIEW_APPS_ROOT_TOKEN}');
+begin;
+token.save!;
+rescue(ActiveRecord::RecordNotUnique);
+end;
+Gitlab::CurrentSettings.current_application_settings.update!(signup_enabled: false);
+RUBY
+
+  local disable_signup_rb=$(echo $multiline_ruby_code | tr '\n' ' ')
   if (retry_exponential "run_task \"${disable_signup_rb}\""); then
     echoinfo "Sign-ups have been disabled successfully."
   else
@@ -194,14 +208,14 @@ function create_application_secret() {
     echoinfo "The 'shared-gitlab-initial-root-password' secret already exists in the ${namespace} namespace."
   fi
 
-  if [ -z "${REVIEW_APPS_EE_LICENSE_FILE}" ]; then echo "License not found" && return; fi
+  if [ -z "${QA_EE_LICENSE}" ]; then echo "License not found" && return; fi
 
   gitlab_license_shared_secret=$(kubectl get secret --namespace "${namespace}" --no-headers -o=custom-columns=NAME:.metadata.name shared-gitlab-license 2> /dev/null | tail -n 1)
   if [[ "${gitlab_license_shared_secret}" == "" ]]; then
     echoinfo "Creating the 'shared-gitlab-license' secret in the "${namespace}" namespace..." true
     kubectl create secret generic --namespace "${namespace}" \
       "shared-gitlab-license" \
-      --from-file=license="${REVIEW_APPS_EE_LICENSE_FILE}" \
+      --from-literal=license="${QA_EE_LICENSE}" \
       --dry-run=client -o json | kubectl apply -f -
   else
     echoinfo "The 'shared-gitlab-license' secret already exists in the ${namespace} namespace."
@@ -215,11 +229,11 @@ function download_chart() {
   else
     echoinfo "Downloading the GitLab chart..." true
 
-    curl --location -o gitlab.tar.bz2 "https://gitlab.com/gitlab-org/charts/gitlab/-/archive/${GITLAB_HELM_CHART_REF}/gitlab-${GITLAB_HELM_CHART_REF}.tar.bz2"
+    curl --location -o gitlab.tar.bz2 "${GITLAB_HELM_CHART_PROJECT_URL}/-/archive/${GITLAB_HELM_CHART_REF}/gitlab-${GITLAB_HELM_CHART_REF}.tar.bz2"
     tar -xjf gitlab.tar.bz2
 
     echoinfo "Adding the gitlab repo to Helm..."
-    helm repo add gitlab https://charts.gitlab.io
+    helm repo add gitlab "${GITLAB_HELM_REPO_URL}"
 
     echoinfo "Building the gitlab chart's dependencies..."
     helm dependency build "gitlab-${GITLAB_HELM_CHART_REF}"
@@ -229,7 +243,7 @@ function download_chart() {
 function base_config_changed() {
   if [ -z "${CI_MERGE_REQUEST_IID}" ]; then return; fi
 
-  curl "${CI_API_V4_URL}/projects/${CI_MERGE_REQUEST_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/changes" | jq '.changes | any(.old_path == "scripts/review_apps/base-config.yaml")'
+  curl "${CI_API_V4_URL}/projects/${CI_MERGE_REQUEST_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/changes" | jq --arg path "${GITLAB_REVIEW_APP_BASE_CONFIG_FILE}" '.changes | any(.old_path == $path)'
 }
 
 function parse_gitaly_image_tag() {
@@ -247,19 +261,20 @@ function deploy() {
   local namespace="${CI_ENVIRONMENT_SLUG}"
   local release="${CI_ENVIRONMENT_SLUG}"
   local base_config_file_ref="${CI_DEFAULT_BRANCH}"
+
   if [[ "$(base_config_changed)" == "true" ]]; then base_config_file_ref="${CI_COMMIT_SHA}"; fi
-  local base_config_file="https://gitlab.com/gitlab-org/gitlab/raw/${base_config_file_ref}/scripts/review_apps/base-config.yaml"
+  local base_config_file="${GITLAB_REPO_URL}/raw/${base_config_file_ref}/${GITLAB_REVIEW_APP_BASE_CONFIG_FILE}"
 
   echoinfo "Deploying ${release} to ${CI_ENVIRONMENT_URL} ..." true
 
-  IMAGE_REPOSITORY="registry.gitlab.com/gitlab-org/build/cng-mirror"
-  gitlab_toolbox_image_repository="${IMAGE_REPOSITORY}/gitlab-toolbox-ee"
-  gitlab_sidekiq_image_repository="${IMAGE_REPOSITORY}/gitlab-sidekiq-ee"
-  gitlab_webservice_image_repository="${IMAGE_REPOSITORY}/gitlab-webservice-ee"
+  IMAGE_REPOSITORY="${GITLAB_IMAGE_REPOSITORY}"
+  gitlab_toolbox_image_repository="${IMAGE_REPOSITORY}/gitlab-toolbox-${GITLAB_IMAGE_SUFFIX}"
+  gitlab_sidekiq_image_repository="${IMAGE_REPOSITORY}/gitlab-sidekiq-${GITLAB_IMAGE_SUFFIX}"
+  gitlab_webservice_image_repository="${IMAGE_REPOSITORY}/gitlab-webservice-${GITLAB_IMAGE_SUFFIX}"
   gitlab_gitaly_image_repository="${IMAGE_REPOSITORY}/gitaly"
   gitaly_image_tag=$(parse_gitaly_image_tag)
   gitlab_shell_image_repository="${IMAGE_REPOSITORY}/gitlab-shell"
-  gitlab_workhorse_image_repository="${IMAGE_REPOSITORY}/gitlab-workhorse-ee"
+  gitlab_workhorse_image_repository="${IMAGE_REPOSITORY}/gitlab-workhorse-${GITLAB_IMAGE_SUFFIX}"
   sentry_enabled="false"
 
   if [ -n "${REVIEW_APPS_SENTRY_DSN}" ]; then
@@ -273,11 +288,63 @@ function deploy() {
   retry "create_application_secret"
 
 cat > review_apps.values.yml <<EOF
+  ci:
+    branch: "${CI_COMMIT_REF_NAME}"
+    commit:
+      sha: "${CI_COMMIT_SHORT_SHA}"
+    job:
+      url: "${CI_JOB_URL}"
+    pipeline:
+      url: "${CI_PIPELINE_URL}"
+
   gitlab:
+    gitaly:
+      image:
+        repository: "${gitlab_gitaly_image_repository}"
+        tag: "${gitaly_image_tag}"
+    gitlab-shell:
+      image:
+        repository: "${gitlab_shell_image_repository}"
+        tag: "v${GITLAB_SHELL_VERSION}"
+    migrations:
+      image:
+        repository: "${gitlab_toolbox_image_repository}"
+        tag: "${CI_COMMIT_SHA}"
+    sidekiq:
+      annotations:
+        commit: "${CI_COMMIT_SHORT_SHA}"
+      image:
+        repository: "${gitlab_sidekiq_image_repository}"
+        tag: "${CI_COMMIT_SHA}"
+    toolbox:
+      image:
+        repository: "${gitlab_toolbox_image_repository}"
+        tag: "${CI_COMMIT_SHA}"
     webservice:
+      annotations:
+        commit: "${CI_COMMIT_SHORT_SHA}"
       extraEnv:
         REVIEW_APPS_ENABLED: "true"
         REVIEW_APPS_MERGE_REQUEST_IID: "${CI_MERGE_REQUEST_IID}"
+      image:
+        repository: "${gitlab_webservice_image_repository}"
+        tag: "${CI_COMMIT_SHA}"
+      workhorse:
+        image: "${gitlab_workhorse_image_repository}"
+        tag: "${CI_COMMIT_SHA}"
+
+  global:
+    hosts:
+      domain: "${REVIEW_APPS_DOMAIN}"
+      hostSuffix: "${HOST_SUFFIX}"
+    appConfig:
+      sentry:
+        dsn: "${REVIEW_APPS_SENTRY_DSN}"
+        # Boolean fields should be left without quotes
+        enabled: ${sentry_enabled}
+        environment: "review"
+
+  releaseOverride: "${release}"
 EOF
 
 HELM_CMD=$(cat << EOF
@@ -286,38 +353,11 @@ HELM_CMD=$(cat << EOF
     --create-namespace \
     --install \
     --wait \
-    -f review_apps.values.yml \
-    --timeout "${HELM_INSTALL_TIMEOUT:-20m}" \
-    --set ci.branch="${CI_COMMIT_REF_NAME}" \
-    --set ci.commit.sha="${CI_COMMIT_SHORT_SHA}" \
-    --set ci.job.url="${CI_JOB_URL}" \
-    --set ci.pipeline.url="${CI_PIPELINE_URL}" \
-    --set releaseOverride="${release}" \
-    --set global.hosts.hostSuffix="${HOST_SUFFIX}" \
-    --set global.hosts.domain="${REVIEW_APPS_DOMAIN}" \
-    --set global.appConfig.sentry.enabled="${sentry_enabled}" \
-    --set global.appConfig.sentry.dsn="${REVIEW_APPS_SENTRY_DSN}" \
-    --set global.appConfig.sentry.environment="review" \
-    --set gitlab.migrations.image.repository="${gitlab_toolbox_image_repository}" \
-    --set gitlab.migrations.image.tag="${CI_COMMIT_SHA}" \
-    --set gitlab.gitaly.image.repository="${gitlab_gitaly_image_repository}" \
-    --set gitlab.gitaly.image.tag="${gitaly_image_tag}" \
-    --set gitlab.gitlab-shell.image.repository="${gitlab_shell_image_repository}" \
-    --set gitlab.gitlab-shell.image.tag="v${GITLAB_SHELL_VERSION}" \
-    --set gitlab.sidekiq.annotations.commit="${CI_COMMIT_SHORT_SHA}" \
-    --set gitlab.sidekiq.image.repository="${gitlab_sidekiq_image_repository}" \
-    --set gitlab.sidekiq.image.tag="${CI_COMMIT_SHA}" \
-    --set gitlab.webservice.annotations.commit="${CI_COMMIT_SHORT_SHA}" \
-    --set gitlab.webservice.image.repository="${gitlab_webservice_image_repository}" \
-    --set gitlab.webservice.image.tag="${CI_COMMIT_SHA}" \
-    --set gitlab.webservice.workhorse.image="${gitlab_workhorse_image_repository}" \
-    --set gitlab.webservice.workhorse.tag="${CI_COMMIT_SHA}" \
-    --set gitlab.toolbox.image.repository="${gitlab_toolbox_image_repository}" \
-    --set gitlab.toolbox.image.tag="${CI_COMMIT_SHA}"
+    --timeout "${HELM_INSTALL_TIMEOUT:-20m}"
 EOF
 )
 
-if [ -n "${REVIEW_APPS_EE_LICENSE_FILE}" ]; then
+if [ -n "${QA_EE_LICENSE}" ]; then
 HELM_CMD=$(cat << EOF
   ${HELM_CMD} \
     --set global.gitlab.license.secret="shared-gitlab-license"
@@ -325,18 +365,27 @@ EOF
 )
 fi
 
+# Important: the `-f` calls are ordered. They should not be changed.
+#
+# The `base_config_file` contains the default values for the chart, and the
+# `review_apps.values.yml` contains the overrides we want to apply specifically
+# for this review app deployment.
 HELM_CMD=$(cat << EOF
   ${HELM_CMD} \
     --version="${CI_PIPELINE_ID}-${CI_JOB_ID}" \
     -f "${base_config_file}" \
+    -f review_apps.values.yml \
     -v "${HELM_LOG_VERBOSITY:-1}" \
     "${release}" "gitlab-${GITLAB_HELM_CHART_REF}"
 EOF
 )
 
   # Pretty-print the command for display
-  echoinfo "Deploying with:"
+  echoinfo "Deploying with helm command:"
   echo "${HELM_CMD}" | sed 's/    /\n\t/g'
+
+  echoinfo "Content of review_apps.values.yml:"
+  cat review_apps.values.yml
 
   retry "eval \"${HELM_CMD}\""
 }
@@ -346,7 +395,9 @@ function verify_deploy() {
 
   mkdir -p curl-logs/
 
-  for i in {1..60}; do # try for 5 minutes
+  # By default, try for 5 minutes, with 5 of sleep between attempts
+  local max_try_times=$((${GITLAB_VERIFY_DEPLOY_TIMEOUT_MINUTES:-5} * 60 / 5))
+  for i in $(seq 1 $max_try_times); do
     local now=$(date '+%H:%M:%S')
     echo "[${now}] Verifying deployment at ${CI_ENVIRONMENT_URL}/users/sign_in"
     log_name="curl-logs/${now}.log"

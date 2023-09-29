@@ -7,16 +7,17 @@ module QA
 
       DEFAULT_MAX_WAIT_TIME = 60
 
-      def wait_for_requests(skip_finished_loading_check: false, skip_resp_code_check: false)
+      def wait_for_requests(skip_finished_loading_check: false, skip_resp_code_check: false, finish_loading_wait: 1)
         Waiter.wait_until(log: false) do
-          finished_all_ajax_requests? && (!skip_finished_loading_check ? finished_loading?(wait: 1) : true)
+          finished_all_ajax_requests? &&
+            (!skip_finished_loading_check ? finished_loading?(wait: finish_loading_wait) : true)
         end
       rescue Repeater::WaitExceededError
         raise $!, 'Page did not fully load. This could be due to an unending async request or loading icon.'
       end
 
       def finished_all_ajax_requests?
-        requests = %w[window.pendingRequests window.pendingRailsUJSRequests 0]
+        requests = %w[window.pendingRequests window.pendingApolloRequests window.pendingRailsUJSRequests 0]
 
         if Runtime::Env.can_intercept?
           requests.unshift('(window.Interceptor && window.Interceptor.activeFetchRequests)')
@@ -24,6 +25,10 @@ module QA
 
         script = requests.join(' || ')
         Capybara.page.evaluate_script(script).zero? # rubocop:disable Style/NumericPredicate
+      end
+
+      def spinner_exists?
+        Capybara.page.has_css?('.gl-spinner', wait: 2)
       end
 
       def finished_loading?(wait: DEFAULT_MAX_WAIT_TIME)

@@ -9,8 +9,6 @@ LABEL maintainer="GitLab Quality Department <quality@gitlab.com>"
 ENV DEBIAN_FRONTEND="noninteractive"
 # Override config path to make sure local config doesn't override it when building image locally
 ENV BUNDLE_APP_CONFIG=/home/gitlab/.bundle
-# Use webdriver preinstalled in the base image
-ENV WD_INSTALL_DIR=/usr/local/bin
 
 ##
 # Install system libs
@@ -20,6 +18,13 @@ RUN apt-get update \
     && apt-get -yq autoremove \
     && apt-get clean -yqq \
     && rm -rf /var/lib/apt/lists/*
+
+##
+# Install 1Password CLI
+#
+RUN wget -P /tmp/ https://downloads.1password.com/linux/debian/$(dpkg --print-architecture)/stable/1password-cli-$(dpkg --print-architecture)-latest.deb
+RUN dpkg -i /tmp/1password-cli-$(dpkg --print-architecture)-latest.deb
+RUN op --version
 
 ##
 # Install root certificate
@@ -35,6 +40,8 @@ WORKDIR /home/gitlab/qa
 # Install qa dependencies or fetch from cache if unchanged
 #
 COPY ./qa/Gemfile* /home/gitlab/qa/
+COPY ./vendor/gems/ /home/gitlab/vendor/gems/
+COPY ./gems/ /home/gitlab/gems/
 RUN bundle config set --local without development \
     && bundle install --retry=3
 
@@ -42,7 +49,8 @@ COPY ./config/initializers/0_inject_enterprise_edition_module.rb /home/gitlab/co
 COPY ./config/feature_flags /home/gitlab/config/feature_flags
 COPY ./config/bundler_setup.rb /home/gitlab/config/
 COPY ./lib/gitlab_edition.rb /home/gitlab/lib/
-COPY ./lib/gitlab/utils.rb /home/gitlab/lib/gitlab/
+COPY ./spec/support/fast_quarantine.rb /home/gitlab/spec/support/
+COPY ./tooling/lib/tooling/fast_quarantine.rb /home/gitlab/tooling/lib/tooling/
 COPY ./INSTALLATION_TYPE ./VERSION /home/gitlab/
 
 COPY ./qa /home/gitlab/qa

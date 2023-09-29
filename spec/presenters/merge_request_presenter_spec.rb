@@ -121,13 +121,16 @@ RSpec.describe MergeRequestPresenter do
 
   context 'issues links' do
     let_it_be(:project) { create(:project, :private, :repository, creator: user, namespace: user.namespace) }
-    let_it_be(:issue_a) { create(:issue, project: project) }
-    let_it_be(:issue_b) { create(:issue, project: project) }
+    let_it_be(:issue_a) { create(:issue, project: project, iid: 1) }
+    let_it_be(:issue_b) { create(:issue, project: project, iid: 3) }
 
     let_it_be(:resource) do
-      create(:merge_request,
-             source_project: project, target_project: project,
-             description: "Fixes #{issue_a.to_reference} Related #{issue_b.to_reference}")
+      create(
+        :merge_request,
+        source_project: project,
+        target_project: project,
+        description: "Fixes #{issue_a.to_reference} Related #{issue_b.to_reference}"
+      )
     end
 
     before_all do
@@ -138,6 +141,17 @@ RSpec.describe MergeRequestPresenter do
       allow(resource.project).to receive(:default_branch)
         .and_return(resource.target_branch)
       resource.cache_merge_request_closes_issues!
+    end
+
+    describe '#issues_sentence' do
+      let(:issue_c) { create(:issue, project: project, iid: 10) }
+      let(:issues) { [issue_b, issue_c, issue_a] }
+
+      subject { described_class.new(resource, current_user: user).send(:issues_sentence, project, issues) }
+
+      it 'orders issues numerically' do
+        is_expected.to eq("##{issue_a.iid}, ##{issue_b.iid}, and ##{issue_c.iid}")
+      end
     end
 
     describe '#closing_issues_links' do
@@ -471,7 +485,7 @@ RSpec.describe MergeRequestPresenter do
         allow(resource).to receive(:source_branch_exists?) { true }
 
         is_expected
-          .to eq("<a class=\"ref-name\" href=\"#{presenter.source_branch_commits_path}\">#{presenter.source_branch}</a>")
+          .to eq("<a class=\"ref-name gl-link gl-bg-blue-50 gl-rounded-base gl-px-2\" href=\"#{presenter.source_branch_commits_path}\">#{presenter.source_branch}</a>")
       end
     end
 
@@ -494,7 +508,7 @@ RSpec.describe MergeRequestPresenter do
         allow(resource).to receive(:target_branch_exists?) { true }
 
         is_expected
-          .to eq("<a class=\"ref-name\" href=\"#{presenter.target_branch_commits_path}\">#{presenter.target_branch}</a>")
+          .to eq("<a class=\"ref-name gl-link gl-bg-blue-50 gl-rounded-base gl-px-2\" href=\"#{presenter.target_branch_commits_path}\">#{presenter.target_branch}</a>")
       end
     end
 

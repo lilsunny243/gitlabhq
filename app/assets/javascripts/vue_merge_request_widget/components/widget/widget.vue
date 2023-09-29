@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlButton, GlLink, GlTooltipDirective, GlLoadingIcon } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
@@ -10,19 +11,25 @@ import HelpPopover from '~/vue_shared/components/help_popover.vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vendor/vue-virtual-scroller';
 import { EXTENSION_ICONS } from '../../constants';
 import { createTelemetryHub } from '../extensions/telemetry';
+import { generateText } from '../extensions/utils';
 import ContentRow from './widget_content_row.vue';
 import DynamicContent from './dynamic_content.vue';
 import StatusIcon from './status_icon.vue';
 import ActionButtons from './action_buttons.vue';
 
-const FETCH_TYPE_COLLAPSED = 'collapsed';
-const FETCH_TYPE_EXPANDED = 'expanded';
 const WIDGET_PREFIX = 'Widget';
 const MISSING_RESPONSE_HEADERS =
   'MR Widget: raesponse object should contain status and headers object. Make sure to include that in your `fetchCollapsedData` and `fetchExpandedData` functions.';
 
+const LOADING_STATE_COLLAPSED = 'collapsed';
+const LOADING_STATE_EXPANDED = 'expanded';
+const LOADING_STATE_STATUS_ICON = 'status_icon';
+
 export default {
   MISSING_RESPONSE_HEADERS,
+  LOADING_STATE_COLLAPSED,
+  LOADING_STATE_EXPANDED,
+  LOADING_STATE_STATUS_ICON,
 
   components: {
     ActionButtons,
@@ -41,19 +48,28 @@ export default {
     SafeHtml,
   },
   props: {
-    /**
-     * @param {value.collapsed} Object
-     * @param {value.expanded} Object
-     */
-    value: {
-      type: Object,
-      required: false,
-      default: () => ({}),
-    },
     loadingText: {
       type: String,
       required: false,
       default: __('Loading'),
+    },
+    // Use this property when you need to control the loading state from the
+    // parent component.
+    loadingState: {
+      type: String,
+      required: false,
+      default: undefined,
+      validator: (s) => {
+        if (!s) {
+          return true;
+        }
+
+        return [
+          LOADING_STATE_EXPANDED,
+          LOADING_STATE_COLLAPSED,
+          LOADING_STATE_STATUS_ICON,
+        ].includes(s);
+      },
     },
     errorText: {
       type: String,
@@ -72,9 +88,12 @@ export default {
     },
     // If the summary slot is not used, this value will be used as a fallback.
     summary: {
-      type: String,
+      type: Object,
       required: false,
       default: undefined,
+      validator: (s) => {
+        return Boolean(s.title);
+      },
     },
     // If the content slot is not used, this value will be used as a fallback.
     content: {
@@ -154,7 +173,7 @@ export default {
     return {
       isExpandedForTheFirstTime: true,
       isCollapsed: true,
-      isLoading: false,
+      isLoadingCollapsedContent: true,
       isLoadingExpandedContent: false,
       summaryError: null,
       contentError: null,
@@ -162,6 +181,18 @@ export default {
     };
   },
   computed: {
+    isSummaryLoading() {
+      return this.isLoadingCollapsedContent || this.loadingState === LOADING_STATE_COLLAPSED;
+    },
+    shouldShowLoadingIcon() {
+      return this.isSummaryLoading || this.loadingState === LOADING_STATE_STATUS_ICON;
+    },
+    generatedSummary() {
+      return generateText(this.summary?.title || '');
+    },
+    generatedSubSummary() {
+      return generateText(this.summary?.subtitle || '');
+    },
     collapseButtonLabel() {
       return sprintf(this.isCollapsed ? __('Show details') : __('Hide details'));
     },
@@ -171,6 +202,9 @@ export default {
     hasActionButtons() {
       return this.actionButtons.length > 0 || Boolean(this.$scopedSlots['action-buttons']);
     },
+    contentWithKeyField() {
+      return this.content?.map((item, index) => ({ ...item, id: item.id || index }));
+    },
   },
   watch: {
     hasError: {
@@ -179,7 +213,7 @@ export default {
       },
       immediate: true,
     },
-    isLoading(newValue) {
+    isLoadingCollapsedContent(newValue) {
       this.$emit('is-loading', newValue);
     },
   },
@@ -189,18 +223,18 @@ export default {
     }
   },
   async mounted() {
-    this.isLoading = true;
+    this.isLoadingCollapsedContent = true;
     this.telemetryHub?.viewed();
 
     try {
       if (this.fetchCollapsedData) {
-        await this.fetch(this.fetchCollapsedData, FETCH_TYPE_COLLAPSED);
+        await this.fetch(this.fetchCollapsedData);
       }
     } catch {
       this.summaryError = this.errorText;
     }
 
-    this.isLoading = false;
+    this.isLoadingCollapsedContent = false;
   },
   methods: {
     onActionClick(action) {
@@ -219,13 +253,15 @@ export default {
           this.fetchExpandedContent();
         }
       }
+
+      this.$emit('toggle', { expanded: !this.isCollapsed });
     },
     async fetchExpandedContent() {
       this.isLoadingExpandedContent = true;
       this.contentError = null;
 
       try {
-        await this.fetch(this.fetchExpandedData, FETCH_TYPE_EXPANDED);
+        await this.fetch(this.fetchExpandedData);
       } catch {
         this.contentError = this.errorText;
 
@@ -236,7 +272,7 @@ export default {
 
       this.isLoadingExpandedContent = false;
     },
-    fetch(handler, dataType) {
+    fetch(handler) {
       const requests = this.multiPolling ? handler() : [handler];
 
       const promises = requests.map((request) => {
@@ -273,9 +309,7 @@ export default {
         });
       });
 
-      return Promise.all(promises).then((data) => {
-        this.$emit('input', { ...this.value, [dataType]: this.multiPolling ? data : data[0] });
-      });
+      return Promise.all(promises);
     },
   },
   failedStatusIcon: EXTENSION_ICONS.failed,
@@ -287,11 +321,11 @@ export default {
 
 <template>
   <section class="media-section" data-testid="widget-extension">
-    <div class="gl-px-5 gl-py-4 gl-align-items-center gl-display-flex">
+    <div class="gl-px-5 gl-pr-4 gl-py-4 gl-display-flex">
       <status-icon
         :level="1"
         :name="widgetName"
-        :is-loading="isLoading"
+        :is-loading="shouldShowLoadingIcon"
         :icon-name="summaryStatusIcon"
       />
       <div
@@ -300,7 +334,14 @@ export default {
       >
         <div class="gl-flex-grow-1" data-testid="widget-extension-top-level-summary">
           <span v-if="summaryError">{{ summaryError }}</span>
-          <slot v-else name="summary">{{ isLoading ? loadingText : summary }}</slot>
+          <slot v-else name="summary"
+            ><div v-safe-html="isSummaryLoading ? loadingText : generatedSummary"></div>
+            <div
+              v-if="!isSummaryLoading && generatedSubSummary"
+              v-safe-html="generatedSubSummary"
+              class="gl-font-sm gl-text-gray-700"
+            ></div
+          ></slot>
         </div>
         <div class="gl-display-flex">
           <help-popover
@@ -327,14 +368,13 @@ export default {
           <slot name="action-buttons">
             <action-buttons
               v-if="actionButtons.length > 0"
-              :widget="widgetName"
               :tertiary-buttons="actionButtons"
               @clickedAction="onActionClick"
             />
           </slot>
         </div>
         <div
-          v-if="isCollapsible"
+          v-if="isCollapsible && !isSummaryLoading"
           class="gl-border-l-1 gl-border-l-solid gl-border-gray-100 gl-ml-3 gl-pl-3 gl-h-6"
         >
           <gl-button
@@ -346,6 +386,7 @@ export default {
             category="tertiary"
             data-testid="toggle-button"
             size="small"
+            data-qa-selector="expand_report_button"
             @click="toggleCollapsed"
           />
         </div>
@@ -373,8 +414,8 @@ export default {
         <div v-else class="gl-w-full">
           <slot name="content">
             <dynamic-scroller
-              v-if="content"
-              :items="content"
+              v-if="contentWithKeyField"
+              :items="contentWithKeyField"
               :min-item-size="32"
               :style="{ maxHeight: '170px' }"
               data-testid="dynamic-content-scroller"
@@ -387,6 +428,9 @@ export default {
                     :data="item"
                     :widget-name="widgetName"
                     :level="2"
+                    :row-index="index"
+                    data-testid="extension-list-item"
+                    @clickedAction="onActionClick"
                   />
                 </dynamic-scroller-item>
               </template>

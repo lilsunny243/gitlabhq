@@ -5,7 +5,7 @@ export const initialRequest = {
   title_text: 'this is a title',
   description: '<p>this is a description!</p>',
   description_text: 'this is a description',
-  task_status: '2 of 4 completed',
+  task_completion_status: { completed_count: 2, count: 4 },
   updated_at: '2015-05-15T12:31:04.428Z',
   updated_by_name: 'Some User',
   updated_by_path: '/some_user',
@@ -17,7 +17,20 @@ export const secondRequest = {
   title_text: '2',
   description: '<p>42</p>',
   description_text: '42',
-  task_status: '0 of 0 completed',
+  task_completion_status: { completed_count: 0, count: 0 },
+  updated_at: '2016-05-15T12:31:04.428Z',
+  updated_by_name: 'Other User',
+  updated_by_path: '/other_user',
+  lock_version: 2,
+};
+
+export const putRequest = {
+  web_url: window.location.pathname,
+  title: '<p>PUT</p>',
+  title_text: 'PUT',
+  description: '<p>PUT_DESC</p>',
+  description_text: 'PUT_DESC',
+  task_completion_status: { completed_count: 0, count: 0 },
   updated_at: '2016-05-15T12:31:04.428Z',
   updated_by_name: 'Other User',
   updated_by_path: '/other_user',
@@ -28,7 +41,6 @@ export const descriptionProps = {
   canUpdate: true,
   descriptionHtml: 'test',
   descriptionText: 'test',
-  taskStatus: '',
   updateUrl: TEST_HOST,
 };
 
@@ -47,6 +59,7 @@ export const appProps = {
   initialTitleText: '',
   initialDescriptionHtml: 'test',
   initialDescriptionText: 'test',
+  initialTaskCompletionStatus: { completed_count: 2, count: 4 },
   lockVersion: 1,
   issueType: 'issue',
   markdownPreviewPath: '/',
@@ -67,16 +80,15 @@ export const descriptionHtmlWithList = `
   </ul>
 `;
 
-export const descriptionHtmlWithCheckboxes = `
-  <ul dir="auto" class="task-list" data-sourcepos"3:1-5:12">
-    <li class="task-list-item" data-sourcepos="3:1-3:11">
-      <input class="task-list-item-checkbox" type="checkbox"> todo 1
-    </li>
-    <li class="task-list-item" data-sourcepos="4:1-4:12">
-      <input class="task-list-item-checkbox" type="checkbox"> todo 2
-    </li>
-    <li class="task-list-item" data-sourcepos="5:1-5:12">
-      <input class="task-list-item-checkbox" type="checkbox"> todo 3
-    </li>
-  </ul>
-`;
+export const descriptionHtmlWithDetailsTag = {
+  expanded: `
+    <details open="true">
+      <summary>Section 1</summary>
+      <p>Data</p>
+    </details>'`,
+  collapsed: `
+    <details>
+      <summary>Section 1</summary>
+      <p>Data</p>
+    </details>'`,
+};

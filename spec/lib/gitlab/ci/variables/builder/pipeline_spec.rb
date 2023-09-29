@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipeline_composition do
+RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :secrets_management do
   let_it_be(:project) { create_default(:project, :repository, create_tag: 'test').freeze }
   let_it_be(:user) { create(:user) }
 
@@ -18,6 +18,7 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
         CI_PIPELINE_IID
         CI_PIPELINE_SOURCE
         CI_PIPELINE_CREATED_AT
+        CI_PIPELINE_NAME
         CI_COMMIT_SHA
         CI_COMMIT_SHORT_SHA
         CI_COMMIT_BEFORE_SHA
@@ -30,10 +31,6 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
         CI_COMMIT_REF_PROTECTED
         CI_COMMIT_TIMESTAMP
         CI_COMMIT_AUTHOR
-        CI_BUILD_REF
-        CI_BUILD_BEFORE_SHA
-        CI_BUILD_REF_NAME
-        CI_BUILD_REF_SLUG
       ])
     end
 
@@ -47,6 +44,7 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
           CI_PIPELINE_IID
           CI_PIPELINE_SOURCE
           CI_PIPELINE_CREATED_AT
+          CI_PIPELINE_NAME
           CI_COMMIT_SHA
           CI_COMMIT_SHORT_SHA
           CI_COMMIT_BEFORE_SHA
@@ -58,13 +56,8 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
           CI_COMMIT_REF_PROTECTED
           CI_COMMIT_TIMESTAMP
           CI_COMMIT_AUTHOR
-          CI_BUILD_REF
-          CI_BUILD_BEFORE_SHA
-          CI_BUILD_REF_NAME
-          CI_BUILD_REF_SLUG
           CI_COMMIT_TAG
           CI_COMMIT_TAG_MESSAGE
-          CI_BUILD_TAG
         ])
       end
     end
@@ -115,12 +108,17 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
               'CI_MERGE_REQUEST_SOURCE_PROJECT_URL' => merge_request.source_project.web_url,
               'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME' => merge_request.source_branch.to_s,
               'CI_MERGE_REQUEST_SOURCE_BRANCH_SHA' => '',
+              'CI_MERGE_REQUEST_SOURCE_BRANCH_PROTECTED' => ProtectedBranch.protected?(
+                merge_request.source_project,
+                merge_request.source_branch
+              ).to_s,
               'CI_MERGE_REQUEST_TITLE' => merge_request.title,
               'CI_MERGE_REQUEST_ASSIGNEES' => merge_request.assignee_username_list,
               'CI_MERGE_REQUEST_MILESTONE' => milestone.title,
               'CI_MERGE_REQUEST_LABELS' => labels.map(&:title).sort.join(','),
               'CI_MERGE_REQUEST_EVENT_TYPE' => 'detached',
-              'CI_OPEN_MERGE_REQUESTS' => merge_request.to_reference(full: true))
+              'CI_OPEN_MERGE_REQUESTS' => merge_request.to_reference(full: true)),
+              'CI_MERGE_REQUEST_SQUASH_ON_MERGE' => merge_request.squash_on_merge?.to_s
         end
 
         it 'exposes diff variables' do
@@ -305,8 +303,7 @@ RSpec.describe Gitlab::Ci::Variables::Builder::Pipeline, feature_category: :pipe
         expect(subject.to_hash.keys)
           .not_to include(
             'CI_COMMIT_TAG',
-            'CI_COMMIT_TAG_MESSAGE',
-            'CI_BUILD_TAG'
+            'CI_COMMIT_TAG_MESSAGE'
           )
       end
     end

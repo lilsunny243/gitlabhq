@@ -1,12 +1,18 @@
 # frozen_string_literal: true
 
-require 'fast_spec_helper'
-require 'net/http'
+# TODO: This spec file can be removed after fully migration to the gitlab-http gem.
+# It's already covered in gems/gitlab-http/spec/gitlab/http_v2/net_http_patch_spec.rb
 
-require_relative '../../config/initializers/net_http_patch'
+require 'spec_helper'
 
-RSpec.describe 'Net::HTTP patch proxy user and password encoding' do
+RSpec.describe 'Net::HTTP patch proxy user and password encoding', feature_category: :shared do
   let(:net_http) { Net::HTTP.new('hostname.example') }
+
+  before do
+    # This file can be removed once Ruby 3.0 is no longer supported:
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/396223
+    skip if Gem::Version.new(Net::HTTP::VERSION) >= Gem::Version.new('0.2.0')
+  end
 
   describe '#proxy_user' do
     subject { net_http.proxy_user }

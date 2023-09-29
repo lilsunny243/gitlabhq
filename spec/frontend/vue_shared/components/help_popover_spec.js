@@ -23,10 +23,6 @@ describe('HelpPopover', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('with title and content', () => {
     beforeEach(() => {
       createComponent();
@@ -75,6 +71,22 @@ describe('HelpPopover', () => {
 
     it('shows content', () => {
       expect(findPopover().html()).toContain(content);
+    });
+  });
+
+  describe('with trigger classes', () => {
+    it.each`
+      triggerClass
+      ${'class-a class-b'}
+      ${['class-a', 'class-b']}
+      ${{ 'class-a': true, 'class-b': true }}
+    `('renders button with classes given $triggerClass', ({ triggerClass }) => {
+      createComponent({
+        props: { triggerClass },
+      });
+
+      expect(findQuestionButton().classes('class-a')).toBe(true);
+      expect(findQuestionButton().classes('class-b')).toBe(true);
     });
   });
 

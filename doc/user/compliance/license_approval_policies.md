@@ -5,11 +5,17 @@ group: Security Policies
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# License Approval Policies **(ULTIMATE)**
+# License approval policies **(ULTIMATE ALL)**
 
-> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/8092) in GitLab 15.9 [with a flag](../../administration/feature_flags.md) named `license_scanning_policies`. Disabled by default.
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/8092) in GitLab 15.9 [with a flag](../../administration/feature_flags.md) named `license_scanning_policies`.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/397644) in GitLab 15.11. Feature flag `license_scanning_policies` removed.
 
-License Approval Policies allow you to specify multiple types of criteria that define when approval is required before a merge request can be merged in. The following video provides an overview of these policies.
+License approval policies allow you to specify multiple types of criteria that define when approval is required before a merge request can be merged in.
+
+NOTE:
+License approval policies are applicable only to [protected](../project/protected_branches.md) target branches.
+
+The following video provides an overview of these policies.
 
 <div class="video-fallback">
   See the video: <a href="https://www.youtube.com/watch?v=34qBQ9t8qO8">Overview of GitLab License Approval Policies</a>.
@@ -18,6 +24,16 @@ License Approval Policies allow you to specify multiple types of criteria that d
   <iframe src="https://www.youtube-nocookie.com/embed/34qBQ9t8qO8" frameborder="0" allowfullscreen> </iframe>
 </figure>
 
+## Prerequisites to creating a new license approval policy
+
+License approval policies rely on the output of a dependency scanning job to verify that requirements have been met. If dependency scanning has not been properly configured, and therefore no dependency scanning jobs ran related to an open MR, the policy has no data with which to verify the requirements. When security policies are missing data for evaluation, they fail closed and assume the merge request could contain vulnerabilities.
+
+To ensure enforcement of your policies, you should enable dependency scanning on your target development projects. You can achieve this a few different ways:
+
+- Create a global [scan execution policy](../application_security/policies/scan-execution-policies.md) that enforces Dependency Scanning to run in all target development projects.
+- Use a [Compliance Pipeline](../../user/group/compliance_frameworks.md#compliance-frameworks) to define a Dependency Scanning job that is enforced on projects enforced by a given Compliance Framework.
+- Work with development teams to configure [Dependency Scanning](../../user/application_security/dependency_scanning/index.md) in each of their project's `.gitlab-ci.yml` files or enable by using the [Security Configuration panel](../application_security/configuration/index.md).
+
 ## Create a new license approval policy
 
 Create a license approval policy to enforce license compliance.
@@ -25,8 +41,8 @@ Create a license approval policy to enforce license compliance.
 To create a license approval policy:
 
 1. [Link a security policy project](../application_security/policies/index.md#managing-the-linked-security-policy-project) to your development group, subgroup, or project (the Owner role is required).
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security & Compliance > Policies**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Policies**.
 1. Create a new [Scan Result Policy](../application_security/policies/scan-result-policies.md).
 1. In your policy rule, select **License scanning**.
 

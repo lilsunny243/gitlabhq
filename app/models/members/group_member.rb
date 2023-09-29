@@ -1,16 +1,14 @@
 # frozen_string_literal: true
 
 class GroupMember < Member
-  extend ::Gitlab::Utils::Override
   include FromUnion
   include CreatedAtFilterable
 
   SOURCE_TYPE = 'Namespace'
-  SOURCE_TYPE_FORMAT = /\ANamespace\z/.freeze
+  SOURCE_TYPE_FORMAT = /\ANamespace\z/
 
   belongs_to :group, foreign_key: 'source_id'
   alias_attribute :namespace_id, :source_id
-  delegate :update_two_factor_requirement, to: :user, allow_nil: true
 
   # Make sure group member points only to group as it source
   attribute :source_type, default: SOURCE_TYPE
@@ -21,12 +19,21 @@ class GroupMember < Member
   scope :of_groups, ->(groups) { where(source_id: groups&.select(:id)) }
   scope :of_ldap_type, -> { where(ldap: true) }
   scope :count_users_by_group_id, -> { group(:source_id).count }
-  scope :with_user, -> (user) { where(user: user) }
 
   after_create :update_two_factor_requirement, unless: :invite?
   after_destroy :update_two_factor_requirement, unless: :invite?
 
-  attr_accessor :last_owner, :last_blocked_owner
+  attr_accessor :last_owner
+
+  def update_two_factor_requirement
+    return unless user
+
+    Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification.temporary_ignore_tables_in_transaction(
+      %w[users user_details user_preferences], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424288'
+    ) do
+      user.update_two_factor_requirement
+    end
+  end
 
   # For those who get to see a modal with a role dropdown, here are the options presented
   def self.permissible_access_level_roles(_, _)
@@ -36,10 +43,6 @@ class GroupMember < Member
 
   def self.access_level_roles
     Gitlab::Access.options_with_owner
-  end
-
-  def self.pluck_user_ids
-    pluck(:user_id)
   end
 
   def group
@@ -57,8 +60,11 @@ class GroupMember < Member
 
   def last_owner_of_the_group?
     return false unless access_level == Gitlab::Access::OWNER
+    return last_owner unless last_owner.nil?
 
-    group.member_last_owner?(self) || group.member_last_blocked_owner?(self)
+    group.member_owners_excluding_project_bots.where.not(
+      group: group, user_id: user_id
+    ).empty?
   end
 
   private
@@ -108,12 +114,6 @@ class GroupMember < Member
     end
 
     update_two_factor_requirement
-
-    super
-  end
-
-  def after_decline_invite
-    notification_service.decline_group_invite(self)
 
     super
   end

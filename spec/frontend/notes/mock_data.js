@@ -15,6 +15,10 @@ export const notesDataMock = {
   closePath: '/twitter/flight/issues/9.json?issue%5Bstate_event%5D=close',
   reopenPath: '/twitter/flight/issues/9.json?issue%5Bstate_event%5D=reopen',
   canAwardEmoji: true,
+  noteableType: 'issue',
+  noteableId: 1,
+  projectId: 2,
+  groupId: null,
 };
 
 export const userDataMock = {
@@ -60,7 +64,7 @@ export const noteableDataMock = {
   updated_at: '2017-08-04T09:53:01.226Z',
   updated_by_id: 1,
   web_url: '/gitlab-org/gitlab-foss/issues/26',
-  noteableType: 'issue',
+  noteableType: 'Issue',
   blocked_by_issues: [],
 };
 
@@ -317,6 +321,7 @@ export const discussionMock = {
   individual_note: false,
   resolvable: true,
   active: true,
+  confidential: false,
 };
 
 export const loggedOutnoteableData = {

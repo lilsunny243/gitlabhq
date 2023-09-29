@@ -4,20 +4,9 @@ require 'spec_helper'
 
 RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
   using RSpec::Parameterized::TableSyntax
+  include RedisHelpers
 
-  let_it_be(:redis_store_class) do
-    Class.new(Gitlab::Redis::Wrapper) do
-      def config_file_name
-        config_file_name = "spec/fixtures/config/redis_new_format_host.yml"
-        Rails.root.join(config_file_name).to_s
-      end
-
-      def self.name
-        'Sessions'
-      end
-    end
-  end
-
+  let_it_be(:redis_store_class) { define_helper_redis_store_class }
   let_it_be(:primary_db) { 1 }
   let_it_be(:secondary_db) { 2 }
   let_it_be(:primary_store) { create_redis_store(redis_store_class.params, db: primary_db, serializer: nil) }
@@ -138,6 +127,9 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
     let_it_be(:hvalmapped) { { "item1" => value1 } }
     let_it_be(:sscanargs) { [skey2, 0] }
     let_it_be(:sscanval) { ["0", [value1]] }
+    let_it_be(:scanargs) { ["0"] }
+    let_it_be(:scankwargs) { { match: '*:set:key2*' } }
+    let_it_be(:scanval) { ["0", [skey2]] }
     let_it_be(:sscan_eachval) { [value1] }
     let_it_be(:sscan_each_arg) { { match: '*1*' } }
     let_it_be(:hscan_eachval) { [[hitem1, value1]] }
@@ -162,6 +154,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
       'execute :hmget command'        | :hmget        | ref(:hgetargs)    | ref(:hmgetval)   | {} | nil
       'execute :mapped_hmget command' | :mapped_hmget | ref(:mhmgetargs)  | ref(:hvalmapped) | {} | nil
       'execute :sscan command'        | :sscan        | ref(:sscanargs)   | ref(:sscanval)   | {} | nil
+      'execute :scan command'         | :scan         | ref(:scanargs)    | ref(:scanval)    | ref(:scankwargs) | nil
 
       # we run *scan_each here as they are reads too
       'execute :scan_each command'    | :scan_each    | nil         | ref(:scan_each_val) | ref(:scan_each_arg)  | nil
@@ -265,8 +258,8 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
             multi_store.default_store.flushdb
           end
 
-          it 'does not call the fallback store' do
-            expect(multi_store.fallback_store).not_to receive(name)
+          it 'does not call the non_default_store' do
+            expect(multi_store.non_default_store).not_to receive(name)
           end
         end
 
@@ -333,7 +326,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
               stub_feature_flags(use_primary_store_as_default_for_test_store: false)
             end
 
-            it 'executes only on secondary redis store', :aggregate_errors do
+            it 'executes only on secondary redis store', :aggregate_failures do
               expect(secondary_store).to receive(name).with(*expected_args).and_call_original
               expect(primary_store).not_to receive(name).with(*expected_args).and_call_original
 
@@ -342,7 +335,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           end
 
           context 'when using primary store as default' do
-            it 'executes only on primary redis store', :aggregate_errors do
+            it 'executes only on primary redis store', :aggregate_failures do
               expect(primary_store).to receive(name).with(*expected_args).and_call_original
               expect(secondary_store).not_to receive(name).with(*expected_args).and_call_original
 
@@ -437,7 +430,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
   end
 
   RSpec.shared_examples_for 'verify that store contains values' do |store|
-    it "#{store} redis store contains correct values", :aggregate_errors do
+    it "#{store} redis store contains correct values", :aggregate_failures do
       subject
 
       redis_store = multi_store.send(store)
@@ -489,6 +482,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
       'execute :setnx command'        | :setnx          | ref(:key1_value2)      | ref(:value1)   | :get      | ref(:key2)
       'execute :setex command'        | :setex          | ref(:key1_ttl_value1)  | ref(:ttl)      | :ttl      | ref(:key1)
       'execute :sadd command'         | :sadd           | ref(:skey_value2)      | ref(:svalues1) | :smembers | ref(:skey)
+      'execute :sadd? command'        | :sadd?          | ref(:skey_value2)      | ref(:svalues1) | :smembers | ref(:skey)
       'execute :srem command'         | :srem           | ref(:skey_value1)      | []             | :smembers | ref(:skey)
       'execute :del command'          | :del            | ref(:key2)             | nil            | :get      | ref(:key2)
       'execute :unlink command'       | :unlink         | ref(:key3)             | nil            | :get      | ref(:key3)
@@ -530,7 +524,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
         end
 
         context 'when executing on primary instance is successful' do
-          it 'executes on both primary and secondary redis store', :aggregate_errors do
+          it 'executes on both primary and secondary redis store', :aggregate_failures do
             expect(primary_store).to receive(name).with(*expected_args).and_call_original
             expect(secondary_store).to receive(name).with(*expected_args).and_call_original
 
@@ -551,7 +545,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
               stub_feature_flags(use_primary_store_as_default_for_test_store: false)
             end
 
-            it 'executes only on secondary redis store', :aggregate_errors do
+            it 'executes only on secondary redis store', :aggregate_failures do
               expect(secondary_store).to receive(name).with(*expected_args).and_call_original
               expect(primary_store).not_to receive(name).with(*expected_args).and_call_original
 
@@ -560,7 +554,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           end
 
           context 'when using primary store as default' do
-            it 'executes only on primary redis store', :aggregate_errors do
+            it 'executes only on primary redis store', :aggregate_failures do
               expect(primary_store).to receive(name).with(*expected_args).and_call_original
               expect(secondary_store).not_to receive(name).with(*expected_args).and_call_original
 
@@ -569,21 +563,33 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           end
         end
 
-        context 'when executing on the primary instance is raising an exception' do
+        context 'when executing on the default instance is raising an exception' do
           before do
-            allow(primary_store).to receive(name).with(*expected_args).and_raise(StandardError)
+            allow(multi_store.default_store).to receive(name).with(*expected_args).and_raise(StandardError)
             allow(Gitlab::ErrorTracking).to receive(:log_exception)
           end
 
-          it 'logs the exception and execute on secondary instance', :aggregate_errors do
+          it 'raises error and does not execute on non default instance', :aggregate_failures do
+            expect(multi_store.non_default_store).not_to receive(name).with(*expected_args)
+            expect { subject }.to raise_error(StandardError)
+          end
+        end
+
+        context 'when executing on the non default instance is raising an exception' do
+          before do
+            allow(multi_store.non_default_store).to receive(name).with(*expected_args).and_raise(StandardError)
+            allow(Gitlab::ErrorTracking).to receive(:log_exception)
+          end
+
+          it 'logs the exception and execute on default instance', :aggregate_failures do
             expect(Gitlab::ErrorTracking).to receive(:log_exception).with(an_instance_of(StandardError),
               hash_including(:multi_store_error_message, command_name: name, instance_name: instance_name))
-            expect(secondary_store).to receive(name).with(*expected_args).and_call_original
+            expect(multi_store.default_store).to receive(name).with(*expected_args).and_call_original
 
             subject
           end
 
-          include_examples 'verify that store contains values', :secondary_store
+          include_examples 'verify that store contains values', :default_store
         end
 
         context 'when the command is executed within pipelined block' do
@@ -593,7 +599,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
             end
           end
 
-          it 'is executed only 1 time on each instance', :aggregate_errors do
+          it 'is executed only 1 time on each instance', :aggregate_failures do
             expect(primary_store).to receive(:pipelined).and_call_original
             expect_next_instance_of(Redis::PipelinedConnection) do |pipeline|
               expect(pipeline).to receive(name).with(*expected_args).once.and_call_original
@@ -645,7 +651,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
       end
 
       context 'when executing on primary instance is successful' do
-        it 'executes on both primary and secondary redis store', :aggregate_errors do
+        it 'executes on both primary and secondary redis store', :aggregate_failures do
           expect(primary_store).to receive(name).and_call_original
           expect(secondary_store).to receive(name).and_call_original
 
@@ -656,21 +662,33 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
         include_examples 'verify that store contains values', :secondary_store
       end
 
-      context 'when executing on the primary instance is raising an exception' do
+      context 'when executing on the default instance is raising an exception' do
         before do
-          allow(primary_store).to receive(name).and_raise(StandardError)
+          allow(multi_store.default_store).to receive(name).and_raise(StandardError)
+        end
+
+        it 'raises error and does not execute on non default instance', :aggregate_failures do
+          expect(multi_store.non_default_store).not_to receive(name)
+
+          expect { subject }.to raise_error(StandardError)
+        end
+      end
+
+      context 'when executing on the non default instance is raising an exception' do
+        before do
+          allow(multi_store.non_default_store).to receive(name).and_raise(StandardError)
           allow(Gitlab::ErrorTracking).to receive(:log_exception)
         end
 
-        it 'logs the exception and execute on secondary instance', :aggregate_errors do
+        it 'logs the exception and execute on default instance', :aggregate_failures do
           expect(Gitlab::ErrorTracking).to receive(:log_exception).with(an_instance_of(StandardError),
             hash_including(:multi_store_error_message, command_name: name))
-          expect(secondary_store).to receive(name).and_call_original
+          expect(multi_store.default_store).to receive(name).and_call_original
 
           subject
         end
 
-        include_examples 'verify that store contains values', :secondary_store
+        include_examples 'verify that store contains values', :default_store
       end
 
       describe 'return values from a pipelined command' do
@@ -703,15 +721,16 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
 
         context 'when the value exists on both but differ' do
           before do
-            primary_store.set(key1, value1)
-            secondary_store.set(key1, value2)
+            multi_store.non_default_store.set(key1, value1)
+            multi_store.default_store.set(key1, value2)
           end
 
           it 'returns the value from the secondary store, logging an error' do
             expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
               pipeline_diff_error_with_stacktrace(
                 'Pipelined command executed on both stores successfully but results differ between them. ' \
-                  "Result from the primary: [#{value1.inspect}]. Result from the secondary: [#{value2.inspect}]."
+                  "Result from the non-default store: [#{value1.inspect}]. " \
+                  "Result from the default store: [#{value2.inspect}]."
               ),
               hash_including(command_name: name, instance_name: instance_name)
             ).and_call_original
@@ -721,16 +740,16 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           end
         end
 
-        context 'when the value does not exist on the primary but it does on the secondary' do
+        context 'when the value does not exist on the non-default store but it does on the default' do
           before do
-            secondary_store.set(key1, value2)
+            multi_store.default_store.set(key1, value2)
           end
 
           it 'returns the value from the secondary store, logging an error' do
             expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
               pipeline_diff_error_with_stacktrace(
                 'Pipelined command executed on both stores successfully but results differ between them. ' \
-                  "Result from the primary: [nil]. Result from the secondary: [#{value2.inspect}]."
+                  "Result from the non-default store: [nil]. Result from the default store: [#{value2.inspect}]."
               ),
               hash_including(command_name: name, instance_name: instance_name)
             )
@@ -760,7 +779,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
             stub_feature_flags(use_primary_store_as_default_for_test_store: false)
           end
 
-          it 'executes on secondary store', :aggregate_errors do
+          it 'executes on secondary store', :aggregate_failures do
             expect(primary_store).not_to receive(:send).and_call_original
             expect(secondary_store).to receive(:send).and_call_original
 
@@ -769,11 +788,60 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
         end
 
         context 'when using primary store as default' do
-          it 'executes on primary store', :aggregate_errors do
+          it 'executes on primary store', :aggregate_failures do
             expect(secondary_store).not_to receive(:send).and_call_original
             expect(primary_store).to receive(:send).and_call_original
 
             subject
+          end
+        end
+      end
+
+      context 'when either store is a an instance of ::Redis::Cluster' do
+        let(:pipeline) { double }
+        let(:client) { double }
+
+        before do
+          allow(client).to receive(:instance_of?).with(::Redis::Cluster).and_return(true)
+          allow(pipeline).to receive(:pipelined)
+          allow(multi_store.default_store).to receive(:_client).and_return(client)
+        end
+
+        it 'calls cross-slot pipeline within multistore' do
+          if name == :pipelined
+            # we intentionally exclude `.and_call_original` since primary_store/secondary_store
+            # may not be running on a proper Redis Cluster.
+            expect(Gitlab::Redis::CrossSlot::Pipeline).to receive(:new)
+                                                            .with(multi_store.default_store)
+                                                            .exactly(:once)
+                                                            .and_return(pipeline)
+            expect(Gitlab::Redis::CrossSlot::Pipeline).not_to receive(:new).with(multi_store.non_default_store)
+          end
+
+          subject
+        end
+      end
+
+      context 'when with_readonly_pipeline is used' do
+        it 'calls the default store only' do
+          expect(primary_store).to receive(:send).and_call_original
+          expect(secondary_store).not_to receive(:send).and_call_original
+
+          multi_store.with_readonly_pipeline { subject }
+        end
+
+        context 'when used in a nested manner' do
+          subject(:nested_subject) do
+            multi_store.with_readonly_pipeline do
+              multi_store.with_readonly_pipeline { subject }
+            end
+          end
+
+          it 'raises error' do
+            expect { nested_subject }.to raise_error(Gitlab::Redis::MultiStore::NestedReadonlyPipelineError)
+            expect { nested_subject }.to raise_error { |e|
+                                           expect(e.message).to eq('Nested use of with_readonly_pipeline is detected.')
+                                         }
           end
         end
       end
@@ -880,6 +948,55 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
     end
   end
 
+  describe '#close' do
+    subject { multi_store.close }
+
+    context 'when using both stores' do
+      before do
+        allow(multi_store).to receive(:use_primary_and_secondary_stores?).and_return(true)
+      end
+
+      it 'closes both stores' do
+        expect(primary_store).to receive(:close)
+        expect(secondary_store).to receive(:close)
+
+        subject
+      end
+    end
+
+    context 'when using only one store' do
+      before do
+        allow(multi_store).to receive(:use_primary_and_secondary_stores?).and_return(false)
+      end
+
+      context 'when using primary_store as default store' do
+        before do
+          allow(multi_store).to receive(:use_primary_store_as_default?).and_return(true)
+        end
+
+        it 'closes primary store' do
+          expect(primary_store).to receive(:close)
+          expect(secondary_store).not_to receive(:close)
+
+          subject
+        end
+      end
+
+      context 'when using secondary_store as default store' do
+        before do
+          allow(multi_store).to receive(:use_primary_store_as_default?).and_return(false)
+        end
+
+        it 'closes secondary store' do
+          expect(primary_store).not_to receive(:close)
+          expect(secondary_store).to receive(:close)
+
+          subject
+        end
+      end
+    end
+  end
+
   context 'with unsupported command' do
     let(:counter) { Gitlab::Metrics::NullMetric.instance }
 
@@ -930,7 +1047,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           subject
         end
 
-        it 'fallback and executes only on the secondary store', :aggregate_errors do
+        it 'fallback and executes only on the secondary store', :aggregate_failures do
           expect(primary_store).to receive(:command).and_call_original
           expect(secondary_store).not_to receive(:command)
 
@@ -955,7 +1072,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
       end
 
       context 'with feature flag :use_primary_store_as_default_for_test_store is enabled' do
-        it 'fallback and executes only on the secondary store', :aggregate_errors do
+        it 'fallback and executes only on the secondary store', :aggregate_failures do
           expect(primary_store).to receive(:command).and_call_original
           expect(secondary_store).not_to receive(:command)
 
@@ -968,7 +1085,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           stub_feature_flags(use_primary_store_as_default_for_test_store: false)
         end
 
-        it 'fallback and executes only on the secondary store', :aggregate_errors do
+        it 'fallback and executes only on the secondary store', :aggregate_failures do
           expect(secondary_store).to receive(:command).and_call_original
           expect(primary_store).not_to receive(:command)
 
@@ -981,7 +1098,7 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
           multi_store.pipelined(&:command)
         end
 
-        it 'is executed only 1 time on each instance', :aggregate_errors do
+        it 'is executed only 1 time on each instance', :aggregate_failures do
           expect(primary_store).to receive(:pipelined).once.and_call_original
           expect(secondary_store).to receive(:pipelined).once.and_call_original
 
@@ -1063,7 +1180,103 @@ RSpec.describe Gitlab::Redis::MultiStore, feature_category: :redis do
     end
   end
 
-  def create_redis_store(options, extras = {})
-    ::Redis::Store.new(options.merge(extras))
+  # NOTE: for pub/sub, unit tests are favoured over integration tests to avoid long polling
+  # with threads which could lead to flaky specs. The multiplexing behaviour are verified in
+  # 'with WRITE redis commands' and 'with READ redis commands' contexts.
+  context 'with pub/sub commands' do
+    let(:channel_name) { 'chanA' }
+    let(:message) { "msg" }
+
+    shared_examples 'publishes to stores' do
+      it 'publishes to one or more stores' do
+        expect(stores).to all(receive(:publish))
+
+        multi_store.publish(channel_name, message)
+      end
+    end
+
+    shared_examples 'subscribes and unsubscribes' do
+      it 'subscribes to the default store' do
+        expect(default_store).to receive(:subscribe)
+        expect(non_default_store).not_to receive(:subscribe)
+
+        multi_store.subscribe(channel_name)
+      end
+
+      it 'unsubscribes to the default store' do
+        expect(default_store).to receive(:unsubscribe)
+        expect(non_default_store).not_to receive(:unsubscribe)
+
+        multi_store.unsubscribe
+      end
+    end
+
+    context 'when using both stores' do
+      before do
+        stub_feature_flags(use_primary_and_secondary_stores_for_test_store: true)
+      end
+
+      it_behaves_like 'publishes to stores' do
+        let(:stores) { [primary_store, secondary_store] }
+      end
+
+      context 'with primary store set as default' do
+        before do
+          stub_feature_flags(use_primary_store_as_default_for_test_store: true)
+        end
+
+        it_behaves_like 'subscribes and unsubscribes' do
+          let(:default_store) { primary_store }
+          let(:non_default_store) { secondary_store }
+        end
+      end
+
+      context 'with secondary store set as default' do
+        before do
+          stub_feature_flags(use_primary_store_as_default_for_test_store: false)
+        end
+
+        it_behaves_like 'subscribes and unsubscribes' do
+          let(:default_store) { secondary_store }
+          let(:non_default_store) { primary_store }
+        end
+      end
+    end
+
+    context 'when only using the primary store' do
+      before do
+        stub_feature_flags(
+          use_primary_and_secondary_stores_for_test_store: false,
+          use_primary_store_as_default_for_test_store: true
+        )
+      end
+
+      it_behaves_like 'subscribes and unsubscribes' do
+        let(:default_store) { primary_store }
+        let(:non_default_store) { secondary_store }
+      end
+
+      it_behaves_like 'publishes to stores' do
+        let(:stores) { [primary_store] }
+      end
+    end
+
+    context 'when only using the secondary store' do
+      before do
+        stub_feature_flags(
+          use_primary_and_secondary_stores_for_test_store: false,
+          use_primary_store_as_default_for_test_store: false
+        )
+      end
+
+      it_behaves_like 'subscribes and unsubscribes' do
+        let(:default_store) { secondary_store }
+        let(:non_default_store) { primary_store }
+      end
+
+      it_behaves_like 'publishes to stores' do
+        let(:stores) { [secondary_store] }
+      end
+    end
   end
 end

@@ -10,6 +10,7 @@ module Admin
     def index
       @relations_by_tab = {
         'queued' => batched_migration_class.queued.queue_order,
+        'finalizing' => batched_migration_class.finalizing.queue_order,
         'failed' => batched_migration_class.with_status(:failed).queue_order,
         'finished' => batched_migration_class.with_status(:finished).queue_order.reverse_order
       }
@@ -17,7 +18,7 @@ module Admin
       @current_tab = @relations_by_tab.key?(params[:tab]) ? params[:tab] : 'queued'
       @migrations = @relations_by_tab[@current_tab].page(params[:page])
       @successful_rows_counts = batched_migration_class.successful_rows_counts(@migrations.map(&:id))
-      @databases = Gitlab::Database.db_config_names
+      @databases = Gitlab::Database.db_config_names(with_schema: :gitlab_shared)
     end
 
     def show

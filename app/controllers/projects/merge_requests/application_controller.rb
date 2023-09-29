@@ -7,7 +7,24 @@ class Projects::MergeRequests::ApplicationController < Projects::ApplicationCont
 
   feature_category :code_review_workflow
 
+  before_action do
+    push_frontend_feature_flag(:content_editor_on_issues, project&.group)
+    push_force_frontend_feature_flag(:content_editor_on_issues, project&.content_editor_on_issues_feature_flag_enabled?)
+  end
+
   private
+
+  # Normally the methods with `check_(\w+)_available!` pattern are
+  # handled by the `method_missing` defined in `ProjectsController::ApplicationController`
+  # but that logic does not take the member roles into account, therefore, we handle this
+  # case here manually.
+  def check_merge_requests_available!
+    render_404 if project_policy.merge_requests_disabled?
+  end
+
+  def project_policy
+    ProjectPolicy.new(current_user, project)
+  end
 
   def merge_request
     @issuable =

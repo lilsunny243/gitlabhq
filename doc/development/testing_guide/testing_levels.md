@@ -55,6 +55,7 @@ records should use stubs/doubles as much as possible.
 | `lib/` | `spec/lib/` | RSpec | |
 | `lib/tasks/` | `spec/tasks/` | RSpec | |
 | `rubocop/` | `spec/rubocop/` | RSpec | |
+| `spec/support/` | `spec/support_specs/` | RSpec | |
 
 ### Frontend unit tests
 
@@ -65,7 +66,7 @@ that is not directly perceivable by a user.
 graph RL
     plain[Plain JavaScript];
     Vue[Vue Components];
-    feature-flags[Feature Flags];
+    feature-flags[Feature flags];
     license-checks[License Checks];
 
     plain---Vuex;
@@ -149,7 +150,7 @@ Component tests cover the state of a single component that is perceivable by a u
 graph RL
     plain[Plain JavaScript];
     Vue[Vue Components];
-    feature-flags[Feature Flags];
+    feature-flags[Feature flags];
     license-checks[License Checks];
 
     plain---Vuex;
@@ -196,16 +197,8 @@ graph RL
 
 #### What to mock in component tests
 
-- **DOM**:
-  Operating on the real DOM is significantly slower than on the virtual DOM.
-- **Properties and state of the component under test**:
-  Similar to testing classes, modifying the properties directly (rather than relying on methods of the component) avoids side effects.
-- **Vuex store**:
-  To avoid side effects and keep component tests simple, Vuex stores are replaced with mocks.
-- **All server requests**:
-  Similar to unit tests, when running component tests, the backend may not be reachable, so all outgoing requests need to be mocked.
-- **Asynchronous background operations**:
-  Similar to unit tests, background operations cannot be stopped or waited on. This means they continue running in the following tests and cause side effects.
+- **Side effects**:
+  Anything that can change external state (for example, a network request) should be mocked.
 - **Child components**:
   Every component is tested individually, so child components are mocked.
   See also [`shallowMount()`](https://v1.test-utils.vuejs.org/api/#shallowmount)
@@ -214,8 +207,10 @@ graph RL
 
 - **Methods or computed properties of the component under test**:
   By mocking part of the component under test, the mocks are tested and not the real component.
-- **Functions and classes independent from Vue**:
-  All plain JavaScript code is already covered by unit tests and needs not to be mocked in component tests.
+- **Vuex**:
+  Keep Vuex unmocked to avoid fragile and false-positive tests.
+  Set the Vuex to a proper state using mutations.
+  Mock the side-effects, not the Vuex actions.
 
 ## Integration tests
 
@@ -243,7 +238,7 @@ Their abstraction level is comparable to how a user would interact with the UI.
 graph RL
     plain[Plain JavaScript];
     Vue[Vue Components];
-    feature-flags[Feature Flags];
+    feature-flags[Feature flags];
     license-checks[License Checks];
 
     plain---Vuex;
@@ -300,7 +295,7 @@ graph RL
 
 - **DOM**:
   Testing on the real DOM ensures your components work in the intended environment.
-  Part of DOM testing is delegated to [cross-browser testing](https://gitlab.com/gitlab-org/quality/team-tasks/-/issues/45).
+  Part of DOM testing is delegated to [cross-browser testing](https://gitlab.com/gitlab-org/quality/quality-engineering/team-tasks/-/issues/45).
 - **Properties or state of components**:
   On this level, all tests can only perform actions a user would do.
   For example: to change the state of a component, a click event would be fired.
@@ -366,13 +361,12 @@ See also:
 
 - The [RSpec testing guidelines](../testing_guide/best_practices.md#rspec).
 - System / Feature tests in the [Testing Best Practices](best_practices.md#system--feature-tests).
-- [Issue #26159](https://gitlab.com/gitlab-org/gitlab/-/issues/26159) which aims at combining those guidelines with this page.
 
 ```mermaid
 graph RL
     plain[Plain JavaScript];
     Vue[Vue Components];
-    feature-flags[Feature Flags];
+    feature-flags[Feature flags];
     license-checks[License Checks];
 
     plain---Vuex;

@@ -16,6 +16,8 @@ require 'redis/store/factory'
 module Gitlab
   module Redis
     class Wrapper
+      InvalidPathError = Class.new(StandardError)
+
       class << self
         delegate :params, :url, :store, to: :new
 
@@ -55,15 +57,11 @@ module Gitlab
         def config_file_name
           [
             # Instance specific config sources:
-            ENV["GITLAB_REDIS_#{store_name.underscore.upcase}_CONFIG_FILE"],
             config_file_path("redis.#{store_name.underscore}.yml"),
 
             # The current Redis instance may have been split off from another one
             # (e.g. TraceChunks was split off from SharedState).
-            config_fallback&.config_file_name,
-
-            # Global config sources:
-            ENV['GITLAB_REDIS_CONFIG_FILE']
+            config_fallback&.config_file_name
           ].compact.first
         end
 
@@ -126,12 +124,14 @@ module Gitlab
         config = raw_config_hash
         config[:instrumentation_class] ||= self.class.instrumentation_class
 
-        if config[:cluster].present?
-          config[:db] = 0 # Redis Cluster only supports db 0
-          config
-        else
-          parse_redis_url(config)
-        end
+        result = if config[:cluster].present?
+                   config[:db] = 0 # Redis Cluster only supports db 0
+                   config
+                 else
+                   parse_redis_url(config)
+                 end
+
+        parse_client_tls_options(result)
       end
 
       def parse_redis_url(config)
@@ -157,38 +157,40 @@ module Gitlab
         end
       end
 
+      def parse_client_tls_options(config)
+        return config unless config&.key?(:ssl_params)
+
+        # Only cert_file and key_file are handled in this method. ca_file and
+        # ca_path are Strings, so they can be passed as-is. cert_store is not
+        # currently supported.
+
+        cert_file = config[:ssl_params].delete(:cert_file)
+        key_file = config[:ssl_params].delete(:key_file)
+
+        unless ::File.exist?(cert_file)
+          raise InvalidPathError,
+            "Certificate file #{cert_file} specified in in `resque.yml` does not exist."
+        end
+
+        config[:ssl_params][:cert] = OpenSSL::X509::Certificate.new(File.read(cert_file))
+
+        unless ::File.exist?(key_file)
+          raise InvalidPathError,
+            "Key file #{key_file} specified in in `resque.yml` does not exist."
+        end
+
+        config[:ssl_params][:key] = OpenSSL::PKey.read(File.read(key_file))
+
+        config
+      end
+
       def raw_config_hash
         config_data = fetch_config
 
-        config_hash =
-          if config_data
-            config_data.is_a?(String) ? { url: config_data } : config_data.deep_symbolize_keys
-          else
-            { url: '' }
-          end
+        return { url: '' } if config_data.nil?
+        return { url: config_data } if config_data.is_a?(String)
 
-        if config_hash[:url].blank? && config_hash[:cluster].blank?
-          config_hash[:url] = legacy_fallback_urls[self.class.store_name] || legacy_fallback_urls[self.class.config_fallback.store_name]
-        end
-
-        config_hash
-      end
-
-      # These URLs were defined for cache, queues, and shared_state in
-      # code. They are used only when no config file exists at all for a
-      # given instance. The configuration does not seem particularly
-      # useful - it uses different ports on localhost - but we cannot
-      # confidently delete it as we don't know if any instances rely on
-      # this.
-      #
-      # DO NOT ADD new instances here. All new instances should define a
-      # `.config_fallback`, which will then be used to look up this URL.
-      def legacy_fallback_urls
-        {
-          'Cache' => 'redis://localhost:6380',
-          'Queues' => 'redis://localhost:6381',
-          'SharedState' => 'redis://localhost:6382'
-        }
+        config_data.deep_symbolize_keys
       end
 
       def fetch_config

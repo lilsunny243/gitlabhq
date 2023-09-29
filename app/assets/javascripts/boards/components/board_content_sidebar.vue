@@ -1,12 +1,15 @@
 <script>
 import { GlDrawer } from '@gitlab/ui';
 import { MountingPortal } from 'portal-vue';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapActions, mapGetters } from 'vuex';
 import SidebarDropdownWidget from 'ee_else_ce/sidebar/components/sidebar_dropdown_widget.vue';
-import { __, sprintf } from '~/locale';
-import BoardSidebarTimeTracker from '~/boards/components/sidebar/board_sidebar_time_tracker.vue';
+import activeBoardItemQuery from 'ee_else_ce/boards/graphql/client/active_board_item.query.graphql';
+import setActiveBoardItemMutation from 'ee_else_ce/boards/graphql/client/set_active_board_item.mutation.graphql';
+import { __, s__, sprintf } from '~/locale';
+import SidebarTimeTracker from '~/sidebar/components/time_tracking/time_tracker.vue';
 import BoardSidebarTitle from '~/boards/components/sidebar/board_sidebar_title.vue';
-import { ISSUABLE, INCIDENT } from '~/boards/constants';
+import { INCIDENT } from '~/boards/constants';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { TYPE_ISSUE, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import SidebarAssigneesWidget from '~/sidebar/components/assignees/sidebar_assignees_widget.vue';
@@ -16,8 +19,7 @@ import SidebarSeverityWidget from '~/sidebar/components/severity/sidebar_severit
 import SidebarSubscriptionsWidget from '~/sidebar/components/subscriptions/sidebar_subscriptions_widget.vue';
 import SidebarTodoWidget from '~/sidebar/components/todo_toggle/sidebar_todo_widget.vue';
 import SidebarLabelsWidget from '~/sidebar/components/labels/labels_select_widget/labels_select_root.vue';
-import { LabelType } from '~/sidebar/components/labels/labels_select_widget/constants';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { setError } from '../graphql/cache_updates';
 
 export default {
   components: {
@@ -26,7 +28,7 @@ export default {
     SidebarAssigneesWidget,
     SidebarDateWidget,
     SidebarConfidentialityWidget,
-    BoardSidebarTimeTracker,
+    SidebarTimeTracker,
     SidebarLabelsWidget,
     SidebarSubscriptionsWidget,
     SidebarDropdownWidget,
@@ -40,7 +42,6 @@ export default {
     SidebarWeightWidget: () =>
       import('ee_component/sidebar/components/weight/sidebar_weight_widget.vue'),
   },
-  mixins: [glFeatureFlagMixin()],
   inject: {
     multipleAssigneesFeatureAvailable: {
       default: false,
@@ -72,30 +73,54 @@ export default {
     isGroupBoard: {
       default: false,
     },
+    isApolloBoard: {
+      default: false,
+    },
+    timeTrackingLimitToHours: {
+      default: false,
+    },
   },
   inheritAttrs: false,
+  apollo: {
+    activeBoardCard: {
+      query: activeBoardItemQuery,
+      variables: {
+        isIssue: true,
+      },
+      update(data) {
+        if (!data.activeBoardItem?.id) {
+          return { id: '', iid: '' };
+        }
+        return {
+          ...data.activeBoardItem,
+          assignees: data.activeBoardItem.assignees?.nodes || [],
+        };
+      },
+      skip() {
+        return !this.isApolloBoard;
+      },
+      error(error) {
+        setError({
+          error,
+          message: s__('Boards|An error occurred while selecting the card. Please try again.'),
+        });
+      },
+    },
+  },
   computed: {
-    ...mapGetters([
-      'isSidebarOpen',
-      'activeBoardItem',
-      'groupPathForActiveIssue',
-      'projectPathForActiveIssue',
-    ]),
+    ...mapGetters(['activeBoardItem']),
     ...mapState(['sidebarType']),
-    isIssuableSidebar() {
-      return this.sidebarType === ISSUABLE;
+    activeBoardIssuable() {
+      return this.isApolloBoard ? this.activeBoardCard : this.activeBoardItem;
+    },
+    isSidebarOpen() {
+      return Boolean(this.activeBoardIssuable?.id);
     },
     isIncidentSidebar() {
-      return this.activeBoardItem.type === INCIDENT;
-    },
-    showSidebar() {
-      return this.isIssuableSidebar && this.isSidebarOpen;
+      return this.activeBoardIssuable?.type === INCIDENT;
     },
     sidebarTitle() {
       return this.isIncidentSidebar ? __('Incident details') : __('Issue details');
-    },
-    fullPath() {
-      return this.activeBoardItem?.referencePath?.split('#')[0] || '';
     },
     parentType() {
       return this.isGroupBoard ? WORKSPACE_GROUP : WORKSPACE_PROJECT;
@@ -114,12 +139,20 @@ export default {
       return this.isGroupBoard ? this.groupPathForActiveIssue : this.projectPathForActiveIssue;
     },
     labelType() {
-      return this.isGroupBoard ? LabelType.group : LabelType.project;
+      return this.isGroupBoard ? WORKSPACE_GROUP : WORKSPACE_PROJECT;
     },
     labelsFilterPath() {
       return this.isGroupBoard
         ? this.labelsFilterBasePath.replace(':project_path', this.projectPathForActiveIssue)
         : this.labelsFilterBasePath;
+    },
+    groupPathForActiveIssue() {
+      const { referencePath = '' } = this.activeBoardIssuable;
+      return referencePath.slice(0, referencePath.lastIndexOf('/'));
+    },
+    projectPathForActiveIssue() {
+      const { referencePath = '' } = this.activeBoardIssuable;
+      return referencePath.slice(0, referencePath.indexOf('#'));
     },
   },
   methods: {
@@ -132,7 +165,19 @@ export default {
       'setActiveItemHealthStatus',
     ]),
     handleClose() {
-      this.toggleBoardItem({ boardItem: this.activeBoardItem, sidebarType: this.sidebarType });
+      if (this.isApolloBoard) {
+        this.$apollo.mutate({
+          mutation: setActiveBoardItemMutation,
+          variables: {
+            boardItem: null,
+          },
+        });
+      } else {
+        this.toggleBoardItem({
+          boardItem: this.activeBoardIssuable,
+          sidebarType: this.sidebarType,
+        });
+      }
     },
     handleUpdateSelectedLabels({ labels, id }) {
       this.setActiveBoardItemLabels({
@@ -144,7 +189,7 @@ export default {
     },
     handleLabelRemove(removeLabelId) {
       this.setActiveBoardItemLabels({
-        iid: this.activeBoardItem.iid,
+        iid: this.activeBoardIssuable.iid,
         projectPath: this.projectPathForActiveIssue,
         removeLabelIds: [removeLabelId],
       });
@@ -157,7 +202,7 @@ export default {
   <mounting-portal mount-to="#js-right-sidebar-portal" name="board-content-sidebar" append>
     <gl-drawer
       v-bind="$attrs"
-      :open="showSidebar"
+      :open="isSidebarOpen"
       class="boards-sidebar"
       variant="sidebar"
       @close="handleClose"
@@ -168,25 +213,27 @@ export default {
       <template #header>
         <sidebar-todo-widget
           class="gl-mt-3"
-          :issuable-id="activeBoardItem.id"
-          :issuable-iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :issuable-id="activeBoardIssuable.id"
+          :issuable-iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
         />
       </template>
       <template #default>
-        <board-sidebar-title data-testid="sidebar-title" />
+        <board-sidebar-title :active-item="activeBoardIssuable" data-testid="sidebar-title" />
         <sidebar-assignees-widget
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
-          :initial-assignees="activeBoardItem.assignees"
+          v-if="activeBoardIssuable.assignees"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
+          :initial-assignees="activeBoardIssuable.assignees"
           :allow-multiple-assignees="multipleAssigneesFeatureAvailable"
           :editable="canUpdate"
-          @assignees-updated="setAssignees"
+          @assignees-updated="!isApolloBoard && setAssignees($event)"
         />
         <sidebar-dropdown-widget
           v-if="epicFeatureAvailable && !isIncidentSidebar"
-          :iid="activeBoardItem.iid"
+          :key="`epic-${activeBoardIssuable.iid}`"
+          :iid="activeBoardIssuable.iid"
           issuable-attribute="epic"
           :workspace-path="projectPathForActiveIssue"
           :attr-workspace-path="groupPathForActiveIssue"
@@ -195,7 +242,8 @@ export default {
         />
         <div>
           <sidebar-dropdown-widget
-            :iid="activeBoardItem.iid"
+            :key="`milestone-${activeBoardIssuable.iid}`"
+            :iid="activeBoardIssuable.iid"
             issuable-attribute="milestone"
             :workspace-path="projectPathForActiveIssue"
             :attr-workspace-path="projectPathForActiveIssue"
@@ -204,7 +252,8 @@ export default {
           />
           <sidebar-iteration-widget
             v-if="iterationFeatureAvailable && !isIncidentSidebar"
-            :iid="activeBoardItem.iid"
+            :key="`iteration-${activeBoardIssuable.iid}`"
+            :iid="activeBoardIssuable.iid"
             :workspace-path="projectPathForActiveIssue"
             :attr-workspace-path="groupPathForActiveIssue"
             :issuable-type="issuableType"
@@ -212,16 +261,24 @@ export default {
             data-testid="iteration-edit"
           />
         </div>
-        <board-sidebar-time-tracker />
+        <sidebar-time-tracker
+          :can-add-time-entries="canUpdate"
+          :can-set-time-estimate="canUpdate"
+          :full-path="projectPathForActiveIssue"
+          :issuable-id="activeBoardIssuable.id"
+          :issuable-iid="activeBoardIssuable.iid"
+          :limit-to-hours="timeTrackingLimitToHours"
+          :show-collapsed="false"
+        />
         <sidebar-date-widget
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
           data-testid="sidebar-due-date"
         />
         <sidebar-labels-widget
           class="block labels"
-          :iid="activeBoardItem.iid"
+          :iid="activeBoardIssuable.iid"
           :full-path="projectPathForActiveIssue"
           :allow-label-remove="allowLabelEdit"
           :allow-multiselect="true"
@@ -233,40 +290,40 @@ export default {
           workspace-type="project"
           :issuable-type="issuableType"
           :label-create-type="labelType"
-          @onLabelRemove="handleLabelRemove"
-          @updateSelectedLabels="handleUpdateSelectedLabels"
+          @onLabelRemove="!isApolloBoard && handleLabelRemove($event)"
+          @updateSelectedLabels="!isApolloBoard && handleUpdateSelectedLabels($event)"
         >
           {{ __('None') }}
         </sidebar-labels-widget>
         <sidebar-severity-widget
           v-if="isIncidentSidebar"
-          :iid="activeBoardItem.iid"
-          :project-path="fullPath"
-          :initial-severity="activeBoardItem.severity"
+          :iid="activeBoardIssuable.iid"
+          :project-path="projectPathForActiveIssue"
+          :initial-severity="activeBoardIssuable.severity"
         />
         <sidebar-weight-widget
           v-if="weightFeatureAvailable && !isIncidentSidebar"
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
-          @weightUpdated="setActiveItemWeight($event)"
+          @weightUpdated="!isApolloBoard && setActiveItemWeight($event)"
         />
         <sidebar-health-status-widget
           v-if="healthStatusFeatureAvailable"
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
-          @statusUpdated="setActiveItemHealthStatus($event)"
+          @statusUpdated="!isApolloBoard && setActiveItemHealthStatus($event)"
         />
         <sidebar-confidentiality-widget
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
-          @confidentialityUpdated="setActiveItemConfidential($event)"
+          @confidentialityUpdated="!isApolloBoard && setActiveItemConfidential($event)"
         />
         <sidebar-subscriptions-widget
-          :iid="activeBoardItem.iid"
-          :full-path="fullPath"
+          :iid="activeBoardIssuable.iid"
+          :full-path="projectPathForActiveIssue"
           :issuable-type="issuableType"
           data-testid="sidebar-notifications"
         />

@@ -1,11 +1,11 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
-# Environments Dashboard **(PREMIUM)**
+# Environments Dashboard **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/3713) in GitLab 12.5.
 
@@ -20,8 +20,9 @@ see which pipelines are green and which are red allowing you to
 diagnose if there is a block at a particular point, or if there's
 a more systemic problem you need to investigate.
 
-You can access the dashboard on the top bar by selecting
-**Main menu > Environments**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Your work**.
+1. Select **Environments**.
 
 ![Environments Dashboard with projects](img/environments_dashboard_v12_5.png)
 

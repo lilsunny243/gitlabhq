@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# GitLab CI/CD variables **(FREE)**
+# GitLab CI/CD variables **(FREE ALL)**
 
 CI/CD variables are a type of environment variable. You can use them to:
 
@@ -25,12 +25,7 @@ so quoted and unquoted variables might be parsed differently. For example, `VAR1
 is interpreted as an octal value, so the value becomes `5349`, but `VAR1: "012345"` is parsed
 as a string with a value of `012345`.
 
-> For more information about advanced use of GitLab CI/CD:
->
-> - <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>&nbsp;Get to productivity faster with these [7 advanced GitLab CI workflow hacks](https://about.gitlab.com/webcast/7cicd-hacks/)
->   shared by GitLab engineers.
-> - <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>&nbsp;Learn how the Cloud Native Computing Foundation (CNCF) [eliminates the complexity](https://about.gitlab.com/customers/cncf/)
->   of managing projects across many cloud providers with GitLab CI/CD.
+For more information about advanced use of GitLab CI/CD, see [7 advanced GitLab CI workflow hacks](https://about.gitlab.com/webcast/7cicd-hacks/) shared by GitLab engineers.
 
 ## Predefined CI/CD variables
 
@@ -175,7 +170,7 @@ To add a group variable:
    - **Key**: Must be one line, with no spaces, using only letters, numbers, or `_`.
    - **Value**: No limitations.
    - **Type**: `Variable` (default) or [`File`](#use-file-type-cicd-variables).
-   - **Environment scope** Optional. `All`, or specific [environments](../environments/index.md#limit-the-environment-scope-of-a-cicd-variable). **(PREMIUM)**
+   - **Environment scope** Optional. `All`, or specific [environments](../environments/index.md#limit-the-environment-scope-of-a-cicd-variable). **(PREMIUM ALL)**
    - **Protect variable** Optional. If selected, the variable is only available
      in pipelines that run on protected branches or tags.
    - **Mask variable** Optional. If selected, the variable's **Value** is masked
@@ -195,12 +190,13 @@ You can make a CI/CD variable available to all projects and groups in a GitLab i
 
 Prerequisite:
 
-- You must have administrator access.
+- You must have administrator access to the instance.
 
 To add an instance variable:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Settings > CI/CD** and expand the **Variables** section.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Settings > CI/CD** and expand the **Variables** section.
 1. Select **Add variable** and fill in the details:
    - **Key**: Must be one line, with no spaces, using only letters, numbers, or `_`.
    - **Value**: In [GitLab 13.3 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/220028),
@@ -211,9 +207,6 @@ To add an instance variable:
      in pipelines that run on protected branches or tags.
    - **Mask variable** Optional. If selected, the variable's **Value** is not shown
      in job logs. The variable is not saved if the value does not meet the [masking requirements](#mask-a-cicd-variable).
-
-The instance variables that are available in a project are listed in the project's
-**Settings > CI/CD > Variables** section.
 
 ## CI/CD variable security
 
@@ -253,7 +246,7 @@ malicious code can compromise both masked and protected variables.
 
 Variable values are encrypted using [`aes-256-cbc`](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard)
 and stored in the database. This data can only be read and decrypted with a
-valid [secrets file](../../raketasks/backup_restore.md#when-the-secrets-file-is-lost).
+valid [secrets file](../../administration/backup_restore/backup_gitlab.md#when-the-secrets-file-is-lost).
 
 ### Mask a CI/CD variable
 
@@ -361,9 +354,9 @@ kubectl config set-cluster e2e --server="$KUBE_URL" --certificate-authority="$KU
 ```
 
 WARNING:
-Be careful when assigning the value of a file variable to another variable. The other
-variable takes the content of the file as its value, **not** the path to the file.
-[Issue 29407](https://gitlab.com/gitlab-org/gitlab/-/issues/29407) proposes to change this behavior.
+Be careful when assigning the value of a file variable to another variable in GitLab 15.6 or older.
+The other variable takes the content of the file as its value, **not** the path to the file.
+In GitLab 15.7 and newer, this behavior [was fixed](https://gitlab.com/gitlab-org/gitlab/-/issues/29407) and the other variable now takes the path to the file as the value.
 
 #### Use a `.gitlab-ci.yml` variable as a file type variable
 
@@ -378,7 +371,7 @@ For example:
 
 ```yaml
 variables:
-  SITE_URL: "https://example.gitlab.com"
+  SITE_URL: "https://gitlab.example.com"
 
 job:
   script:
@@ -477,7 +470,8 @@ To pass a job-created environment variable to other jobs:
    - Values can be wrapped in quotes, but cannot contain newline characters.
 1. Save the `.env` file as an [`artifacts:reports:dotenv`](../yaml/artifacts_reports.md#artifactsreportsdotenv)
    artifact.
-1. Jobs in later stages can then [use the variable in scripts](#use-cicd-variables-in-job-scripts).
+1. Jobs in later stages can then [use the variable in scripts](#use-cicd-variables-in-job-scripts),
+   unless [jobs are configured not to receive `dotenv` variables](#control-which-jobs-receive-dotenv-variables).
 
 For example:
 
@@ -725,6 +719,10 @@ use this setting for control over the environment the pipeline runs in.
   The example can be copied to your own group or instance for testing. More details
   on what other GitLab CI patterns are demonstrated are available at the project page.
 
+- You can [pass CI/CD variables to downstream pipelines](../pipelines/downstream_pipelines.md#pass-cicd-variables-to-a-downstream-pipeline).
+  Use [`trigger:forward` keyword](../yaml/index.md#triggerforward) to specify what type of variables
+  to pass to the downstream pipeline.
+
 ## Troubleshooting
 
 ### List all variables
@@ -749,7 +747,7 @@ export CI_JOB_ID="50"
 export CI_COMMIT_SHA="1ecfd275763eff1d6b4844ea3168962458c9f27a"
 export CI_COMMIT_SHORT_SHA="1ecfd275"
 export CI_COMMIT_REF_NAME="main"
-export CI_REPOSITORY_URL="https://gitlab-ci-token:[masked]@example.com/gitlab-org/gitlab-foss.git"
+export CI_REPOSITORY_URL="https://gitlab-ci-token:[masked]@example.com/gitlab-org/gitlab.git"
 export CI_COMMIT_TAG="1.0.0"
 export CI_JOB_NAME="spec:other"
 export CI_JOB_STAGE="test"
@@ -759,11 +757,11 @@ export CI_JOB_TOKEN="[masked]"
 export CI_PIPELINE_ID="1000"
 export CI_PIPELINE_IID="10"
 export CI_PAGES_DOMAIN="gitlab.io"
-export CI_PAGES_URL="https://gitlab-org.gitlab.io/gitlab-foss"
+export CI_PAGES_URL="https://gitlab-org.gitlab.io/gitlab"
 export CI_PROJECT_ID="34"
-export CI_PROJECT_DIR="/builds/gitlab-org/gitlab-foss"
-export CI_PROJECT_NAME="gitlab-foss"
-export CI_PROJECT_TITLE="GitLab FOSS"
+export CI_PROJECT_DIR="/builds/gitlab-org/gitlab"
+export CI_PROJECT_NAME="gitlab"
+export CI_PROJECT_TITLE="GitLab"
 ...
 ```
 
@@ -851,6 +849,10 @@ if [[ -d "/builds/gitlab-examples/ci-debug-trace/.git" ]]; then
 ++ CI_SERVER_HOST=gitlab.com
 ++ export CI_SERVER_PORT=3000
 ++ CI_SERVER_PORT=3000
+++ export CI_SERVER_SHELL_SSH_HOST=gitlab.com
+++ CI_SERVER_SHELL_SSH_HOST=gitlab.com
+++ export CI_SERVER_SHELL_SSH_PORT=22
+++ CI_SERVER_SHELL_SSH_PORT=22
 ++ export CI_SERVER_PROTOCOL=https
 ++ CI_SERVER_PROTOCOL=https
 ++ export CI_SERVER_NAME=GitLab
@@ -880,3 +882,22 @@ WARNING:
 If you add `CI_DEBUG_TRACE` as a local variable to runners, debug logs generate and are visible
 to all users with access to job logs. The permission levels are not checked by the runner,
 so you should only use the variable in GitLab itself.
+
+## Known issues and workarounds
+
+These are some know issues with CI/CD variables, and where applicable, known workarounds.
+
+### "argument list too long"
+
+This issue occurs when the combined length of all CI/CD variables defined for a job exceeds the limit imposed by the
+shell where the job executes. This includes the names and values of pre-defined and user defined variables. This limit
+is typically referred to as `ARG_MAX`, and is shell and operating system dependent. This issue also occurs when the
+content of a single [File-type](#use-file-type-cicd-variables) variable exceeds `ARG_MAX`.
+
+For more information, see [issue 392406](https://gitlab.com/gitlab-org/gitlab/-/issues/392406#note_1414219596).
+
+As a workaround you can either:
+
+- Use [File-type](#use-file-type-cicd-variables) CI/CD variables for large environment variables where possible.
+- If a single large variable is larger than `ARG_MAX`, try using [Secure Files](../secure_files/index.md), or
+bring the file to the job through some other mechanism.

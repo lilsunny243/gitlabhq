@@ -4,7 +4,7 @@ module Types
   class TimelogType < BaseObject
     graphql_name 'Timelog'
 
-    connection_type_class(Types::TimeTracking::TimelogConnectionType)
+    connection_type_class Types::TimeTracking::TimelogConnectionType
 
     authorize :read_issuable
 
@@ -48,6 +48,10 @@ module Types
     field :summary, GraphQL::Types::String,
           null: true,
           description: 'Summary of how the time was spent.'
+
+    field :project, Types::ProjectType,
+          null: false,
+          description: 'Target project of the timelog merge request or issue.'
 
     def user
       Gitlab::Graphql::Loaders::BatchModelLoader.new(User, object.user_id).find

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ConfirmationsController do
+RSpec.describe ConfirmationsController, feature_category: :system_access do
   include DeviseHelpers
 
   before do
@@ -17,17 +17,6 @@ RSpec.describe ConfirmationsController do
 
     def perform_request
       get :show, params: { confirmation_token: confirmation_token }
-    end
-
-    context 'when signup info is required' do
-      before do
-        allow(controller).to receive(:current_user) { user }
-        user.set_role_required!
-      end
-
-      it 'does not redirect' do
-        expect(perform_request).not_to redirect_to(users_sign_up_welcome_path)
-      end
     end
 
     context 'user is already confirmed' do
@@ -137,62 +126,67 @@ RSpec.describe ConfirmationsController do
       stub_feature_flags(identity_verification: false)
     end
 
-    context 'when signup info is required' do
+    context "when `email_confirmation_setting` is set to `soft`" do
       before do
-        allow(controller).to receive(:current_user) { user }
-        user.set_role_required!
+        stub_application_setting_enum('email_confirmation_setting', 'soft')
       end
 
-      it 'does not redirect' do
-        expect(perform_request).not_to redirect_to(users_sign_up_welcome_path)
-      end
-    end
-
-    context 'when reCAPTCHA is disabled' do
-      before do
-        stub_application_setting(recaptcha_enabled: false)
-      end
-
-      it 'successfully sends password reset when reCAPTCHA is not solved' do
-        perform_request
-
-        expect(response).to redirect_to(dashboard_projects_path)
-      end
-    end
-
-    context 'when reCAPTCHA is enabled' do
-      before do
-        stub_application_setting(recaptcha_enabled: true)
-      end
-
-      context 'when the reCAPTCHA is not solved' do
+      context 'when reCAPTCHA is disabled' do
         before do
-          Recaptcha.configuration.skip_verify_env.delete('test')
+          stub_application_setting(recaptcha_enabled: false)
         end
 
-        it 'displays an error' do
+        it 'successfully sends password reset when reCAPTCHA is not solved' do
           perform_request
 
-          expect(response).to render_template(:new)
-          expect(flash[:alert]).to include _('There was an error with the reCAPTCHA. Please solve the reCAPTCHA again.')
-        end
-
-        it 'sets gon variables' do
-          Gon.clear
-
-          perform_request
-
-          expect(response).to render_template(:new)
-          expect(Gon.all_variables).not_to be_empty
+          expect(response).to redirect_to(dashboard_projects_path)
         end
       end
 
-      it 'successfully sends password reset when reCAPTCHA is solved' do
-        Recaptcha.configuration.skip_verify_env << 'test'
+      context 'when reCAPTCHA is enabled' do
+        before do
+          stub_application_setting(recaptcha_enabled: true)
+        end
 
+        context 'when the reCAPTCHA is not solved' do
+          before do
+            Recaptcha.configuration.skip_verify_env.delete('test')
+          end
+
+          it 'displays an error' do
+            alert_text = _('There was an error with the reCAPTCHA. Please solve the reCAPTCHA again.')
+
+            perform_request
+
+            expect(response).to render_template(:new)
+            expect(flash[:alert]).to include alert_text
+          end
+
+          it 'sets gon variables' do
+            Gon.clear
+
+            perform_request
+
+            expect(response).to render_template(:new)
+            expect(Gon.all_variables).not_to be_empty
+          end
+        end
+
+        it 'successfully sends password reset when reCAPTCHA is solved' do
+          Recaptcha.configuration.skip_verify_env << 'test'
+
+          perform_request
+
+          expect(response).to redirect_to(dashboard_projects_path)
+        end
+      end
+    end
+
+    context "when `email_confirmation_setting` is not set to `soft`" do
+      it 'redirects to the users_almost_there path' do
         perform_request
 
-        expect(response).to redirect_to(dashboard_projects_path)
+        expect(response).to redirect_to(users_almost_there_path)
       end
     end
   end

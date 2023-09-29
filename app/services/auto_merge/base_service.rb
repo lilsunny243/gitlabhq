@@ -20,6 +20,10 @@ module AutoMerge
       :failed
     end
 
+    def process(_)
+      raise NotImplementedError
+    end
+
     def update(merge_request)
       assign_allowed_merge_params(merge_request, params.merge(auto_merge_strategy: strategy))
 
@@ -57,7 +61,7 @@ module AutoMerge
         merge_request.can_be_merged_by?(current_user) &&
           merge_request.open? &&
           !merge_request.broken? &&
-          !merge_request.draft? &&
+          (skip_draft_check(merge_request) || !merge_request.draft?) &&
           merge_request.mergeable_discussions_state? &&
           !merge_request.merge_blocked_by_other_mrs? &&
           yield
@@ -87,18 +91,28 @@ module AutoMerge
       merge_request.auto_merge_enabled = false
       merge_request.merge_user = nil
 
-      merge_request.merge_params&.except!(
-        'should_remove_source_branch',
-        'commit_message',
-        'squash_commit_message',
-        'auto_merge_strategy'
-      )
+      merge_request.merge_params&.except!(*clearable_auto_merge_parameters)
 
       merge_request.save!
     end
 
+    # Overridden in EE child classes
+    def clearable_auto_merge_parameters
+      %w[
+        should_remove_source_branch
+        commit_message
+        squash_commit_message
+        auto_merge_strategy
+      ]
+    end
+
     def track_exception(error, merge_request)
       Gitlab::ErrorTracking.track_exception(error, merge_request_id: merge_request&.id)
+    end
+
+    # Will skip the draft check or not when checking if strategy is available
+    def skip_draft_check(merge_request)
+      false
     end
   end
 end

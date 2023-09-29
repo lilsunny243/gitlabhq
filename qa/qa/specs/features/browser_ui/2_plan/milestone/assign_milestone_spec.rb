@@ -8,31 +8,18 @@ module QA
       let(:start_date) { current_date_yyyy_mm_dd }
       let(:due_date) { next_month_yyyy_mm_dd }
 
-      let(:group) do
-        Resource::Group.fabricate_via_api! do |group|
-          group.name = "group-to-test-milestones-#{SecureRandom.hex(4)}"
-        end
-      end
+      let(:group) { create(:group, name: "group-to-test-milestones-#{SecureRandom.hex(4)}") }
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = "project-to-test-milestones-#{SecureRandom.hex(4)}"
-          project.group = group
-        end
-      end
+      let(:project) { create(:project, name: "project-to-test-milestones-#{SecureRandom.hex(4)}", group: group) }
 
-      let(:issue) do
-        Resource::Issue.fabricate_via_api! do |issue|
-          issue.project = project
-        end
-      end
+      let(:issue) { create(:issue, project: project) }
 
       before do
         Flow::Login.sign_in
       end
 
-      shared_examples 'milestone assigned to existing issue' do |testcase|
-        it 'is assigned to an existing issue', testcase: testcase do
+      shared_examples 'when assigned to existing issue' do |testcase|
+        it 'is assigned', testcase: testcase do
           issue.visit!
 
           Page::Project::Issue::Show.perform do |existing_issue|
@@ -43,8 +30,8 @@ module QA
         end
       end
 
-      shared_examples 'milestone assigned to new issue' do |testcase|
-        it 'is assigned to a new issue', testcase: testcase do
+      shared_examples 'when assigned to new issue' do |testcase|
+        it 'is assigned', testcase: testcase do
           Resource::Issue.fabricate_via_browser_ui! do |new_issue|
             new_issue.project = project
             new_issue.milestone = milestone
@@ -57,29 +44,17 @@ module QA
       end
 
       context 'Group milestone' do
-        let(:milestone) do
-          Resource::GroupMilestone.fabricate_via_api! do |milestone|
-            milestone.group = group
-            milestone.start_date = start_date
-            milestone.due_date = due_date
-          end
-        end
+        let(:milestone) { create(:group_milestone, group: group, start_date: start_date, due_date: due_date) }
 
-        it_behaves_like 'milestone assigned to existing issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347964'
-        it_behaves_like 'milestone assigned to new issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347965'
+        it_behaves_like 'when assigned to existing issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347964'
+        it_behaves_like 'when assigned to new issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347965'
       end
 
       context 'Project milestone' do
-        let(:milestone) do
-          Resource::ProjectMilestone.fabricate_via_api! do |milestone|
-            milestone.project = project
-            milestone.start_date = start_date
-            milestone.due_date = due_date
-          end
-        end
+        let(:milestone) { create(:project_milestone, project: project, start_date: start_date, due_date: due_date) }
 
-        it_behaves_like 'milestone assigned to existing issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347962'
-        it_behaves_like 'milestone assigned to new issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347963'
+        it_behaves_like 'when assigned to existing issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347962'
+        it_behaves_like 'when assigned to new issue', 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347963'
       end
     end
   end

@@ -12,7 +12,20 @@ module Gitlab
       attr_accessor :raw_commit, :head
 
       MAX_COMMIT_MESSAGE_DISPLAY_SIZE = 10.megabytes
+
+      SHA1_LENGTH = 40
+      SHA256_LENGTH = 64
+
       MIN_SHA_LENGTH = 7
+      MAX_SHA_LENGTH = SHA256_LENGTH
+
+      RAW_SHA_PATTERN = "\\h{#{MIN_SHA_LENGTH},#{MAX_SHA_LENGTH}}".freeze
+      SHA_PATTERN = /#{RAW_SHA_PATTERN}/
+      # Match a full SHA. Note that because this expression is not anchored it will match any SHA that is at
+      # least SHA1_LENGTH long.
+      RAW_FULL_SHA_PATTERN = "\\h{#{SHA1_LENGTH}}(?:\\h{#{SHA256_LENGTH - SHA1_LENGTH}})?".freeze
+      FULL_SHA_PATTERN = /#{RAW_FULL_SHA_PATTERN}/
+
       SERIALIZE_KEYS = [
         :id, :message, :parent_ids,
         :authored_date, :author_name, :author_email,
@@ -226,6 +239,12 @@ module Gitlab
         id.to_s[0..length]
       end
 
+      def tree_id
+        return unless raw_commit
+
+        raw_commit.tree_id
+      end
+
       def safe_message
         @safe_message ||= message
       end
@@ -320,7 +339,7 @@ module Gitlab
       end
 
       def first_ref_by_oid(repo)
-        ref = repo.refs_by_oid(oid: id, limit: 1)&.first
+        ref = repo.refs_by_oid(oid: id, limit: 1).first
 
         return unless ref
 
@@ -464,7 +483,8 @@ module Gitlab
       end
 
       def fetch_body_from_gitaly
-        self.class.get_message(@repository, id)
+        # #to_s is required to ensure BatchLoader is not returned.
+        self.class.get_message(@repository, id).to_s
       end
 
       def self.valid?(commit_id)

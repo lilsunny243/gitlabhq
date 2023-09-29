@@ -17,9 +17,17 @@ module QA
       class << self
         # Initialize new instance of class without fabrication
         #
-        # @param [Proc] prepare_block
+        # @yieldparam [self] instance of page object
+        # @return [self]
         def init(&prepare_block)
           new.tap(&prepare_block)
+        end
+
+        # All instances of the Resource
+        #
+        # @return [Array<QA::Resource>]
+        def all(api_client = nil, **kwargs)
+          instance(api_client).all(**kwargs)
         end
 
         def fabricate_via_api_unless_fips!
@@ -45,7 +53,7 @@ module QA
           resource = options.fetch(:resource) { new }
           parents = options.fetch(:parents) { [] }
 
-          do_fabricate!(resource: resource, prepare_block: prepare_block, parents: parents) do
+          do_fabricate!(resource: resource, prepare_block: prepare_block) do
             log_and_record_fabrication(:browser_ui, resource, parents, args) { resource.fabricate!(*args) }
 
             current_url
@@ -61,7 +69,7 @@ module QA
 
           resource.eager_load_api_client!
 
-          do_fabricate!(resource: resource, prepare_block: prepare_block, parents: parents) do
+          do_fabricate!(resource: resource, prepare_block: prepare_block) do
             log_and_record_fabrication(:api, resource, parents, args) { resource.fabricate_via_api! }
           end
         end
@@ -73,14 +81,18 @@ module QA
 
           resource.eager_load_api_client!
 
-          do_fabricate!(resource: resource, prepare_block: prepare_block, parents: parents) do
+          do_fabricate!(resource: resource, prepare_block: prepare_block) do
             log_and_record_fabrication(:api, resource, parents, args) { resource.remove_via_api! }
           end
         end
 
         private
 
-        def do_fabricate!(resource:, prepare_block:, parents: [])
+        def instance(api_client)
+          init { |resource| resource.api_client = api_client || QA::Runtime::API::Client.as_admin }
+        end
+
+        def do_fabricate!(resource:, prepare_block:)
           prepare_block.call(resource) if prepare_block
 
           resource_web_url = yield
@@ -89,17 +101,12 @@ module QA
           resource
         end
 
-        def log_and_record_fabrication(fabrication_method, resource, parents, args)
+        def log_and_record_fabrication(fabrication_method, resource, parents, _args)
           start = Time.now
 
           Support::FabricationTracker.start_fabrication
           result = yield.tap do
             fabrication_time = Time.now - start
-            fabrication_http_method = if resource.api_fabrication_http_method == :get || resource.retrieved_from_cache
-                                        "Retrieved"
-                                      else
-                                        "Built"
-                                      end
 
             Support::FabricationTracker.save_fabrication(:"#{fabrication_method}_fabrication", fabrication_time)
 
@@ -114,7 +121,7 @@ module QA
 
             Runtime::Logger.info do
               msg = ["==#{'=' * parents.size}>"]
-              msg << "#{fabrication_http_method} a #{Rainbow(name).black.bg(:white)}"
+              msg << "#{fabrication_type(resource, fabrication_method)} a #{Rainbow(name).black.bg(:white)}"
               msg << resource.identifier
               msg << "as a dependency of #{parents.last}" if parents.any?
               msg << "via #{resource.retrieved_from_cache ? 'cache' : fabrication_method}"
@@ -127,6 +134,19 @@ module QA
           Support::FabricationTracker.finish_fabrication
 
           result
+        end
+
+        # Fetch type of fabrication, either resource was built or fetched
+        #
+        # @param [Resource] resource
+        # @param [Symbol] method
+        # @return [String]
+        def fabrication_type(resource, method)
+          return "Built" if method == :browser_ui || [:post, :put].include?(resource.api_fabrication_http_method)
+          return "Retrieved" if resource.api_fabrication_http_method == :get || resource.retrieved_from_cache
+
+          Runtime::Logger.warn("Resource fabrication http method has not been set properly, assuming :get value!")
+          "Built"
         end
 
         # Define custom attribute
@@ -154,6 +174,14 @@ module QA
         end
       end
 
+      # To be overridden by Resource classes to return a list of all instances of the resource
+      #
+      # @params [Hash] kwargs arguments to be used to query the API to search for resources with a specific criteria
+      # @return [Array]
+      def all(**kwargs)
+        raise NotImplementedError
+      end
+
       # Override api reload! and update custom attributes from api_resource
       #
       api_reload = instance_method(:reload!)
@@ -174,11 +202,12 @@ module QA
         raise NotImplementedError
       end
 
-      def visit!(skip_resp_code_check: false)
+      def visit!(skip_finished_loading_check: false, skip_resp_code_check: false)
         Runtime::Logger.info("Visiting #{Rainbow(self.class.name).black.bg(:white)} at #{web_url}")
 
         # Just in case an async action is not yet complete
-        Support::WaitForRequests.wait_for_requests(skip_resp_code_check: skip_resp_code_check)
+        Support::WaitForRequests.wait_for_requests(skip_finished_loading_check: skip_finished_loading_check,
+          skip_resp_code_check: skip_resp_code_check)
 
         Support::Retrier.retry_until do
           visit(web_url)
@@ -186,15 +215,18 @@ module QA
         end
 
         # Wait until the new page is ready for us to interact with it
-        Support::WaitForRequests.wait_for_requests(skip_resp_code_check: skip_resp_code_check)
+        Support::WaitForRequests.wait_for_requests(skip_finished_loading_check: skip_finished_loading_check,
+          skip_resp_code_check: skip_resp_code_check)
       end
 
       def populate(*attribute_names)
         attribute_names.each { |attribute_name| public_send(attribute_name) }
       end
 
-      def wait_until(max_duration: 60, sleep_interval: 0.1, &block)
-        QA::Support::Waiter.wait_until(max_duration: max_duration, sleep_interval: sleep_interval, &block)
+      def wait_until(max_duration: 60, sleep_interval: 0.1, message: nil, &block)
+        QA::Support::Waiter.wait_until(
+          max_duration: max_duration, sleep_interval: sleep_interval, message: message, &block
+        )
       end
 
       # Object comparison
@@ -215,8 +247,7 @@ module QA
       def diff(other)
         return if self == other
 
-        diff_values = self.comparable.to_a - other.comparable.to_a
-        diff_values.to_h
+        (comparable.to_a - other.comparable.to_a).to_h
       end
 
       def identifier
@@ -271,7 +302,7 @@ module QA
       def all_attributes
         @all_attributes ||= self.class.ancestors
                                 .select { |clazz| clazz <= QA::Resource::Base }
-                                .map { |clazz| clazz.instance_variable_get(:@attribute_names) }
+                                .map { |clazz| clazz.instance_variable_get(:@attribute_names) } # rubocop:disable Performance/FlatMap
                                 .flatten
                                 .compact
       end

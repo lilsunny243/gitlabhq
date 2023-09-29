@@ -1,5 +1,6 @@
 <script>
 import { GlButton, GlTooltipDirective } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 
 export default {
@@ -70,7 +71,7 @@ export default {
     :title="title"
     :aria-label="title"
     icon="remove"
-    data-qa-selector="delete_member_button"
+    data-testid="delete-member-button"
     @click="showRemoveMemberModal(modalData)"
   />
 </template>

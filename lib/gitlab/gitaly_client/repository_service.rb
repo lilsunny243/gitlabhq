@@ -52,6 +52,12 @@ module Gitlab
         response.size
       end
 
+      def repository_info
+        request = Gitaly::RepositoryInfoRequest.new(repository: @gitaly_repo)
+
+        gitaly_client_call(@storage, :repository_service, :repository_info, request, timeout: GitalyClient.long_timeout)
+      end
+
       def get_object_directory_size
         request = Gitaly::GetObjectDirectorySizeRequest.new(repository: @gitaly_repo)
         response = gitaly_client_call(@storage, :repository_service, :get_object_directory_size, request, timeout: GitalyClient.medium_timeout)
@@ -109,7 +115,7 @@ module Gitlab
       # rubocop: enable Metrics/ParameterLists
 
       def create_repository(default_branch = nil)
-        request = Gitaly::CreateRepositoryRequest.new(repository: @gitaly_repo, default_branch: default_branch)
+        request = Gitaly::CreateRepositoryRequest.new(repository: @gitaly_repo, default_branch: encode_binary(default_branch))
         gitaly_client_call(@storage, :repository_service, :create_repository, request, timeout: GitalyClient.fast_timeout)
       end
 
@@ -231,22 +237,6 @@ module Gitlab
         )
       end
 
-      def create_from_snapshot(http_url, http_auth)
-        request = Gitaly::CreateRepositoryFromSnapshotRequest.new(
-          repository: @gitaly_repo,
-          http_url: http_url,
-          http_auth: http_auth
-        )
-
-        gitaly_client_call(
-          @storage,
-          :repository_service,
-          :create_repository_from_snapshot,
-          request,
-          timeout: GitalyClient.long_timeout
-        )
-      end
-
       def write_ref(ref_path, ref, old_ref)
         request = Gitaly::WriteRefRequest.new(
           repository: @gitaly_repo,
@@ -306,18 +296,18 @@ module Gitlab
       end
 
       def search_files_by_name(ref, query, limit: 0, offset: 0)
-        request = Gitaly::SearchFilesByNameRequest.new(repository: @gitaly_repo, ref: ref, query: query, limit: limit, offset: offset)
+        request = Gitaly::SearchFilesByNameRequest.new(repository: @gitaly_repo, ref: encode_binary(ref), query: query, limit: limit, offset: offset)
         gitaly_client_call(@storage, :repository_service, :search_files_by_name, request, timeout: GitalyClient.fast_timeout).flat_map(&:files)
       end
 
       def search_files_by_content(ref, query, options = {})
-        request = Gitaly::SearchFilesByContentRequest.new(repository: @gitaly_repo, ref: ref, query: query)
+        request = Gitaly::SearchFilesByContentRequest.new(repository: @gitaly_repo, ref: encode_binary(ref), query: query)
         response = gitaly_client_call(@storage, :repository_service, :search_files_by_content, request, timeout: GitalyClient.default_timeout)
         search_results_from_response(response, options)
       end
 
       def search_files_by_regexp(ref, filter, limit: 0, offset: 0)
-        request = Gitaly::SearchFilesByNameRequest.new(repository: @gitaly_repo, ref: ref, query: '.', filter: filter, limit: limit, offset: offset)
+        request = Gitaly::SearchFilesByNameRequest.new(repository: @gitaly_repo, ref: encode_binary(ref), query: '.', filter: filter, limit: limit, offset: offset)
         gitaly_client_call(@storage, :repository_service, :search_files_by_name, request, timeout: GitalyClient.fast_timeout).flat_map(&:files)
       end
 
@@ -354,6 +344,18 @@ module Gitlab
           request,
           remote_storage: source_repository.storage,
           timeout: GitalyClient.long_timeout
+        )
+      end
+
+      def object_pool
+        request = Gitaly::GetObjectPoolRequest.new(repository: @gitaly_repo)
+
+        gitaly_client_call(
+          @storage,
+          :object_pool_service,
+          :get_object_pool,
+          request,
+          timeout: GitalyClient.medium_timeout
         )
       end
 

@@ -1,10 +1,10 @@
 ---
 stage: Create
-group: Editor
+group: IDE
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Web Editor **(FREE)**
+# Web Editor **(FREE ALL)**
 
 You can use the Web Editor to make changes to a single file directly from the
 GitLab UI. To make changes to multiple files, see [Web IDE](../web_ide/index.md).
@@ -25,25 +25,40 @@ for any change you commit through the Web Editor.
 
 To create a text file in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. From the project dashboard or repository, next to the branch name, select the plus icon (**{plus}**).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. From the project dashboard or repository, next to the branch name,
+   select the plus icon (**{plus}**).
 1. From the dropdown list, select **New file**.
-1. Complete the fields. To create a merge request with the new file, ensure the **Start a new merge request with these changes** checkbox is selected.
+1. Complete the fields.
+1. To create a merge request with the new file, ensure the **Start a new merge request with these changes** checkbox is selected, if you had chosen a **Target branch** other than the [default branch (such as `main`)](../../../user/project/repository/branches/default.md).
 1. Select **Commit changes**.
+
+### Create a file from a template
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Repository**.
+1. Next to the project name, select the plus icon (**{plus}**) to display a
+   dropdown list, then select **New file** from the list.
+1. For **Filename**, provide one of the filenames that GitLab provides a template for:
+   - `.gitignore`
+   - `.gitlab-ci.yml`
+   - `LICENSE`
+   - `Dockerfile`
+1. Select **Apply a template**, then select the template you want to apply.
+1. Make your changes to the file.
+1. Provide a **Commit message**.
+1. Enter a **Target branch** to merge into. To create a new merge request with
+   your changes, enter a branch name that is not your repository's
+   [default branch](../../../user/project/repository/branches/default.md),
+1. Select **Commit changes** to add the commit to your branch.
 
 ## Edit a file
 
 To edit a text file in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. Go to your file.
-1. In the upper-right corner of the file, select **Edit**.
-
-   If **Edit** is not visible:
-
-   1. Next to **Open in Web IDE** or **Open in Gitpod**, select the down arrow (**{chevron-lg-down}**).
-   1. From the dropdown list, select **Edit** as your default setting.
-   1. Select **Edit**.
+1. In the upper right, select **Edit > Edit single file**.
 
 ### Keyboard shortcuts
 
@@ -87,7 +102,10 @@ To link to a single line, you can also:
 
 To upload a binary file in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+<!-- This list is duplicated at doc/gitlab-basics/add-file.md#from-the-ui -->
+<!-- For why we duplicated the info, see https://gitlab.com/gitlab-org/gitlab/-/merge_requests/111072#note_1267429478 -->
+
+1. On the left sidebar, select **Search or go to** and find your project.
 1. From the project dashboard or repository, next to the branch name, select the plus icon (**{plus}**).
 1. From the dropdown list, select **Upload file**.
 1. Complete the fields. To create a merge request with the uploaded file, ensure the **Start a new merge request with these changes** toggle is turned on.
@@ -97,7 +115,7 @@ To upload a binary file in the Web Editor:
 
 To create a directory in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. From the project dashboard or repository, next to the branch name, select the plus icon (**{plus}**).
 1. From the dropdown list, select **New directory**.
 1. Complete the fields. To create a merge request with the new directory, ensure the **Start a new merge request with these changes** toggle is turned on.
@@ -107,7 +125,7 @@ To create a directory in the Web Editor:
 
 To create a [branch](branches/index.md) in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. From the project dashboard or repository, next to the branch name, select the plus icon (**{plus}**).
 1. From the dropdown list, select **New branch**.
 1. Complete the fields.
@@ -118,7 +136,7 @@ To create a [branch](branches/index.md) in the Web Editor:
 You can create [tags](tags/index.md) to mark milestones such as
 production releases and release candidates. To create a tag in the Web Editor:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. From the project dashboard or repository, next to the branch name, select the plus icon (**{plus}**).
 1. From the dropdown list, select **New tag**.
 1. Complete the fields.

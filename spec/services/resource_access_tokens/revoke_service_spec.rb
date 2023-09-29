@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ResourceAccessTokens::RevokeService do
+RSpec.describe ResourceAccessTokens::RevokeService, feature_category: :system_access do
   subject { described_class.new(user, resource, access_token).execute }
 
   let_it_be(:user) { create(:user) }
@@ -33,8 +33,7 @@ RSpec.describe ResourceAccessTokens::RevokeService do
         subject
 
         expect(
-          Users::GhostUserMigration.where(user: resource_bot,
-                                          initiator_user: user)
+          Users::GhostUserMigration.where(user: resource_bot, initiator_user: user)
         ).to be_exists
       end
 

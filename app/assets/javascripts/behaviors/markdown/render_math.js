@@ -66,15 +66,11 @@ class SafeMathRenderer {
     el.removeAttribute('style');
     if (!forceRender && (this.totalMS >= MAX_RENDER_TIME_MS || text.length > MAX_MATH_CHARS)) {
       // Show unrendered math code
-      const wrapperElement = document.createElement('div');
       const codeElement = document.createElement('pre');
 
       codeElement.className = 'code';
       codeElement.textContent = el.textContent;
       codeElement.dataset.mathStyle = el.dataset.mathStyle;
-
-      const { parentNode } = el;
-      parentNode.replaceChild(wrapperElement, el);
 
       let message;
       if (text.length > MAX_MATH_CHARS) {
@@ -97,17 +93,17 @@ class SafeMathRenderer {
                 <button class="js-lazy-render-math btn gl-alert-action btn-confirm btn-md gl-button">Display anyway</button>
               </div>
             </div>
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <button type="button" class="close js-close" aria-label="Close">
               ${spriteIcon('close', 's16')}
             </button>
           </div>
           `;
 
-      if (!wrapperElement.classList.contains('lazy-alert-shown')) {
+      if (!el.classList.contains('lazy-alert-shown')) {
         // eslint-disable-next-line no-unsanitized/property
-        wrapperElement.innerHTML = html;
-        wrapperElement.append(codeElement);
-        wrapperElement.classList.add('lazy-alert-shown');
+        el.innerHTML = html;
+        el.append(codeElement);
+        el.classList.add('lazy-alert-shown');
       }
 
       // Render the next math
@@ -125,6 +121,12 @@ class SafeMathRenderer {
       }
 
       try {
+        if (displayContainer.dataset.mathStyle === 'inline') {
+          displayContainer.classList.add('math-content-inline');
+        } else {
+          displayContainer.classList.add('math-content-display');
+        }
+
         // eslint-disable-next-line no-unsanitized/property
         displayContainer.innerHTML = this.katex.renderToString(text, {
           displayMode: el.dataset.mathStyle === 'display',
@@ -169,8 +171,7 @@ class SafeMathRenderer {
   render() {
     // Replace math blocks with a placeholder so they aren't rendered twice
     this.elements.forEach((el) => {
-      const placeholder = document.createElement('span');
-      placeholder.style.display = 'none';
+      const placeholder = document.createElement('div');
       placeholder.dataset.mathStyle = el.dataset.mathStyle;
       placeholder.textContent = el.textContent;
       el.parentNode.replaceChild(placeholder, el);
@@ -184,17 +185,24 @@ class SafeMathRenderer {
 
   attachEvents() {
     document.body.addEventListener('click', (event) => {
-      if (!event.target.classList.contains('js-lazy-render-math')) {
+      const alert = event.target.closest('.js-lazy-render-math-container');
+
+      if (!alert) {
         return;
       }
 
-      const parent = event.target.closest('.js-lazy-render-math-container');
+      // Handle alert close
+      if (event.target.closest('.js-close')) {
+        alert.remove();
+        return;
+      }
 
-      const pre = parent.nextElementSibling;
-
-      parent.remove();
-
-      this.renderElement(pre);
+      // Handle "render anyway"
+      if (event.target.classList.contains('js-lazy-render-math')) {
+        const pre = alert.nextElementSibling;
+        alert.remove();
+        this.renderElement(pre);
+      }
     });
   }
 }

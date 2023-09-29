@@ -158,7 +158,7 @@ query. This in turn makes it much harder for this code to overload a database.
 
 ## Use read replicas when possible
 
-In a DB cluster we have many read replicas and one primary. A classic use of scaling the DB is to have read-only actions be performed by the replicas. We use [load balancing](../../administration/postgresql/database_load_balancing.md) to distribute this load. This allows for the replicas to grow as the pressure on the DB grows.
+In a DB cluster we have many read replicas and one primary. A classic use of scaling the DB is to have read-only actions be performed by the replicas. We use [load balancing](../database/load_balancing.md) to distribute this load. This allows for the replicas to grow as the pressure on the DB grows.
 
 By default, queries use read-only replicas, but due to
 [primary sticking](../../administration/postgresql/database_load_balancing.md#primary-sticking), GitLab uses the
@@ -195,23 +195,21 @@ costly, time-consuming query to the replicas.
 
 Read about [complex queries on the relation object](../database/iterating_tables_in_batches.md#complex-queries-on-the-relation-object)
 for considerations on how to use CTEs. We have found in some situations that CTEs can become
-problematic in use (similar to the n+1 problem above). In particular, hierarchical recursive
+problematic in use (similar to the N+1 problem above). In particular, hierarchical recursive
 CTE queries such as the CTE in [AuthorizedProjectsWorker](https://gitlab.com/gitlab-org/gitlab/-/issues/325688)
 are very difficult to optimize and don't scale. We should avoid them when implementing new features
 that require any kind of hierarchical structure.
 
 CTEs have been effectively used as an optimization fence in many simpler cases,
 such as this [example](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/43242#note_61416277).
-Beginning in PostgreSQL 12, CTEs are inlined then [optimized by default](https://paquier.xyz/postgresql-2/postgres-12-with-materialize/).
-Keeping the old behavior requires marking CTEs with the keyword `MATERIALIZED`.
+With the currently supported PostgreSQL versions, the optimization fence behavior must be enabled
+with the `MATERIALIZED` keyword. By default CTEs are inlined then [optimized by default](https://paquier.xyz/postgresql-2/postgres-12-with-materialize/).
 
 When building CTE statements, use the `Gitlab::SQL::CTE` class [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/56976) in GitLab 13.11.
-By default, this `Gitlab::SQL::CTE` class forces materialization through adding the `MATERIALIZED` keyword for PostgreSQL 12 and higher.
-`Gitlab::SQL::CTE` automatically omits materialization when PostgreSQL 11 is running
-(this behavior is implemented using a custom Arel node `Gitlab::Database::AsWithMaterialized` under the surface).
+By default, this `Gitlab::SQL::CTE` class forces materialization through adding the `MATERIALIZED` keyword.
 
 WARNING:
-Upgrading to GitLab 14.0 requires PostgreSQL 12 or higher.
+Upgrading to GitLab 14.0 requires PostgreSQL 12 or later.
 
 ## Cached Queries
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::HTTPConnectionAdapter do
+RSpec.describe Gitlab::HTTPConnectionAdapter, feature_category: :shared do
   include StubRequests
 
   let(:uri) { URI('https://example.org') }
@@ -44,7 +44,7 @@ RSpec.describe Gitlab::HTTPConnectionAdapter do
         it 'raises error' do
           expect { subject }.to raise_error(
             Gitlab::HTTP::BlockedUrlError,
-            "URL 'http://172.16.0.0/12' is blocked: Requests to the local network are not allowed"
+            "URL is blocked: Requests to the local network are not allowed"
           )
         end
 
@@ -67,7 +67,7 @@ RSpec.describe Gitlab::HTTPConnectionAdapter do
         it 'raises error' do
           expect { subject }.to raise_error(
             Gitlab::HTTP::BlockedUrlError,
-            "URL 'http://127.0.0.1' is blocked: Requests to localhost are not allowed"
+            "URL is blocked: Requests to localhost are not allowed"
           )
         end
 
@@ -111,13 +111,49 @@ RSpec.describe Gitlab::HTTPConnectionAdapter do
       end
     end
 
+    context 'when proxy is enabled' do
+      before do
+        stub_env('http_proxy', 'http://proxy.example.com')
+      end
+
+      it 'proxy stays configured' do
+        expect(connection.proxy?).to be true
+        expect(connection.proxy_from_env?).to be true
+        expect(connection.proxy_address).to eq('proxy.example.com')
+      end
+
+      context 'when no_proxy matches the request' do
+        before do
+          stub_env('no_proxy', 'example.org')
+        end
+
+        it 'proxy is disabled' do
+          expect(connection.proxy?).to be false
+          expect(connection.proxy_from_env?).to be false
+          expect(connection.proxy_address).to be nil
+        end
+      end
+
+      context 'when no_proxy does not match the request' do
+        before do
+          stub_env('no_proxy', 'example.com')
+        end
+
+        it 'proxy stays configured' do
+          expect(connection.proxy?).to be true
+          expect(connection.proxy_from_env?).to be true
+          expect(connection.proxy_address).to eq('proxy.example.com')
+        end
+      end
+    end
+
     context 'when URL scheme is not HTTP/HTTPS' do
       let(:uri) { URI('ssh://example.org') }
 
       it 'raises error' do
         expect { subject }.to raise_error(
           Gitlab::HTTP::BlockedUrlError,
-          "URL 'ssh://example.org' is blocked: Only allowed schemes are http, https"
+          "URL is blocked: Only allowed schemes are http, https"
         )
       end
     end

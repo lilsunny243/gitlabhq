@@ -9,10 +9,14 @@ module IssueLinks
     end
 
     def previous_related_issuables
-      @related_issues ||= issuable.related_issues(current_user).to_a
+      @related_issues ||= issuable.related_issues(authorize: false).to_a
     end
 
     private
+
+    def readonly_issuables(issuables)
+      @readonly_issuables ||= issuables.select { |issuable| issuable.readable_by?(current_user) }
+    end
 
     def track_event
       track_incident_action(current_user, issuable, :incident_relate)

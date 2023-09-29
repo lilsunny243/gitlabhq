@@ -1,11 +1,11 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
-# Protected environments API **(PREMIUM)**
+# Protected environments API **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30595) in GitLab 12.8.
 

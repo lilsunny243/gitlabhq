@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Composer API **(FREE)**
+# Composer API **(FREE ALL)**
 
 This is the API documentation for [Composer Packages](../../user/packages/composer_repository/index.md).
 
@@ -18,7 +18,7 @@ package registry, see the [Composer package registry documentation](../../user/p
 NOTE:
 These endpoints do not adhere to the standard API authentication methods.
 See the [Composer package registry documentation](../../user/packages/composer_repository/index.md)
-for details on which headers and token types are supported.
+for details on which headers and token types are supported. Undocumented authentication methods might be removed in the future.
 
 ## Base repository request
 

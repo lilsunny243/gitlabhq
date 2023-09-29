@@ -24,13 +24,14 @@ describe('Confirm Danger Modal', () => {
   const findAdditionalMessage = () => wrapper.findByTestId('confirm-danger-message');
   const findPrimaryAction = () => findModal().props('actionPrimary');
   const findCancelAction = () => findModal().props('actionCancel');
-  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[0][attr];
+  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[attr];
 
   const createComponent = ({ provide = {} } = {}) =>
     shallowMountExtended(ConfirmDangerModal, {
       propsData: {
         modalId,
         phrase,
+        visible: false,
       },
       provide,
       stubs: { GlSprintf },
@@ -40,10 +41,6 @@ describe('Confirm Danger Modal', () => {
     wrapper = createComponent({
       provide: { confirmDangerMessage, confirmButtonText, cancelButtonText },
     });
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('renders the default warning message', () => {
@@ -64,9 +61,7 @@ describe('Confirm Danger Modal', () => {
   });
 
   it('renders the correct confirmation phrase', () => {
-    expect(findConfirmationPhrase().text()).toBe(
-      `Please type ${phrase} to proceed or close this modal to cancel.`,
-    );
+    expect(findConfirmationPhrase().text()).toBe(`Please type ${phrase} to proceed.`);
   });
 
   describe('without injected data', () => {
@@ -107,6 +102,18 @@ describe('Confirm Danger Modal', () => {
       await findModal().vm.$emit('primary');
 
       expect(wrapper.emitted('confirm')).not.toBeUndefined();
+    });
+  });
+
+  describe('v-model', () => {
+    it('emit `change` event', () => {
+      findModal().vm.$emit('change', true);
+
+      expect(wrapper.emitted('change')).toEqual([[true]]);
+    });
+
+    it('sets `visible` prop', () => {
+      expect(findModal().props('visible')).toBe(false);
     });
   });
 });

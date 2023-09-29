@@ -13,62 +13,60 @@ eventually.
 
 ## What are the potential cause for a test to be flaky?
 
-### Unclean environment
+### State leak
 
-**Label:** `flaky-test::unclean environment`
+**Label:** `flaky-test::state leak`
 
-**Description:** The environment got dirtied by a previous test. The actual cause is probably not the flaky test here.
+**Description:** Data state has leaked from a previous test. The actual cause is probably not the flaky test here.
 
 **Difficulty to reproduce:** Moderate. Usually, running the same spec files until the one that's failing reproduces the problem.
 
-**Resolution:** Fix the previous tests and/or places where the environment is modified, so that
+**Resolution:** Fix the previous tests and/or places where the test data or environment is modified, so that
 it's reset to a pristine test after each test.
 
 **Examples:**
 
-- [Example 1](https://gitlab.com/gitlab-org/gitlab/-/issues/378414#note_1142026988): A migration
+- [Example 1](https://gitlab.com/gitlab-org/gitlab/-/issues/402915): State leakage can result from
+  data records created with `let_it_be` shared between test examples, while some test modifies the model
+  either deliberately or unwillingly causing out-of-sync data in test examples. This can result in `PG::QueryCanceled: ERROR` in the subsequent test examples or retries.
+  For more information about state leakages and resolution options, see [GitLab testing best practices](best_practices.md#lets-talk-about-let).
+- [Example 2](https://gitlab.com/gitlab-org/gitlab/-/issues/378414#note_1142026988): A migration
   test might roll-back the database, perform its testing, and then roll-up the database in an
   inconsistent state, so that following tests might not know about certain columns.
-- [Example 2](https://gitlab.com/gitlab-org/gitlab/-/issues/368500): A test modifies data that is
+- [Example 3](https://gitlab.com/gitlab-org/gitlab/-/issues/368500): A test modifies data that is
   used by a following test.
-- [Example 3](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/103434#note_1172316521): A test for a database query passes in a fresh database, but in a
+- [Example 4](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/103434#note_1172316521): A test for a database query passes in a fresh database, but in a
   CI/CD pipeline where the database is used to process previous test sequences, the test fails. This likely
-    means that the query itself needs to be updated to work in a non-clean database.
-
-### Ordering assertion
-
-**Label:** `flaky-test::ordering assertion`
-
-**Description:** The test is expecting a specific order in the data under test yet the data is in
-a non-deterministic order.
-
-**Difficulty to reproduce:** Easy. Usually, running the test locally several times would reproduce
-the problem.
-
-**Resolution:** Depending on the problem, you might want to:
-
-- loosen the assertion if the test shouldn't care about ordering but only on the elements
-- fix the test by specifying a deterministic ordering
-- fix the app code by specifying a deterministic ordering
-
-**Examples:**
-
-- [Example 1](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/10148/diffs): Without
-  specifying `ORDER BY`, database will not give deterministic ordering, or data race happening
-  in the tests.
-- [Example 2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106936/diffs).
+  means that the query itself needs to be updated to work in a non-clean database.
+- [Example 5](https://gitlab.com/gitlab-org/gitlab/-/issues/416663#note_1457867234): Unrelated database connections
+  in asynchronous requests checked back in, causing the tests to accidentally
+  use these unrelated database connections. The failure was resolved in this
+  [merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/125742).
+- [Example 6](https://gitlab.com/gitlab-org/gitlab/-/issues/418757#note_1502138269): The maximum time to live
+  for a database connection causes these connections to be disconnected, which
+  in turn causes tests that rely on the transactions on these connections to
+  in turn causes tests that rely on the transactions on these connections to
+  fail. The issue was fixed in this [merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/128567).
+- [Example 7](https://gitlab.com/gitlab-org/quality/engineering-productivity/master-broken-incidents/-/issues/3389#note_1534827164):
+  A TCP socket used in a test was not closed before the next test, which also used
+  the same port with another TCP socket.
 
 ### Dataset-specific
 
 **Label:** `flaky-test::dataset-specific`
 
-**Description:** The test assumes the dataset is in a particular (usually limited) state, which
+**Description:** The test assumes the dataset is in a particular (usually limited) state or order, which
 might not be true depending on when the test run during the test suite.
 
 **Difficulty to reproduce:** Moderate, as the amount of data needed to reproduce the issue might be
-difficult to achieve locally.
+difficult to achieve locally. Ordering issues are easier to reproduce by repeatedly running the tests several times.
 
-**Resolution:** Fix the test to not assume that the dataset is in a particular state, don't hardcode IDs.
+**Resolution:**
+
+- Fix the test to not assume that the dataset is in a particular state, don't hardcode IDs.
+- Loosen the assertion if the test shouldn't care about ordering but only on the elements.
+- Fix the test by specifying a deterministic ordering.
+- Fix the app code by specifying a deterministic ordering.
 
 **Examples:**
 
@@ -77,10 +75,14 @@ difficult to achieve locally.
   `master` if the order of tests changes.
 - [Example 2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/91016/diffs): A test asserts
   that trying to find a record with an nonexistent ID returns an error message. The test uses an
-  hardcoded ID that's supposed to not exist (e.g. `42`). If the test is run early in the test
+  hardcoded ID that's supposed to not exist (for example, `42`). If the test is run early in the test
   suite, it might pass as not enough records were created before it, but as soon as it would run
   later in the suite, there could be a record that actually has the ID `42`, hence the test would
   start to fail.
+- [Example 3](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/10148/diffs): Without
+  specifying `ORDER BY`, database is not given deterministic ordering, or data race can happen
+  in the tests.
+- [Example 4](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106936/diffs).
 
 ### Random input
 
@@ -116,6 +118,8 @@ Adding a delay in API or controller could help reproducing the issue.
   time before throwing an `element not found` error.
 - [Example 2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/101728/diffs): A CSS selector
   only appears after a GraphQL requests has finished, and the UI has updated.
+- [Example 3](https://gitlab.com/gitlab-org/gitlab/-/issues/408215): A false-positive test, Capybara immediately returns true after
+page visit and page is not fully loaded, or if the element is not detectable by webdriver (such as being rendered outside the viewport or behind other elements).
 
 ### Datetime-sensitive
 
@@ -130,6 +134,7 @@ Adding a delay in API or controller could help reproducing the issue.
 **Examples:**
 
 - [Example 1](https://gitlab.com/gitlab-org/gitlab/-/issues/118612): A test that breaks after some time passed.
+- [Example 2](https://gitlab.com/gitlab-org/gitlab/-/issues/403332): A test that breaks in the last day of the month.
 
 ### Unstable infrastructure
 
@@ -150,15 +155,28 @@ usually a good idea.
 
 ## Quarantined tests
 
-When a test frequently fails in `master`,
-create [a ~"failure::flaky-test" issue](https://about.gitlab.com/handbook/engineering/workflow/#broken-master).
+When we have a flaky test in `master`:
 
-If the test cannot be fixed in a timely fashion, there is an impact on the
-productivity of all the developers, so it should be quarantined. There are two ways to quarantine tests, depending on the test framework being used: RSpec and Jest.
+1. Create [a ~"failure::flaky-test" issue](https://about.gitlab.com/handbook/engineering/workflow/#broken-master) with the relevant group label.
+1. Quarantine the test after the first failure.
+   If the test cannot be fixed in a timely fashion, there is an impact on the
+   productivity of all the developers, so it should be quarantined.
 
 ### RSpec
 
-For RSpec tests, you can use the `:quarantine` metadata with the issue URL.
+#### Fast quarantine
+
+To quickly quarantine a test without having to open a merge request and wait for pipelines,
+you can follow [the fast quarantining process](https://gitlab.com/gitlab-org/quality/engineering-productivity/fast-quarantine/-/tree/main/#fast-quarantine-a-test).
+
+#### Long-term quarantine
+
+Once a test is fast-quarantined, you can proceed with the long-term quarantining process. This can be done by opening a merge request.
+
+First, ensure the test file has a [`feature_category` metadata](../feature_categorization/index.md#rspec-examples), to ensure correct attribution of the test file.
+
+Then, you can use the `quarantine: '<issue url>'` metadata with the URL of the
+~"failure::flaky-test" issue you created previously.
 
 ```ruby
 it 'succeeds', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/12345' do
@@ -166,18 +184,22 @@ it 'succeeds', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/12345'
 end
 ```
 
-This means it is skipped unless run with `--tag quarantine`:
+This means it is skipped in CI. By default, the quarantined tests will run locally.
+
+We can skip them in local development as well by running with `--tag ~quarantine`:
 
 ```shell
-bin/rspec --tag quarantine
+bin/rspec --tag ~quarantine
 ```
+
+After the long-term quarantining MR has reached production, you should revert the fast-quarantine MR you created earlier.
 
 ### Jest
 
 For Jest specs, you can use the `.skip` method along with the `eslint-disable-next-line` comment to disable the `jest/no-disabled-tests` ESLint rule and include the issue URL. Here's an example:
 
 ```javascript
-// https://gitlab.com/gitlab-org/gitlab/-/issues/56789
+// quarantine: https://gitlab.com/gitlab-org/gitlab/-/issues/56789
 // eslint-disable-next-line jest/no-disabled-tests
 it.skip('should throw an error', () => {
   expect(response).toThrowError(expected_error)
@@ -188,6 +210,12 @@ This means it is skipped unless the test suit is run with `--runInBand` Jest com
 
 ```shell
 jest --runInBand
+```
+
+A list of files with quarantined specs in them can be found with the command:
+
+```shell
+yarn jest:quarantine
 ```
 
 For both test frameworks, make sure to add the `~"quarantined test"` label to the issue.
@@ -202,10 +230,10 @@ Once a test is in quarantine, there are 3 choices:
 
 ## Automatic retries and flaky tests detection
 
-On our CI, we use [RSpec::Retry](https://github.com/NoRedInk/rspec-retry) to automatically retry a failing example a few
+On our CI, we use [`RSpec::Retry`](https://github.com/NoRedInk/rspec-retry) to automatically retry a failing example a few
 times (see [`spec/spec_helper.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/spec_helper.rb) for the precise retries count).
 
-We also use a custom [`RspecFlaky::Listener`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/tooling/rspec_flaky/listener.rb).
+We also use a custom [`RspecFlaky::Listener`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/gems/rspec_flaky/lib/rspec_flaky/listener.rb).
 This listener runs in the `update-tests-metadata` job in `maintenance` scheduled pipelines
 on the `master` branch, and saves flaky examples to `rspec/flaky/report-suite.json`.
 The report file is then retrieved by the `retrieve-tests-metadata` job in all pipelines.
@@ -220,11 +248,10 @@ For example, `FLAKY_RSPEC_GENERATE_REPORT=1 bin/rspec ...`.
 
 ### Usage of the `rspec/flaky/report-suite.json` report
 
-The `rspec/flaky/report-suite.json` report is:
-
-- Used for [automatically skipping known flaky tests](../pipelines/index.md#automatic-skipping-of-flaky-tests).
-- [Imported into Snowflake](https://gitlab.com/gitlab-data/analytics/-/blob/master/extract/gitlab_flaky_tests/upload.py)
-  once per day, for monitoring with the [internal dashboard](https://app.periscopedata.com/app/gitlab/888968/EP---Flaky-tests).
+The `rspec/flaky/report-suite.json` report is
+[imported into Snowflake](https://gitlab.com/gitlab-data/analytics/-/blob/7085bea51bb2f8f823e073393934ba5f97259459/extract/gitlab_flaky_tests/upload.py#L19)
+once per day, for monitoring with the
+[internal dashboard](https://app.periscopedata.com/app/gitlab/888968/EP---Flaky-tests).
 
 ## Problems we had in the past at GitLab
 
@@ -251,9 +278,9 @@ which would give us the minimal test combination to reproduce the failure:
    for the list under `Knapsack node specs:` in the CI job output log.
 1. Save the list of specs as a file, and run:
 
-    ```shell
-    cat knapsack_specs.txt | xargs scripts/rspec_bisect_flaky
-    ```
+   ```shell
+   cat knapsack_specs.txt | xargs scripts/rspec_bisect_flaky
+   ```
 
 If there is an order-dependency issue, the script above will print the minimal
 reproduction.
@@ -299,6 +326,12 @@ If a spec hangs, it might be caused by a [bug in Rails](https://github.com/rails
 
 - <https://gitlab.com/gitlab-org/gitlab/-/merge_requests/81112>
 - <https://gitlab.com/gitlab-org/gitlab/-/issues/337039>
+
+## Suggestions
+
+### Split the test file
+
+It could help to split the large RSpec files in multiple files in order to narrow down the context and identify the problematic tests.
 
 ## Resources
 

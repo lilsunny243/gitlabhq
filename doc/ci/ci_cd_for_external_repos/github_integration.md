@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: howto
 ---
 
-# Using GitLab CI/CD with a GitHub repository **(PREMIUM)**
+# Using GitLab CI/CD with a GitHub repository **(PREMIUM ALL)**
 
 GitLab CI/CD can be used with **GitHub.com** and **GitHub Enterprise** by
 creating a [CI/CD project](index.md) to connect your GitHub repository to
@@ -34,7 +34,8 @@ repositories:
       `repo` and `admin:repo_hook` so that GitLab can access your project,
       update commit statuses, and create a web hook to notify GitLab of new commits.
 1. In GitLab, create a project:
-   1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **View all my projects**.
    1. On the right of the page, select **New project**.
    1. Select **Run CI/CD for external repository**.
    1. Select **GitHub**.
@@ -62,8 +63,9 @@ To manually enable GitLab CI/CD for your repository:
    1. Enter a **Token description** and update the scope to allow
       `repo` so that GitLab can access your project and update commit statuses.
 1. In GitLab, create a project:
-   1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
-   1. On the right of the page, select **New project**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **View all my projects**.
+   1. Select **New project**.
    1. Select **Run CI/CD for external repository** and **Repository by URL**.
    1. In the **Git repository URL** field, enter the HTTPS URL for your GitHub repository.
       If your project is private, use the personal access token you just created for authentication.

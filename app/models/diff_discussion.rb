@@ -10,13 +10,13 @@ class DiffDiscussion < Discussion
     DiffNote
   end
 
-  delegate  :position,
-            :original_position,
-            :change_position,
-            :diff_note_positions,
-            :on_text?,
-            :on_image?,
-            to: :first_note
+  delegate :position,
+    :original_position,
+    :change_position,
+    :diff_note_positions,
+    :on_text?,
+    :on_image?,
+    to: :first_note
 
   def legacy_diff_discussion?
     false
@@ -37,8 +37,8 @@ class DiffDiscussion < Discussion
 
   def reply_attributes
     super.merge(
-      original_position: Gitlab::Json.dump(original_position),
-      position: Gitlab::Json.dump(position)
+      original_position: Gitlab::Json.dump(original_position.to_h),
+      position: Gitlab::Json.dump(position.to_h)
     )
   end
 

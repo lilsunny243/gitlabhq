@@ -11,9 +11,9 @@ import {
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { s__, n__ } from '~/locale';
 import CiIcon from '~/vue_shared/components/ci_icon.vue';
-import { keepLatestDownstreamPipelines } from '~/pipelines/components/parsing_utils';
-import PipelineArtifacts from '~/pipelines/components/pipelines_list/pipelines_artifacts.vue';
-import PipelineMiniGraph from '~/pipelines/components/pipeline_mini_graph/pipeline_mini_graph.vue';
+import { keepLatestDownstreamPipelines } from '~/ci/pipeline_details/utils/parsing_utils';
+import PipelineArtifacts from '~/ci/pipelines_page/components/pipelines_artifacts.vue';
+import LegacyPipelineMiniGraph from '~/ci/pipeline_mini_graph/legacy_pipeline_mini_graph.vue';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import TooltipOnTruncate from '~/vue_shared/components/tooltip_on_truncate/tooltip_on_truncate.vue';
 import { MT_MERGE_STRATEGY } from '../constants';
@@ -27,8 +27,8 @@ export default {
     GlIcon,
     GlSprintf,
     GlTooltip,
+    LegacyPipelineMiniGraph,
     PipelineArtifacts,
-    PipelineMiniGraph,
     TimeAgoTooltip,
     TooltipOnTruncate,
   },
@@ -173,7 +173,7 @@ export default {
       </p>
     </template>
     <template v-else-if="!hasPipeline">
-      <gl-loading-icon size="md" />
+      <gl-loading-icon size="sm" />
       <p
         class="gl-flex-grow-1 gl-display-flex gl-ml-3 gl-mb-0"
         data-testid="monitoring-pipeline-message"
@@ -183,18 +183,18 @@ export default {
           v-gl-tooltip
           :href="ciTroubleshootingDocsPath"
           target="_blank"
-          :title="__('About this feature')"
+          :title="__('Get more information about troubleshooting pipelines')"
           class="gl-display-flex gl-align-items-center gl-ml-2"
         >
           <gl-icon
-            name="question"
+            name="question-o"
             :aria-label="__('Link to go to GitLab pipeline documentation')"
           />
         </gl-link>
       </p>
     </template>
     <template v-else-if="hasPipeline">
-      <a :href="status.details_path" class="gl-align-self-center gl-mr-3">
+      <a :href="status.details_path" class="gl-align-self-start gl-mt-2 gl-mr-3">
         <ci-icon :status="status" :size="24" class="gl-display-flex" />
       </a>
       <div class="ci-widget-container d-flex">
@@ -203,16 +203,39 @@ export default {
             <div
               data-testid="pipeline-info-container"
               data-qa-selector="merge_request_pipeline_info_content"
+              class="gl-display-flex gl-flex-wrap gl-align-items-center gl-justify-content-space-between"
             >
-              {{ pipeline.details.event_type_name }}
-              <gl-link
-                :href="pipeline.path"
-                class="pipeline-id"
-                data-testid="pipeline-id"
-                data-qa-selector="pipeline_link"
-                >#{{ pipeline.id }}</gl-link
+              <p class="mr-pipeline-title gl-m-0! gl-mr-3! gl-font-weight-bold gl-text-gray-900">
+                {{ pipeline.details.event_type_name }}
+                <gl-link
+                  :href="pipeline.path"
+                  class="pipeline-id"
+                  data-testid="pipeline-id"
+                  data-qa-selector="pipeline_link"
+                  >#{{ pipeline.id }}</gl-link
+                >
+                {{ pipeline.details.status.label }}
+              </p>
+              <div
+                class="gl-align-items-center gl-display-inline-flex gl-flex-grow-1 gl-justify-content-space-between"
               >
-              {{ pipeline.details.status.label }}
+                <legacy-pipeline-mini-graph
+                  v-if="pipeline.details.stages"
+                  :downstream-pipelines="downstreamPipelines"
+                  :is-merge-train="isMergeTrain"
+                  :pipeline-path="pipeline.path"
+                  :stages="pipeline.details.stages"
+                  :upstream-pipeline="pipeline.triggered_by"
+                />
+                <pipeline-artifacts
+                  :pipeline-id="pipeline.id"
+                  :artifacts="artifacts"
+                  class="gl-ml-3"
+                />
+              </div>
+            </div>
+            <p data-testid="pipeline-details-container" class="gl-font-sm gl-text-gray-500 gl-m-0">
+              {{ pipeline.details.event_type_name }} {{ pipeline.details.status.label }}
               <template v-if="hasCommitInfo">
                 {{ s__('Pipeline|for') }}
                 <gl-link
@@ -238,8 +261,8 @@ export default {
                   data-testid="finished-at"
                 />
               </template>
-            </div>
-            <div v-if="pipeline.coverage" class="coverage" data-testid="pipeline-coverage">
+            </p>
+            <div v-if="pipeline.coverage" class="coverage gl-mt-1" data-testid="pipeline-coverage">
               {{ s__('Pipeline|Test coverage') }} {{ pipeline.coverage }}%
               <span
                 v-if="pipelineCoverageDelta"
@@ -251,7 +274,7 @@ export default {
               </span>
               {{ pipelineCoverageJobNumberText }}
               <span ref="pipelineCoverageQuestion">
-                <gl-icon name="question" :size="12" />
+                <gl-icon name="question-o" :size="12" />
               </span>
               <gl-tooltip
                 :target="() => $refs.pipelineCoverageQuestion"
@@ -274,19 +297,6 @@ export default {
               </gl-tooltip>
             </div>
           </div>
-        </div>
-        <div>
-          <span class="gl-align-items-center gl-display-inline-flex">
-            <pipeline-mini-graph
-              v-if="pipeline.details.stages"
-              :downstream-pipelines="downstreamPipelines"
-              :is-merge-train="isMergeTrain"
-              :pipeline-path="pipeline.path"
-              :stages="pipeline.details.stages"
-              :upstream-pipeline="pipeline.triggered_by"
-            />
-            <pipeline-artifacts :pipeline-id="pipeline.id" :artifacts="artifacts" class="gl-ml-3" />
-          </span>
         </div>
       </div>
     </template>

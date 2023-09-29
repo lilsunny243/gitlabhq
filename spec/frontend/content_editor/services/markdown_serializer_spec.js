@@ -3,11 +3,11 @@ import Bold from '~/content_editor/extensions/bold';
 import BulletList from '~/content_editor/extensions/bullet_list';
 import Code from '~/content_editor/extensions/code';
 import CodeBlockHighlight from '~/content_editor/extensions/code_block_highlight';
-import Comment from '~/content_editor/extensions/comment';
 import DescriptionItem from '~/content_editor/extensions/description_item';
 import DescriptionList from '~/content_editor/extensions/description_list';
 import Details from '~/content_editor/extensions/details';
 import DetailsContent from '~/content_editor/extensions/details_content';
+import DrawioDiagram from '~/content_editor/extensions/drawio_diagram';
 import Emoji from '~/content_editor/extensions/emoji';
 import Figure from '~/content_editor/extensions/figure';
 import FigureCaption from '~/content_editor/extensions/figure_caption';
@@ -25,6 +25,8 @@ import Link from '~/content_editor/extensions/link';
 import ListItem from '~/content_editor/extensions/list_item';
 import OrderedList from '~/content_editor/extensions/ordered_list';
 import Paragraph from '~/content_editor/extensions/paragraph';
+import Reference from '~/content_editor/extensions/reference';
+import ReferenceLabel from '~/content_editor/extensions/reference_label';
 import ReferenceDefinition from '~/content_editor/extensions/reference_definition';
 import Sourcemap from '~/content_editor/extensions/sourcemap';
 import Strike from '~/content_editor/extensions/strike';
@@ -34,13 +36,15 @@ import TableHeader from '~/content_editor/extensions/table_header';
 import TableRow from '~/content_editor/extensions/table_row';
 import TaskItem from '~/content_editor/extensions/task_item';
 import TaskList from '~/content_editor/extensions/task_list';
-import markdownSerializer from '~/content_editor/services/markdown_serializer';
+import MarkdownSerializer from '~/content_editor/services/markdown_serializer';
 import remarkMarkdownDeserializer from '~/content_editor/services/remark_markdown_deserializer';
 import { createTiptapEditor, createDocBuilder } from '../test_utils';
 
 jest.mock('~/emoji');
 
 const tiptapEditor = createTiptapEditor([Sourcemap]);
+
+const text = (val) => tiptapEditor.state.schema.text(val);
 
 const {
   builders: {
@@ -51,12 +55,12 @@ const {
     bulletList,
     code,
     codeBlock,
-    comment,
     details,
     detailsContent,
     div,
     descriptionItem,
     descriptionList,
+    drawioDiagram,
     emoji,
     footnoteDefinition,
     footnoteReference,
@@ -74,6 +78,8 @@ const {
     orderedList,
     paragraph,
     referenceDefinition,
+    reference,
+    referenceLabel,
     strike,
     table,
     tableCell,
@@ -91,11 +97,11 @@ const {
     bulletList: { nodeType: BulletList.name },
     code: { markType: Code.name },
     codeBlock: { nodeType: CodeBlockHighlight.name },
-    comment: { nodeType: Comment.name },
     details: { nodeType: Details.name },
     detailsContent: { nodeType: DetailsContent.name },
     descriptionItem: { nodeType: DescriptionItem.name },
     descriptionList: { nodeType: DescriptionList.name },
+    drawioDiagram: { nodeType: DrawioDiagram.name },
     emoji: { markType: Emoji.name },
     figure: { nodeType: Figure.name },
     figureCaption: { nodeType: FigureCaption.name },
@@ -113,6 +119,8 @@ const {
     orderedList: { nodeType: OrderedList.name },
     paragraph: { nodeType: Paragraph.name },
     referenceDefinition: { nodeType: ReferenceDefinition.name },
+    reference: { nodeType: Reference.name },
+    referenceLabel: { nodeType: ReferenceLabel.name },
     strike: { markType: Strike.name },
     table: { nodeType: Table.name },
     tableCell: { nodeType: TableCell.name },
@@ -131,7 +139,7 @@ const {
 });
 
 const serialize = (...content) =>
-  markdownSerializer({}).serialize({
+  new MarkdownSerializer().serialize({
     doc: doc(...content),
   });
 
@@ -145,14 +153,18 @@ describe('markdownSerializer', () => {
   });
 
   it('correctly serializes code blocks wrapped by italics and bold marks', () => {
-    const text = 'code block';
+    const codeBlockContent = 'code block';
 
-    expect(serialize(paragraph(italic(code(text))))).toBe(`_\`${text}\`_`);
-    expect(serialize(paragraph(code(italic(text))))).toBe(`_\`${text}\`_`);
-    expect(serialize(paragraph(bold(code(text))))).toBe(`**\`${text}\`**`);
-    expect(serialize(paragraph(code(bold(text))))).toBe(`**\`${text}\`**`);
-    expect(serialize(paragraph(strike(code(text))))).toBe(`~~\`${text}\`~~`);
-    expect(serialize(paragraph(code(strike(text))))).toBe(`~~\`${text}\`~~`);
+    expect(serialize(paragraph(italic(code(codeBlockContent))))).toBe(`_\`${codeBlockContent}\`_`);
+    expect(serialize(paragraph(code(italic(codeBlockContent))))).toBe(`_\`${codeBlockContent}\`_`);
+    expect(serialize(paragraph(bold(code(codeBlockContent))))).toBe(`**\`${codeBlockContent}\`**`);
+    expect(serialize(paragraph(code(bold(codeBlockContent))))).toBe(`**\`${codeBlockContent}\`**`);
+    expect(serialize(paragraph(strike(code(codeBlockContent))))).toBe(
+      `~~\`${codeBlockContent}\`~~`,
+    );
+    expect(serialize(paragraph(code(strike(codeBlockContent))))).toBe(
+      `~~\`${codeBlockContent}\`~~`,
+    );
   });
 
   it('correctly serializes inline diff', () => {
@@ -172,15 +184,10 @@ describe('markdownSerializer', () => {
     );
   });
 
-  it('correctly serializes a comment node', () => {
-    expect(serialize(paragraph('hi'), comment(' this is a\ncomment '))).toBe(
-      `
-hi
-
-<!-- this is a
-comment -->
-    `.trim(),
-    );
+  it('escapes < and > in a paragraph', () => {
+    expect(
+      serialize(paragraph(text("some prose: <this> and </this> looks like code, but isn't"))),
+    ).toBe("some prose: \\<this\\> and \\</this\\> looks like code, but isn't");
   });
 
   it('correctly serializes a line break', () => {
@@ -263,6 +270,104 @@ comment -->
         ),
       ),
     ).toBe('![GitLab][gitlab-url]');
+  });
+
+  it('correctly serializes references', () => {
+    expect(
+      serialize(
+        paragraph(
+          reference({
+            referenceType: 'issue',
+            originalText: '#123',
+            href: '/gitlab-org/gitlab-test/-/issues/123',
+            text: '#123',
+          }),
+        ),
+      ),
+    ).toBe('#123');
+  });
+
+  it('correctly renders a reference label', () => {
+    expect(
+      serialize(
+        paragraph(
+          referenceLabel({
+            referenceType: 'label',
+            originalText: '~foo',
+            href: '/gitlab-org/gitlab-test/-/labels/foo',
+            text: '~foo',
+          }),
+        ),
+      ),
+    ).toBe('~foo');
+  });
+
+  it('correctly renders a reference label without originalText', () => {
+    expect(
+      serialize(
+        paragraph(
+          referenceLabel({
+            referenceType: 'label',
+            href: '/gitlab-org/gitlab-test/-/labels/foo',
+            text: 'Foo Bar',
+          }),
+        ),
+      ),
+    ).toBe('~"Foo Bar"');
+  });
+
+  it('ensures spaces between multiple references', () => {
+    expect(
+      serialize(
+        paragraph(
+          reference({
+            referenceType: 'issue',
+            originalText: '#123',
+            href: '/gitlab-org/gitlab-test/-/issues/123',
+            text: '#123',
+          }),
+          referenceLabel({
+            referenceType: 'label',
+            originalText: '~foo',
+            href: '/gitlab-org/gitlab-test/-/labels/foo',
+            text: '~foo',
+          }),
+          reference({
+            referenceType: 'issue',
+            originalText: '#456',
+            href: '/gitlab-org/gitlab-test/-/issues/456',
+            text: '#456',
+          }),
+        ),
+        paragraph(
+          reference({
+            referenceType: 'command',
+            originalText: '/assign_reviewer',
+            text: '/assign_reviewer',
+          }),
+          reference({
+            referenceType: 'user',
+            originalText: '@johndoe',
+            href: '/johndoe',
+            text: '@johndoe',
+          }),
+        ),
+      ),
+    ).toBe('#123 ~foo #456\n\n/assign_reviewer @johndoe');
+  });
+
+  it.each`
+    src
+    ${'data:image/png;base64,iVBORw0KGgoAAAAN'}
+    ${'blob:https://gitlab.com/1234-5678-9012-3456'}
+  `('omits images with data/blob urls when serializing', ({ src }) => {
+    expect(serialize(paragraph(image({ src, alt: 'image' })))).toBe('');
+  });
+
+  it('does not escape url in an image', () => {
+    expect(
+      serialize(paragraph(image({ src: 'https://example.com/image__1_.png', alt: 'image' }))),
+    ).toBe('![image](https://example.com/image__1_.png)');
   });
 
   it('correctly serializes strikethrough', () => {
@@ -395,6 +500,12 @@ this is not really json:table but just trying out whether this case works or not
     expect(serialize(paragraph(image({ src: 'img.jpg', alt: 'foo bar' })))).toBe(
       '![foo bar](img.jpg)',
     );
+  });
+
+  it('correctly serializes a drawio_diagram', () => {
+    expect(
+      serialize(paragraph(drawioDiagram({ src: 'diagram.drawio.svg', alt: 'Draw.io Diagram' }))),
+    ).toBe('![Draw.io Diagram](diagram.drawio.svg)');
   });
 
   it.each`
@@ -753,7 +864,8 @@ content 2
     expect(
       serialize(
         details(
-          detailsContent(paragraph('dream level 1')),
+          // if paragraph contains special characters, it should be escaped and rendered as block
+          detailsContent(paragraph('dream level 1*')),
           detailsContent(
             details(
               detailsContent(paragraph('dream level 2')),
@@ -770,7 +882,10 @@ content 2
     ).toBe(
       `
 <details>
-<summary>dream level 1</summary>
+<summary>
+
+dream level 1\\*
+</summary>
 
 <details>
 <summary>dream level 2</summary>
@@ -876,6 +991,84 @@ _An elephant at sunset_
     );
   });
 
+  it('correctly serializes a table with a pipe in a cell', () => {
+    expect(
+      serialize(
+        table(
+          tableRow(
+            tableHeader(paragraph('header')),
+            tableHeader(paragraph('header')),
+            tableHeader(paragraph('header')),
+          ),
+          tableRow(
+            tableCell(paragraph('cell')),
+            tableCell(paragraph('cell | cell')),
+            tableCell(paragraph(bold('a|b|c'))),
+          ),
+        ),
+      ).trim(),
+    ).toBe(
+      `
+| header | header | header |
+|--------|--------|--------|
+| cell | cell \\| cell | **a\\|b\\|c** |
+      `.trim(),
+    );
+  });
+
+  it('correctly renders a table with checkboxes', () => {
+    expect(
+      serialize(
+        table(
+          // each table cell must contain at least one paragraph
+          tableRow(
+            tableHeader(paragraph('')),
+            tableHeader(paragraph('Item')),
+            tableHeader(paragraph('Description')),
+          ),
+          tableRow(
+            tableCell(taskList(taskItem(paragraph('')))),
+            tableCell(paragraph('Item 1')),
+            tableCell(paragraph('Description 1')),
+          ),
+          tableRow(
+            tableCell(taskList(taskItem(paragraph('some text')))),
+            tableCell(paragraph('Item 2')),
+            tableCell(paragraph('Description 2')),
+          ),
+        ),
+      ).trim(),
+    ).toBe(
+      `
+<table>
+<tr>
+<th>
+
+</th>
+<th>Item</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
+
+* [ ] &nbsp;
+</td>
+<td>Item 1</td>
+<td>Description 1</td>
+</tr>
+<tr>
+<td>
+
+* [ ] some text
+</td>
+<td>Item 2</td>
+<td>Description 2</td>
+</tr>
+</table>
+    `.trim(),
+    );
+  });
+
   it('correctly serializes a table with line breaks', () => {
     expect(
       serialize(
@@ -933,7 +1126,8 @@ _An elephant at sunset_
         table(
           tableRow(
             tableHeader(paragraph('examples of')),
-            tableHeader(paragraph('block content')),
+            // if a node contains special characters, it should be escaped and rendered as block
+            tableHeader(paragraph('block content*')),
             tableHeader(paragraph('in tables')),
             tableHeader(paragraph('in content editor')),
           ),
@@ -990,7 +1184,10 @@ _An elephant at sunset_
 <table>
 <tr>
 <th>examples of</th>
-<th>block content</th>
+<th>
+
+block content\\*
+</th>
 <th>in tables</th>
 <th>in content editor</th>
 </tr>
@@ -1300,6 +1497,25 @@ paragraph
       .run();
   };
 
+  const editNonInclusiveMarkAction = (initialContent) => {
+    tiptapEditor.commands.setContent(initialContent.toJSON());
+    tiptapEditor.commands.selectTextblockEnd();
+
+    let { from } = tiptapEditor.state.selection;
+    tiptapEditor.commands.setTextSelection({
+      from: from - 1,
+      to: from - 1,
+    });
+
+    const sel = tiptapEditor.state.doc.textBetween(from - 1, from, ' ');
+    tiptapEditor.commands.insertContent(`${sel} modified`);
+
+    tiptapEditor.commands.selectTextblockEnd();
+    from = tiptapEditor.state.selection.from;
+
+    tiptapEditor.commands.deleteRange({ from: from - 1, to: from });
+  };
+
   it.each`
     mark                   | markdown                                        | modifiedMarkdown                                         | editAction
     ${'bold'}              | ${'**bold**'}                                   | ${'**bold modified**'}                                   | ${defaultEditAction}
@@ -1310,16 +1526,13 @@ paragraph
     ${'italic'}            | ${'*italic*'}                                   | ${'*italic modified*'}                                   | ${defaultEditAction}
     ${'italic'}            | ${'<em>italic</em>'}                            | ${'<em>italic modified</em>'}                            | ${defaultEditAction}
     ${'italic'}            | ${'<i>italic</i>'}                              | ${'<i>italic modified</i>'}                              | ${defaultEditAction}
-    ${'link'}              | ${'[gitlab](https://gitlab.com)'}               | ${'[gitlab modified](https://gitlab.com)'}               | ${defaultEditAction}
-    ${'link'}              | ${'<a href="https://gitlab.com">link</a>'}      | ${'<a href="https://gitlab.com">link modified</a>'}      | ${defaultEditAction}
+    ${'link'}              | ${'[gitlab](https://gitlab.com)'}               | ${'[gitlab modified](https://gitlab.com)'}               | ${editNonInclusiveMarkAction}
+    ${'link'}              | ${'<a href="https://gitlab.com">link</a>'}      | ${'<a href="https://gitlab.com">link modified</a>'}      | ${editNonInclusiveMarkAction}
     ${'link'}              | ${'link www.gitlab.com'}                        | ${'modified link www.gitlab.com'}                        | ${prependContentEditAction}
     ${'link'}              | ${'link https://www.gitlab.com'}                | ${'modified link https://www.gitlab.com'}                | ${prependContentEditAction}
     ${'link'}              | ${'link(https://www.gitlab.com)'}               | ${'modified link(https://www.gitlab.com)'}               | ${prependContentEditAction}
     ${'link'}              | ${'link(engineering@gitlab.com)'}               | ${'modified link(engineering@gitlab.com)'}               | ${prependContentEditAction}
     ${'link'}              | ${'link <https://www.gitlab.com>'}              | ${'modified link <https://www.gitlab.com>'}              | ${prependContentEditAction}
-    ${'link'}              | ${'link [https://www.gitlab.com>'}              | ${'modified link \\[https://www.gitlab.com>'}            | ${prependContentEditAction}
-    ${'link'}              | ${'link <https://www.gitlab.com'}               | ${'modified link <https://www.gitlab.com'}               | ${prependContentEditAction}
-    ${'link'}              | ${'link https://www.gitlab.com>'}               | ${'modified link https://www.gitlab.com>'}               | ${prependContentEditAction}
     ${'link'}              | ${'link https://www.gitlab.com/path'}           | ${'modified link https://www.gitlab.com/path'}           | ${prependContentEditAction}
     ${'link'}              | ${'link https://www.gitlab.com?query=search'}   | ${'modified link https://www.gitlab.com?query=search'}   | ${prependContentEditAction}
     ${'link'}              | ${'link https://www.gitlab.com/#fragment'}      | ${'modified link https://www.gitlab.com/#fragment'}      | ${prependContentEditAction}
@@ -1352,7 +1565,7 @@ paragraph
 
       editAction(document);
 
-      const serialized = markdownSerializer({}).serialize({
+      const serialized = new MarkdownSerializer().serialize({
         pristineDoc: document,
         doc: tiptapEditor.state.doc,
       });

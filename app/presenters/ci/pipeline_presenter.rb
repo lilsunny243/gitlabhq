@@ -13,7 +13,6 @@ module Ci
         config_error: 'The pipeline failed due to an error on the CI/CD configuration file.',
         external_validation_failure: 'The external pipeline validation failed.',
         user_not_verified: 'The pipeline failed due to the user not being verified',
-        activity_limit_exceeded: 'The pipeline activity limit was exceeded.',
         size_limit_exceeded: 'The pipeline size limit was exceeded.',
         job_activity_limit_exceeded: 'The pipeline job activity limit was exceeded.',
         deployments_limit_exceeded: 'The pipeline deployments limit was exceeded.',
@@ -68,46 +67,30 @@ module Ci
 
     def ref_text
       if pipeline.detached_merge_request_pipeline?
-        _("for %{link_to_merge_request} with %{link_to_merge_request_source_branch}")
+        _("Related merge request %{link_to_merge_request} to merge %{link_to_merge_request_source_branch}")
           .html_safe % {
             link_to_merge_request: link_to_merge_request,
             link_to_merge_request_source_branch: link_to_merge_request_source_branch
           }
       elsif pipeline.merged_result_pipeline?
-        _("for %{link_to_merge_request} with %{link_to_merge_request_source_branch} into %{link_to_merge_request_target_branch}")
+        _("Related merge request %{link_to_merge_request} to merge %{link_to_merge_request_source_branch} into %{link_to_merge_request_target_branch}")
           .html_safe % {
             link_to_merge_request: link_to_merge_request,
             link_to_merge_request_source_branch: link_to_merge_request_source_branch,
             link_to_merge_request_target_branch: link_to_merge_request_target_branch
           }
       elsif pipeline.ref && pipeline.ref_exists?
-        _("for %{link_to_pipeline_ref}")
+        _("For %{link_to_pipeline_ref}")
         .html_safe % { link_to_pipeline_ref: link_to_pipeline_ref }
       elsif pipeline.ref
-        _("for %{ref}").html_safe % { ref: plain_ref_name }
+        _("For %{ref}").html_safe % { ref: plain_ref_name }
       end
-    end
-
-    def all_related_merge_request_text(limit: nil)
-      if all_related_merge_requests.none?
-        _("No related merge requests found.")
-      else
-        (_("%{count} related %{pluralized_subject}: %{links}") % {
-          count: all_related_merge_requests.count,
-          pluralized_subject: n_('merge request', 'merge requests', all_related_merge_requests.count),
-          links: all_related_merge_request_links(limit: limit).join(', ')
-        }).html_safe
-      end
-    end
-
-    def has_many_merge_requests?
-      all_related_merge_requests.count > 1
     end
 
     def link_to_pipeline_ref
       ApplicationController.helpers.link_to(pipeline.ref,
         project_commits_path(pipeline.project, pipeline.ref),
-        class: "ref-name")
+        class: "ref-name gl-link gl-bg-blue-50 gl-rounded-base gl-px-2")
     end
 
     def link_to_merge_request

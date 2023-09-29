@@ -5,10 +5,10 @@ require_relative "system_exit_detected"
 require_relative "helpers/stub_configuration"
 require_relative "helpers/stub_metrics"
 require_relative "helpers/stub_object_storage"
-require_relative "helpers/stub_env"
 require_relative "helpers/fast_rails_root"
 
-require_relative "../../lib/gitlab/utils"
+require 'gitlab/rspec/all'
+require 'gitlab/utils/all'
 
 RSpec::Expectations.configuration.on_potential_false_positives = :raise
 
@@ -18,6 +18,21 @@ RSpec.configure do |config|
 
   # Re-run failures locally with `--only-failures`
   config.example_status_persistence_file_path = ENV.fetch('RSPEC_LAST_RUN_RESULTS_FILE', './spec/examples.txt')
+
+  # Makes diffs show entire non-truncated values.
+  config.around(:each, :unlimited_max_formatted_output_length) do |example|
+    old_max_formatted_output_length = RSpec::Support::ObjectFormatter.default_instance.max_formatted_output_length
+
+    config.expect_with :rspec do |c|
+      c.max_formatted_output_length = nil
+    end
+
+    example.run
+
+    config.expect_with :rspec do |c|
+      c.max_formatted_output_length = old_max_formatted_output_length
+    end
+  end
 
   unless ENV['CI']
     # Allow running `:focus` examples locally,
@@ -43,7 +58,10 @@ RSpec.configure do |config|
   # Add warning for example missing feature_category
   config.before do |example|
     if warn_missing_feature_category && example.metadata[:feature_category].blank? && !ENV['CI']
-      warn "Missing metadata feature_category: #{example.location} See https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#feature-category-metadata"
+      location =
+        example.metadata[:shared_group_inclusion_backtrace].last&.formatted_inclusion_location ||
+        example.location
+      warn "Missing metadata feature_category: #{location} See https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#feature-category-metadata"
     end
   end
 end

@@ -65,106 +65,25 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
   describe '.project_name_regex_message' do
     subject { described_class.project_name_regex_message }
 
-    it { is_expected.to eq("can contain only letters, digits, emojis, '_', '.', '+', dashes, or spaces. It must start with a letter, digit, emoji, or '_'.") }
+    it { is_expected.to eq("can contain only letters, digits, emoji, '_', '.', '+', dashes, or spaces. It must start with a letter, digit, emoji, or '_'.") }
   end
 
   describe '.group_name_regex_message' do
     subject { described_class.group_name_regex_message }
 
-    it { is_expected.to eq("can contain only letters, digits, emojis, '_', '.', dash, space, parenthesis. It must start with letter, digit, emoji or '_'.") }
+    it { is_expected.to eq("can contain only letters, digits, emoji, '_', '.', dash, space, parenthesis. It must start with letter, digit, emoji or '_'.") }
   end
 
-  describe '.bulk_import_destination_namespace_path_regex_message' do
-    subject { described_class.bulk_import_destination_namespace_path_regex_message }
+  describe '.slack_link_regex' do
+    subject { described_class.slack_link_regex }
 
-    it {
-      is_expected
-        .to eq("cannot start with a non-alphanumeric character except for periods or underscores, " \
-               "can contain only alphanumeric characters, forward slashes, periods, and underscores, " \
-               "cannot end with a period or forward slash, and has a relative path structure " \
-               "with no http protocol chars or leading or trailing forward slashes")
-    }
-  end
+    it { is_expected.not_to match('http://custom-url.com|click here') }
+    it { is_expected.not_to match('custom-url.com|any-Charact3r$') }
+    it { is_expected.not_to match("&lt;custom-url.com|any-Charact3r$&gt;") }
 
-  describe '.bulk_import_destination_namespace_path_regex' do
-    subject { described_class.bulk_import_destination_namespace_path_regex }
-
-    it { is_expected.not_to match('?gitlab') }
-    it { is_expected.not_to match("Users's something") }
-    it { is_expected.not_to match('/source') }
-    it { is_expected.not_to match('http:') }
-    it { is_expected.not_to match('https:') }
-    it { is_expected.not_to match('example.com/?stuff=true') }
-    it { is_expected.not_to match('example.com:5000/?stuff=true') }
-    it { is_expected.not_to match('http://gitlab.example/gitlab-org/manage/import/gitlab-migration-test') }
-    it { is_expected.not_to match('_good_for_me!') }
-    it { is_expected.not_to match('good_for+you') }
-    it { is_expected.not_to match('source/') }
-    it { is_expected.not_to match('.source/full./path') }
-
-    it { is_expected.to match('source') }
-    it { is_expected.to match('.source') }
-    it { is_expected.to match('_source') }
-    it { is_expected.to match('source/full') }
-    it { is_expected.to match('source/full/path') }
-    it { is_expected.to match('.source/.full/.path') }
-    it { is_expected.to match('domain_namespace') }
-    it { is_expected.to match('gitlab-migration-test') }
-    it { is_expected.to match('') } # it is possible to pass an empty string for destination_namespace in bulk_import POST request
-  end
-
-  describe '.bulk_import_source_full_path_regex' do
-    subject { described_class.bulk_import_source_full_path_regex }
-
-    it { is_expected.not_to match('?gitlab') }
-    it { is_expected.not_to match("Users's something") }
-    it { is_expected.not_to match('/source') }
-    it { is_expected.not_to match('http:') }
-    it { is_expected.not_to match('https:') }
-    it { is_expected.not_to match('example.com/?stuff=true') }
-    it { is_expected.not_to match('example.com:5000/?stuff=true') }
-    it { is_expected.not_to match('http://gitlab.example/gitlab-org/manage/import/gitlab-migration-test') }
-    it { is_expected.not_to match('_good_for_me!') }
-    it { is_expected.not_to match('good_for+you') }
-    it { is_expected.not_to match('source/') }
-    it { is_expected.not_to match('.source/full./path') }
-    it { is_expected.not_to match('') }
-
-    it { is_expected.to match('source') }
-    it { is_expected.to match('.source') }
-    it { is_expected.to match('_source') }
-    it { is_expected.to match('source/full') }
-    it { is_expected.to match('source/full/path') }
-    it { is_expected.to match('.source/.full/.path') }
-    it { is_expected.to match('domain_namespace') }
-    it { is_expected.to match('gitlab-migration-test') }
-  end
-
-  describe '.group_path_regex' do
-    subject { described_class.group_path_regex }
-
-    it { is_expected.not_to match('?gitlab') }
-    it { is_expected.not_to match("Users's something") }
-    it { is_expected.not_to match('/source') }
-    it { is_expected.not_to match('http:') }
-    it { is_expected.not_to match('https:') }
-    it { is_expected.not_to match('example.com/?stuff=true') }
-    it { is_expected.not_to match('example.com:5000/?stuff=true') }
-    it { is_expected.not_to match('http://gitlab.example/gitlab-org/manage/import/gitlab-migration-test') }
-    it { is_expected.not_to match('_good_for_me!') }
-    it { is_expected.not_to match('good_for+you') }
-    it { is_expected.not_to match('source/') }
-    it { is_expected.not_to match('.source/full./path') }
-
-    it { is_expected.not_to match('source/full') }
-    it { is_expected.not_to match('source/full/path') }
-    it { is_expected.not_to match('.source/.full/.path') }
-
-    it { is_expected.to match('source') }
-    it { is_expected.to match('.source') }
-    it { is_expected.to match('_source') }
-    it { is_expected.to match('domain_namespace') }
-    it { is_expected.to match('gitlab-migration-test') }
+    it { is_expected.to match('<http://custom-url.com|click here>') }
+    it { is_expected.to match('<custom-url.com|any-Charact3r$>') }
+    it { is_expected.to match('<any-Charact3r$|any-Charact3r$>') }
   end
 
   describe '.environment_name_regex' do
@@ -710,6 +629,7 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
     it { is_expected.to match('libsample0_1.2.3~alpha2_amd64.deb') }
     it { is_expected.to match('sample-dev_1.2.3~binary_amd64.deb') }
     it { is_expected.to match('sample-udeb_1.2.3~alpha2_amd64.udeb') }
+    it { is_expected.to match('sample-ddeb_1.2.3~alpha2_amd64.ddeb') }
 
     it { is_expected.not_to match('sample_1.2.3~alpha2_amd64.buildinfo') }
     it { is_expected.not_to match('sample_1.2.3~alpha2_amd64.changes') }
@@ -792,6 +712,7 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
     it { is_expected.to match('1.2.3') }
     it { is_expected.to match('1.2.3-beta') }
     it { is_expected.to match('1.2.3-alpha.3') }
+    it { is_expected.to match('1.2.3-alpha.3+abcd') }
     it { is_expected.not_to match('1') }
     it { is_expected.not_to match('1.2') }
     it { is_expected.not_to match('1./2.3') }
@@ -1015,6 +936,34 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
     it { is_expected.not_to match('/api/v4/groups/1234/packages/debian/pool/compon/a/pkg/file.name') }
   end
 
+  describe 'Packages::MAVEN_SNAPSHOT_DYNAMIC_PARTS' do
+    subject { described_class::Packages::MAVEN_SNAPSHOT_DYNAMIC_PARTS }
+
+    it { is_expected.to match('test-2.11-20230303.163304-1.jar') }
+    it { is_expected.to match('test-2.11-20230303.163304-1-javadoc.jar') }
+    it { is_expected.to match('test-2.11-20230303.163304-1-sources.jar') }
+    it { is_expected.to match('test-2.11-20230303.163304-1-20230303.163304-1.jar') }
+    it { is_expected.to match('test-2.11-20230303.163304-1-20230303.163304-1-javadoc.jar') }
+    it { is_expected.to match('test-2.11-20230303.163304-1-20230303.163304-1-sources.jar') }
+    it { is_expected.to match("#{'a' * 500}-20230303.163304-1-sources.jar") }
+    it { is_expected.to match("test-2.11-20230303.163304-1-#{'a' * 500}.jar") }
+    it { is_expected.to match("#{'a' * 500}-20230303.163304-1-#{'a' * 500}.jar") }
+
+    it { is_expected.not_to match('') }
+    it { is_expected.not_to match(nil) }
+    it { is_expected.not_to match('test') }
+    it { is_expected.not_to match('1.2.3') }
+    it { is_expected.not_to match('1.2.3-javadoc.jar') }
+    it { is_expected.not_to match('-202303039.163304-1.jar') }
+    it { is_expected.not_to match('test-2.11-202303039.163304-1.jar') }
+    it { is_expected.not_to match('test-2.11-20230303.16330-1.jar') }
+    it { is_expected.not_to match('test-2.11-202303039.163304.jar') }
+    it { is_expected.not_to match('test-2.11-202303039.163304-.jar') }
+    it { is_expected.not_to match("#{'a' * 2000}-20230303.163304-1-sources.jar") }
+    it { is_expected.not_to match("test-2.11-20230303.163304-1-#{'a' * 2000}.jar") }
+    it { is_expected.not_to match("#{'a' * 2000}-20230303.163304-1-#{'a' * 2000}.jar") }
+  end
+
   describe '.composer_package_version_regex' do
     subject { described_class.composer_package_version_regex }
 
@@ -1133,16 +1082,27 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
         MARKDOWN
       end
 
-      it { is_expected.to match(%(<section>\nsomething\n</section>)) }
-      it { is_expected.not_to match(%(must start in first column <section>\nsomething\n</section>)) }
-      it { is_expected.not_to match(%(<section>must be multi-line</section>)) }
-      it { expect(subject.match(markdown)[:html]).to eq expected }
+      describe 'normal regular expression' do
+        it { is_expected.to match(%(<section>\nsomething\n</section>)) }
+        it { is_expected.not_to match(%(must start in first column <section>\nsomething\n</section>)) }
+        it { is_expected.not_to match(%(<section>must be multi-line</section>)) }
+        it { expect(subject.match(markdown)[:html]).to eq expected }
+      end
+
+      describe 'untrusted regular expression' do
+        subject { Gitlab::UntrustedRegexp.new(described_class::MARKDOWN_HTML_BLOCK_REGEX_UNTRUSTED, multiline: true) }
+
+        it { is_expected.to match(%(<section>\nsomething\n</section>)) }
+        it { is_expected.not_to match(%(must start in first column <section>\nsomething\n</section>)) }
+        it { is_expected.not_to match(%(<section>must be multi-line</section>)) }
+        it { expect(subject.match(markdown)[:html]).to eq expected }
+      end
     end
 
     context 'HTML comment lines' do
-      subject { described_class::MARKDOWN_HTML_COMMENT_LINE_REGEX }
+      subject { Gitlab::UntrustedRegexp.new(described_class::MARKDOWN_HTML_COMMENT_LINE_REGEX_UNTRUSTED, multiline: true) }
 
-      let(:expected) { %(<!-- an HTML comment -->) }
+      let(:expected) { [['<!-- an HTML comment -->'], ['<!-- another HTML comment -->']] }
       let(:markdown) do
         <<~MARKDOWN
         Regular text
@@ -1150,26 +1110,28 @@ RSpec.describe Gitlab::Regex, feature_category: :tooling do
         <!-- an HTML comment -->
 
         more text
+
+        <!-- another HTML comment -->
         MARKDOWN
       end
 
       it { is_expected.to match(%(<!-- single line comment -->)) }
       it { is_expected.not_to match(%(<!--\nblock comment\n-->)) }
       it { is_expected.not_to match(%(must start in first column <!-- comment -->)) }
-      it { expect(subject.match(markdown)[:html_comment_line]).to eq expected }
+      it { expect(subject.scan(markdown)).to eq expected }
     end
 
     context 'HTML comment blocks' do
-      subject { described_class::MARKDOWN_HTML_COMMENT_BLOCK_REGEX }
+      subject { Gitlab::UntrustedRegexp.new(described_class::MARKDOWN_HTML_COMMENT_BLOCK_REGEX_UNTRUSTED, multiline: true) }
 
-      let(:expected) { %(<!-- the start of an HTML comment\n- [ ] list item commented out\n-->) }
+      let(:expected) { %(<!-- the start of an HTML comment\n- [ ] list item commented out\nmore text -->) }
       let(:markdown) do
         <<~MARKDOWN
         Regular text
 
         <!-- the start of an HTML comment
         - [ ] list item commented out
-        -->
+        more text -->
         MARKDOWN
       end
 

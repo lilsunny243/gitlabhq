@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { difference, intersection, union } from 'lodash';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { __ } from '~/locale';
 
@@ -55,6 +55,7 @@ export default {
         sprint_id: this.form.find('input[name="update[iteration_id]"]').val(),
         add_label_ids: [],
         remove_label_ids: [],
+        confidential: this.form.find('input[name="update[confidentiality]"]').val(),
       },
     };
     if (assigneeIds) {

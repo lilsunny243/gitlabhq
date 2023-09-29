@@ -4,6 +4,7 @@ module MergeRequests
   class BaseService < ::IssuableBaseService
     extend ::Gitlab::Utils::Override
     include MergeRequests::AssignsMergeParams
+    include MergeRequests::ErrorLogger
 
     delegate :repository, to: :project
 
@@ -26,17 +27,37 @@ module MergeRequests
     end
 
     def execute_hooks(merge_request, action = 'open', old_rev: nil, old_associations: {})
+      # NOTE: Due to the async merge request diffs generation, we need to skip this for CreateService and execute it in
+      #   AfterCreateService instead so that the webhook consumers receive the update when diffs are ready.
+      return if merge_request.skip_ensure_merge_request_diff
+
       merge_data = Gitlab::Lazy.new { hook_data(merge_request, action, old_rev: old_rev, old_associations: old_associations) }
       merge_request.project.execute_hooks(merge_data, :merge_request_hooks)
       merge_request.project.execute_integrations(merge_data, :merge_request_hooks)
 
       execute_external_hooks(merge_request, merge_data)
+      execute_group_mention_hooks(merge_request, merge_data) if action == 'open'
 
       enqueue_jira_connect_messages_for(merge_request)
     end
 
     def execute_external_hooks(merge_request, merge_data)
       # Implemented in EE
+    end
+
+    def execute_group_mention_hooks(merge_request, merge_data)
+      return unless merge_request.instance_of?(MergeRequest)
+
+      args = {
+        mentionable_type: 'MergeRequest',
+        mentionable_id: merge_request.id,
+        hook_data: merge_data,
+        is_confidential: false
+      }
+
+      merge_request.run_after_commit_or_now do
+        Integrations::GroupMentionWorker.perform_async(args)
+      end
     end
 
     def handle_changes(merge_request, options)
@@ -89,7 +110,7 @@ module MergeRequests
 
     # Don't try to print expensive instance variables.
     def inspect
-      return "#<#{self.class}>" unless respond_to?(:merge_request)
+      return "#<#{self.class}>" unless respond_to?(:merge_request) && merge_request
 
       "#<#{self.class} #{merge_request.to_reference(full: true)}>"
     end
@@ -235,38 +256,6 @@ module MergeRequests
 
         yield merge_request
       end
-    end
-
-    def log_error(exception:, message:, save_message_on_model: false)
-      reference = merge_request.to_reference(full: true)
-      data = {
-        class: self.class.name,
-        message: message,
-        merge_request_id: merge_request.id,
-        merge_request: reference,
-        save_message_on_model: save_message_on_model
-      }
-
-      if exception
-        Gitlab::ApplicationContext.with_context(user: current_user) do
-          Gitlab::ErrorTracking.track_exception(exception, data)
-        end
-
-        data[:"exception.message"] = exception.message
-      end
-
-      # TODO: Deprecate Gitlab::GitLogger since ErrorTracking should suffice:
-      # https://gitlab.com/gitlab-org/gitlab/-/issues/216379
-      data[:message] = "#{self.class.name} error (#{reference}): #{message}"
-      Gitlab::GitLogger.error(data)
-
-      merge_request.update(merge_error: message) if save_message_on_model
-    end
-
-    def delete_milestone_total_merge_requests_counter_cache(milestone)
-      return unless milestone
-
-      Milestones::MergeRequestsCountService.new(milestone).delete_cache
     end
 
     def trigger_merge_request_reviewers_updated(merge_request)

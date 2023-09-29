@@ -47,6 +47,8 @@ module Gitlab
 
       attr_reader :storage, :gl_repository, :gl_project_path, :container
 
+      delegate :list_all_blobs, to: :gitaly_blob_client
+
       # This remote name has to be stable for all types of repositories that
       # can join an object pool. If it's structure ever changes, a migration
       # has to be performed on the object pools to update the remote names.
@@ -54,8 +56,6 @@ module Gitlab
       # state.
       alias_method :object_pool_remote_name, :gl_repository
 
-      # This initializer method is only used on the client side (gitlab-ce).
-      # Gitaly-ruby uses a different initializer.
       def initialize(storage, relative_path, gl_repository, gl_project_path, container: nil)
         @storage = storage
         @relative_path = relative_path
@@ -93,12 +93,10 @@ module Gitlab
       end
 
       # Default branch in the repository
-      def root_ref
-        gitaly_ref_client.default_branch_name
-      rescue GRPC::NotFound => e
-        raise NoRepository, e.message
-      rescue GRPC::Unknown => e
-        raise Gitlab::Git::CommandError, e.message
+      def root_ref(head_only: false)
+        wrapped_gitaly_errors do
+          gitaly_ref_client.default_branch_name(head_only: head_only)
+        end
       end
 
       def exists?
@@ -262,7 +260,15 @@ module Gitlab
 
       def archive_metadata(ref, storage_path, project_path, format = "tar.gz", append_sha:, path: nil)
         ref ||= root_ref
-        commit = Gitlab::Git::Commit.find(self, ref)
+
+        if Feature.enabled?(:resolve_ambiguous_archives, container)
+          commit_id = extract_commit_id_from_ref(ref)
+          return {} if commit_id.nil?
+        else
+          commit_id = ref
+        end
+
+        commit = Gitlab::Git::Commit.find(self, commit_id)
         return {} if commit.nil?
 
         prefix = archive_prefix(ref, commit.id, project_path, append_sha: append_sha, path: path)
@@ -333,9 +339,27 @@ module Gitlab
 
       # Return repo size in megabytes
       def size
-        size = gitaly_repository_client.repository_size
+        if Feature.enabled?(:use_repository_info_for_repository_size)
+          repository_info_size_megabytes
+        else
+          kilobytes = gitaly_repository_client.repository_size
+          (kilobytes.to_f / 1024).round(2)
+        end
+      end
 
-        (size.to_f / 1024).round(2)
+      # Return repository recent objects size in mebibytes
+      #
+      # This differs from the #size method in that it does not include the size of:
+      # - stale objects
+      # - cruft packs of unreachable objects
+      #
+      # see: https://gitlab.com/gitlab-org/gitaly/-/blob/257ee33ca268d48c8f99dcbfeaaf7d8b19e07f06/internal/gitaly/service/repository/repository_info.go#L41-62
+      def recent_objects_size
+        wrapped_gitaly_errors do
+          recent_size_in_bytes = gitaly_repository_client.repository_info.objects.recent_size
+
+          Gitlab::Utils.bytes_to_megabytes(recent_size_in_bytes)
+        end
       end
 
       # Return git object directory size in bytes
@@ -397,11 +421,12 @@ module Gitlab
 
         newrevs = newrevs.uniq.sort
 
-        @new_blobs ||= Hash.new do |h, revs|
-          h[revs] = blobs(['--not', '--all', '--not'] + newrevs, with_paths: true, dynamic_timeout: dynamic_timeout)
-        end
-
-        @new_blobs[newrevs]
+        @new_blobs ||= {}
+        @new_blobs[newrevs] ||= blobs(
+          ['--not', '--all', '--not'] + newrevs,
+          with_paths: true,
+          dynamic_timeout: dynamic_timeout
+        ).to_a
       end
 
       # List blobs reachable via a set of revisions. Supports the
@@ -514,13 +539,13 @@ module Gitlab
         empty_diff_stats
       end
 
-      def find_changed_paths(commits)
-        processed_commits = commits.reject { |ref| ref.blank? || Gitlab::Git.blank_ref?(ref) }
+      def find_changed_paths(treeish_objects, merge_commit_diff_mode: nil)
+        processed_objects = treeish_objects.compact
 
-        return [] if processed_commits.empty?
+        return [] if processed_objects.empty?
 
         wrapped_gitaly_errors do
-          gitaly_commit_client.find_changed_paths(processed_commits)
+          gitaly_commit_client.find_changed_paths(processed_objects, merge_commit_diff_mode: merge_commit_diff_mode)
         end
       rescue CommandError, TypeError, NoRepository
         []
@@ -548,10 +573,10 @@ module Gitlab
       # Limit of 0 means there is no limit.
       def refs_by_oid(oid:, limit: 0, ref_patterns: nil)
         wrapped_gitaly_errors do
-          gitaly_ref_client.find_refs_by_oid(oid: oid, limit: limit, ref_patterns: ref_patterns)
+          gitaly_ref_client.find_refs_by_oid(oid: oid, limit: limit, ref_patterns: ref_patterns) || []
         end
       rescue CommandError, TypeError, NoRepository
-        nil
+        []
       end
 
       # Returns url for submodule
@@ -728,6 +753,30 @@ module Gitlab
         raise DeleteBranchError, e
       end
 
+      def async_delete_refs(*refs)
+        raise "async_delete_refs only supports project repositories" unless container.is_a?(Project)
+
+        records = refs.map do |ref|
+          BatchedGitRefUpdates::Deletion.new(project_id: container.id, ref: ref, created_at: Time.current, updated_at: Time.current)
+        end
+
+        BatchedGitRefUpdates::Deletion.bulk_insert!(records)
+      end
+
+      # Update a list of references from X -> Y
+      #
+      # Ref list is expected to be an array of hashes in the form:
+      # old_sha:
+      # new_sha
+      # reference:
+      #
+      # When new_sha is Gitlab::Git::BLANK_SHA, then this will be deleted
+      def update_refs(ref_list)
+        wrapped_gitaly_errors do
+          gitaly_ref_client.update_refs(ref_list: ref_list) if ref_list.any?
+        end
+      end
+
       def delete_refs(...)
         wrapped_gitaly_errors do
           gitaly_delete_refs(...)
@@ -803,27 +852,17 @@ module Gitlab
         end
       end
 
-      def license(from_gitaly)
+      def license
         wrapped_gitaly_errors do
           response = gitaly_repository_client.find_license
 
           break nil if response.license_short_name.empty?
 
-          if from_gitaly
-            break ::Gitlab::Git::DeclaredLicense.new(key: response.license_short_name,
-                                                     name: response.license_name,
-                                                     nickname: response.license_nickname.presence,
-                                                     url: response.license_url.presence,
-                                                     path: response.license_path)
-          end
-
-          licensee_object = Licensee::License.new(response.license_short_name)
-
-          break nil if licensee_object.name.blank?
-
-          licensee_object.meta.nickname = "LICENSE" if licensee_object.key == "other"
-
-          licensee_object
+          ::Gitlab::Git::DeclaredLicense.new(key: response.license_short_name,
+                                             name: response.license_name,
+                                             nickname: response.license_nickname.presence,
+                                             url: response.license_url.presence,
+                                             path: response.license_path)
         end
       rescue Licensee::InvalidLicense => e
         Gitlab::ErrorTracking.track_exception(e)
@@ -934,10 +973,6 @@ module Gitlab
         gitaly_repository_client.create_from_bundle(bundle_path)
       end
 
-      def create_from_snapshot(url, auth)
-        gitaly_repository_client.create_from_snapshot(url, auth)
-      end
-
       def rebase(user, rebase_id, branch:, branch_sha:, remote_repository:, remote_branch:, push_options: [], &block)
         wrapped_gitaly_errors do
           gitaly_operation_client.rebase(
@@ -949,6 +984,18 @@ module Gitlab
             remote_branch: remote_branch,
             push_options: push_options,
             &block
+          )
+        end
+      end
+
+      def rebase_to_ref(user, source_sha:, target_ref:, first_parent_ref:, expected_old_oid: "")
+        wrapped_gitaly_errors do
+          gitaly_operation_client.user_rebase_to_ref(
+            user,
+            source_sha: source_sha,
+            target_ref: target_ref,
+            first_parent_ref: first_parent_ref,
+            expected_old_oid: expected_old_oid
           )
         end
       end
@@ -1148,7 +1195,7 @@ module Gitlab
 
       def checksum
         # The exists? RPC is much cheaper, so we perform this request first
-        raise NoRepository, "Repository does not exists" unless exists?
+        raise NoRepository, "Repository does not exist" unless exists?
 
         gitaly_repository_client.calculate_checksum
       rescue GRPC::NotFound
@@ -1161,7 +1208,25 @@ module Gitlab
         end
       end
 
+      def get_patch_id(old_revision, new_revision)
+        wrapped_gitaly_errors do
+          gitaly_commit_client.get_patch_id(old_revision, new_revision)
+        end
+      end
+
+      def object_pool
+        wrapped_gitaly_errors do
+          gitaly_repository_client.object_pool.object_pool
+        end
+      end
+
       private
+
+      def repository_info_size_megabytes
+        bytes = gitaly_repository_client.repository_info.size
+
+        Gitlab::Utils.bytes_to_megabytes(bytes).round(2)
+      end
 
       def empty_diff_stats
         Gitlab::Git::DiffStatsCollection.new([])
@@ -1232,6 +1297,26 @@ module Gitlab
 
       def gitaly_delete_refs(*ref_names)
         gitaly_ref_client.delete_refs(refs: ref_names) if ref_names.any?
+      end
+
+      # The order is based on git priority to resolve ambiguous references
+      #
+      # `git show <ref>`
+      #
+      # In case of name clashes, it uses this order:
+      # 1. Commit
+      # 2. Tag
+      # 3. Branch
+      def extract_commit_id_from_ref(ref)
+        return ref if Gitlab::Git.commit_id?(ref)
+
+        tag = find_tag(ref)
+        return tag.dereferenced_target.sha if tag
+
+        branch = find_branch(ref)
+        return branch.dereferenced_target.sha if branch
+
+        ref
       end
     end
   end

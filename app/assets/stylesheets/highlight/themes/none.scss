@@ -24,10 +24,6 @@
   }
 
   // Line numbers
-  .file-line-num {
-    @include line-link($black, 'link');
-  }
-
   .file-line-blame {
     @include line-link($black, 'git');
   }
@@ -85,7 +81,7 @@
     }
 
     .line-coverage:not(.hll),
-    .line-codequality:not(.hll) {
+    .line-inline-findings:not(.hll) {
       &.old,
       &.new,
       &.new-nomappinginraw,

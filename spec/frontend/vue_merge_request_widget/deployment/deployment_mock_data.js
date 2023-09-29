@@ -43,6 +43,7 @@ const deploymentMockData = {
   external_url_formatted: 'gitlab',
   deployed_at: '2017-03-22T22:44:42.258Z',
   deployed_at_formatted: 'Mar 22, 2017 10:44pm',
+  environment_available: true,
   details: {},
   status: SUCCESS,
   changes: [
@@ -73,4 +74,9 @@ const retryDetails = {
   },
 };
 
-export { actionButtonMocks, deploymentMockData, playDetails, retryDetails };
+const mockRedeployProps = {
+  retry_url: retryDetails.playable_build.retry_path,
+  environment_available: false,
+};
+
+export { actionButtonMocks, deploymentMockData, playDetails, retryDetails, mockRedeployProps };

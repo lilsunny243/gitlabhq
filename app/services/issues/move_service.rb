@@ -90,9 +90,7 @@ module Issues
 
       new_params = original_entity.serializable_hash.symbolize_keys.merge(new_params)
       new_params = new_params.merge(rewritten_old_entity_attributes)
-      # spam checking is not necessary, as no new content is being created. Passing nil for
-      # spam_params will cause SpamActionService to skip checking and return a success response.
-      spam_params = nil
+      # spam checking is not necessary, as no new content is being created.
 
       # Skip creation of system notes for existing attributes of the issue. The system notes of the old
       # issue are copied over so we don't want to end up with duplicate notes.
@@ -100,7 +98,7 @@ module Issues
         container: @target_project,
         current_user: @current_user,
         params: new_params,
-        spam_params: spam_params
+        perform_spam_check: false
       ).execute(skip_system_notes: true)
 
       raise MoveError, create_result.errors.join(', ') if create_result.error? && create_result[:issue].blank?
@@ -125,10 +123,10 @@ module Issues
     end
 
     def rewrite_related_issues
-      source_issue_links = IssueLink.for_source_issue(original_entity)
+      source_issue_links = IssueLink.for_source(original_entity)
       source_issue_links.update_all(source_id: new_entity.id)
 
-      target_issue_links = IssueLink.for_target_issue(original_entity)
+      target_issue_links = IssueLink.for_target(original_entity)
       target_issue_links.update_all(target_id: new_entity.id)
     end
 
@@ -143,15 +141,23 @@ module Issues
     end
 
     def add_note_from
-      SystemNoteService.noteable_moved(new_entity, target_project,
-                                       original_entity, current_user,
-                                       direction: :from)
+      SystemNoteService.noteable_moved(
+        new_entity,
+        target_project,
+        original_entity,
+        current_user,
+        direction: :from
+      )
     end
 
     def add_note_to
-      SystemNoteService.noteable_moved(original_entity, old_project,
-                                       new_entity, current_user,
-                                       direction: :to)
+      SystemNoteService.noteable_moved(
+        original_entity,
+        old_project,
+        new_entity,
+        current_user,
+        direction: :to
+      )
     end
   end
 end

@@ -22,6 +22,9 @@ ignore: |
   generator_templates/snowplow_event_definition/event_definition.yml
   generator_templates/usage_metric_definition/metric_definition.yml
 
+  # Contains ERB code that keeps throwing syntax errors
+  .rubocop.yml
+
   # Has some special indentation
   doc/user/project/integrations/samples/cloudwatch.yml
 
@@ -41,6 +44,7 @@ ignore: |
   #### Folders ####
   node_modules/
   tmp/
+  generator_templates/gitlab_internal_events/
 
 # In CI some YAML files are linted using different rules.
 # See `.gitlab/ci/yaml.gitlab-ci.yml`.

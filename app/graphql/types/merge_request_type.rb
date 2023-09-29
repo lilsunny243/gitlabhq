@@ -4,11 +4,11 @@ module Types
   class MergeRequestType < BaseObject
     graphql_name 'MergeRequest'
 
-    connection_type_class(Types::MergeRequestConnectionType)
+    connection_type_class Types::MergeRequestConnectionType
 
-    implements(Types::Notes::NoteableInterface)
-    implements(Types::CurrentUserTodos)
-    implements(Types::TodoableInterface)
+    implements Types::Notes::NoteableInterface
+    implements Types::CurrentUserTodos
+    implements Types::TodoableInterface
 
     authorize :read_merge_request
 
@@ -35,7 +35,7 @@ module Types
     field :iid, GraphQL::Types::String, null: false,
                                         description: 'Internal ID of the merge request.'
     field :merge_when_pipeline_succeeds, GraphQL::Types::Boolean, null: true,
-                                                                  description: 'Indicates if the merge has been set to be merged when its pipeline succeeds (MWPS).'
+                                                                  description: 'Indicates if the merge has been set to auto-merge.'
     field :merged_at, Types::TimeType, null: true, complexity: 5,
                                        description: 'Timestamp of when the merge request was merged, null if not merged.'
     field :project, Types::ProjectType, null: false,
@@ -185,12 +185,19 @@ module Types
           description: 'Users from whom a review has been requested.'
     field :subscribed, GraphQL::Types::Boolean, method: :subscribed?, null: false, complexity: 5,
                                                 description: 'Indicates if the currently logged in user is subscribed to this merge request.'
+    field :supports_lock_on_merge, GraphQL::Types::Boolean, null: false, method: :supports_lock_on_merge?,
+                                                            description: 'Indicates if the merge request supports locked labels.'
     field :task_completion_status, Types::TaskCompletionStatus, null: false,
                                                                 description: Types::TaskCompletionStatus.description
     field :time_estimate, GraphQL::Types::Int, null: false,
                                                description: 'Time estimate of the merge request.'
     field :total_time_spent, GraphQL::Types::Int, null: false,
                                                   description: 'Total time reported as spent on the merge request.'
+
+    field :approved, GraphQL::Types::Boolean,
+          method: :approved?,
+          null: false, calls_gitaly: true,
+          description: 'Indicates if the merge request has all the required approvals.'
 
     field :approved_by, Types::UserType.connection_type, null: true,
                                                          description: 'Users who approved the merge request.', method: :approved_by_users
@@ -207,7 +214,7 @@ module Types
     field :has_ci, GraphQL::Types::Boolean, null: false, method: :has_ci?,
                                             description: 'Indicates if the merge request has CI.'
     field :merge_user, Types::UserType, null: true,
-                                        description: 'User who merged this merge request or set it to merge when pipeline succeeds.'
+                                        description: 'User who merged this merge request or set it to auto-merge.'
     field :mergeable, GraphQL::Types::Boolean, null: false, method: :mergeable?, calls_gitaly: true,
                                                description: 'Indicates if the merge request is mergeable.'
     field :security_auto_fix, GraphQL::Types::Boolean, null: true,
@@ -218,6 +225,21 @@ module Types
       description: 'Indicates if the merge request will be squashed when merged.'
     field :timelogs, Types::TimelogType.connection_type, null: false,
                                                          description: 'Timelogs on the merge request.'
+
+    field :award_emoji, Types::AwardEmojis::AwardEmojiType.connection_type,
+      null: true,
+      description: 'List of emoji reactions associated with the merge request.'
+
+    field :prepared_at, Types::TimeType, null: true,
+                                         description: 'Timestamp of when the merge request was prepared.'
+
+    field :codequality_reports_comparer,
+      type: ::Types::Security::CodequalityReportsComparerType,
+      null: true,
+      alpha: { milestone: '16.4' },
+      description: 'Code quality reports comparison reported on the merge request. Returns `null` ' \
+                   'if `sast_reports_in_inline_diff` feature flag is disabled.',
+      resolver: ::Resolvers::CodequalityReportsComparerResolver
 
     markdown_field :title_html, null: true
     markdown_field :description_html, null: true
@@ -285,7 +307,7 @@ module Types
     end
 
     def security_auto_fix
-      object.author == User.security_bot
+      object.author == ::Users::Internal.security_bot
     end
 
     def merge_user
@@ -294,6 +316,13 @@ module Types
 
     def detailed_merge_status
       ::MergeRequests::Mergeability::DetailedMergeStatusService.new(merge_request: object).execute
+    end
+
+    # This is temporary to fix a bug where `committers` is already loaded and memoized
+    # and calling it again with a certain GraphQL query can cause the Rails to to throw
+    # a ActiveRecord::ImmutableRelation error
+    def committers
+      object.commits.committers
     end
   end
 end

@@ -2,16 +2,13 @@ import AxiosMockAdapter from 'axios-mock-adapter';
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import testAction from 'helpers/vuex_action_helper';
 import { TEST_HOST } from 'spec/test_constants';
+import actionCable from '~/actioncable_consumer';
 import Api from '~/api';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import toast from '~/vue_shared/plugins/global_toast';
 import { EVENT_ISSUABLE_VUE_APP_CHANGE } from '~/issuable/constants';
 import axios from '~/lib/utils/axios_utils';
-import {
-  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-  HTTP_STATUS_OK,
-  HTTP_STATUS_SERVICE_UNAVAILABLE,
-} from '~/lib/utils/http_status';
+import { HTTP_STATUS_OK, HTTP_STATUS_SERVICE_UNAVAILABLE } from '~/lib/utils/http_status';
 import * as notesConstants from '~/notes/constants';
 import createStore from '~/notes/stores';
 import * as actions from '~/notes/stores/actions';
@@ -23,7 +20,6 @@ import updateMergeRequestLockMutation from '~/sidebar/queries/update_merge_reque
 import promoteTimelineEvent from '~/notes/graphql/promote_timeline_event.mutation.graphql';
 import mrWidgetEventHub from '~/vue_merge_request_widget/event_hub';
 import notesEventHub from '~/notes/event_hub';
-import waitForPromises from 'helpers/wait_for_promises';
 import { resetStore } from '../helpers';
 import {
   discussionMock,
@@ -36,13 +32,22 @@ import {
 
 const TEST_ERROR_MESSAGE = 'Test error message';
 const mockAlertDismiss = jest.fn();
-jest.mock('~/flash', () => ({
+jest.mock('~/alert', () => ({
   createAlert: jest.fn().mockImplementation(() => ({
     dismiss: mockAlertDismiss,
   })),
 }));
 
 jest.mock('~/vue_shared/plugins/global_toast');
+
+jest.mock('@rails/actioncable', () => {
+  const mockConsumer = {
+    subscriptions: { create: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }) },
+  };
+  return {
+    createConsumer: jest.fn().mockReturnValue(mockConsumer),
+  };
+});
 
 describe('Actions Notes Store', () => {
   let commit;
@@ -68,6 +73,8 @@ describe('Actions Notes Store', () => {
     resetStore(store);
     axiosMock.restore();
     resetHTMLFixture();
+
+    window.gon = {};
   });
 
   describe('setNotesData', () => {
@@ -249,142 +256,40 @@ describe('Actions Notes Store', () => {
     });
   });
 
-  describe('poll', () => {
-    const pollInterval = 6000;
-    const pollResponse = { notes: [], last_fetched_at: '123456' };
-    const pollHeaders = { 'poll-interval': `${pollInterval}` };
+  describe('initPolling', () => {
+    it('creates the Action Cable subscription', () => {
+      store.dispatch('setNotesData', notesDataMock);
+      store.dispatch('initPolling');
+
+      expect(actionCable.subscriptions.create).toHaveBeenCalledTimes(1);
+      expect(actionCable.subscriptions.create).toHaveBeenCalledWith(
+        {
+          channel: 'Noteable::NotesChannel',
+          project_id: store.state.notesData.projectId,
+          group_id: store.state.notesData.groupId,
+          noteable_type: store.state.notesData.noteableType,
+          noteable_id: store.state.notesData.noteableId,
+        },
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('fetchUpdatedNotes', () => {
+    const response = { notes: [], last_fetched_at: '123456' };
     const successMock = () =>
-      axiosMock.onGet(notesDataMock.notesPath).reply(HTTP_STATUS_OK, pollResponse, pollHeaders);
-    const failureMock = () =>
-      axiosMock.onGet(notesDataMock.notesPath).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const advanceAndRAF = async (time) => {
-      if (time) {
-        jest.advanceTimersByTime(time);
-      }
-
-      return waitForPromises();
-    };
-    const advanceXMoreIntervals = async (number) => {
-      const timeoutLength = pollInterval * number;
-
-      return advanceAndRAF(timeoutLength);
-    };
-    const startPolling = async () => {
-      await store.dispatch('poll');
-      await advanceAndRAF(2);
-    };
-    const cleanUp = async () => {
-      jest.clearAllTimers();
-
-      return store.dispatch('stopPolling');
-    };
+      axiosMock.onGet(notesDataMock.notesPath).reply(HTTP_STATUS_OK, response);
 
     beforeEach(() => {
       return store.dispatch('setNotesData', notesDataMock);
     });
 
-    afterEach(() => {
-      return cleanUp();
-    });
-
-    it('calls service with last fetched state', async () => {
+    it('calls the endpoint and stores last fetched state', async () => {
       successMock();
 
-      await startPolling();
+      await store.dispatch('fetchUpdatedNotes');
 
       expect(store.state.lastFetchedAt).toBe('123456');
-
-      await advanceXMoreIntervals(1);
-
-      expect(axiosMock.history.get).toHaveLength(2);
-      expect(axiosMock.history.get[1].headers).toMatchObject({
-        'X-Last-Fetched-At': '123456',
-      });
-    });
-
-    describe('polling side effects', () => {
-      it('retries twice', async () => {
-        failureMock();
-
-        await startPolling();
-
-        // This is the first request, not a retry
-        expect(axiosMock.history.get).toHaveLength(1);
-
-        await advanceXMoreIntervals(1);
-
-        // Retry #1
-        expect(axiosMock.history.get).toHaveLength(2);
-
-        await advanceXMoreIntervals(1);
-
-        // Retry #2
-        expect(axiosMock.history.get).toHaveLength(3);
-
-        await advanceXMoreIntervals(10);
-
-        // There are no more retries
-        expect(axiosMock.history.get).toHaveLength(3);
-      });
-
-      it('shows the error display on the second failure', async () => {
-        failureMock();
-
-        await startPolling();
-
-        expect(axiosMock.history.get).toHaveLength(1);
-        expect(createAlert).not.toHaveBeenCalled();
-
-        await advanceXMoreIntervals(1);
-
-        expect(axiosMock.history.get).toHaveLength(2);
-        expect(createAlert).toHaveBeenCalled();
-        expect(createAlert).toHaveBeenCalledTimes(1);
-      });
-
-      it('resets the failure counter on success', async () => {
-        // We can't get access to the actual counter in the polling closure.
-        // So we can infer that it's reset by ensuring that the error is only
-        //  shown when we cause two failures in a row - no successes between
-
-        axiosMock
-          .onGet(notesDataMock.notesPath)
-          .replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR) // cause one error
-          .onGet(notesDataMock.notesPath)
-          .replyOnce(HTTP_STATUS_OK, pollResponse, pollHeaders) // then a success
-          .onGet(notesDataMock.notesPath)
-          .reply(HTTP_STATUS_INTERNAL_SERVER_ERROR); // and then more errors
-
-        await startPolling(); // Failure #1
-        await advanceXMoreIntervals(1); // Success #1
-        await advanceXMoreIntervals(1); // Failure #2
-
-        // That was the first failure AFTER a success, so we should NOT see the error displayed
-        expect(createAlert).not.toHaveBeenCalled();
-
-        // Now we'll allow another failure
-        await advanceXMoreIntervals(1); // Failure #3
-
-        // Since this is the second failure in a row, the error should happen
-        expect(createAlert).toHaveBeenCalledTimes(1);
-      });
-
-      it('hides the error display if it exists on success', async () => {
-        failureMock();
-
-        await startPolling();
-        await advanceXMoreIntervals(2);
-
-        // After two errors, the error should be displayed
-        expect(createAlert).toHaveBeenCalledTimes(1);
-
-        axiosMock.reset();
-        successMock();
-
-        await advanceXMoreIntervals(1);
-
-        expect(mockAlertDismiss).toHaveBeenCalledTimes(1);
-      });
     });
   });
 
@@ -872,26 +777,6 @@ describe('Actions Notes Store', () => {
       });
     });
 
-    describe('if response contains errors.base', () => {
-      const res = { errors: { base: ['something went wrong'] } };
-      const error = { message: 'Unprocessable entity', response: { data: res } };
-
-      it('sets flash alert using errors.base message', async () => {
-        const resp = await actions.saveNote(
-          {
-            commit() {},
-            dispatch: () => Promise.reject(error),
-          },
-          { ...payload, flashContainer },
-        );
-        expect(resp.hasAlert).toBe(true);
-        expect(createAlert).toHaveBeenCalledWith({
-          message: 'Your comment could not be submitted because something went wrong',
-          parent: flashContainer,
-        });
-      });
-    });
-
     describe('if response contains no errors', () => {
       const res = { valid: true };
 
@@ -905,6 +790,20 @@ describe('Actions Notes Store', () => {
         );
         expect(data).toBe(res);
         expect(createAlert).not.toHaveBeenCalled();
+      });
+
+      it('dispatches clearDrafts is command names contains submit_review', async () => {
+        const response = { command_names: ['submit_review'], valid: true };
+        dispatch = jest.fn().mockResolvedValue(response);
+        await actions.saveNote(
+          {
+            commit() {},
+            dispatch,
+          },
+          payload,
+        );
+
+        expect(dispatch).toHaveBeenCalledWith('batchComments/clearDrafts');
       });
     });
   });
@@ -937,16 +836,12 @@ describe('Actions Notes Store', () => {
           [mutationTypes.SET_RESOLVING_DISCUSSION, false],
         ]);
 
-        expect(dispatch.mock.calls).toEqual([
-          ['stopPolling'],
-          ['resolveDiscussion', { discussionId }],
-          ['restartPolling'],
-        ]);
+        expect(dispatch.mock.calls).toEqual([['resolveDiscussion', { discussionId }]]);
         expect(createAlert).not.toHaveBeenCalled();
       });
     });
 
-    it('when service fails, flashes error message', () => {
+    it('when service fails, creates an alert with error message', () => {
       const response = { response: { data: { message: TEST_ERROR_MESSAGE } } };
 
       Api.applySuggestion.mockReturnValue(Promise.reject(response));
@@ -956,7 +851,6 @@ describe('Actions Notes Store', () => {
           [mutationTypes.SET_RESOLVING_DISCUSSION, true],
           [mutationTypes.SET_RESOLVING_DISCUSSION, false],
         ]);
-        expect(dispatch.mock.calls).toEqual([['stopPolling'], ['restartPolling']]);
         expect(createAlert).toHaveBeenCalledWith({
           message: TEST_ERROR_MESSAGE,
           parent: flashContainer,
@@ -974,7 +868,6 @@ describe('Actions Notes Store', () => {
           [mutationTypes.SET_RESOLVING_DISCUSSION, true],
           [mutationTypes.SET_RESOLVING_DISCUSSION, false],
         ]);
-        expect(dispatch.mock.calls).toEqual([['stopPolling'], ['restartPolling']]);
         expect(createAlert).toHaveBeenCalledWith({
           message: 'Something went wrong while applying the suggestion. Please try again.',
           parent: flashContainer,
@@ -1022,10 +915,8 @@ describe('Actions Notes Store', () => {
         ]);
 
         expect(dispatch.mock.calls).toEqual([
-          ['stopPolling'],
           ['resolveDiscussion', { discussionId: discussionIds[0] }],
           ['resolveDiscussion', { discussionId: discussionIds[1] }],
-          ['restartPolling'],
         ]);
 
         expect(createAlert).not.toHaveBeenCalled();
@@ -1045,7 +936,6 @@ describe('Actions Notes Store', () => {
           [mutationTypes.SET_RESOLVING_DISCUSSION, false],
         ]);
 
-        expect(dispatch.mock.calls).toEqual([['stopPolling'], ['restartPolling']]);
         expect(createAlert).toHaveBeenCalledWith({
           message: TEST_ERROR_MESSAGE,
           parent: flashContainer,
@@ -1066,7 +956,6 @@ describe('Actions Notes Store', () => {
           [mutationTypes.SET_RESOLVING_DISCUSSION, false],
         ]);
 
-        expect(dispatch.mock.calls).toEqual([['stopPolling'], ['restartPolling']]);
         expect(createAlert).toHaveBeenCalledWith({
           message:
             'Something went wrong while applying the batch of suggestions. Please try again.',
@@ -1439,10 +1328,6 @@ describe('Actions Notes Store', () => {
   describe('fetchDiscussions', () => {
     const discussion = { notes: [] };
 
-    afterEach(() => {
-      window.gon = {};
-    });
-
     it('updates the discussions and dispatches `updateResolvableDiscussionsCounts`', () => {
       axiosMock.onAny().reply(HTTP_STATUS_OK, { discussion });
       return testAction(
@@ -1454,6 +1339,27 @@ describe('Actions Notes Store', () => {
           { type: mutationTypes.SET_FETCHING_DISCUSSIONS, payload: false },
         ],
         [{ type: 'updateResolvableDiscussionsCounts' }],
+      );
+    });
+
+    it('dispatches `fetchDiscussionsBatch` action with notes_filter 0 for merge request', () => {
+      return testAction(
+        actions.fetchDiscussions,
+        { path: 'test-path', filter: 'test-filter', persistFilter: 'test-persist-filter' },
+        { noteableType: notesConstants.MERGE_REQUEST_NOTEABLE_TYPE },
+        [],
+        [
+          {
+            type: 'fetchDiscussionsBatch',
+            payload: {
+              config: {
+                params: { notes_filter: 0, persist_filter: false },
+              },
+              path: 'test-path',
+              perPage: 20,
+            },
+          },
+        ],
       );
     });
 
@@ -1489,7 +1395,7 @@ describe('Actions Notes Store', () => {
             type: 'fetchDiscussionsBatch',
             payload: {
               config: {
-                params: { notes_filter: 'test-filter', persist_filter: 'test-persist-filter' },
+                params: { notes_filter: 0, persist_filter: false },
               },
               path: 'test-path',
               perPage: 20,

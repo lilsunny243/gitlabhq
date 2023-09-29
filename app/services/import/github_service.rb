@@ -16,7 +16,7 @@ module Import
       track_access_level('github')
 
       if project.persisted?
-        store_import_settings(project)
+        store_import_settings(project, access_params)
         success(project)
       elsif project.errors[:import_source_disabled].present?
         error(project.errors[:import_source_disabled], :forbidden)
@@ -91,7 +91,7 @@ module Import
         url,
         allow_localhost: allow_local_requests?,
         allow_local_network: allow_local_requests?,
-        schemes: %w(http https)
+        schemes: %w[http https]
       )
     end
 
@@ -103,7 +103,7 @@ module Import
       elsif target_namespace.nil?
         error(_('Namespace or group to import repository into does not exist.'), :unprocessable_entity)
       elsif !authorized?
-        error(_('This namespace has already been taken. Choose a different one.'), :unprocessable_entity)
+        error(_('You are not allowed to import projects in this namespace.'), :unprocessable_entity)
       elsif oversized?
         error(oversize_error_message, :unprocessable_entity)
       end
@@ -134,8 +134,14 @@ module Import
       error(translated_message, http_status)
     end
 
-    def store_import_settings(project)
-      Gitlab::GithubImport::Settings.new(project).write(params[:optional_stages])
+    def store_import_settings(project, access_params)
+      Gitlab::GithubImport::Settings
+        .new(project)
+        .write(
+          timeout_strategy: params[:timeout_strategy] || ProjectImportData::PESSIMISTIC_TIMEOUT,
+          optional_stages: params[:optional_stages],
+          additional_access_tokens: access_params[:additional_access_tokens]
+        )
     end
   end
 end

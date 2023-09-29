@@ -4,11 +4,11 @@ module Types
   class IssueType < BaseObject
     graphql_name 'Issue'
 
-    connection_type_class(Types::IssueConnectionType)
+    connection_type_class Types::IssueConnectionType
 
-    implements(Types::Notes::NoteableInterface)
-    implements(Types::CurrentUserTodos)
-    implements(Types::TodoableInterface)
+    implements Types::Notes::NoteableInterface
+    implements Types::CurrentUserTodos
+    implements Types::TodoableInterface
 
     authorize :read_issue
 
@@ -92,7 +92,13 @@ module Types
 
     field :emails_disabled, GraphQL::Types::Boolean, null: false,
                                                      method: :project_emails_disabled?,
-                                                     description: 'Indicates if a project has email notifications disabled: `true` if email notifications are disabled.'
+                                                     description: 'Indicates if a project has email notifications disabled: `true` if email notifications are disabled.',
+                                                     deprecated: { reason: 'Use `emails_enabled`', milestone: '16.3' }
+
+    field :emails_enabled, GraphQL::Types::Boolean, null: false,
+                                                    method: :project_emails_enabled?,
+                                                    description: 'Indicates if a project has email notifications disabled: `false` if email notifications are disabled.'
+
     field :human_time_estimate, GraphQL::Types::String, null: true,
                                                         description: 'Human-readable time estimate of the issue.'
     field :human_total_time_spent, GraphQL::Types::String, null: true,
@@ -122,6 +128,7 @@ module Types
                                                                              description: 'Collection of design images associated with this issue.'
 
     field :type, Types::IssueTypeEnum, null: true,
+                                       method: :issue_type,
                                        description: 'Type of the issue.'
 
     field :alert_management_alert,
@@ -163,6 +170,8 @@ module Types
 
     field :escalation_status, Types::IncidentManagement::EscalationStatusEnum, null: true,
                                                                                description: 'Escalation status of the issue.'
+
+    field :external_author, GraphQL::Types::String, null: true, description: 'Email address of non-GitLab user reporting the issue. For guests, the email address is obfuscated.'
 
     markdown_field :title_html, null: true
     markdown_field :description_html, null: true
@@ -208,14 +217,6 @@ module Types
 
     def escalation_status
       object.supports_escalation? ? object.escalation_status&.status_name : nil
-    end
-
-    def type
-      if Feature.enabled?(:issue_type_uses_work_item_types_table)
-        object.work_item_type.base_type
-      else
-        object.issue_type
-      end
     end
   end
 end

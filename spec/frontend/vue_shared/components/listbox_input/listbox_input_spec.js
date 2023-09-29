@@ -1,5 +1,5 @@
 import { shallowMount } from '@vue/test-utils';
-import { GlFormGroup, GlListbox } from '@gitlab/ui';
+import { GlFormGroup, GlCollapsibleListbox } from '@gitlab/ui';
 import ListboxInput from '~/vue_shared/components/listbox_input/listbox_input.vue';
 
 describe('ListboxInput', () => {
@@ -7,7 +7,7 @@ describe('ListboxInput', () => {
 
   // Props
   const label = 'label';
-  const decription = 'decription';
+  const description = 'description';
   const name = 'name';
   const defaultToggleText = 'defaultToggleText';
   const items = [
@@ -27,14 +27,14 @@ describe('ListboxInput', () => {
 
   // Finders
   const findGlFormGroup = () => wrapper.findComponent(GlFormGroup);
-  const findGlListbox = () => wrapper.findComponent(GlListbox);
+  const findGlListbox = () => wrapper.findComponent(GlCollapsibleListbox);
   const findInput = () => wrapper.find('input');
 
   const createComponent = (propsData) => {
     wrapper = shallowMount(ListboxInput, {
       propsData: {
         label,
-        decription,
+        description,
         name,
         defaultToggleText,
         items,
@@ -72,8 +72,8 @@ describe('ListboxInput', () => {
       expect(findGlFormGroup().attributes('label')).toBe(label);
     });
 
-    it('passes the decription to the form group', () => {
-      expect(findGlFormGroup().attributes('decription')).toBe(decription);
+    it('passes the description to the form group', () => {
+      expect(findGlFormGroup().attributes('description')).toBe(description);
     });
 
     it('sets the input name', () => {
@@ -86,6 +86,35 @@ describe('ListboxInput', () => {
 
     it('passes attributes to the root element', () => {
       expect(findGlFormGroup().attributes('id')).toBe(id);
+    });
+  });
+
+  describe('props', () => {
+    it.each([true, false])("passes %s to the listbox's fluidWidth prop", (fluidWidth) => {
+      createComponent({ fluidWidth });
+
+      expect(findGlListbox().props('fluidWidth')).toBe(fluidWidth);
+    });
+
+    it.each(['class-a class-b', ['class-a', 'class-b'], { 'class-a': true, 'class-b': true }])(
+      'passes %s class to listbox',
+      (toggleClass) => {
+        createComponent({ toggleClass });
+
+        expect(findGlListbox().props('toggleClass')).toBe(toggleClass);
+      },
+    );
+
+    it.each(['right', 'left'])("passes %s to the listbox's placement prop", (placement) => {
+      createComponent({ placement });
+
+      expect(findGlListbox().props('placement')).toBe(placement);
+    });
+
+    it.each([true, false])("passes %s to the listbox's block prop", (block) => {
+      createComponent({ block });
+
+      expect(findGlListbox().props('block')).toBe(block);
     });
   });
 
@@ -153,7 +182,7 @@ describe('ListboxInput', () => {
       expect(findGlListbox().props('searchable')).toBe(true);
     });
 
-    it('passes all items to GlListbox by default', () => {
+    it('passes all items to GlCollapsibleListbox by default', () => {
       createComponent();
 
       expect(findGlListbox().props('items')).toStrictEqual(items);
@@ -165,7 +194,7 @@ describe('ListboxInput', () => {
         findGlListbox().vm.$emit('search', '1');
       });
 
-      it('passes only the items that match the search string', async () => {
+      it('passes only the items that match the search string', () => {
         expect(findGlListbox().props('items')).toStrictEqual([
           {
             text: 'Group 1',
@@ -183,7 +212,7 @@ describe('ListboxInput', () => {
         findGlListbox().vm.$emit('search', '1');
       });
 
-      it('passes only the items that match the search string', async () => {
+      it('passes only the items that match the search string', () => {
         expect(findGlListbox().props('items')).toStrictEqual([{ text: 'Item 1', value: '1' }]);
       });
     });

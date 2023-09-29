@@ -16,6 +16,8 @@ module MergeRequests
       merge_request.source_project = find_source_project
       merge_request.target_project = find_target_project
 
+      initialize_callbacks!(merge_request)
+
       process_params
 
       merge_request.compare_commits = []
@@ -40,17 +42,17 @@ module MergeRequests
     attr_accessor :merge_request
 
     delegate :target_branch,
-             :target_branch_ref,
-             :target_project,
-             :source_branch,
-             :source_branch_ref,
-             :source_project,
-             :compare_commits,
-             :draft_title,
-             :description,
-             :first_multiline_commit,
-             :errors,
-             to: :merge_request
+      :target_branch_ref,
+      :target_project,
+      :source_branch,
+      :source_branch_ref,
+      :source_project,
+      :compare_commits,
+      :draft_title,
+      :description,
+      :first_multiline_commit,
+      :errors,
+      to: :merge_request
 
     def force_remove_source_branch
       if params.key?(:force_remove_source_branch)
@@ -72,7 +74,7 @@ module MergeRequests
       # IssuableBaseService#process_label_ids and
       # IssuableBaseService#process_assignee_ids take care
       # of the removal.
-      params[:label_ids] = process_label_ids(params, extra_label_ids: merge_request.label_ids.to_a)
+      params[:label_ids] = process_label_ids(params, issuable: merge_request, extra_label_ids: merge_request.label_ids.to_a)
 
       params[:assignee_ids] = process_assignee_ids(params, extra_assignee_ids: merge_request.assignee_ids.to_a)
 
@@ -128,8 +130,12 @@ module MergeRequests
       if source_branch_default? && !target_branch_specified?
         merge_request.target_branch = nil
       else
-        merge_request.target_branch ||= target_project.default_branch
+        merge_request.target_branch ||= get_target_branch
       end
+    end
+
+    def get_target_branch
+      target_project.default_branch
     end
 
     def source_branch_specified?
@@ -332,7 +338,7 @@ module MergeRequests
       strong_memoize(:issue_iid) do
         @params_issue_iid || begin
           id = if target_project.external_issue_tracker
-                 source_branch.match(target_project.external_issue_reference_pattern).try(:[], 0)
+                 target_project.external_issue_reference_pattern.match(source_branch).try(:[], 0)
                end
 
           id || source_branch.match(/\A(\d+)-/).try(:[], 1)

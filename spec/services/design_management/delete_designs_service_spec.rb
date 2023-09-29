@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe DesignManagement::DeleteDesignsService do
+RSpec.describe DesignManagement::DeleteDesignsService, feature_category: :design_management do
   include DesignManagementTestHelpers
 
   let_it_be(:project) { create(:project) }
@@ -12,7 +12,7 @@ RSpec.describe DesignManagement::DeleteDesignsService do
 
   subject(:service) { described_class.new(project, user, issue: issue, designs: designs) }
 
-  # Defined as a method so that the reponse is not cached. We also construct
+  # Defined as a method so that the response is not cached. We also construct
   # a new service executor each time to avoid the intermediate cached values
   # it constructs during its execution.
   def run_service(delenda = nil)
@@ -99,7 +99,7 @@ RSpec.describe DesignManagement::DeleteDesignsService do
           rescue StandardError
             nil
           end
-            .not_to change { redis_hll.unique_events(event_names: event, start_date: 1.day.ago, end_date: 1.day.from_now) }
+            .not_to change { redis_hll.unique_events(event_names: event, start_date: Date.today, end_date: 1.week.from_now) }
 
           begin
             run_service
@@ -173,8 +173,10 @@ RSpec.describe DesignManagement::DeleteDesignsService do
           run_service
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_DESIGNS_REMOVED }
+        it_behaves_like 'internal event tracking' do
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_DESIGNS_REMOVED }
+          let(:namespace) { project.namespace }
+
           subject(:service_action) { run_service }
         end
       end

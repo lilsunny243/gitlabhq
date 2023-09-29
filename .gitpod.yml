@@ -52,10 +52,10 @@ tasks:
         SECONDS=0
         cd /workspace/gitlab-development-kit
         # update GDK
-        if [ "$GITLAB_UPDATE_GDK" == true ]; then
-          echo "$(date) – Updating GDK" | tee -a /workspace/startup.log
-          gdk update
-        fi
+        echo "$(date) – Updating GDK" | tee -a /workspace/startup.log
+        export DEFAULT_BRANCH=$(git --git-dir=gitlab/.git branch --show-current)
+        gdk config set gitlab.default_branch "$DEFAULT_BRANCH"
+        gdk update
         # ensure gdk.yml has correct instance settings
         gdk config set gitlab.rails.hostname $(gp url 3000 | sed -e 's+^http[s]*://++')
         gdk config set gitlab.rails.port 443
@@ -76,7 +76,7 @@ tasks:
           make gitlab-db-migrate
         fi
         cd /workspace/gitlab-development-kit/gitlab
-        echo "--- on branch: $(git branch --show-current)"
+        echo "--- on branch: $DEFAULT_BRANCH"
         echo "--- installing lefthook"
         bundle exec lefthook install
         echo "--- resetting db/structure.sql"
@@ -92,7 +92,7 @@ tasks:
         # Give Gitpod a few more seconds to set up everything ...
         sleep 5
         printf "$(date) – GitLab is up (took ~%.1f minutes)\n" "$((10*$SECONDS/60))e-1" | tee -a /workspace/startup.log
-        gp preview $(gp url 3000) || true
+        gp preview $(gp url 3000) --external || true
         PREBUILD_LOG=(/workspace/.gitpod/prebuild-log-*)
         [[ -f /workspace/gitpod_start_time.sh ]] && printf "Took %.1f minutes from https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitpod.yml being executed through to completion %s\n" "$((10*(($(date +%s)-${START_UNIXTIME}))/60))e-1" "$([[ -f "$PREBUILD_LOG" ]] && echo "With Prebuilds")"
       )
@@ -119,10 +119,11 @@ ports:
 
 vscode:
   extensions:
+    - GitLab.gitlab-workflow
     - rebornix.ruby@0.28.1
     - wingrunr21.vscode-ruby@0.28.0
     - karunamurti.haml@1.4.1
-    - octref.vetur@0.36.0
-    - dbaeumer.vscode-eslint@2.2.6
-    - GitLab.gitlab-workflow@3.56.0
-    - DavidAnson.vscode-markdownlint@0.47.0
+    - octref.vetur@0.37.3
+    - dbaeumer.vscode-eslint@2.4.0
+    - DavidAnson.vscode-markdownlint@0.49.0
+    - esbenp.prettier-vscode

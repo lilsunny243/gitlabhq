@@ -107,15 +107,50 @@ RSpec.describe ProjectLabel do
       context 'using name' do
         it 'returns cross reference with label name' do
           expect(label.to_reference(project, format: :name))
-            .to eq %Q(#{label.project.full_path}~"#{label.name}")
+            .to eq %(#{label.project.full_path}~"#{label.name}")
         end
       end
 
       context 'using id' do
         it 'returns cross reference with label id' do
           expect(label.to_reference(project, format: :id))
-            .to eq %Q(#{label.project.full_path}~#{label.id})
+            .to eq %(#{label.project.full_path}~#{label.id})
         end
+      end
+    end
+  end
+
+  describe '#preloaded_parent_container' do
+    let_it_be(:label) { create(:label) }
+
+    before do
+      label.reload # ensure associations are not loaded
+    end
+
+    context 'when project is loaded' do
+      it 'does not invoke a DB query' do
+        label.project
+
+        count = ActiveRecord::QueryRecorder.new { label.preloaded_parent_container }.count
+        expect(count).to eq(0)
+        expect(label.preloaded_parent_container).to eq(label.project)
+      end
+    end
+
+    context 'when parent_container is loaded' do
+      it 'does not invoke a DB query' do
+        label.parent_container
+
+        count = ActiveRecord::QueryRecorder.new { label.preloaded_parent_container }.count
+        expect(count).to eq(0)
+        expect(label.preloaded_parent_container).to eq(label.parent_container)
+      end
+    end
+
+    context 'when none of them are loaded' do
+      it 'invokes a DB query' do
+        count = ActiveRecord::QueryRecorder.new { label.preloaded_parent_container }.count
+        expect(count).to eq(1)
       end
     end
   end

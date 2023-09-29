@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Show > User manages notifications', :js, feature_category: :projects do
+RSpec.describe 'Projects > Show > User manages notifications', :js, feature_category: :groups_and_projects do
   let(:project) { create(:project, :public, :repository) }
 
   before do
@@ -77,7 +77,7 @@ RSpec.describe 'Projects > Show > User manages notifications', :js, feature_cate
   end
 
   context 'when project emails are disabled' do
-    let(:project) { create(:project, :public, :repository, emails_disabled: true) }
+    let_it_be(:project) { create(:project, :public, :repository, emails_enabled: false) }
 
     it 'is disabled' do
       visit project_path(project)

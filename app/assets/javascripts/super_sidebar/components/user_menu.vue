@@ -1,23 +1,26 @@
 <script>
 import {
   GlAvatar,
-  GlBadge,
   GlDisclosureDropdown,
   GlDisclosureDropdownGroup,
   GlDisclosureDropdownItem,
+  GlButton,
 } from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { s__, __, sprintf } from '~/locale';
 import NewNavToggle from '~/nav/components/new_nav_toggle.vue';
 import Tracking from '~/tracking';
 import PersistentUserCallout from '~/persistent_user_callout';
+import { USER_MENU_TRACKING_DEFAULTS, DROPDOWN_Y_OFFSET, IMPERSONATING_OFFSET } from '../constants';
 import UserNameGroup from './user_name_group.vue';
 
+// Left offset required for the dropdown to be aligned with the super sidebar
+const DROPDOWN_X_OFFSET_BASE = -211;
+const DROPDOWN_X_OFFSET_IMPERSONATING = DROPDOWN_X_OFFSET_BASE + IMPERSONATING_OFFSET;
+
 export default {
-  feedbackUrl: 'https://gitlab.com/gitlab-org/gitlab/-/issues/new',
   i18n: {
     newNavigation: {
-      badgeLabel: s__('NorthstarNavigation|Alpha'),
       sectionTitle: s__('NorthstarNavigation|Navigation redesign'),
     },
     setStatus: s__('SetStatusModal|Set status'),
@@ -27,16 +30,15 @@ export default {
     buyPipelineMinutes: s__('CurrentUser|Buy Pipeline minutes'),
     oneOfGroupsRunningOutOfPipelineMinutes: s__('CurrentUser|One of your groups is running out'),
     gitlabNext: s__('CurrentUser|Switch to GitLab Next'),
-    provideFeedback: s__('NorthstarNavigation|Provide feedback'),
     startTrial: s__('CurrentUser|Start an Ultimate trial'),
     signOut: __('Sign out'),
   },
   components: {
     GlAvatar,
-    GlBadge,
     GlDisclosureDropdown,
     GlDisclosureDropdownGroup,
     GlDisclosureDropdownItem,
+    GlButton,
     NewNavToggle,
     UserNameGroup,
   },
@@ -44,7 +46,7 @@ export default {
     SafeHtml,
   },
   mixins: [Tracking.mixin()],
-  inject: ['toggleNewNavEndpoint'],
+  inject: ['toggleNewNavEndpoint', 'isImpersonating'],
   props: {
     data: {
       required: true,
@@ -72,18 +74,34 @@ export default {
       return {
         text: this.$options.i18n.startTrial,
         href: this.data.trial.url,
+        extraAttrs: {
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'start_trial',
+        },
       };
+    },
+    showTrialItem() {
+      return this.data.trial?.has_start_trial;
     },
     editProfileItem() {
       return {
         text: this.$options.i18n.editProfile,
         href: this.data.settings.profile_path,
+        extraAttrs: {
+          'data-testid': 'edit_profile_link',
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'user_edit_profile',
+        },
       };
     },
     preferencesItem() {
       return {
         text: this.$options.i18n.preferences,
         href: this.data.settings.profile_preferences_path,
+        extraAttrs: {
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'user_preferences',
+        },
       };
     },
     addBuyPipelineMinutesMenuItem() {
@@ -96,6 +114,8 @@ export default {
         href: this.data.pipeline_minutes?.buy_pipeline_minutes_path,
         extraAttrs: {
           class: 'js-follow-link',
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'buy_pipeline_minutes',
         },
       };
     },
@@ -103,14 +123,9 @@ export default {
       return {
         text: this.$options.i18n.gitlabNext,
         href: this.data.canary_toggle_com_url,
-      };
-    },
-    feedbackItem() {
-      return {
-        text: this.$options.i18n.provideFeedback,
-        href: this.$options.feedbackUrl,
         extraAttrs: {
-          target: '_blank',
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'switch_to_canary',
         },
       };
     },
@@ -122,6 +137,7 @@ export default {
             href: this.data.sign_out_link,
             extraAttrs: {
               'data-method': 'post',
+              'data-testid': 'sign_out_link',
               class: 'sign-out-link',
             },
           },
@@ -135,9 +151,12 @@ export default {
         'data-default-emoji': 'speech_balloon',
       };
 
-      if (!this.data.status.customized) {
+      const { busy, customized } = this.data.status;
+
+      if (!busy && !customized) {
         return defaultData;
       }
+
       return {
         ...defaultData,
         'data-current-emoji': this.data.status.emoji,
@@ -157,18 +176,29 @@ export default {
     showNotificationDot() {
       return this.data.pipeline_minutes?.show_notification_dot;
     },
+    dropdownOffset() {
+      return {
+        mainAxis: DROPDOWN_Y_OFFSET,
+        crossAxis: this.isImpersonating ? DROPDOWN_X_OFFSET_IMPERSONATING : DROPDOWN_X_OFFSET_BASE,
+      };
+    },
   },
   methods: {
     onShow() {
-      this.trackEvents();
-      this.initCallout();
+      this.initBuyCIMinsCallout();
     },
-    initCallout() {
+    closeDropdown() {
+      this.$refs.userDropdown.close();
+    },
+    initBuyCIMinsCallout() {
       if (this.showNotificationDot) {
         PersistentUserCallout.factory(this.$refs?.buyPipelineMinutesNotificationCallout.$el);
       }
     },
-    trackEvents() {
+    /* We're not sure this event is tracked by anyone
+      whether it stays will depend on the outcome of this discussion:
+      https://gitlab.com/gitlab-org/gitlab/-/issues/402713#note_1343072135 */
+    trackBuyCIMins() {
       if (this.addBuyPipelineMinutesMenuItem) {
         const {
           'track-action': trackAction,
@@ -178,6 +208,12 @@ export default {
         this.track(trackAction, { label, property });
       }
     },
+    trackSignOut() {
+      this.track(USER_MENU_TRACKING_DEFAULTS['data-track-action'], {
+        label: 'user_sign_out',
+        property: USER_MENU_TRACKING_DEFAULTS['data-track-property'],
+      });
+    },
   },
 };
 </script>
@@ -185,20 +221,21 @@ export default {
 <template>
   <div>
     <gl-disclosure-dropdown
-      placement="right"
+      ref="userDropdown"
+      :dropdown-offset="dropdownOffset"
       data-testid="user-dropdown"
-      data-qa-selector="user_menu"
+      :auto-close="false"
       @shown="onShow"
     >
       <template #toggle>
-        <button class="user-bar-item btn-with-notification">
+        <gl-button category="tertiary" class="user-bar-item btn-with-notification">
           <span class="gl-sr-only">{{ toggleText }}</span>
           <gl-avatar
             :size="24"
             :entity-name="data.name"
             :src="data.avatar_url"
             aria-hidden="true"
-            data-qa-selector="user_avatar_content"
+            data-testid="user_avatar_content"
           />
           <span
             v-if="showNotificationDot"
@@ -207,7 +244,7 @@ export default {
             v-bind="data.pipeline_minutes.notification_dot_attrs"
           >
           </span>
-        </button>
+        </gl-button>
       </template>
 
       <user-name-group :user="data" />
@@ -216,10 +253,11 @@ export default {
           v-if="data.status.can_update"
           :item="statusItem"
           data-testid="status-item"
+          @action="closeDropdown"
         />
 
         <gl-disclosure-dropdown-item
-          v-if="data.trial.has_start_trial"
+          v-if="showTrialItem"
           :item="trialItem"
           data-testid="start-trial-item"
         >
@@ -239,6 +277,7 @@ export default {
           :item="buyPipelineMinutesItem"
           v-bind="buyPipelineMinutesCalloutData"
           data-testid="buy-pipeline-minutes-item"
+          @action="trackBuyCIMins"
         >
           <template #list-item>
             <span class="gl-display-flex gl-flex-direction-column">
@@ -262,12 +301,8 @@ export default {
       <gl-disclosure-dropdown-group bordered>
         <template #group-label>
           <span class="gl-font-sm">{{ $options.i18n.newNavigation.sectionTitle }}</span>
-          <gl-badge size="sm" variant="info"
-            >{{ $options.i18n.newNavigation.badgeLabel }}
-          </gl-badge>
         </template>
         <new-nav-toggle :endpoint="toggleNewNavEndpoint" enabled new-navigation />
-        <gl-disclosure-dropdown-item :item="feedbackItem" data-testid="feedback-item" />
       </gl-disclosure-dropdown-group>
 
       <gl-disclosure-dropdown-group
@@ -275,6 +310,7 @@ export default {
         bordered
         :group="signOutGroup"
         data-testid="sign-out-group"
+        @action="trackSignOut"
       />
     </gl-disclosure-dropdown>
 

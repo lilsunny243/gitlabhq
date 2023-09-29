@@ -9,6 +9,8 @@ class Milestone < ApplicationRecord
   include Importable
   include IidRoutes
   include UpdatedAtFilterable
+  include EachBatch
+  include Spammable
 
   prepend_mod_with('Milestone') # rubocop: disable Cop/InjectEnterpriseEditionModule
 
@@ -52,6 +54,7 @@ class Milestone < ApplicationRecord
   scope :order_by_name_asc, -> { order(Arel::Nodes::Ascending.new(arel_table[:title].lower)) }
   scope :reorder_by_due_date_asc, -> { reorder(arel_table[:due_date].asc.nulls_last) }
   scope :with_api_entity_associations, -> { preload(project: [:project_feature, :route, namespace: :route]) }
+  scope :preload_for_indexing, -> { includes(project: [:project_feature]) }
   scope :order_by_dates_and_title, -> { order(due_date: :asc, start_date: :asc, title: :asc) }
 
   validates :group, presence: true, unless: :project
@@ -60,6 +63,9 @@ class Milestone < ApplicationRecord
   validates_associated :milestone_releases, message: -> (_, obj) { obj[:value].map(&:errors).map(&:full_messages).join(",") }
   validate :parent_type_check
   validate :uniqueness_of_title, if: :title_changed?
+
+  attr_spammable :title, spam_title: true
+  attr_spammable :description, spam_description: true
 
   state_machine :state, initial: :active do
     event :close do
@@ -114,7 +120,7 @@ class Milestone < ApplicationRecord
   end
 
   def self.link_reference_pattern
-    @link_reference_pattern ||= super("milestones", /(?<milestone>\d+)/)
+    @link_reference_pattern ||= compose_link_reference_pattern('milestones', /(?<milestone>\d+)/)
   end
 
   def self.upcoming_ids(projects, groups)
@@ -129,7 +135,9 @@ class Milestone < ApplicationRecord
   end
 
   def participants
-    User.joins(assigned_issues: :milestone).where(milestones: { id: id }).distinct
+    User.joins(assigned_issues: :milestone)
+      .allow_cross_joins_across_databases(url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/422155')
+      .where(milestones: { id: id }).distinct
   end
 
   def self.sort_by_attribute(method)
@@ -252,6 +260,10 @@ class Milestone < ApplicationRecord
     else
       reference
     end
+  end
+
+  def check_for_spam?(*)
+    spammable_attribute_changed? && parent.public?
   end
 
   private

@@ -8,7 +8,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 WARNING:
 These are advanced settings. While they are used on GitLab.com, most GitLab
-instances should add more processes that all listen to all queues. This is the
+instances should only add more processes that listen to all queues. This is the
 same approach we take in our [Reference Architectures](../reference_architectures/index.md).
 
 GitLab has two options for creating Sidekiq processes that only handle specific
@@ -24,10 +24,6 @@ job classes:
 Both of these use the same [worker matching query](#worker-matching-query)
 syntax. While they can technically be used together, most deployments should
 choose one or the other; there is no particular benefit in combining them.
-
-Routing rules must be the same across all GitLab nodes as they are part of the
-application configuration. Queue selectors can be different across GitLab nodes
-because they only change the arguments to the launched Sidekiq process.
 
 ## Routing rules
 
@@ -60,6 +56,12 @@ After the Sidekiq routing rules are changed, administrators must take care with
 the migration to avoid losing jobs entirely, especially in a system with long
 queues of jobs. The migration can be done by following the migration steps
 mentioned in [Sidekiq job migration](sidekiq_job_migration.md).
+
+### Routing rules in a scaled architecture
+
+Routing rules must be the same across all GitLab nodes (especially GitLab Rails and Sidekiq nodes) as they are part of the
+application configuration. Queue selectors can be different across GitLab nodes
+because they only change the arguments to the launched Sidekiq process.
 
 ### Detailed example
 

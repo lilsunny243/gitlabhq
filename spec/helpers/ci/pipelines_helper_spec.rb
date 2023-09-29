@@ -72,28 +72,6 @@ RSpec.describe Ci::PipelinesHelper do
     end
   end
 
-  describe 'has_pipeline_badges?' do
-    let(:pipeline) { create(:ci_empty_pipeline) }
-
-    subject { helper.has_pipeline_badges?(pipeline) }
-
-    context 'when pipeline has a badge' do
-      before do
-        pipeline.drop!(:config_error)
-      end
-
-      it 'shows pipeline badges' do
-        expect(subject).to eq(true)
-      end
-    end
-
-    context 'when pipeline has no badges' do
-      it 'shows pipeline badges' do
-        expect(subject).to eq(false)
-      end
-    end
-  end
-
   describe '#pipelines_list_data' do
     let_it_be(:project) { create(:project) }
 
@@ -121,35 +99,8 @@ RSpec.describe Ci::PipelinesHelper do
                                            :has_gitlab_ci,
                                            :pipeline_editor_path,
                                            :suggested_ci_templates,
-                                           :ci_runner_settings_path])
-    end
-
-    describe 'the `any_runners_available` attribute' do
-      subject { data[:any_runners_available] }
-
-      context 'when the `runners_availability_section` experiment variant is control' do
-        before do
-          stub_experiments(runners_availability_section: :control)
-        end
-
-        it { is_expected.to be_nil }
-      end
-
-      context 'when the `runners_availability_section` experiment variant is candidate' do
-        before do
-          stub_experiments(runners_availability_section: :candidate)
-        end
-
-        context 'when there are no runners' do
-          it { is_expected.to eq('false') }
-        end
-
-        context 'when there are runners' do
-          let!(:runner) { create(:ci_runner, :project, projects: [project]) }
-
-          it { is_expected.to eq('true') }
-        end
-      end
+                                           :full_path,
+                                           :visibility_pipeline_id_type])
     end
 
     describe 'when the project is eligible for the `ios_specific_templates` experiment' do
@@ -218,6 +169,29 @@ RSpec.describe Ci::PipelinesHelper do
             it { is_expected.to eq('true') }
           end
         end
+      end
+    end
+  end
+
+  describe '#visibility_pipeline_id_type' do
+    subject { helper.visibility_pipeline_id_type }
+
+    context 'when user is not signed in' do
+      it 'shows default pipeline id type' do
+        expect(subject).to eq('id')
+      end
+    end
+
+    context 'when user is signed in' do
+      let(:user) { create(:user) }
+
+      before do
+        sign_in(user)
+        user.user_preference.update!(visibility_pipeline_id_type: 'iid')
+      end
+
+      it 'shows user preference pipeline id type' do
+        expect(subject).to eq('iid')
       end
     end
   end

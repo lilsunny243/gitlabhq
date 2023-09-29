@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User creates branch', :js, feature_category: :projects do
-  include Spec::Support::Helpers::Features::BranchesHelpers
+RSpec.describe 'User creates branch', :js, feature_category: :groups_and_projects do
+  include Features::BranchesHelpers
 
   let_it_be(:group) { create(:group, :public) }
-  let_it_be(:user) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
 
   shared_examples 'creates new branch' do
     specify do
@@ -81,7 +81,9 @@ RSpec.describe 'User creates branch', :js, feature_category: :projects do
           it 'does not create new branch' do
             invalid_branch_name = '1.0 stable'
 
-            create_branch(invalid_branch_name)
+            fill_in("branch_name", with: invalid_branch_name)
+            find('body').click
+            click_button("Create branch")
 
             expect(page).to have_content('Branch name is invalid')
             expect(page).to have_content("can't contain spaces")

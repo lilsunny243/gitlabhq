@@ -4,7 +4,8 @@ class WorkItem < Issue
   include Gitlab::Utils::StrongMemoize
 
   COMMON_QUICK_ACTIONS_COMMANDS = [
-    :title, :reopen, :close, :cc, :tableflip, :shrug
+    :title, :reopen, :close, :cc, :tableflip, :shrug, :type, :promote_to, :checkin_reminder,
+    :subscribe, :unsubscribe, :confidential, :award
   ].freeze
 
   self.table_name = 'issues'
@@ -16,14 +17,24 @@ class WorkItem < Issue
 
   has_many :child_links, class_name: '::WorkItems::ParentLink', foreign_key: :work_item_parent_id
   has_many :work_item_children, through: :child_links, class_name: 'WorkItem',
-                                foreign_key: :work_item_id, source: :work_item
+    foreign_key: :work_item_id, source: :work_item
   has_many :work_item_children_by_relative_position, -> { work_item_children_keyset_order },
-                                                     through: :child_links, class_name: 'WorkItem',
-                                                     foreign_key: :work_item_id, source: :work_item
+    through: :child_links, class_name: 'WorkItem',
+    foreign_key: :work_item_id, source: :work_item
 
   scope :inc_relations_for_permission_check, -> { includes(:author, project: :project_feature) }
+  scope :in_namespaces, ->(namespaces) { where(namespace: namespaces) }
 
-  delegate :supports_assignee?, to: :work_item_type
+  scope :with_confidentiality_check, ->(user) {
+    confidential_query = <<~SQL
+      issues.confidential = FALSE
+      OR (issues.confidential = TRUE
+        AND (issues.author_id = :user_id
+          OR EXISTS (SELECT TRUE FROM issue_assignees WHERE user_id = :user_id AND issue_id = issues.id)))
+    SQL
+
+    where(confidential_query, user_id: user.id)
+  }
 
   class << self
     def assignee_association_name
@@ -32,6 +43,14 @@ class WorkItem < Issue
 
     def test_reports_join_column
       'issues.id'
+    end
+
+    # def reference_pattern
+    #   # no-op: We currently only support link_reference_pattern parsing
+    # end
+
+    def link_reference_pattern
+      @link_reference_pattern ||= compose_link_reference_pattern('work_items', Gitlab::Regex.work_item)
     end
 
     def work_item_children_keyset_order
@@ -51,12 +70,23 @@ class WorkItem < Issue
         )
       ])
 
-      includes(:child_links).order(keyset_order)
+      includes(:parent_link).order(keyset_order)
+    end
+
+    override :related_link_class
+    def related_link_class
+      WorkItems::RelatedWorkItemLink
     end
   end
 
   def noteable_target_type_name
     'issue'
+  end
+
+  # Todo: remove method after target_type cleanup
+  # See https://gitlab.com/gitlab-org/gitlab/-/issues/416009
+  def todoable_target_type_name
+    %w[Issue WorkItem]
   end
 
   def widgets
@@ -65,6 +95,16 @@ class WorkItem < Issue
         widget_class.new(self)
       end
     end
+  end
+
+  # Returns widget object if available
+  # type parameter can be a symbol, for example, `:description`.
+  def get_widget(type)
+    widgets.find do |widget|
+      widget.instance_of?(WorkItems::Widgets.const_get(type.to_s.camelize, false))
+    end
+  rescue NameError
+    nil
   end
 
   def ancestors
@@ -83,6 +123,46 @@ class WorkItem < Issue
     commands_for_widgets = work_item_type.widgets.flat_map(&:quick_action_commands).uniq
 
     COMMON_QUICK_ACTIONS_COMMANDS + commands_for_widgets
+  end
+
+  # Widgets have a set of quick action params that they must process.
+  # Map them to widget_params so they can be picked up by widget services.
+  def transform_quick_action_params(command_params)
+    common_params = command_params.dup
+    widget_params = {}
+
+    work_item_type.widgets
+          .filter { |widget| widget.respond_to?(:quick_action_params) }
+          .each do |widget|
+            widget.quick_action_params
+              .filter { |param_name| common_params.key?(param_name) }
+              .each do |param_name|
+                widget_params[widget.api_symbol] ||= {}
+                param_value = common_params.delete(param_name)
+
+                widget_params[widget.api_symbol].merge!(widget.process_quick_action_param(param_name, param_value))
+              end
+          end
+
+    { common: common_params, widgets: widget_params }
+  end
+
+  def linked_work_items(current_user = nil, authorize: true, preload: nil, link_type: nil)
+    return [] if new_record?
+
+    linked_work_items = linked_work_items_query(link_type).preload(preload).reorder('issue_link_id')
+    return linked_work_items unless authorize
+
+    cross_project_filter = ->(work_items) { work_items.where(project: project) }
+    Ability.work_items_readable_by_user(
+      linked_work_items,
+      current_user,
+      filters: { read_cross_project: cross_project_filter }
+    )
+  end
+
+  def linked_items_count
+    linked_work_items(authorize: false).size
   end
 
   private
@@ -109,6 +189,91 @@ class WorkItem < Issue
     base = base.where(work_item_type_id: work_item_type_id) if options[:same_type]
 
     ::Gitlab::WorkItems::WorkItemHierarchy.new(base, options: options)
+  end
+
+  override :allowed_work_item_type_change
+  def allowed_work_item_type_change
+    return unless work_item_type_id_changed?
+
+    child_links = WorkItems::ParentLink.for_parents(id)
+    parent_link = ::WorkItems::ParentLink.find_by(work_item: self)
+
+    validate_parent_restrictions(parent_link)
+    validate_child_restrictions(child_links)
+    validate_depth(parent_link, child_links)
+  end
+
+  def validate_parent_restrictions(parent_link)
+    return unless parent_link
+
+    parent_link.work_item.work_item_type_id = work_item_type_id
+
+    unless parent_link.valid?
+      errors.add(
+        :work_item_type_id,
+        format(
+          _('cannot be changed to %{new_type} when linked to a parent %{parent_type}.'),
+          new_type: work_item_type.name.downcase,
+          parent_type: parent_link.work_item_parent.work_item_type.name.downcase
+        )
+      )
+    end
+  end
+
+  def validate_child_restrictions(child_links)
+    return if child_links.empty?
+
+    child_type_ids = child_links.joins(:work_item).select(self.class.arel_table[:work_item_type_id]).distinct
+    restrictions = ::WorkItems::HierarchyRestriction.where(
+      parent_type_id: work_item_type_id,
+      child_type_id: child_type_ids
+    )
+
+    # We expect a restriction for every child type
+    if restrictions.size < child_type_ids.size
+      errors.add(
+        :work_item_type_id,
+        format(_('cannot be changed to %{new_type} with these child item types.'), new_type: work_item_type.name)
+      )
+    end
+  end
+
+  def validate_depth(parent_link, child_links)
+    restriction = ::WorkItems::HierarchyRestriction.find_by_parent_type_id_and_child_type_id(
+      work_item_type_id,
+      work_item_type_id
+    )
+    return unless restriction&.maximum_depth
+
+    children_with_new_type = self.class.where(id: child_links.select(:work_item_id))
+      .where(work_item_type_id: work_item_type_id)
+    max_child_depth = ::Gitlab::WorkItems::WorkItemHierarchy.new(children_with_new_type).max_descendants_depth.to_i
+
+    ancestor_depth =
+      if parent_link&.work_item_parent && parent_link.work_item_parent.work_item_type_id == work_item_type_id
+        parent_link.work_item_parent.same_type_base_and_ancestors.count
+      else
+        0
+      end
+
+    if max_child_depth + ancestor_depth > restriction.maximum_depth - 1
+      errors.add(:work_item_type_id, _('reached maximum depth'))
+    end
+  end
+
+  def linked_work_items_query(link_type)
+    type_condition =
+      if link_type == WorkItems::RelatedWorkItemLink::TYPE_RELATES_TO
+        " AND issue_links.link_type = #{WorkItems::RelatedWorkItemLink.link_types[link_type]}"
+      else
+        ""
+      end
+
+    linked_issues_select
+      .joins("INNER JOIN issue_links ON
+         (issue_links.source_id = issues.id AND issue_links.target_id = #{id}#{type_condition})
+         OR
+         (issue_links.target_id = issues.id AND issue_links.source_id = #{id}#{type_condition})")
   end
 end
 

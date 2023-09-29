@@ -1,6 +1,7 @@
 import { GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount, mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import StageList from '~/ide/components/jobs/list.vue';
 import Stage from '~/ide/components/jobs/stage.vue';
@@ -48,11 +49,6 @@ describe('IDE stages list', () => {
 
   afterEach(() => {
     Object.values(storeActions).forEach((actionMock) => actionMock.mockClear());
-  });
-
-  afterAll(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   it('renders loading icon when no stages & loading', () => {

@@ -4,7 +4,7 @@ group: Code Review
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Collaborate on merge requests across forks **(FREE)**
+# Collaborate on merge requests across forks **(FREE ALL)**
 
 When you open a merge request from your [fork](../repository/forking_workflow.md), you can allow upstream
 members to collaborate with you on your branch.
@@ -68,7 +68,7 @@ To change or add a commit to the contributor's merge request:
 
    ```shell
    git fetch "git@gitlab.com:contributor/forked-project.git" 'fork-branch'
-   git checkout -b contributor/fork-branch' FETCH_HEAD
+   git checkout -b 'contributor/fork-branch' FETCH_HEAD
    ```
 
    Those commands fetch the branch from the forked project, and create a local branch
@@ -109,5 +109,5 @@ To see the pipeline status from the merge request page of a forked project
 going back to the original project:
 
 1. Create a group containing all the upstream members.
-1. Go to the **Project information > Members** page in the forked project and invite the newly-created
+1. Go to the **Manage > Members** page in the forked project and invite the newly-created
    group to the forked project.

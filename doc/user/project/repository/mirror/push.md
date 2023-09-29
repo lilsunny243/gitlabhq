@@ -2,10 +2,9 @@
 stage: Create
 group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
-# Push mirroring **(FREE)**
+# Push mirroring **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/40137) in GitLab 13.5: LFS support over HTTPS.
 
@@ -26,15 +25,20 @@ When you push a change to the upstream repository, the push mirror receives it:
 - Within five minutes.
 - Within one minute, if you enabled **Only mirror protected branches**.
 
-In the case of a diverged branch, an error displays in the **Mirroring repositories**
-section.
+When a branch is merged into the default branch and deleted in the source project,
+it is deleted from the remote mirror on the next push. Branches with unmerged
+changes are kept. If a branch diverges, the **Mirroring repositories** section
+displays an error.
+
+[GitLab Silent Mode](../../../../administration/silent_mode/index.md) disables pushing to,
+and pulling from, remote mirrors.
 
 ## Configure push mirroring
 
 To set up push mirroring for an existing project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Enter a repository URL.
 1. In the **Mirror direction** dropdown list, select **Push**.
@@ -76,10 +80,21 @@ through the [remote mirrors API](../../../../api/remote_mirrors.md).
 
 To configure a mirror from GitLab to GitHub:
 
-1. Create a [GitHub personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
-   with `public_repo` selected.
-1. Enter a **Git repository URL** with this format:
-   `https://<your_access_token>@github.com/<github_group>/<github_project>.git`.
+1. Create a [GitHub fine-grained personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#fine-grained-personal-access-tokens)
+   with at least read and write permissions on the [repository contents](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens#repository-permissions-for-contents). If your
+   repository contains a `.github/workflows` directory, you must also grant
+   read and write access for the [Workflows](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens#repository-permissions-for-workflows).
+   For a more fine-grained access, you can configure your token to only apply
+   to the specific repository.
+1. Enter a **Git repository URL** with this format, changing the variables as needed:
+
+   ```plaintext
+   https://github.com/GROUP/PROJECT.git
+   ```
+
+   - `GROUP`: The group on GitHub.
+   - `PROJECT`: The project on GitHub.
+1. For **Username**, enter the username of the owner of the personal access token.
 1. For **Password**, enter your GitHub personal access token.
 1. Select **Mirror repository**.
 
@@ -148,20 +163,18 @@ To set up a mirror from GitLab to AWS CodeCommit:
 1. In the AWS CodeCommit console, create a new repository to mirror from your GitLab repository.
 1. Open your new repository, and then select **Clone URL > Clone HTTPS** (not **Clone HTTPS (GRC)**).
 1. In GitLab, open the repository to be push-mirrored.
-1. On the left sidebar, select **Settings > Repository**, and then expand **Mirroring repositories**.
-1. Fill in the **Git repository URL** field using this format:
+1. Select **Settings > Repository**, and then expand **Mirroring repositories**.
+1. Fill in the **Git repository URL** field using this format, replacing
+   `<aws-region>` with your AWS region, and
+   `<your_codecommit_repo>` with the name of your repository in CodeCommit:
 
    ```plaintext
-   https://<your_aws_git_userid>@git-codecommit.<aws-region>.amazonaws.com/v1/repos/<your_codecommit_repo>
+   https://git-codecommit.<aws-region>.amazonaws.com/v1/repos/<your_codecommit_repo>
    ```
 
-   Replace `<your_aws_git_userid>` with the AWS **special HTTPS Git user ID**
-   from the IAM Git credentials created earlier. Replace `<your_codecommit_repo>`
-   with the name of your repository in CodeCommit.
-
-1. For **Mirror direction**, select **Push**.
-1. For **Authentication method**, select **Password**. Fill in the **Password** box
-   with the special IAM Git clone user ID **password** created earlier in AWS.
+1. For **Authentication method**, select **Username and Password**.
+1. For **Username**, enter the AWS **special HTTPS Git user ID**.
+1. For **Password**, enter the special IAM Git clone user ID password created earlier in AWS.
 1. Leave the option **Only mirror protected branches** for CodeCommit. It pushes more
    frequently (from every five minutes to every minute).
 
@@ -187,11 +200,13 @@ If it isn't working correctly, a red `error` tag appears, and shows the error me
    [personal access token](../../../profile/personal_access_tokens.md) with `write_repository` scope.
 1. On the source GitLab instance:
    1. Enter the **Git repository URL** using this format:
-      `https://oauth2@<destination host>/<your_gitlab_group_or_name>/<your_gitlab_project>.git`.
+      `https://<destination host>/<your_gitlab_group_or_name>/<your_gitlab_project>.git`.
+   1. Enter the **Username** `oauth2`.
    1. Enter the **Password**. Use the GitLab personal access token created on the
       destination GitLab instance.
    1. Select **Mirror repository**.
 
 ## Related topics
 
-- [Remote mirrors API](../../../../api/remote_mirrors.md).
+- [Troubleshooting](troubleshooting.md) for repository mirroring.
+- [Remote mirrors API](../../../../api/remote_mirrors.md)

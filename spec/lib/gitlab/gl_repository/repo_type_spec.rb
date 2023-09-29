@@ -18,7 +18,7 @@ RSpec.describe Gitlab::GlRepository::RepoType do
       let(:expected_identifier) { "project-#{expected_id}" }
       let(:expected_suffix) { '' }
       let(:expected_container) { project }
-      let(:expected_repository) { ::Repository.new(project.full_path, project, shard: project.repository_storage, disk_path: project.disk_path, repo_type: Gitlab::GlRepository::PROJECT) }
+      let(:expected_repository) { ::Repository.new(project.full_path, project, shard: project.repository_storage, disk_path: project.disk_path, repo_type: described_class) }
     end
 
     it 'knows its type' do
@@ -49,7 +49,7 @@ RSpec.describe Gitlab::GlRepository::RepoType do
       let(:expected_identifier) { "wiki-#{expected_id}" }
       let(:expected_suffix) { '.wiki' }
       let(:expected_container) { wiki }
-      let(:expected_repository) { ::Repository.new(wiki.full_path, wiki, shard: wiki.repository_storage, disk_path: wiki.disk_path, repo_type: Gitlab::GlRepository::WIKI) }
+      let(:expected_repository) { ::Repository.new(wiki.full_path, wiki, shard: wiki.repository_storage, disk_path: wiki.disk_path, repo_type: described_class) }
     end
 
     it 'knows its type' do
@@ -78,7 +78,7 @@ RSpec.describe Gitlab::GlRepository::RepoType do
         let(:expected_id) { personal_snippet.id }
         let(:expected_identifier) { "snippet-#{expected_id}" }
         let(:expected_suffix) { '' }
-        let(:expected_repository) { ::Repository.new(personal_snippet.full_path, personal_snippet, shard: personal_snippet.repository_storage, disk_path: personal_snippet.disk_path, repo_type: Gitlab::GlRepository::SNIPPET) }
+        let(:expected_repository) { ::Repository.new(personal_snippet.full_path, personal_snippet, shard: personal_snippet.repository_storage, disk_path: personal_snippet.disk_path, repo_type: described_class) }
         let(:expected_container) { personal_snippet }
       end
 
@@ -107,7 +107,7 @@ RSpec.describe Gitlab::GlRepository::RepoType do
         let(:expected_id) { project_snippet.id }
         let(:expected_identifier) { "snippet-#{expected_id}" }
         let(:expected_suffix) { '' }
-        let(:expected_repository) { ::Repository.new(project_snippet.full_path, project_snippet, shard: project_snippet.repository_storage, disk_path: project_snippet.disk_path, repo_type: Gitlab::GlRepository::SNIPPET) }
+        let(:expected_repository) { ::Repository.new(project_snippet.full_path, project_snippet, shard: project_snippet.repository_storage, disk_path: project_snippet.disk_path, repo_type: described_class) }
         let(:expected_container) { project_snippet }
       end
 
@@ -133,11 +133,11 @@ RSpec.describe Gitlab::GlRepository::RepoType do
 
   describe Gitlab::GlRepository::DESIGN do
     it_behaves_like 'a repo type' do
-      let(:expected_identifier) { "design-#{project.id}" }
-      let(:expected_id) { project.id }
+      let(:expected_repository) { project.design_repository }
+      let(:expected_container) { project.design_management_repository }
+      let(:expected_id) { expected_container.id }
+      let(:expected_identifier) { "design-#{expected_id}" }
       let(:expected_suffix) { '.design' }
-      let(:expected_repository) { ::DesignManagement::Repository.new(project) }
-      let(:expected_container) { project }
     end
 
     it 'uses the design access checker' do
@@ -161,6 +161,25 @@ RSpec.describe Gitlab::GlRepository::RepoType do
         expect(described_class.valid?(personal_snippet_path)).to be_falsey
         expect(described_class.valid?(project_snippet_path)).to be_falsey
       end
+    end
+
+    describe '.project_for' do
+      it 'returns a project when container is a design_management_repository' do
+        expect(described_class.project_for(project.design_management_repository)).to be_instance_of(Project)
+      end
+    end
+  end
+
+  describe '.repository_for' do
+    subject { Gitlab::GlRepository::DESIGN }
+
+    let(:expected_message) do
+      "Expected container class to be #{subject.container_class} for " \
+        "repo type #{subject.name}, but found #{project.class.name} instead."
+    end
+
+    it 'raises an error when container class does not match given container_class' do
+      expect { subject.repository_for(project) }.to raise_error(Gitlab::GlRepository::ContainerClassMismatchError, expected_message)
     end
   end
 end

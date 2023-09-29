@@ -60,16 +60,9 @@ RSpec.describe SearchHelper, feature_category: :global_search do
         expect(search_autocomplete_opts(project.name).size).to eq(1)
       end
 
-      context 'for users' do
+      shared_examples 'for users' do
         let_it_be(:another_user) { create(:user, name: 'Jane Doe') }
         let(:term) { 'jane' }
-
-        it 'makes a call to SearchService' do
-          params = { search: term, per_page: 5, scope: 'users' }
-          expect(SearchService).to receive(:new).with(current_user, params).and_call_original
-
-          search_autocomplete_opts(term)
-        end
 
         it 'returns users matching the term' do
           result = search_autocomplete_opts(term)
@@ -88,6 +81,68 @@ RSpec.describe SearchHelper, feature_category: :global_search do
           end
         end
 
+        describe 'permissions' do
+          let(:term) { 'jane@doe' }
+          let(:private_email_user) { create(:user, email: term) }
+          let(:public_email_user) { create(:user, :public_email, email: term) }
+          let(:banned_user) { create(:user, :banned, email: term) }
+          let(:user_with_other_email) { create(:user, email: 'something@else') }
+          let(:secondary_email) { create(:email, :confirmed, user: user_with_other_email, email: term) }
+          let(:ids) { search_autocomplete_opts(term).pluck(:id) }
+
+          context 'when current_user is an admin' do
+            before do
+              allow(current_user).to receive(:can_admin_all_resources?).and_return(true)
+            end
+
+            it 'includes users with matching public emails' do
+              public_email_user
+              expect(ids).to include(public_email_user.id)
+            end
+
+            it 'includes users in forbidden states' do
+              banned_user
+              expect(ids).to include(banned_user.id)
+            end
+
+            it 'includes users without matching public emails but with matching private emails' do
+              private_email_user
+              expect(ids).to include(private_email_user.id)
+            end
+
+            it 'includes users matching on secondary email' do
+              secondary_email
+              expect(ids).to include(secondary_email.user_id)
+            end
+          end
+
+          context 'when current_user is not an admin' do
+            before do
+              allow(current_user).to receive(:can_admin_all_resources?).and_return(false)
+            end
+
+            it 'includes users with matching public emails' do
+              public_email_user
+              expect(ids).to include(public_email_user.id)
+            end
+
+            it 'does not include users in forbidden states' do
+              banned_user
+              expect(ids).not_to include(banned_user.id)
+            end
+
+            it 'does not include users without matching public emails but with matching private emails' do
+              private_email_user
+              expect(ids).not_to include(private_email_user.id)
+            end
+
+            it 'does not include users matching on secondary email' do
+              secondary_email
+              expect(ids).not_to include(secondary_email.user_id)
+            end
+          end
+        end
+
         context 'with limiting' do
           let!(:users) { create_list(:user, 6, name: 'Jane Doe') }
 
@@ -97,6 +152,8 @@ RSpec.describe SearchHelper, feature_category: :global_search do
           end
         end
       end
+
+      include_examples 'for users'
 
       it "includes the required project attrs" do
         project = create(:project, namespace: create(:namespace, owner: user))
@@ -268,10 +325,21 @@ RSpec.describe SearchHelper, feature_category: :global_search do
             expect(results.first).to include({
               category: 'In this project',
               id: issue.id,
-              label: 'test title (#1)',
+              label: "test title (##{issue.iid})",
               url: ::Gitlab::Routing.url_helpers.project_issue_path(issue.project, issue),
               avatar_url: '' # project has no avatar
             })
+          end
+        end
+
+        context 'with a search scope' do
+          let(:term) { 'bla' }
+          let(:scope) { 'project' }
+
+          it 'returns scoped resource results' do
+            expect(self).to receive(:resource_results).with(term, scope: scope).and_return([])
+
+            search_autocomplete_opts(term, filter: :search, scope: scope)
           end
         end
       end
@@ -301,6 +369,136 @@ RSpec.describe SearchHelper, feature_category: :global_search do
           it 'does not include admin sections' do
             expect(search_autocomplete_opts('admin').size).to eq(0)
           end
+        end
+      end
+    end
+  end
+
+  describe 'resource_results' do
+    using RSpec::Parameterized::TableSyntax
+
+    let_it_be(:user) { create(:user, name: 'User') }
+    let_it_be(:group) { create(:group, name: 'Group') }
+    let_it_be(:project) { create(:project, name: 'Project') }
+    let!(:issue) { create(:issue, project: project) }
+    let(:issue_iid) { "\##{issue.iid}" }
+
+    before do
+      allow(self).to receive(:current_user).and_return(user)
+      group.add_owner(user)
+      project.add_owner(user)
+      @project = project
+    end
+
+    where(:term, :size, :category) do
+      'g'             | 0 | 'Groups'
+      'gr'            | 1 | 'Groups'
+      'gro'           | 1 | 'Groups'
+      'p'             | 0 | 'Projects'
+      'pr'            | 1 | 'Projects'
+      'pro'           | 1 | 'Projects'
+      'u'             | 0 | 'Users'
+      'us'            | 1 | 'Users'
+      'use'           | 1 | 'Users'
+      ref(:issue_iid) | 1 | 'In this project'
+    end
+
+    with_them do
+      it 'returns results only if the term is more than or equal to Gitlab::Search::Params::MIN_TERM_LENGTH' do
+        results = resource_results(term)
+
+        expect(results.size).to eq(size)
+        expect(results.first[:category]).to eq(category) if size == 1
+      end
+    end
+
+    context 'with a search scope' do
+      let(:term) { 'bla' }
+      let(:scope) { 'project' }
+
+      it 'returns only scope-specific results' do
+        expect(self).to receive(:scope_specific_results).with(term, scope).and_return([])
+        expect(self).not_to receive(:groups_autocomplete)
+        expect(self).not_to receive(:projects_autocomplete)
+        expect(self).not_to receive(:users_autocomplete)
+        expect(self).not_to receive(:issue_autocomplete)
+
+        resource_results(term, scope: scope)
+      end
+    end
+  end
+
+  describe 'scope_specific_results' do
+    using RSpec::Parameterized::TableSyntax
+
+    let_it_be(:user) { create(:user, name: 'Searched') }
+    let_it_be(:project) { create(:project, name: 'Searched') }
+    let_it_be(:issue) { create(:issue, title: 'Searched', project: project) }
+
+    before do
+      allow(self).to receive(:current_user).and_return(user)
+      allow_next_instance_of(Gitlab::Search::RecentIssues) do |recent_issues|
+        allow(recent_issues).to receive(:search).and_return([issue])
+      end
+      project.add_developer(user)
+    end
+
+    where(:scope, :category) do
+      'user'    | 'Users'
+      'project' | 'Projects'
+      'issue'   | 'Recent issues'
+    end
+
+    with_them do
+      it 'returns results only for the specific scope' do
+        results = scope_specific_results('sea', scope)
+        expect(results.size).to eq(1)
+        expect(results.first[:category]).to eq(category)
+      end
+    end
+
+    context 'when scope is unknown' do
+      it 'does not return any results' do
+        expect(scope_specific_results('sea', 'other')).to eq([])
+      end
+    end
+  end
+
+  describe 'projects_autocomplete' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:project_1) { create(:project, name: 'test 1') }
+    let_it_be(:project_2) { create(:project, name: 'test 2') }
+    let(:search_term) { 'test' }
+
+    before do
+      allow(self).to receive(:current_user).and_return(user)
+    end
+
+    context 'when the user does not have access to projects' do
+      it 'does not return any results' do
+        expect(projects_autocomplete(search_term)).to eq([])
+      end
+    end
+
+    context 'when the user has access to one project' do
+      before do
+        project_2.add_developer(user)
+      end
+
+      it 'returns the project' do
+        expect(projects_autocomplete(search_term).pluck(:id)).to eq([project_2.id])
+      end
+
+      context 'when a project namespace matches the search term but the project does not' do
+        let_it_be(:group) { create(:group, name: 'test group') }
+        let_it_be(:project_3) { create(:project, name: 'nothing', namespace: group) }
+
+        before do
+          group.add_owner(user)
+        end
+
+        it 'returns all projects matching the term' do
+          expect(projects_autocomplete(search_term).pluck(:id)).to match_array([project_2.id, project_3.id])
         end
       end
     end
@@ -524,78 +722,6 @@ RSpec.describe SearchHelper, feature_category: :global_search do
     end
   end
 
-  describe '#show_user_search_tab?' do
-    subject { show_user_search_tab? }
-
-    let(:current_user) { build(:user) }
-
-    before do
-      allow(self).to receive(:current_user).and_return(current_user)
-    end
-
-    context 'when project search' do
-      before do
-        @project = :some_project
-
-        expect(self).to receive(:project_search_tabs?)
-          .with(:members)
-          .and_return(:value)
-      end
-
-      it 'delegates to project_search_tabs?' do
-        expect(subject).to eq(:value)
-      end
-    end
-
-    context 'when group search' do
-      before do
-        @group = :some_group
-      end
-
-      context 'when current_user can read_users_list' do
-        before do
-          allow(self).to receive(:can?).with(current_user, :read_users_list).and_return(true)
-        end
-
-        it { is_expected.to eq(true) }
-      end
-
-      context 'when current_user cannot read_users_list' do
-        before do
-          allow(self).to receive(:can?).with(current_user, :read_users_list).and_return(false)
-        end
-
-        it { is_expected.to eq(false) }
-      end
-    end
-
-    context 'when global search' do
-      context 'when current_user can read_users_list' do
-        before do
-          allow(self).to receive(:can?).with(current_user, :read_users_list).and_return(true)
-        end
-
-        it { is_expected.to eq(true) }
-
-        context 'when global_search_user_tab feature flag is disabled' do
-          before do
-            stub_feature_flags(global_search_users_tab: false)
-          end
-
-          it { is_expected.to eq(false) }
-        end
-      end
-
-      context 'when current_user cannot read_users_list' do
-        before do
-          allow(self).to receive(:can?).with(current_user, :read_users_list).and_return(false)
-        end
-
-        it { is_expected.to eq(false) }
-      end
-    end
-  end
-
   describe '#repository_ref' do
     using RSpec::Parameterized::TableSyntax
 
@@ -671,22 +797,38 @@ RSpec.describe SearchHelper, feature_category: :global_search do
       allow(self).to receive(:current_user).and_return(:the_current_user)
     end
 
-    where(:confidential, :expected) do
+    where(:input, :expected) do
       '0'       | false
       '1'       | true
       'yes'     | true
       'no'      | false
+      'true'    | true
+      'false'   | false
       true      | true
       false     | false
     end
 
-    let(:params) { { confidential: confidential } }
+    describe 'for confidential' do
+      let(:params) { { confidential: input } }
 
-    with_them do
-      it 'transforms confidentiality param' do
-        expect(::SearchService).to receive(:new).with(:the_current_user, { confidential: expected })
+      with_them do
+        it 'transforms param' do
+          expect(::SearchService).to receive(:new).with(:the_current_user, { confidential: expected })
 
-        subject
+          subject
+        end
+      end
+    end
+
+    describe 'for include_archived' do
+      let(:params) { { include_archived: input } }
+
+      with_them do
+        it 'transforms param' do
+          expect(::SearchService).to receive(:new).with(:the_current_user, { include_archived: expected })
+
+          subject
+        end
       end
     end
   end
@@ -829,6 +971,21 @@ RSpec.describe SearchHelper, feature_category: :global_search do
         expect(header_search_context[:project_metadata]).to eq(project_metadata)
       end
 
+      context 'feature issues is not available' do
+        let(:feature_available) { false }
+        let(:project_metadata) { { mr_path: project_merge_requests_path(project) } }
+
+        before do
+          allow(project).to receive(:feature_available?).and_call_original
+          allow(project).to receive(:feature_available?).with(:issues, current_user).and_return(feature_available)
+        end
+
+        it 'adds the :project and :project-metadata correctly to hash' do
+          expect(header_search_context[:project]).to eq({ id: project.id, name: project.name })
+          expect(header_search_context[:project_metadata]).to eq(project_metadata)
+        end
+      end
+
       context 'with scope' do
         let(:scope) { 'issues' }
 
@@ -884,222 +1041,24 @@ RSpec.describe SearchHelper, feature_category: :global_search do
     end
   end
 
-  describe '.search_navigation' do
-    using RSpec::Parameterized::TableSyntax
-    let(:user) { build(:user) }
-    let_it_be(:project) { build(:project) }
-
-    before do
-      allow(self).to receive(:current_user).and_return(user)
-      allow(self).to receive(:can?).and_return(true)
-      allow(self).to receive(:project_search_tabs?).and_return(false)
-      allow(self).to receive(:feature_flag_tab_enabled?).and_return(false)
-    end
-
-    context 'projects' do
-      where(:global_project, :condition) do
-        nil                | true
-        ref(:project)      | false
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          @project = global_project
-
-          expect(search_navigation[:projects][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'code' do
-      where(:feature_flag_tab_enabled, :show_elasticsearch_tabs, :global_project, :project_search_tabs, :condition) do
-        false                           | false                   | nil            | false                | false
-        true                            | true                    | nil            | true                 | true
-        true                            | false                   | nil            | false                | false
-        false                           | true                    | nil            | false                | false
-        false                           | false                   | ref(:project)  | true                 | true
-        true                            | false                   | ref(:project)  | false                | false
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          @project = global_project
-          allow(search_service).to receive(:show_elasticsearch_tabs?).and_return(show_elasticsearch_tabs)
-          allow(self).to receive(:feature_flag_tab_enabled?).with(:global_search_code_tab).and_return(feature_flag_tab_enabled)
-          allow(self).to receive(:project_search_tabs?).with(:blobs).and_return(project_search_tabs)
-
-          expect(search_navigation[:blobs][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'issues' do
-      where(:project_search_tabs, :global_search_issues_tab, :condition) do
-        false                     | false                    | false
-        false                     | true                     | true
-        true                      | false                    | true
-        true                      | true                     | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          allow(self).to receive(:feature_flag_tab_enabled?).with(:global_search_issues_tab).and_return(global_search_issues_tab)
-          allow(self).to receive(:project_search_tabs?).with(:issues).and_return(project_search_tabs)
-
-          expect(search_navigation[:issues][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'merge requests' do
-      where(:project_search_tabs, :feature_flag_tab_enabled, :condition) do
-        false                     | false                    | false
-        true                      | false                    | true
-        false                     | true                     | true
-        true                      | true                     | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          allow(self).to receive(:feature_flag_tab_enabled?).with(:global_search_merge_requests_tab).and_return(feature_flag_tab_enabled)
-          allow(self).to receive(:project_search_tabs?).with(:merge_requests).and_return(project_search_tabs)
-
-          expect(search_navigation[:merge_requests][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'wiki' do
-      where(:global_search_wiki_tab, :show_elasticsearch_tabs, :global_project, :project_search_tabs, :condition) do
-        false                         | false                   | nil            | true                | true
-        false                         | false                   | nil            | false               | false
-        false                         | true                    | nil            | false               | false
-        true                          | false                   | nil            | false               | false
-        true                          | true                    | ref(:project)  | false               | false
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          @project = global_project
-          allow(search_service).to receive(:show_elasticsearch_tabs?).and_return(show_elasticsearch_tabs)
-          allow(self).to receive(:feature_flag_tab_enabled?).with(:global_search_wiki_tab).and_return(global_search_wiki_tab)
-          allow(self).to receive(:project_search_tabs?).with(:wiki).and_return(project_search_tabs)
-
-          expect(search_navigation[:wiki_blobs][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'commits' do
-      where(:global_search_commits_tab, :show_elasticsearch_tabs, :global_project, :project_search_tabs, :condition) do
-        false                           | false                   | nil            | true                | true
-        false                           | false                   | nil            | false               | false
-        false                           | true                    | nil            | false               | false
-        true                            | false                   | nil            | false               | false
-        true                            | true                    | ref(:project)  | false               | false
-        true                            | true                    | nil            | false               | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          @project = global_project
-          allow(search_service).to receive(:show_elasticsearch_tabs?).and_return(show_elasticsearch_tabs)
-          allow(self).to receive(:feature_flag_tab_enabled?).with(:global_search_commits_tab).and_return(global_search_commits_tab)
-          allow(self).to receive(:project_search_tabs?).with(:commits).and_return(project_search_tabs)
-
-          expect(search_navigation[:commits][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'comments' do
-      where(:project_search_tabs, :show_elasticsearch_tabs, :condition) do
-        true                      | true                    | true
-        false                     | false                   | false
-        false                     | true                    | true
-        true                      | false                   | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          allow(search_service).to receive(:show_elasticsearch_tabs?).and_return(show_elasticsearch_tabs)
-          allow(self).to receive(:project_search_tabs?).with(:notes).and_return(project_search_tabs)
-
-          expect(search_navigation[:notes][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'milestones' do
-      where(:global_project, :project_search_tabs, :condition) do
-        ref(:project)             | true                | true
-        nil                       | false               | true
-        ref(:project)             | false               | false
-        nil                       | true                | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          @project = global_project
-          allow(self).to receive(:project_search_tabs?).with(:milestones).and_return(project_search_tabs)
-
-          expect(search_navigation[:milestones][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'users' do
-      where(:show_user_search_tab, :condition) do
-        true                       | true
-        false                      | false
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          allow(self).to receive(:show_user_search_tab?).and_return(show_user_search_tab)
-
-          expect(search_navigation[:users][:condition]).to eq(condition)
-        end
-      end
-    end
-
-    context 'snippet_titles' do
-      where(:global_project, :global_show_snippets, :condition) do
-        ref(:project)         | true                 | false
-        nil                   | false                | false
-        ref(:project)         | false                | false
-        nil                   | true                 | true
-      end
-
-      with_them do
-        it 'data item condition is set correctly' do
-          allow(search_service).to receive(:show_snippets?).and_return(global_show_snippets)
-          @project = global_project
-
-          expect(search_navigation[:snippet_titles][:condition]).to eq(condition)
-        end
-      end
-    end
-  end
-
   describe '.search_navigation_json' do
     using RSpec::Parameterized::TableSyntax
 
-    context 'with data' do
+    context 'with some tab conditions set to false' do
       example_data_1 = {
         projects: { label: _("Projects"), condition: true },
-        blobs: {    label: _("Code"), condition: false }
+        blobs: { label: _("Code"), condition: false }
       }
 
       example_data_2 = {
         projects: { label: _("Projects"), condition: false },
-        blobs: {    label: _("Code"), condition: false }
+        blobs: { label: _("Code"), condition: false }
       }
 
       example_data_3 = {
         projects: { label: _("Projects"), condition: true },
-        blobs: {    label: _("Code"), condition: true },
-        epics: {    label: _("Epics"), condition: true }
+        blobs: { label: _("Code"), condition: true },
+        epics: { label: _("Epics"), condition: true }
       }
 
       where(:data, :matcher) do
@@ -1110,28 +1069,31 @@ RSpec.describe SearchHelper, feature_category: :global_search do
 
       with_them do
         it 'renders data correctly' do
-          allow(self).to receive(:search_navigation).with(no_args).and_return(data)
+          allow(self).to receive(:current_user).and_return(build(:user))
+          allow_next_instance_of(Search::Navigation) do |search_nav|
+            allow(search_nav).to receive(:tabs).and_return(data)
+          end
 
           expect(search_navigation_json).to instance_exec(&matcher)
         end
       end
     end
-  end
 
-  describe '.search_navigation_json with .search_navigation' do
-    before do
-      allow(self).to receive(:current_user).and_return(build(:user))
-      allow(self).to receive(:can?).and_return(true)
-      allow(self).to receive(:project_search_tabs?).and_return(true)
-      allow(self).to receive(:feature_flag_tab_enabled?).and_return(true)
-      allow(self).to receive(:feature_flag_tab_enabled?).and_return(true)
-      allow(search_service).to receive(:show_elasticsearch_tabs?).and_return(true)
-      allow(search_service).to receive(:show_snippets?).and_return(true)
-      @project = nil
-    end
+    context 'when all options enabled' do
+      before do
+        allow(self).to receive(:current_user).and_return(build(:user))
+        allow(search_service).to receive(:show_snippets?).and_return(true)
+        allow_next_instance_of(Search::Navigation) do |search_nav|
+          allow(search_nav).to receive(:tab_enabled_for_project?).and_return(true)
+          allow(search_nav).to receive(:feature_flag_tab_enabled?).and_return(true)
+        end
 
-    it 'test search navigation item order for CE all options enabled' do
-      expect(Gitlab::Json.parse(search_navigation_json).keys).to eq(%w[projects blobs issues merge_requests wiki_blobs commits notes milestones users snippet_titles])
+        @project = nil
+      end
+
+      it 'returns items in order' do
+        expect(Gitlab::Json.parse(search_navigation_json).keys).to eq(%w[projects blobs issues merge_requests wiki_blobs commits notes milestones users snippet_titles])
+      end
     end
   end
 
@@ -1141,9 +1103,9 @@ RSpec.describe SearchHelper, feature_category: :global_search do
     context 'data' do
       where(:scope, :label, :data, :search, :active_scope) do
         "projects"       | "Projects"                | { qa_selector: 'projects_tab' } | nil                  | "projects"
-        "snippet_titles" | "Titles and Descriptions" | nil                             | { snippets: "test" } | "code"
+        "snippet_titles" | "Snippets"                | nil                             | { snippets: "test" } | "code"
         "projects"       | "Projects"                | { qa_selector: 'projects_tab' } | nil                  | "issue"
-        "snippet_titles" | "Titles and Descriptions" | nil                             | { snippets: "test" } | "snippet_titles"
+        "snippet_titles" | "Snippets"                | nil                             | { snippets: "test" } | "snippet_titles"
       end
 
       with_them do
@@ -1176,27 +1138,12 @@ RSpec.describe SearchHelper, feature_category: :global_search do
     end
   end
 
-  describe 'show_elasticsearch_tabs' do
-    subject { search_service.show_elasticsearch_tabs? }
-
-    let(:user) { build(:user) }
-
-    before do
-      allow(self).to receive(:current_user).and_return(user)
+  describe '#wiki_blob_link' do
+    let_it_be(:project) { create :project, :wiki_repo }
+    let(:wiki_blob) do
+      Gitlab::Search::FoundBlob.new({ path: 'test', basename: 'test', ref: 'master', data: 'foo', startline: 2, project: project, project_id: project.id })
     end
 
-    it { is_expected.to eq(false) }
-  end
-
-  describe 'show_epics' do
-    subject { search_service.show_epics? }
-
-    let(:user) { build(:user) }
-
-    before do
-      allow(self).to receive(:current_user).and_return(user)
-    end
-
-    it { is_expected.to eq(false) }
+    it { expect(wiki_blob_link(wiki_blob)).to eq("/#{project.namespace.path}/#{project.path}/-/wikis/#{wiki_blob.path}") }
   end
 end

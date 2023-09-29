@@ -15,14 +15,16 @@ module Gitlab
       class ServiceDiscovery
         EmptyDnsResponse = Class.new(StandardError)
 
+        attr_accessor :refresh_thread, :refresh_thread_last_run, :refresh_thread_interruption_logged
+
         attr_reader :interval, :record, :record_type, :disconnect_timeout,
                     :load_balancer
 
         MAX_SLEEP_ADJUSTMENT = 10
-
         MAX_DISCOVERY_RETRIES = 3
+        DISCOVERY_THREAD_REFRESH_DELTA = 5
 
-        RETRY_DELAY_RANGE = (0.1..0.2).freeze
+        RETRY_DELAY_RANGE = (0.1..0.2)
 
         RECORD_TYPES = {
           'A' => Net::DNS::A,
@@ -74,8 +76,10 @@ module Gitlab
         # rubocop:enable Metrics/ParameterLists
 
         def start
-          Thread.new do
+          self.refresh_thread = Thread.new do
             loop do
+              self.refresh_thread_last_run = Time.current
+
               next_sleep_duration = perform_service_discovery
 
               # We slightly randomize the sleep() interval. This should reduce
@@ -114,7 +118,7 @@ module Gitlab
         # The return value is the amount of time (in seconds) to wait before
         # checking the DNS record for any changes.
         def refresh_if_necessary
-          interval, from_dns = addresses_from_dns
+          wait_time, from_dns = addresses_from_dns
 
           current = addresses_from_load_balancer
 
@@ -128,7 +132,7 @@ module Gitlab
             replace_hosts(from_dns)
           end
 
-          interval
+          wait_time
         end
 
         # Replaces all the hosts in the load balancer with the new ones,
@@ -147,9 +151,7 @@ module Gitlab
           # started just before we added the new hosts it will use an old
           # host/connection. While this connection will be checked in and out,
           # it won't be explicitly disconnected.
-          old_hosts.each do |host|
-            host.disconnect!(timeout: disconnect_timeout)
-          end
+          disconnect_old_hosts(old_hosts)
         end
 
         # Returns an Array containing:
@@ -205,6 +207,20 @@ module Gitlab
           )
         end
 
+        def log_refresh_thread_interruption
+          return if refresh_thread_last_run.blank? || refresh_thread_interruption_logged ||
+            (refresh_thread_last_run + DISCOVERY_THREAD_REFRESH_DELTA.minutes).future?
+
+          Gitlab::Database::LoadBalancing::Logger.error(
+            event: :service_discovery_refresh_thread_interrupt,
+            refresh_thread_last_run: refresh_thread_last_run,
+            thread_status: refresh_thread&.status&.to_s,
+            thread_backtrace: refresh_thread&.backtrace&.join('\n')
+          )
+
+          self.refresh_thread_interruption_logged = true
+        end
+
         private
 
         def record_type_for(type)
@@ -231,6 +247,41 @@ module Gitlab
         def sampler
           @sampler ||= ::Gitlab::Database::LoadBalancing::ServiceDiscovery::Sampler
             .new(max_replica_pools: @max_replica_pools)
+        end
+
+        def disconnect_old_hosts(hosts)
+          return unless hosts.present?
+
+          gentle_disconnect_start = ::Gitlab::Metrics::System.monotonic_time
+          gentle_disconnect_deadline = gentle_disconnect_start + disconnect_timeout
+
+          hosts_to_disconnect = hosts
+
+          gentle_disconnect_duration = Benchmark.realtime do
+            while ::Gitlab::Metrics::System.monotonic_time < gentle_disconnect_deadline
+              hosts_to_disconnect = hosts_to_disconnect.reject(&:try_disconnect)
+
+              break if hosts_to_disconnect.empty?
+
+              sleep(2)
+            end
+          end
+
+          force_disconnect_duration = Benchmark.realtime do
+            # This may wait up to 2 * pool.checkout_timeout per host (default 10 seconds per host)
+            hosts_to_disconnect.each(&:force_disconnect!)
+          end
+
+          formatted_hosts = hosts_to_disconnect.map { |h| "#{h.host}:#{h.port}" }
+          total_disconnect_duration = gentle_disconnect_duration + force_disconnect_duration
+
+          ::Gitlab::Database::LoadBalancing::Logger.info(
+            event: :host_list_disconnection,
+            message: "Disconnected #{formatted_hosts} old load balancing hosts after #{total_disconnect_duration}s",
+            gentle_disconnect_duration_s: gentle_disconnect_duration,
+            force_disconnect_duration_s: force_disconnect_duration,
+            total_disconnect_duration_s: total_disconnect_duration
+          )
         end
       end
     end

@@ -1,6 +1,7 @@
 import { GlModal } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import RemoveMemberModal from '~/members/components/modals/remove_member_modal.vue';
 import {
@@ -53,10 +54,6 @@ describe('RemoveMemberModal', () => {
   const findForm = () => wrapper.findComponent({ ref: 'form' });
   const findGlModal = () => wrapper.findComponent(GlModal);
   const findUserDeletionObstaclesList = () => wrapper.findComponent(UserDeletionObstaclesList);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe.each`
     state                          | memberModelType                     | isAccessRequest | isInvite | actionText               | removeSubMembershipsCheckboxExpected | unassignIssuablesCheckboxExpected | message                                                                                                           | userDeletionObstacles | isPartOfOncall

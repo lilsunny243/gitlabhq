@@ -1,6 +1,6 @@
 <script>
 import { GlButton, GlLink } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { updateHistory } from '~/lib/utils/url_utility';
 import { fetchPolicies } from '~/lib/graphql';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
@@ -52,9 +52,10 @@ export default {
     RunnerTypeTabs,
     RunnerActionsCell,
     RunnerJobStatusBadge,
+    RunnerDashboardLink: () =>
+      import('ee_component/ci/runner/components/runner_dashboard_link.vue'),
   },
   mixins: [glFeatureFlagMixin()],
-  inject: ['emptyStateSvgPath', 'emptyStateFilteredSvgPath'],
   props: {
     newRunnerPath: {
       type: String,
@@ -127,10 +128,6 @@ export default {
     isSearchFiltered() {
       return isSearchFiltered(this.search);
     },
-    shouldShowCreateRunnerWorkflow() {
-      // create_runner_workflow feature flag
-      return this.glFeatures.createRunnerWorkflow;
-    },
   },
   watch: {
     search: {
@@ -181,6 +178,22 @@ export default {
 </script>
 <template>
   <div>
+    <header class="gl-my-5 gl-display-flex gl-justify-content-space-between">
+      <h2 class="gl-my-0 header-title">
+        {{ s__('Runners|Runners') }}
+      </h2>
+      <div class="gl-display-flex gl-gap-3">
+        <runner-dashboard-link />
+        <gl-button :href="newRunnerPath" variant="confirm">
+          {{ s__('Runners|New instance runner') }}
+        </gl-button>
+        <registration-dropdown
+          :registration-token="registrationToken"
+          :type="$options.INSTANCE_TYPE"
+          placement="right"
+        />
+      </div>
+    </header>
     <div
       class="gl-display-flex gl-align-items-center gl-flex-direction-column-reverse gl-md-flex-direction-row gl-mt-3 gl-md-mt-0"
     >
@@ -191,17 +204,6 @@ export default {
         class="gl-w-full"
         content-class="gl-display-none"
         nav-class="gl-border-none!"
-      />
-
-      <gl-button v-if="shouldShowCreateRunnerWorkflow" :href="newRunnerPath" variant="confirm">
-        {{ s__('Runners|New instance runner') }}
-      </gl-button>
-      <registration-dropdown
-        v-else
-        class="gl-w-full gl-sm-w-auto gl-mr-auto"
-        :registration-token="registrationToken"
-        :type="$options.INSTANCE_TYPE"
-        right
       />
     </div>
 
@@ -219,8 +221,6 @@ export default {
       :registration-token="registrationToken"
       :is-search-filtered="isSearchFiltered"
       :new-runner-path="newRunnerPath"
-      :svg-path="emptyStateSvgPath"
-      :filtered-svg-path="emptyStateFilteredSvgPath"
     />
     <template v-else>
       <runner-list

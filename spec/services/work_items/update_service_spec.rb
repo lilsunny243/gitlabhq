@@ -2,14 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe WorkItems::UpdateService do
+RSpec.describe WorkItems::UpdateService, feature_category: :team_planning do
   let_it_be(:developer) { create(:user) }
   let_it_be(:guest) { create(:user) }
   let_it_be(:project) { create(:project) }
   let_it_be(:parent) { create(:work_item, project: project) }
   let_it_be_with_reload(:work_item) { create(:work_item, project: project, assignees: [developer]) }
 
-  let(:spam_params) { double }
   let(:widget_params) { {} }
   let(:opts) { {} }
   let(:current_user) { developer }
@@ -25,22 +24,44 @@ RSpec.describe WorkItems::UpdateService do
         container: project,
         current_user: current_user,
         params: opts,
-        spam_params: spam_params,
         widget_params: widget_params
       )
     end
 
     subject(:update_work_item) { service.execute(work_item) }
 
-    before do
-      stub_spam_services
-    end
-
     shared_examples 'update service that triggers graphql dates updated subscription' do
       it 'triggers graphql subscription issueableDatesUpdated' do
         expect(GraphqlTriggers).to receive(:issuable_dates_updated).with(work_item).and_call_original
 
         update_work_item
+      end
+    end
+
+    context 'when applying quick actions' do
+      let(:opts) { { description: "/shrug" } }
+
+      context 'when work item type is not the default Issue' do
+        before do
+          task_type = WorkItems::Type.default_by_type(:task)
+          work_item.update_columns(work_item_type_id: task_type.id)
+        end
+
+        it 'does not apply the quick action' do
+          expect do
+            update_work_item
+          end.to change(work_item, :description).to('/shrug')
+        end
+      end
+
+      context 'when work item type is the default Issue' do
+        let(:issue) { create(:work_item, description: '') }
+
+        it 'applies the quick action' do
+          expect do
+            update_work_item
+          end.to change(work_item, :description).to(' ¯\＿(ツ)＿/¯')
+        end
       end
     end
 
@@ -55,10 +76,15 @@ RSpec.describe WorkItems::UpdateService do
         expect(update_work_item[:status]).to eq(:success)
       end
 
-      it_behaves_like 'issue_edit snowplow tracking' do
-        let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TITLE_CHANGED }
+      it_behaves_like 'internal event tracking' do
+        let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TITLE_CHANGED }
         let(:user) { current_user }
+        let(:namespace) { project.namespace }
         subject(:service_action) { update_work_item[:status] }
+      end
+
+      it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+        subject(:execute_service) { update_work_item }
       end
     end
 
@@ -86,6 +112,10 @@ RSpec.describe WorkItems::UpdateService do
 
         update_work_item
       end
+
+      it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+        subject(:execute_service) { update_work_item }
+      end
     end
 
     context 'when decription is changed' do
@@ -95,6 +125,10 @@ RSpec.describe WorkItems::UpdateService do
         expect(GraphqlTriggers).to receive(:issuable_description_updated).with(work_item).and_call_original
 
         update_work_item
+      end
+
+      it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+        subject(:execute_service) { update_work_item }
       end
     end
 
@@ -149,7 +183,6 @@ RSpec.describe WorkItems::UpdateService do
           container: project,
           current_user: current_user,
           params: opts,
-          spam_params: spam_params,
           widget_params: widget_params
         )
       end
@@ -197,6 +230,10 @@ RSpec.describe WorkItems::UpdateService do
           update_work_item
 
           expect(work_item.description).to eq('changed')
+        end
+
+        it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+          subject(:execute_service) { update_work_item }
         end
 
         context 'with mentions', :mailer, :sidekiq_might_not_need_inline do
@@ -278,6 +315,10 @@ RSpec.describe WorkItems::UpdateService do
           expect(work_item.work_item_children).to include(child_work_item)
         end
 
+        it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+          subject(:execute_service) { update_work_item }
+        end
+
         context 'when child type is invalid' do
           let_it_be(:child_work_item) { create(:work_item, project: project) }
 
@@ -324,6 +365,10 @@ RSpec.describe WorkItems::UpdateService do
 
             update_work_item
           end
+
+          it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+            subject(:execute_service) { update_work_item }
+          end
         end
 
         context 'when milestone remains unchanged' do
@@ -336,6 +381,38 @@ RSpec.describe WorkItems::UpdateService do
             expect(GraphqlTriggers).not_to receive(:issuable_milestone_updated)
 
             update_work_item
+          end
+        end
+      end
+
+      context 'for current user todos widget' do
+        let_it_be(:user_todo) { create(:todo, target: work_item, user: developer, project: project, state: :pending) }
+        let_it_be(:other_todo) { create(:todo, target: work_item, user: create(:user), project: project, state: :pending) }
+
+        context 'when action is mark_as_done' do
+          let(:widget_params) { { current_user_todos_widget: { action: 'mark_as_done' } } }
+
+          it 'marks current user todo as done' do
+            expect do
+              update_work_item
+              user_todo.reload
+              other_todo.reload
+            end.to change(user_todo, :state).from('pending').to('done').and not_change { other_todo.state }
+          end
+
+          it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+            subject(:execute_service) { update_work_item }
+          end
+        end
+
+        context 'when action is add' do
+          let(:widget_params) { { current_user_todos_widget: { action: 'add' } } }
+
+          it 'adds a ToDo for the work item' do
+            expect do
+              update_work_item
+              work_item.reload
+            end.to change(Todo, :count).by(1)
           end
         end
       end
@@ -355,6 +432,10 @@ RSpec.describe WorkItems::UpdateService do
           update_work_item
         end
 
+        it_behaves_like 'update service that triggers GraphQL work_item_updated subscription' do
+          subject(:execute_service) { update_work_item }
+        end
+
         it_behaves_like 'broadcasting issuable labels updates' do
           let(:issuable) { work_item }
           let(:label_a) { label1 }
@@ -365,7 +446,6 @@ RSpec.describe WorkItems::UpdateService do
               container: project,
               current_user: current_user,
               params: update_params,
-              spam_params: spam_params,
               widget_params: widget_params
             ).execute(work_item)
           end

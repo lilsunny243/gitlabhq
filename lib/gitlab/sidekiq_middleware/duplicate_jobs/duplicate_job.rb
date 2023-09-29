@@ -97,13 +97,13 @@ module Gitlab
             local connection = ARGV[i]
             local current_offset = cookie.offsets[connection]
             local new_offset = tonumber(ARGV[i+1])
-            if not current_offset or current_offset < new_offset then
+            if not current_offset or (new_offset and current_offset < new_offset) then
               cookie.offsets[connection] = new_offset
               cookie.wal_locations[connection] = ARGV[i+2]
             end
           end
 
-          redis.call("set", KEYS[1], cmsgpack.pack(cookie), "ex", redis.call("ttl", KEYS[1]))
+          redis.call("set", KEYS[1], cmsgpack.pack(cookie), "keepttl")
         LUA
 
         def latest_wal_locations
@@ -147,7 +147,7 @@ module Gitlab
           end
           local cookie = cmsgpack.unpack(cookie_msgpack)
           cookie.deduplicated = "1"
-          redis.call("set", KEYS[1], cmsgpack.pack(cookie), "ex", redis.call("ttl", KEYS[1]))
+          redis.call("set", KEYS[1], cmsgpack.pack(cookie), "keepttl")
         LUA
 
         def should_reschedule?
@@ -220,7 +220,12 @@ module Gitlab
         end
 
         def cookie_key
-          "#{idempotency_key}:cookie:v2"
+          # This duplicates `Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE` both here and in `#idempotency_key`
+          # This is because `Sidekiq.redis` used to add this prefix automatically through `redis-namespace`
+          # and we did not notice this in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/25447
+          # Now we're keeping this as-is to avoid a key-migration when redis-namespace gets
+          # removed from Sidekiq: https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/944
+          "#{Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE}:#{idempotency_key}:cookie:v2"
         end
 
         def get_cookie
@@ -252,7 +257,12 @@ module Gitlab
         end
 
         def with_redis(&block)
-          Sidekiq.redis(&block) # rubocop:disable Cop/SidekiqRedisCall
+          if Feature.enabled?(:use_primary_and_secondary_stores_for_queues_metadata) ||
+              Feature.enabled?(:use_primary_store_as_default_for_queues_metadata)
+            Gitlab::Redis::QueuesMetadata.with(&block) # rubocop:disable CodeReuse/ActiveRecord
+          else
+            Gitlab::Redis::Queues.with(&block) # rubocop:disable Cop/RedisQueueUsage, CodeReuse/ActiveRecord
+          end
         end
       end
     end

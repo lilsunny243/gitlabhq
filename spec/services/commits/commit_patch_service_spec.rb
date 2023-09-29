@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Commits::CommitPatchService do
+RSpec.describe Commits::CommitPatchService, feature_category: :source_code_management do
   describe '#execute' do
     let(:patches) do
       patches_folder = Rails.root.join('spec/fixtures/patchfiles')
@@ -62,8 +62,7 @@ RSpec.describe Commits::CommitPatchService do
     context 'when the user does not have access' do
       let(:user) { create(:user) }
 
-      it_behaves_like 'an error response',
-                      'You are not allowed to push into this branch'
+      it_behaves_like 'an error response', 'You are not allowed to push into this branch'
     end
 
     context 'when the patches are not valid' do

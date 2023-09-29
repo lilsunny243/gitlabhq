@@ -2,37 +2,22 @@
 
 module Ci
   module PipelineSchedules
-    class UpdateService
+    class UpdateService < BaseSaveService
+      AUTHORIZE = :update_pipeline_schedule
+
       def initialize(schedule, user, params)
         @schedule = schedule
         @user = user
+        @project = schedule.project
         @params = params
-      end
-
-      def execute
-        return forbidden unless allowed?
-
-        if schedule.update(@params)
-          ServiceResponse.success(payload: schedule)
-        else
-          ServiceResponse.error(message: schedule.errors.full_messages)
-        end
       end
 
       private
 
-      attr_reader :schedule, :user
-
-      def allowed?
-        user.can?(:update_pipeline_schedule, schedule)
+      def authorize_message
+        _('The current user is not authorized to update the pipeline schedule')
       end
-
-      def forbidden
-        ServiceResponse.error(
-          message: _('The current user is not authorized to update the pipeline schedule'),
-          reason: :forbidden
-        )
-      end
+      strong_memoize_attr :authorize_message
     end
   end
 end

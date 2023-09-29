@@ -31,6 +31,7 @@
 #
 class ProjectsFinder < UnionFinder
   include CustomAttributesFilter
+  include UpdatedAtFilter
 
   attr_accessor :params
   attr_reader :current_user, :project_ids_relation
@@ -51,6 +52,10 @@ class ProjectsFinder < UnionFinder
       else
         init_collection
       end
+
+    if Feature.enabled?(:hide_projects_of_banned_users)
+      collection = without_created_and_owned_by_banned_user(collection)
+    end
 
     use_cte = params.delete(:use_cte)
     collection = Project.wrap_with_cte(collection) if use_cte
@@ -87,6 +92,7 @@ class ProjectsFinder < UnionFinder
     collection = by_last_activity_before(collection)
     collection = by_language(collection)
     collection = by_feature_availability(collection)
+    collection = by_updated_at(collection)
     by_repository_storage(collection)
   end
 
@@ -279,6 +285,12 @@ class ProjectsFinder < UnionFinder
     return {} unless min_access_level?
 
     { min_access_level: params[:min_access_level] }
+  end
+
+  def without_created_and_owned_by_banned_user(projects)
+    return projects if current_user&.can?(:admin_all_resources)
+
+    projects.without_created_and_owned_by_banned_user
   end
 end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectFeature, feature_category: :projects do
+RSpec.describe ProjectFeature, feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be_with_reload(:project) { create(:project) }
@@ -30,6 +30,7 @@ RSpec.describe ProjectFeature, feature_category: :projects do
     specify { expect(subject.releases_access_level).to eq(ProjectFeature::ENABLED) }
     specify { expect(subject.package_registry_access_level).to eq(ProjectFeature::ENABLED) }
     specify { expect(subject.container_registry_access_level).to eq(ProjectFeature::ENABLED) }
+    specify { expect(subject.model_experiments_access_level).to eq(ProjectFeature::ENABLED) }
   end
 
   describe 'PRIVATE_FEATURES_MIN_ACCESS_LEVEL_FOR_PRIVATE_PROJECT' do
@@ -288,7 +289,6 @@ RSpec.describe ProjectFeature, feature_category: :projects do
     end
 
     context 'sync packages_enabled' do
-      # rubocop:disable Lint/BinaryOperatorWithIdenticalOperands
       where(:initial_value, :new_value, :expected_result) do
         ProjectFeature::DISABLED | ProjectFeature::DISABLED | false
         ProjectFeature::DISABLED | ProjectFeature::ENABLED  | true
@@ -300,7 +300,6 @@ RSpec.describe ProjectFeature, feature_category: :projects do
         ProjectFeature::PUBLIC   | ProjectFeature::ENABLED  | true
         ProjectFeature::PUBLIC   | ProjectFeature::PUBLIC   | true
       end
-      # rubocop:enable Lint/BinaryOperatorWithIdenticalOperands
 
       with_them do
         it 'set correct value' do
@@ -311,6 +310,40 @@ RSpec.describe ProjectFeature, feature_category: :projects do
           expect(project.packages_enabled).to eq(expected_result)
         end
       end
+    end
+  end
+
+  describe '#public_packages?' do
+    let_it_be(:public_project) { create(:project, :public) }
+
+    context 'with packages config enabled' do
+      context 'when project is private' do
+        it 'returns false' do
+          expect(project.project_feature.public_packages?).to eq(false)
+        end
+
+        context 'with package_registry_access_level set to public' do
+          before do
+            project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+          end
+
+          it 'returns true' do
+            expect(project.project_feature.public_packages?).to eq(true)
+          end
+        end
+      end
+
+      context 'when project is public' do
+        it 'returns true' do
+          expect(public_project.project_feature.public_packages?).to eq(true)
+        end
+      end
+    end
+
+    it 'returns false if packages config is not enabled' do
+      stub_config(packages: { enabled: false })
+
+      expect(public_project.project_feature.public_packages?).to eq(false)
     end
   end
 
@@ -404,4 +437,24 @@ RSpec.describe ProjectFeature, feature_category: :projects do
     end
   end
   # rubocop:enable Gitlab/FeatureAvailableUsage
+
+  describe '#private?' do
+    where(:merge_requests_access_level, :expected_value) do
+      ProjectFeature::PUBLIC  | false
+      ProjectFeature::ENABLED | false
+      ProjectFeature::PRIVATE | true
+    end
+
+    with_them do
+      let(:project) { build_stubbed(:project) }
+
+      subject { project.project_feature.private?(:merge_requests) }
+
+      before do
+        project.project_feature.merge_requests_access_level = merge_requests_access_level
+      end
+
+      it { is_expected.to be(expected_value) }
+    end
+  end
 end

@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe "Help Dropdown", :js, feature_category: :not_owned do
-  let_it_be(:user) { create(:user) }
-  let_it_be(:admin) { create(:admin) }
+RSpec.describe "Help Dropdown", :js, feature_category: :shared do
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:admin) { create(:admin, :no_super_sidebar) }
 
   before do
     stub_application_setting(version_check_enabled: true)

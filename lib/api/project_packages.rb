@@ -2,6 +2,7 @@
 
 module API
   class ProjectPackages < ::API::Base
+    include Gitlab::Utils::StrongMemoize
     include PaginationParams
 
     before do
@@ -12,6 +13,14 @@ module API
     urgency :low
 
     helpers ::API::Helpers::PackagesHelpers
+    helpers ::API::Helpers::Packages::Npm
+    helpers do
+      def package
+        strong_memoize(:package) do # rubocop:disable Gitlab/StrongMemoizeAttr
+          ::Packages::PackageFinder.new(user_project, declared_params[:package_id]).execute
+        end
+      end
+    end
 
     params do
       requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
@@ -66,12 +75,43 @@ module API
       end
       route_setting :authentication, job_token_allowed: true
       get ':id/packages/:package_id' do
-        package = ::Packages::PackageFinder
-          .new(user_project, params[:package_id]).execute
-
         render_api_error!('Package not found', 404) unless package.default?
 
         present package, with: ::API::Entities::Package, user: current_user, namespace: user_project.namespace
+      end
+
+      desc 'Get the pipelines for a single project package' do
+        detail 'This feature was introduced in GitLab 16.1'
+        success code: 200, model: ::API::Entities::Package::Pipeline
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not Found' }
+        ]
+        tags %w[project_packages]
+      end
+      params do
+        use :pagination
+        requires :package_id, type: Integer, desc: 'The ID of a package'
+        optional :cursor, type: String, desc: 'Cursor for obtaining the next set of records'
+        # Overrides the original definition to add the `values: 1..20` restriction
+        optional :per_page, type: Integer, default: 20,
+                            desc: 'Number of items per page', documentation: { example: 20 },
+                            values: 1..20
+      end
+      route_setting :authentication, job_token_allowed: true
+      get ':id/packages/:package_id/pipelines' do
+        not_found!('Package not found') unless package.default?
+
+        params[:pagination] = 'keyset' # keyset is the only available pagination
+        pipelines = paginate_with_strategies(
+          package.build_infos.without_empty_pipelines,
+          paginator_params: { per_page: declared_params[:per_page], cursor: declared_params[:cursor] }
+        ) do |results|
+          ::Packages::PipelinesFinder.new(results.map(&:pipeline_id)).execute
+        end
+
+        present pipelines, with: ::API::Entities::Package::Pipeline, user: current_user
       end
 
       desc 'Delete a project package' do
@@ -90,11 +130,10 @@ module API
       delete ':id/packages/:package_id' do
         authorize_destroy_package!(user_project)
 
-        package = ::Packages::PackageFinder
-          .new(user_project, params[:package_id]).execute
-
         destroy_conditionally!(package) do |package|
           ::Packages::MarkPackageForDestructionService.new(container: package, current_user: current_user).execute
+
+          enqueue_sync_metadata_cache_worker(user_project, package.name) if package.npm?
         end
       end
     end

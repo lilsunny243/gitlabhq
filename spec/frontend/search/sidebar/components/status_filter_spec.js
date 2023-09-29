@@ -1,21 +1,40 @@
 import { shallowMount } from '@vue/test-utils';
+import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
+import Vuex from 'vuex';
 import RadioFilter from '~/search/sidebar/components/radio_filter.vue';
-import StatusFilter from '~/search/sidebar/components/status_filter.vue';
+import StatusFilter from '~/search/sidebar/components/status_filter/index.vue';
+
+Vue.use(Vuex);
 
 describe('StatusFilter', () => {
   let wrapper;
 
-  const createComponent = (initProps) => {
+  const createComponent = (state) => {
+    const store = new Vuex.Store({
+      state,
+    });
+
     wrapper = shallowMount(StatusFilter, {
-      ...initProps,
+      store,
     });
   };
 
   const findRadioFilter = () => wrapper.findComponent(RadioFilter);
 
-  describe('template', () => {
+  describe('old sidebar', () => {
     beforeEach(() => {
-      createComponent();
+      createComponent({ useSidebarNavigation: false });
+    });
+
+    it('renders the component', () => {
+      expect(findRadioFilter().exists()).toBe(true);
+    });
+  });
+
+  describe('new sidebar', () => {
+    beforeEach(() => {
+      createComponent({ useSidebarNavigation: true });
     });
 
     it('renders the component', () => {

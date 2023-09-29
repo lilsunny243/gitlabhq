@@ -5,10 +5,15 @@ module Sidebars
     # Contains helper methods aid conversion of a "normal" panel
     # into a Super Sidebar Panel
     module SuperSidebarPanel
-      # Picks an element from the given list and adds it to the current menus
-      # Used for menus which behave the same in the old nav and Supersidebar
-      def pick_from_old_menus(old_menus, element)
-        add_menu(remove_element(old_menus, element))
+      # Picks menus from a list and adds them to the current menu list
+      # if they should be picked into the super sidebar
+      def pick_from_old_menus(old_menus)
+        old_menus.select! do |menu|
+          next true unless menu.pick_into_super_sidebar?
+
+          add_menu(menu)
+          false
+        end
       end
 
       def transform_old_menus(current_menus, *old_menus)
@@ -31,7 +36,6 @@ module Sidebars
 
       # Finds a menu_items super sidebar parent and adds the item to that menu
       # Handles:
-      #   - menu_item.super_sidebar_before, adding before a certain item
       #   - parent == nil, or parent not being part of the panel:
       #       we assume that the menu item hasn't been categorized yet
       #   - parent == ::Sidebars::NilMenuItem, the item explicitly is supposed to be removed
@@ -42,11 +46,7 @@ module Sidebars
         idx = index_of(menus, parent) || index_of(menus, ::Sidebars::UncategorizedMenu)
         return unless idx
 
-        if menu_item.super_sidebar_before
-          menus[idx].insert_item_before(menu_item.super_sidebar_before, menu_item)
-        else
-          menus[idx].add_item(menu_item)
-        end
+        menus[idx].replace_placeholder(menu_item)
       end
     end
   end

@@ -1,4 +1,4 @@
-import { getByRole } from '@testing-library/dom';
+import { getAllByRole } from '@testing-library/dom';
 import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import waitForPromises from 'helpers/wait_for_promises';
@@ -60,10 +60,6 @@ describe('MRWidgetMerged', () => {
   beforeEach(() => {
     jest.spyOn(document, 'dispatchEvent');
     jest.spyOn(eventHub, '$emit').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   const findButtonByText = (text) =>
@@ -136,7 +132,7 @@ describe('MRWidgetMerged', () => {
     createComponent();
     const eventHubSpy = jest.spyOn(modalEventHub, '$emit');
 
-    getByRole(wrapper.element, 'button', { name: /Revert/i }).click();
+    getAllByRole(wrapper.element, 'button', { name: /Revert/i })[0].click();
 
     expect(eventHubSpy).toHaveBeenCalledWith(OPEN_REVERT_MODAL);
   });
@@ -145,7 +141,7 @@ describe('MRWidgetMerged', () => {
     createComponent();
     const eventHubSpy = jest.spyOn(modalEventHub, '$emit');
 
-    getByRole(wrapper.element, 'button', { name: /Cherry-pick/i }).click();
+    getAllByRole(wrapper.element, 'button', { name: /Cherry-pick/i })[0].click();
 
     expect(eventHubSpy).toHaveBeenCalledWith(OPEN_CHERRY_PICK_MODAL);
   });

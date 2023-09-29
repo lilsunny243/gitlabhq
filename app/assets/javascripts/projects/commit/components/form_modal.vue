@@ -1,5 +1,6 @@
 <script>
 import { GlModal, GlForm, GlFormCheckbox, GlSprintf, GlFormGroup } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import api from '~/api';
 import { BV_SHOW_MODAL } from '~/lib/utils/constants';
@@ -52,16 +53,16 @@ export default {
       checked: true,
       actionPrimary: {
         text: this.i18n.actionPrimaryText,
-        attributes: [
-          { variant: 'confirm' },
-          { category: 'primary' },
-          { 'data-testid': 'submit-commit' },
-          { 'data-qa-selector': 'submit_commit_button' },
-        ],
+        attributes: {
+          variant: 'confirm',
+          category: 'primary',
+          'data-testid': 'submit-commit',
+          'data-qa-selector': 'submit_commit_button',
+        },
       },
       actionCancel: {
         text: this.i18n.actionCancelText,
-        attributes: [{ 'data-testid': 'cancel-commit' }],
+        attributes: { 'data-testid': 'cancel-commit' },
       },
     };
   },

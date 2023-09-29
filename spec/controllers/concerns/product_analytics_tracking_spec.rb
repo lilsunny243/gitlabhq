@@ -2,190 +2,283 @@
 
 require "spec_helper"
 
-RSpec.describe ProductAnalyticsTracking, :snowplow, feature_category: :product_analytics do
+RSpec.describe ProductAnalyticsTracking, :snowplow, feature_category: :product_analytics_data_management do
   include TrackingHelpers
   include SnowplowHelpers
 
   let(:user) { create(:user) }
   let(:event_name) { 'an_event' }
+  let(:event_action) { 'an_action' }
+  let(:event_label) { 'a_label' }
   let!(:group) { create(:group) }
 
-  before do
-    allow(Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track_event)
-    stub_const("#{described_class}::MIGRATED_EVENTS", ['an_event'])
-  end
+  let_it_be(:project) { create(:project) }
 
-  controller(ApplicationController) do
-    include ProductAnalyticsTracking
+  subject(:track_internal_event) { get :show, params: { id: 1 } }
 
-    skip_before_action :authenticate_user!, only: :show
-    track_event(
-      :index,
-      :show,
-      name: 'an_event',
-      destinations: [:redis_hll, :snowplow],
-      conditions: [:custom_condition_one?, :custom_condition_two?]
-    ) { |controller| controller.get_custom_id }
+  describe '.track_internal_event' do
+    controller(ApplicationController) do
+      include ProductAnalyticsTracking
 
-    def index
-      render html: 'index'
-    end
+      skip_before_action :authenticate_user!, only: [:index]
+      track_internal_event :index, :show, name: 'g_compliance_dashboard', conditions: [:custom_condition?]
 
-    def new
-      render html: 'new'
-    end
-
-    def show
-      render html: 'show'
-    end
-
-    def get_custom_id
-      'some_custom_id'
-    end
-
-    private
-
-    def tracking_namespace_source
-      Group.first
-    end
-
-    def custom_condition_one?
-      true
-    end
-
-    def custom_condition_two?
-      true
-    end
-  end
-
-  def expect_redis_hll_tracking
-    expect(Gitlab::UsageDataCounters::HLLRedisCounter).to have_received(:track_event)
-                                                            .with(event_name, values: instance_of(String))
-  end
-
-  def expect_snowplow_tracking(user)
-    context = Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name)
-                                                  .to_context.to_json
-
-    expect_snowplow_event(
-      category: anything,
-      action: event_name,
-      namespace: group,
-      user: user,
-      context: [context]
-    )
-  end
-
-  def expect_no_tracking
-    expect(Gitlab::UsageDataCounters::HLLRedisCounter).not_to receive(:track_event)
-
-    expect_no_snowplow_event
-  end
-
-  context 'when user is logged in' do
-    before do
-      sign_in(user)
-    end
-
-    it 'tracks the event' do
-      get :index
-
-      expect_redis_hll_tracking
-      expect_snowplow_tracking(user)
-    end
-
-    context 'when FF is disabled' do
-      before do
-        stub_const("#{described_class}::MIGRATED_EVENTS", [])
-        allow(Feature).to receive(:enabled?).and_call_original
-        allow(Feature).to receive(:enabled?).with('route_hll_to_snowplow', anything).and_return(false)
+      def index
+        render html: 'index'
       end
 
-      it 'doesnt track snowplow event' do
+      def show
+        render html: 'show'
+      end
+
+      private
+
+      def tracking_namespace_source
+        tracking_project_source.namespace
+      end
+
+      def tracking_project_source
+        Project.first
+      end
+
+      def custom_condition?
+        true
+      end
+    end
+
+    def expect_internal_tracking(tracked_user: user)
+      expect(Gitlab::InternalEvents).to receive(:track_event).with('g_compliance_dashboard',
+        user: tracked_user,
+        project: project,
+        namespace: project.namespace).once
+    end
+
+    def expect_no_internal_tracking
+      expect(Gitlab::InternalEvents).not_to receive(:track_event)
+    end
+
+    context 'when user is logged in' do
+      let(:namespace) { project.namespace }
+
+      before do
+        sign_in(user)
+      end
+
+      it 'tracks the events if DNT is disabled' do
+        stub_do_not_track('0')
+
+        expect_internal_tracking
+
+        subject
+      end
+
+      it 'does not track the event if DNT is enabled' do
+        stub_do_not_track('1')
+
+        expect_no_internal_tracking
+
+        subject
+      end
+
+      it 'does not track the event if the format is not HTML' do
+        expect_no_internal_tracking
+
+        get :show, params: { id: 1, format: :json }
+      end
+
+      it 'does not track the event if a custom condition returns false' do
+        allow(controller).to receive(:custom_condition?).and_return(false)
+
+        expect_no_internal_tracking
+
+        subject
+      end
+    end
+
+    context 'when user is not logged in' do
+      it 'does not track the event' do
+        expect_no_internal_tracking
+
+        get :index
+      end
+    end
+  end
+
+  describe '.track_event' do
+    before do
+      allow(Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track_event)
+      stub_const("#{described_class}::MIGRATED_EVENTS", ['an_event'])
+    end
+
+    controller(ApplicationController) do
+      include ProductAnalyticsTracking
+
+      skip_before_action :authenticate_user!, only: :show
+      track_event(
+        :index,
+        :show,
+        name: 'an_event',
+        action: 'an_action',
+        label: 'a_label',
+        destinations: [:redis_hll, :snowplow],
+        conditions: [:custom_condition_one?, :custom_condition_two?]
+      ) { |controller| controller.get_custom_id }
+
+      track_internal_event :internal_event, name: 'an_internal_event'
+
+      def index
+        render html: 'index'
+      end
+
+      def new
+        render html: 'new'
+      end
+
+      def show
+        render html: 'show'
+      end
+
+      def get_custom_id
+        'some_custom_id'
+      end
+
+      private
+
+      def tracking_namespace_source
+        Group.first
+      end
+
+      def tracking_project_source
+        Project.first
+      end
+
+      def custom_condition_one?
+        true
+      end
+
+      def custom_condition_two?
+        true
+      end
+    end
+
+    def expect_redis_hll_tracking
+      expect(Gitlab::UsageDataCounters::HLLRedisCounter).to have_received(:track_event)
+                                                              .with(event_name, values: instance_of(String))
+    end
+
+    def expect_snowplow_tracking(user)
+      context = Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name)
+                                                    .to_context.to_json
+
+      expect_snowplow_event(
+        category: anything,
+        action: event_action,
+        property: event_name,
+        label: event_label,
+        project: project,
+        namespace: group,
+        user: user,
+        context: [context]
+      )
+    end
+
+    def expect_no_tracking
+      expect(Gitlab::UsageDataCounters::HLLRedisCounter).not_to receive(:track_event)
+
+      expect_no_snowplow_event
+    end
+
+    context 'when user is logged in' do
+      before do
+        sign_in(user)
+      end
+
+      it 'tracks the event' do
         get :index
 
-        expect_no_snowplow_event
+        expect_redis_hll_tracking
+        expect_snowplow_tracking(user)
+      end
+
+      it 'tracks the event if DNT is not enabled' do
+        stub_do_not_track('0')
+
+        get :index
+
+        expect_redis_hll_tracking
+        expect_snowplow_tracking(user)
+      end
+
+      it 'does not track the event if DNT is enabled' do
+        stub_do_not_track('1')
+
+        get :index
+
+        expect_no_tracking
+      end
+
+      it 'does not track the event if the format is not HTML' do
+        get :index, format: :json
+
+        expect_no_tracking
+      end
+
+      it 'does not track the event if a custom condition returns false' do
+        allow(controller).to receive(:custom_condition_two?).and_return(false)
+
+        get :index
+
+        expect_no_tracking
+      end
+
+      it 'does not track the event for untracked actions' do
+        get :new
+
+        expect_no_tracking
       end
     end
 
-    it 'tracks the event if DNT is not enabled' do
-      stub_do_not_track('0')
+    context 'when user is not logged in' do
+      let(:visitor_id) { SecureRandom.uuid }
 
-      get :index
+      it 'tracks the event when there is a visitor id' do
+        cookies[:visitor_id] = { value: visitor_id, expires: 24.months }
 
-      expect_redis_hll_tracking
-      expect_snowplow_tracking(user)
-    end
+        get :show, params: { id: 1 }
 
-    it 'does not track the event if DNT is enabled' do
-      stub_do_not_track('1')
-
-      get :index
-
-      expect_no_tracking
-    end
-
-    it 'does not track the event if the format is not HTML' do
-      get :index, format: :json
-
-      expect_no_tracking
-    end
-
-    it 'does not track the event if a custom condition returns false' do
-      allow(controller).to receive(:custom_condition_two?).and_return(false)
-
-      get :index
-
-      expect_no_tracking
-    end
-
-    it 'does not track the event for untracked actions' do
-      get :new
-
-      expect_no_tracking
-    end
-  end
-
-  context 'when user is not logged in' do
-    let(:visitor_id) { SecureRandom.uuid }
-
-    it 'tracks the event when there is a visitor id' do
-      cookies[:visitor_id] = { value: visitor_id, expires: 24.months }
-
-      get :show, params: { id: 1 }
-
-      expect_redis_hll_tracking
-      expect_snowplow_tracking(nil)
-    end
-  end
-
-  context 'when user is not logged in and there is no visitor_id' do
-    it 'does not track the event' do
-      get :index
-
-      expect_no_tracking
-    end
-
-    it 'tracks the event when there is custom id' do
-      get :show, params: { id: 1 }
-
-      expect_redis_hll_tracking
-      expect_snowplow_tracking(nil)
-    end
-
-    context 'when there is no custom_id set' do
-      before do
-        allow(controller).to receive(:get_custom_id).and_return(nil)
-
-        get :show, params: { id: 2 }
-      end
-
-      it 'does not track the HLL event' do
-        expect(Gitlab::UsageDataCounters::HLLRedisCounter).not_to receive(:track_event)
-      end
-
-      it 'tracks Snowplow event' do
+        expect_redis_hll_tracking
         expect_snowplow_tracking(nil)
+      end
+    end
+
+    context 'when user is not logged in and there is no visitor_id' do
+      it 'does not track the event' do
+        get :index
+
+        expect_no_tracking
+      end
+
+      it 'tracks the event when there is custom id' do
+        get :show, params: { id: 1 }
+
+        expect_redis_hll_tracking
+        expect_snowplow_tracking(nil)
+      end
+
+      context 'when there is no custom_id set' do
+        before do
+          allow(controller).to receive(:get_custom_id).and_return(nil)
+
+          get :show, params: { id: 2 }
+        end
+
+        it 'does not track the HLL event' do
+          expect(Gitlab::UsageDataCounters::HLLRedisCounter).not_to receive(:track_event)
+        end
+
+        it 'tracks Snowplow event' do
+          expect_snowplow_tracking(nil)
+        end
       end
     end
   end

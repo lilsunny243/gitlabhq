@@ -124,7 +124,8 @@ module ApplicationHelper
       page: body_data_page,
       page_type_id: controller.params[:id],
       find_file: find_file_path,
-      group: @group&.path
+      group: @group&.path,
+      group_full_path: @group&.full_path
     }.merge(project_data)
   end
 
@@ -135,6 +136,7 @@ module ApplicationHelper
       project_id: @project.id,
       project: @project.path,
       group: @project.group&.path,
+      group_full_path: @project.group&.full_path,
       namespace_id: @project.namespace&.id
     }
   end
@@ -181,26 +183,27 @@ module ApplicationHelper
     css_classes << html_class unless html_class.blank?
 
     content_tag :time, l(time, format: "%b %d, %Y"),
-                class: css_classes.join(' '),
-                title: l(time.to_time.in_time_zone, format: :timeago_tooltip),
-                datetime: time.to_time.getutc.iso8601,
-                data: {
-                  toggle: 'tooltip',
-                  placement: placement,
-                  container: 'body'
-                }
+      class: css_classes.join(' '),
+      title: l(time.to_time.in_time_zone, format: :timeago_tooltip),
+      datetime: time.to_time.getutc.iso8601,
+      data: {
+        toggle: 'tooltip',
+        placement: placement,
+        container: 'body'
+      }
   end
 
-  def edited_time_ago_with_tooltip(object, placement: 'top', html_class: 'time_ago', exclude_author: false)
-    return unless object.edited?
+  def edited_time_ago_with_tooltip(editable_object, placement: 'top', html_class: 'time_ago', exclude_author: false)
+    return unless editable_object.edited?
 
     content_tag :small, class: 'edited-text' do
-      output = content_tag(:span, 'Edited ')
-      output << time_ago_with_tooltip(object.last_edited_at, placement: placement, html_class: html_class)
+      timeago = time_ago_with_tooltip(editable_object.last_edited_at, placement: placement, html_class: html_class)
 
-      if !exclude_author && object.last_edited_by
-        output << content_tag(:span, ' by ')
-        output << link_to_member(object.project, object.last_edited_by, avatar: false, author_class: nil)
+      if !exclude_author && editable_object.last_edited_by
+        author_link = link_to_member(editable_object.project, editable_object.last_edited_by, avatar: false, extra_class: 'gl-hover-text-decoration-underline', author_class: nil)
+        output = safe_format(_("Edited %{timeago} by %{author}"), timeago: timeago, author: author_link)
+      else
+        output = safe_format(_("Edited %{timeago}"), timeago: timeago)
       end
 
       output
@@ -273,15 +276,11 @@ module ApplicationHelper
   end
 
   def stylesheet_link_tag_defer(path)
-    if startup_css_enabled?
-      stylesheet_link_tag(path, media: "print", crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
-    else
-      stylesheet_link_tag(path, crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
-    end
+    stylesheet_link_tag(path, media: "all", crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
   end
 
-  def startup_css_enabled?
-    !params.has_key?(:no_startup_css)
+  def sign_in_with_redirect?
+    current_page?(new_user_session_path) && session[:user_return_to].present?
   end
 
   def outdated_browser?
@@ -316,8 +315,10 @@ module ApplicationHelper
     class_names << 'issue-boards-page gl-overflow-auto' if current_controller?(:boards)
     class_names << 'epic-boards-page gl-overflow-auto' if current_controller?(:epic_boards)
     class_names << 'with-performance-bar' if performance_bar_enabled?
+    class_names << 'with-header' if !show_super_sidebar? || !current_user
+    class_names << 'with-top-bar' if show_super_sidebar? && !@hide_top_bar_padding
     class_names << system_message_class
-    class_names << 'logged-out-marketing-header' if !current_user && ::Gitlab.com?
+    class_names << 'logged-out-marketing-header' if !current_user && ::Gitlab.com? && !show_super_sidebar?
 
     class_names
   end
@@ -330,7 +331,7 @@ module ApplicationHelper
     class_names << 'with-system-header' if appearance.show_header?
     class_names << 'with-system-footer' if appearance.show_footer?
 
-    class_names
+    class_names.join(' ')
   end
 
   # Returns active css class when condition returns true
@@ -348,7 +349,7 @@ module ApplicationHelper
 
   def linkedin_url(user)
     name = user.linkedin
-    if name =~ %r{\Ahttps?://(www\.)?linkedin\.com/in/}
+    if %r{\Ahttps?://(www\.)?linkedin\.com/in/}.match?(name)
       name
     else
       "https://www.linkedin.com/in/#{name}"
@@ -357,7 +358,7 @@ module ApplicationHelper
 
   def twitter_url(user)
     name = user.twitter
-    if name =~ %r{\Ahttps?://(www\.)?twitter\.com/}
+    if %r{\Ahttps?://(www\.)?twitter\.com/}.match?(name)
       name
     else
       "https://twitter.com/#{name}"
@@ -375,6 +376,8 @@ module ApplicationHelper
   end
 
   def collapsed_super_sidebar?
+    return false if @force_desktop_expanded_sidebar
+
     cookies["super_sidebar_collapsed"] == "true"
   end
 
@@ -401,6 +404,10 @@ module ApplicationHelper
   end
 
   def add_page_specific_style(path, defer: true)
+    @already_added_styles ||= Set.new
+    return if @already_added_styles.include?(path)
+
+    @already_added_styles.add(path)
     content_for :page_specific_styles do
       if defer
         stylesheet_link_tag_defer path
@@ -462,6 +469,34 @@ module ApplicationHelper
 
   def gitlab_ui_form_with(**args, &block)
     form_with(**args.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder }), &block)
+  end
+
+  def hidden_resource_icon(resource, css_class: nil)
+    issuable_title = _('This %{issuable} is hidden because its author has been banned.')
+
+    case resource
+    when Issue
+      title = format(issuable_title, issuable: _('issue'))
+    when MergeRequest
+      title = format(issuable_title, issuable: _('merge request'))
+    when Project
+      title = _('This project is hidden because its creator has been banned')
+    end
+
+    return unless title
+
+    content_tag(:span, class: 'has-tooltip', title: title) do
+      sprite_icon('spam', css_class: ['gl-vertical-align-text-bottom', css_class].compact_blank.join(' '))
+    end
+  end
+
+  def controller_full_path
+    action = case controller.action_name
+             when 'create' then 'new'
+             when 'update' then 'edit'
+             else controller.action_name
+             end
+    "#{controller.controller_path}/#{action}"
   end
 
   private

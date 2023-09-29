@@ -25,7 +25,7 @@ RSpec.describe Trigger, feature_category: :tooling do
     }
   end
 
-  let(:com_api_endpoint) { 'https://gitlab.com/api/v4' }
+  let(:com_api_endpoint) { Trigger::Base.new.send(:endpoint) }
   let(:com_api_token) { env['PROJECT_TOKEN_FOR_CI_SCRIPTS_API_USAGE'] }
   let(:com_gitlab_client) { double('com_gitlab_client') }
 
@@ -211,6 +211,7 @@ RSpec.describe Trigger, feature_category: :tooling do
           context "when set in a file" do
             before do
               allow(File).to receive(:read).and_call_original
+              stub_env(version_file, nil)
             end
 
             it 'includes the version from the file' do
@@ -236,7 +237,13 @@ RSpec.describe Trigger, feature_category: :tooling do
       describe "TRIGGER_BRANCH" do
         context 'when CNG_BRANCH is not set' do
           it 'sets TRIGGER_BRANCH to master' do
+            stub_env('CI_PROJECT_NAMESPACE', 'gitlab-org')
             expect(subject.variables['TRIGGER_BRANCH']).to eq('master')
+          end
+
+          it 'sets TRIGGER_BRANCH to main-jh on JH side' do
+            stub_env('CI_PROJECT_NAMESPACE', 'gitlab-cn')
+            expect(subject.variables['TRIGGER_BRANCH']).to eq('main-jh')
           end
         end
 
@@ -260,6 +267,20 @@ RSpec.describe Trigger, feature_category: :tooling do
           end
 
           it 'sets TRIGGER_BRANCH to the corresponding stable branch' do
+            stub_env('CI_PROJECT_NAMESPACE', 'gitlab-org')
+            expect(subject.variables['TRIGGER_BRANCH']).to eq(ref)
+          end
+        end
+
+        context 'when CI_COMMIT_REF_NAME is a stable branch on JH side' do
+          let(:ref) { '14-10-stable' }
+
+          before do
+            stub_env('CI_COMMIT_REF_NAME', "#{ref}-jh")
+          end
+
+          it 'sets TRIGGER_BRANCH to the corresponding stable branch' do
+            stub_env('CI_PROJECT_NAMESPACE', 'gitlab-cn')
             expect(subject.variables['TRIGGER_BRANCH']).to eq(ref)
           end
         end
@@ -452,6 +473,18 @@ RSpec.describe Trigger, feature_category: :tooling do
         context 'when CI_PROJECT_PATH is gitlab-org/charts/gitlab' do
           it 'sets BRANCH_CHARTS to CI_COMMIT_REF_NAME' do
             expect(subject.variables['BRANCH_CHARTS']).to eq(env['CI_COMMIT_REF_NAME'])
+          end
+        end
+      end
+
+      describe "BRANCH_OPERATOR" do
+        before do
+          stub_env('CI_PROJECT_PATH', 'gitlab-org/cloud-native/gitlab-operator')
+        end
+
+        context 'when CI_PROJECT_PATH is gitlab-org/cloud-native/gitlab-operator' do
+          it 'sets BRANCH_OPERATOR to CI_COMMIT_REF_NAME' do
+            expect(subject.variables['BRANCH_OPERATOR']).to eq(env['CI_COMMIT_REF_NAME'])
           end
         end
       end

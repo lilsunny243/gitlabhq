@@ -1,48 +1,37 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', product_group: :editor do
+  RSpec.describe 'Create', product_group: :source_code do
     describe 'Snippet index page' do
       let(:personal_snippet_with_single_file) do
-        Resource::Snippet.fabricate_via_api! do |snippet|
-          snippet.title = "Personal snippet with one file-#{SecureRandom.hex(8)}"
-          snippet.visibility = 'Public'
-        end
+        create(:snippet, title: "Personal snippet with one file-#{SecureRandom.hex(8)}")
       end
 
       let(:personal_snippet_with_multiple_files) do
-        Resource::Snippet.fabricate_via_api! do |snippet|
-          snippet.title = "Personal snippet with multiple files-#{SecureRandom.hex(8)}"
-          snippet.visibility = 'Private'
-          snippet.file_name = 'First file name'
-          snippet.file_content = 'first file content'
-
-          snippet.add_files do |files|
-            files.append(name: 'Second file name', content: 'second file content')
-            files.append(name: 'Third file name', content: 'third file content')
-          end
-        end
+        create(:snippet,
+          :private,
+          title: "Personal snippet with multiple files-#{SecureRandom.hex(8)}",
+          file_name: 'First file name',
+          file_content: 'first file content',
+          files: [
+            { name: 'Second file name', content: 'second file content' },
+            { name: 'Third file name', content: 'third file content' }
+          ])
       end
 
       let(:project_snippet_with_single_file) do
-        Resource::ProjectSnippet.fabricate_via_api! do |snippet|
-          snippet.title = "Project snippet with one file-#{SecureRandom.hex(8)}"
-          snippet.visibility = 'Private'
-        end
+        create(:project_snippet, :private, title: "Project snippet with one file-#{SecureRandom.hex(8)}")
       end
 
       let(:project_snippet_with_multiple_files) do
-        Resource::ProjectSnippet.fabricate_via_api! do |snippet|
-          snippet.title = "Project snippet with multiple files-#{SecureRandom.hex(8)}"
-          snippet.visibility = 'Public'
-          snippet.file_name = 'First file name'
-          snippet.file_content = 'first file content'
-
-          snippet.add_files do |files|
-            files.append(name: 'Second file name', content: 'second file content')
-            files.append(name: 'Third file name', content: 'third file content')
-          end
-        end
+        create(:project_snippet,
+          title: "Project snippet with multiple files-#{SecureRandom.hex(8)}",
+          file_name: 'First file name',
+          file_content: 'first file content',
+          files: [
+            { name: 'Second file name', content: 'second file content' },
+            { name: 'Third file name', content: 'third file content' }
+          ])
       end
 
       before do
@@ -52,9 +41,7 @@ module QA
       shared_examples 'displaying details on index page' do |snippet_type, testcase|
         it "shows correct details of #{snippet_type} including file number", testcase: testcase do
           send(snippet_type)
-          Page::Main::Menu.perform do |menu|
-            menu.go_to_menu_dropdown_option(:snippets_link)
-          end
+          Page::Main::Menu.perform(&:go_to_snippets)
 
           Page::Dashboard::Snippet::Index.perform do |snippet|
             aggregate_failures 'file content verification' do

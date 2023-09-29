@@ -3,35 +3,179 @@
 require 'spec_helper'
 
 RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition do
-  include Spec::Support::Helpers::Features::SourceEditorSpecHelpers
+  include Features::SourceEditorSpecHelpers
 
   let(:project) { create(:project_empty_repo, :public) }
   let(:user) { create(:user) }
 
   let(:default_branch) { 'main' }
   let(:other_branch) { 'test' }
+  let(:branch_with_invalid_ci) { 'despair' }
+  let(:branch_without_ci) { 'empty' }
+
+  let(:default_content) { 'Default' }
+
+  let(:valid_content) do
+    <<~YAML
+    ---
+    stages:
+      - Build
+      - Test
+    job_a:
+      script: echo hello
+      stage: Build
+    job_b:
+      script: echo hello from job b
+      stage: Test
+    YAML
+  end
+
+  let(:invalid_content) do
+    <<~YAML
+
+      job3:
+      stage: stage_foo
+      script: echo 'Done.'
+    YAML
+  end
 
   before do
     sign_in(user)
     project.add_developer(user)
 
-    project.repository.create_file(user, project.ci_config_path_or_default, 'Default Content', message: 'Create CI file for main', branch_name: default_branch)
-    project.repository.create_file(user, project.ci_config_path_or_default, 'Other Content', message: 'Create CI file for test', branch_name: other_branch)
+    project.repository.create_file(user, project.ci_config_path_or_default, default_content, message: 'Create CI file for main', branch_name: default_branch)
+    project.repository.create_file(user, project.ci_config_path_or_default, valid_content, message: 'Create CI file for test', branch_name: other_branch)
+    project.repository.create_file(user, project.ci_config_path_or_default, invalid_content, message: 'Create CI file for test', branch_name: branch_with_invalid_ci)
+    project.repository.create_file(user, 'index.js', "file", message: 'New js file', branch_name: branch_without_ci)
 
     visit project_ci_pipeline_editor_path(project)
     wait_for_requests
   end
 
-  shared_examples 'default branch switcher behavior' do
-    def switch_to_branch(branch)
-      find('[data-testid="branch-selector"]').click
+  describe 'Default tabs' do
+    it 'renders the edit tab as the default' do
+      expect(page).to have_selector('[data-testid="editor-tab"]')
+    end
 
-      page.within '[data-testid="branch-selector"]' do
-        click_button branch
-        wait_for_requests
+    it 'renders the visualize, validate and full configuration tabs', :aggregate_failures do
+      expect(page).to have_selector('[data-testid="visualization-tab"]', visible: :hidden)
+      expect(page).to have_selector('[data-testid="validate-tab"]', visible: :hidden)
+      expect(page).to have_selector('[data-testid="merged-tab"]', visible: :hidden)
+    end
+  end
+
+  describe 'when there are no CI config file' do
+    before do
+      visit project_ci_pipeline_editor_path(project, branch_name: branch_without_ci)
+    end
+
+    it 'renders the empty page', :aggregate_failures do
+      expect(page).to have_content 'Optimize your workflow with CI/CD Pipelines'
+      expect(page).to have_selector '[data-testid="create-new-ci-button"]'
+    end
+
+    context 'when clicking on the create new CI button' do
+      before do
+        click_button 'Configure pipeline'
+      end
+
+      it 'renders the source editor with default content', :aggregate_failures do
+        expect(page).to have_selector('#source-editor-')
+
+        page.within('#source-editor-') do
+          expect(page).to have_content('This file is a template, and might need editing before it works on your project.')
+        end
+      end
+    end
+  end
+
+  describe 'When CI yml has valid syntax' do
+    before do
+      visit project_ci_pipeline_editor_path(project, branch_name: other_branch)
+      wait_for_requests
+    end
+
+    it 'shows "Pipeline syntax is correct" in the lint widget' do
+      page.within('[data-testid="validation-segment"]') do
+        expect(page).to have_content("Pipeline syntax is correct")
       end
     end
 
+    it 'shows the graph in the visualization tab' do
+      click_link "Visualize"
+
+      page.within('[data-testid="graph-container"') do
+        expect(page).to have_content("job_a")
+      end
+    end
+
+    it 'can simulate pipeline in the validate tab' do
+      click_link "Validate"
+
+      click_button "Validate pipeline"
+      wait_for_requests
+
+      expect(page).to have_content("Simulation completed successfully")
+    end
+
+    it 'renders the merged yaml in the full configuration tab' do
+      click_link "Full configuration"
+
+      page.within('[data-testid="merged-tab"') do
+        expect(page).to have_content("job_a")
+      end
+    end
+  end
+
+  describe 'When CI yml has invalid syntax' do
+    before do
+      visit project_ci_pipeline_editor_path(project, branch_name: branch_with_invalid_ci)
+      wait_for_requests
+    end
+
+    it 'shows "Syntax is invalid" in the lint widget' do
+      page.within('[data-testid="validation-segment"]') do
+        expect(page).to have_content("This GitLab CI configuration is invalid")
+      end
+    end
+
+    it 'does not render the graph in the visualization tab and shows error' do
+      click_link "Visualize"
+
+      expect(page).not_to have_selector('[data-testid="graph-container"')
+      expect(page).to have_content("Your CI/CD configuration syntax is invalid. Select the Validate tab for more details.")
+    end
+
+    it 'gets a simulation error in the validate tab' do
+      click_link "Validate"
+
+      click_button "Validate pipeline"
+      wait_for_requests
+
+      expect(page).to have_content("Pipeline simulation completed with errors")
+    end
+
+    it 'renders merged yaml config' do
+      click_link "Full configuration"
+
+      page.within('[data-testid="merged-tab"') do
+        expect(page).to have_content("job3")
+      end
+    end
+  end
+
+  describe 'with unparsable yaml' do
+    it 'renders an error in the merged yaml tab' do
+      click_link "Full configuration"
+
+      page.within('[data-testid="merged-tab"') do
+        expect(page).not_to have_content("job_a")
+        expect(page).to have_content("Could not load full configuration content")
+      end
+    end
+  end
+
+  shared_examples 'default branch switcher behavior' do
     it 'displays current branch' do
       page.within('[data-testid="branch-selector"]') do
         expect(page).to have_content(default_branch)
@@ -69,12 +213,20 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
   end
 
   describe 'Branch Switcher' do
+    def switch_to_branch(branch)
+      # close button for the popover
+      find('[data-testid="close-button"]').click
+      find('[data-testid="branch-selector"]').click
+
+      page.within '[data-testid="branch-selector"]' do
+        click_button branch
+        wait_for_requests
+      end
+    end
+
     before do
       visit project_ci_pipeline_editor_path(project)
       wait_for_requests
-
-      # close button for the popover
-      find('[data-testid="close-button"]').click
     end
 
     it_behaves_like 'default branch switcher behavior'
@@ -101,7 +253,7 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
         end
       end
 
-      it 'user who tries to navigate away can cancel the action and keep their changes' do
+      it 'user who tries to navigate away can cancel the action and keep their changes', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/410496' do
         click_link 'Pipelines'
 
         page.driver.browser.switch_to.alert.dismiss
@@ -109,11 +261,11 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
         expect(page).to have_content('Pipeline Editor')
 
         page.within('#source-editor-') do
-          expect(page).to have_content('Default Content123')
+          expect(page).to have_content("#{default_content}123")
         end
       end
 
-      it 'user who tries to navigate away can confirm the action and discard their change' do
+      it 'user who tries to navigate away can confirm the action and discard their change', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/410496' do
         click_link 'Pipelines'
 
         page.driver.browser.switch_to.alert.accept
@@ -136,6 +288,24 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
   end
 
   describe 'Commit Form' do
+    context 'when targetting the main branch' do
+      it 'does not show the option to create a Merge request', :aggregate_failures do
+        expect(page).not_to have_selector('[data-testid="new-mr-checkbox"]')
+        expect(page).not_to have_content('Start a new merge request with these changes')
+      end
+    end
+
+    context 'when targetting any non-main branch' do
+      before do
+        find('#source-branch-field').set('new_branch', clear: :backspace)
+      end
+
+      it 'shows the option to create a Merge request', :aggregate_failures do
+        expect(page).to have_selector('[data-testid="new-mr-checkbox"]')
+        expect(page).to have_content('Start a new merge request with these changes')
+      end
+    end
+
     it 'is preserved when changing tabs' do
       find('#commit-message').set('message', clear: :backspace)
       find('#source-branch-field').set('new_branch', clear: :backspace)
@@ -166,8 +336,8 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
       end
 
       page.within('#source-editor-') do
-        expect(page).to have_content('Default Content')
-        expect(page).not_to have_content('Default Content123')
+        expect(page).to have_content(default_content)
+        expect(page).not_to have_content("#{default_content}123")
       end
     end
 
@@ -188,7 +358,7 @@ RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition d
       end
 
       page.within('#source-editor-') do
-        expect(page).to have_content('Default Content123')
+        expect(page).to have_content("#{default_content}123")
       end
     end
   end

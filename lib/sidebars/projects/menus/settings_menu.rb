@@ -16,11 +16,6 @@ module Sidebars
           add_item(merge_requests_menu_item)
           add_item(ci_cd_menu_item)
           add_item(packages_and_registries_menu_item)
-
-          if Feature.disabled?(:show_pages_in_deployments_menu, context.current_user, type: :experiment)
-            add_item(pages_menu_item)
-          end
-
           add_item(monitor_menu_item)
           add_item(usage_quotas_menu_item)
 
@@ -42,6 +37,16 @@ module Sidebars
         override :sprite_icon
         def sprite_icon
           'settings'
+        end
+
+        override :pick_into_super_sidebar?
+        def pick_into_super_sidebar?
+          true
+        end
+
+        override :separated?
+        def separated?
+          true
         end
 
         private
@@ -121,19 +126,6 @@ module Sidebars
           )
         end
 
-        def pages_menu_item
-          unless context.project.pages_available?
-            return ::Sidebars::NilMenuItem.new(item_id: :pages)
-          end
-
-          ::Sidebars::MenuItem.new(
-            title: _('Pages'),
-            link: project_pages_path(context.project),
-            active_routes: { path: 'pages#show' },
-            item_id: :pages
-          )
-        end
-
         def monitor_menu_item
           if context.project.archived? || !can?(context.current_user, :admin_operations, context.project)
             return ::Sidebars::NilMenuItem.new(item_id: :monitor)
@@ -163,10 +155,12 @@ module Sidebars
             title: _('Merge requests'),
             link: project_settings_merge_requests_path(context.project),
             active_routes: { path: 'projects/settings/merge_requests#show' },
-            item_id: :merge_requests
+            item_id: context.is_super_sidebar ? :merge_request_settings : :merge_requests
           )
         end
       end
     end
   end
 end
+
+Sidebars::Projects::Menus::SettingsMenu.prepend_mod_with('Sidebars::Projects::Menus::SettingsMenu')

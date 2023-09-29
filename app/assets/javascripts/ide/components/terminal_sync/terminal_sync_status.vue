@@ -1,6 +1,7 @@
 <script>
 import { GlTooltipDirective, GlLoadingIcon, GlIcon } from '@gitlab/ui';
 import { throttle } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapState } from 'vuex';
 import {
   MSG_TERMINAL_SYNC_CONNECTING,
@@ -30,12 +31,14 @@ export default {
           icon: '',
           text: this.isStarted ? MSG_TERMINAL_SYNC_UPLOADING : MSG_TERMINAL_SYNC_CONNECTING,
         };
-      } else if (this.isError) {
+      }
+      if (this.isError) {
         return {
           icon: 'warning',
           text: this.message,
         };
-      } else if (this.isStarted) {
+      }
+      if (this.isStarted) {
         return {
           icon: 'mobile-issue-close',
           text: MSG_TERMINAL_SYNC_RUNNING,

@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
@@ -41,6 +41,9 @@ This section has screenshots for the elements of Azure Active Directory configur
 
 ![Azure AD user claims](img/AzureAD-claims.png)
 
+NOTE:
+Attribute names starting with phrases such as `http://schemas.microsoft.com/ws/2008/06/identity/claims/` are not supported.
+
 ### SCIM mapping
 
 Provisioning:
@@ -55,8 +58,15 @@ Attribute mapping:
 
 ![Azure Group Claims](img/azure_configure_group_claim.png)
 
-NOTE:
-Using the **Group ID** source attribute requires users to enter the group ID or object ID when configuring SAML group links. If available, use the **sAMAccountName** source attribute for the friendly group name instead.
+Using the **Group ID** source attribute requires users to enter the group ID or object ID when configuring SAML group links.
+
+If available, you can add user-friendly group names instead. When setting up Azure group claims:
+
+1. Select the **sAMAccountName** source attribute.
+1. Enter a group name. You can specify a name up to 256 characters long.
+1. To ensure the attribute is part of the assertion, select **Emit group names for cloud-only groups**.
+
+[Azure AD limits the number of groups that can be sent in a SAML response to 150](https://support.esri.com/en-us/knowledge-base/000022190). If a user is a member of more than 150 groups, Azure does not include that user's group claim in the SAML response.
 
 ## Google Workspace
 

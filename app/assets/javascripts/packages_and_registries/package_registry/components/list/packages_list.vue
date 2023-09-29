@@ -1,7 +1,6 @@
 <script>
 import { GlAlert } from '@gitlab/ui';
 import { s__, sprintf, n__ } from '~/locale';
-import DeletePackageModal from '~/packages_and_registries/shared/components/delete_package_modal.vue';
 import PackagesListRow from '~/packages_and_registries/package_registry/components/list/package_list_row.vue';
 import PackagesListLoader from '~/packages_and_registries/shared/components/packages_list_loader.vue';
 import RegistryList from '~/packages_and_registries/shared/components/registry_list.vue';
@@ -14,21 +13,30 @@ import {
   CANCEL_DELETE_PACKAGE_TRACKING_ACTION,
   CANCEL_DELETE_PACKAGES_TRACKING_ACTION,
   PACKAGE_ERROR_STATUS,
+  PACKAGE_TYPE_MAVEN,
+  PACKAGE_TYPE_NPM,
+  PACKAGE_TYPE_PYPI,
 } from '~/packages_and_registries/package_registry/constants';
 import { packageTypeToTrackCategory } from '~/packages_and_registries/package_registry/utils';
 import Tracking from '~/tracking';
+
+const forwardingFieldToPackageTypeMapping = {
+  mavenPackageRequestsForwarding: PACKAGE_TYPE_MAVEN,
+  npmPackageRequestsForwarding: PACKAGE_TYPE_NPM,
+  pypiPackageRequestsForwarding: PACKAGE_TYPE_PYPI,
+};
 
 export default {
   name: 'PackagesList',
   components: {
     GlAlert,
     DeleteModal,
-    DeletePackageModal,
     PackagesListLoader,
     PackagesListRow,
     RegistryList,
   },
   mixins: [Tracking.mixin()],
+  inject: ['canDeletePackages'],
   props: {
     list: {
       type: Array,
@@ -40,20 +48,27 @@ export default {
       required: false,
       default: false,
     },
-    pageInfo: {
+    groupSettings: {
       type: Object,
-      required: true,
+      required: false,
+      default: () => ({}),
     },
   },
 
   data() {
     return {
-      itemToBeDeleted: null,
       itemsToBeDeleted: [],
       errorPackages: [],
     };
   },
   computed: {
+    itemToBeDeleted() {
+      if (this.itemsToBeDeleted.length === 1) {
+        const [itemToBeDeleted] = this.itemsToBeDeleted;
+        return itemToBeDeleted;
+      }
+      return null;
+    },
     listTitle() {
       return n__('%d package', '%d packages', this.list.length);
     },
@@ -77,6 +92,15 @@ export default {
     showErrorPackageAlert() {
       return this.errorPackages.length > 0;
     },
+    packageTypesWithForwardingEnabled() {
+      return Object.keys(this.groupSettings)
+        .filter((field) => this.groupSettings[field])
+        .map((field) => forwardingFieldToPackageTypeMapping[field]);
+    },
+    isRequestForwardingEnabled() {
+      const selectedPackageTypes = new Set(this.itemsToBeDeleted.map((item) => item.packageType));
+      return this.packageTypesWithForwardingEnabled.some((type) => selectedPackageTypes.has(type));
+    },
   },
   watch: {
     list(newVal) {
@@ -88,40 +112,36 @@ export default {
       this.list.length > 0 ? this.list.filter((pkg) => pkg.status === PACKAGE_ERROR_STATUS) : [];
   },
   methods: {
-    setItemToBeDeleted(item) {
-      this.itemToBeDeleted = { ...item };
-      this.track(REQUEST_DELETE_PACKAGE_TRACKING_ACTION);
-    },
     setItemsToBeDeleted(items) {
-      if (items.length === 1) {
-        const [item] = items;
-        this.setItemToBeDeleted(item);
-        return;
-      }
       this.itemsToBeDeleted = items;
-      this.track(REQUEST_DELETE_PACKAGES_TRACKING_ACTION);
+      if (items.length === 1) {
+        this.track(REQUEST_DELETE_PACKAGE_TRACKING_ACTION);
+      } else {
+        this.track(REQUEST_DELETE_PACKAGES_TRACKING_ACTION);
+      }
       this.$refs.deletePackagesModal.show();
     },
     deleteItemsConfirmation() {
       this.$emit('delete', this.itemsToBeDeleted);
-      this.track(DELETE_PACKAGES_TRACKING_ACTION);
+
+      if (this.itemToBeDeleted) {
+        this.track(DELETE_PACKAGE_TRACKING_ACTION);
+      } else {
+        this.track(DELETE_PACKAGES_TRACKING_ACTION);
+      }
+
       this.itemsToBeDeleted = [];
     },
     deleteItemsCanceled() {
-      this.track(CANCEL_DELETE_PACKAGES_TRACKING_ACTION);
+      if (this.itemToBeDeleted) {
+        this.track(CANCEL_DELETE_PACKAGE_TRACKING_ACTION);
+      } else {
+        this.track(CANCEL_DELETE_PACKAGES_TRACKING_ACTION);
+      }
       this.itemsToBeDeleted = [];
     },
-    deleteItemConfirmation() {
-      this.$emit('delete', [this.itemToBeDeleted]);
-      this.track(DELETE_PACKAGE_TRACKING_ACTION);
-      this.itemToBeDeleted = null;
-    },
-    deleteItemCanceled() {
-      this.track(CANCEL_DELETE_PACKAGE_TRACKING_ACTION);
-      this.itemToBeDeleted = null;
-    },
     showConfirmationModal() {
-      this.setItemToBeDeleted(this.errorPackages[0]);
+      this.setItemsToBeDeleted([this.errorPackages[0]]);
     },
   },
   i18n: {
@@ -152,34 +172,27 @@ export default {
       >
       <registry-list
         data-testid="packages-table"
+        :hidden-delete="!canDeletePackages"
         :is-loading="isLoading"
         :items="list"
-        :pagination="pageInfo"
         :title="listTitle"
         @delete="setItemsToBeDeleted"
-        @prev-page="$emit('prev-page')"
-        @next-page="$emit('next-page')"
       >
         <template #default="{ selectItem, isSelected, item, first }">
           <packages-list-row
             :first="first"
             :package-entity="item"
             :selected="isSelected(item)"
-            @delete="setItemToBeDeleted(item)"
+            @delete="setItemsToBeDeleted([item])"
             @select="selectItem(item)"
           />
         </template>
       </registry-list>
 
-      <delete-package-modal
-        :item-to-be-deleted="itemToBeDeleted"
-        @ok="deleteItemConfirmation"
-        @cancel="deleteItemCanceled"
-      />
-
       <delete-modal
         ref="deletePackagesModal"
         :items-to-be-deleted="itemsToBeDeleted"
+        :show-request-forwarding-content="isRequestForwardingEnabled"
         @confirm="deleteItemsConfirmation"
         @cancel="deleteItemsCanceled"
       />

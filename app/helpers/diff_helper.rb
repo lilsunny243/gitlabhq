@@ -16,7 +16,7 @@ module DiffHelper
 
   def diff_view
     @diff_view ||= begin
-      diff_views = %w(inline parallel)
+      diff_views = %w[inline parallel]
       diff_view = params[:view] || cookies[:diff_view]
       diff_view = diff_views.first unless diff_views.include?(diff_view)
       diff_view.to_sym
@@ -34,6 +34,12 @@ module DiffHelper
       options[:expanded] = true
       options[:paths] = params.values_at(:old_path, :new_path)
       options[:use_extra_viewer_as_main] = false
+
+      if Feature.enabled?(:large_ipynb_diffs, @project) && params[:file_identifier]&.include?('.ipynb')
+        options[:max_patch_bytes_for_file_extension] = {
+          '.ipynb' => 1.megabyte
+        }
+      end
     end
 
     options
@@ -261,11 +267,6 @@ module DiffHelper
 
   def commit_diff_whitespace_link(project, commit, options)
     url = project_commit_path(project, commit.id, params_with_whitespace)
-    toggle_whitespace_link(url, options)
-  end
-
-  def diff_merge_request_whitespace_link(project, merge_request, options)
-    url = diffs_project_merge_request_path(project, merge_request, params_with_whitespace)
     toggle_whitespace_link(url, options)
   end
 

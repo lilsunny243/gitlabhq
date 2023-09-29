@@ -6,21 +6,21 @@ module QA
       module Milestone
         class New < Page::Milestone::New
           view 'app/views/groups/milestones/_form.html.haml' do
-            element :create_milestone_button
-            element :milestone_description_field
-            element :milestone_title_field
+            element 'create-milestone-button'
+            element 'milestone-description-field'
+            element 'milestone-title-field'
           end
 
           def click_create_milestone_button
-            click_element(:create_milestone_button)
+            click_element('create-milestone-button')
           end
 
           def set_description(description)
-            fill_element(:milestone_description_field, description)
+            fill_element('milestone-description-field', description)
           end
 
           def set_title(title)
-            fill_element(:milestone_title_field, title)
+            fill_element('milestone-title-field', title)
           end
         end
       end

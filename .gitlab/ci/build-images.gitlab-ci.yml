@@ -1,13 +1,13 @@
 .base-image-build:
   extends: .use-kaniko
   variables:
-    GIT_LFS_SKIP_SMUDGE: 1 # disable pulling objects from lfs
+    GIT_LFS_SKIP_SMUDGE: 1  # disable pulling objects from lfs
   retry: 2
 
 .base-image-build-buildx:
   extends: .use-buildx
   variables:
-    GIT_LFS_SKIP_SMUDGE: 1 # disable pulling objects from lfs
+    GIT_LFS_SKIP_SMUDGE: 1  # disable pulling objects from lfs
   retry: 2
 
 # This image is used by:
@@ -29,33 +29,20 @@ build-qa-image as-if-foss:
     - .as-if-foss
     - .build-images:rules:build-qa-image-as-if-foss
 
-# Prepares an image with GDK configured based on code in master. This saves some time in MRs because some installation
-# and complilation will have already been performed.
-build-qa-on-gdk-master-image:
+build-gdk-image:
   extends:
     - .base-image-build-buildx
-    - .build-images:rules:build-qa-on-gdk-master-image
+    - .build-images:rules:build-gdk-image
   tags:
-    - e2e
+    - saas-linux-xlarge-amd64
   stage: build-images
   needs: []
-  variables:
-    QA_GDK_IMAGE: "${CI_REGISTRY}/${CI_PROJECT_PATH}/gitlab-qa-gdk"
-  before_script:
-    - !reference [.use-buildx, before_script]
-    - sysctl -n -w fs.inotify.max_user_watches=524288
   script:
-    - |
-      docker buildx build \
-        --cache-to=type=inline \
-        --cache-from ${QA_GDK_IMAGE}:master \
-        --platform=${ARCH:-amd64} \
-        --add-host gdk.test:127.0.0.1 \
-        --tag ${QA_GDK_IMAGE}:master \
-        --file="qa/gdk/Dockerfile" \
-        --push \
-        ${CI_PROJECT_DIR}
+    - run_timed_command "scripts/build_gdk_image"
 
+# NOTE: release-tools verifies the presence on this job for a commit that is
+# candidate to an auto-deploy package. This job name can't be changed without
+# changing the code in release-tools.
 build-assets-image:
   extends:
     - .base-image-build
@@ -71,3 +58,10 @@ build-assets-image:
       # The `cached-assets-hash.txt` file is used in `review-build-cng-env` (`.gitlab/ci/review-apps/main.gitlab-ci.yml`)
       # to pass the assets image tag to the CNG downstream pipeline.
       - cached-assets-hash.txt
+
+build-assets-image as-if-foss:
+  extends:
+    - build-assets-image
+    - .as-if-foss
+    - .build-images:rules:build-assets-image-as-if-foss
+  needs: ["compile-production-assets as-if-foss"]

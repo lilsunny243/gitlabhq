@@ -3,8 +3,8 @@ table_name: authentication_events
 classes:
 - AuthenticationEvent
 feature_categories:
-- authentication_and_authorization
+- system_access
 description: TODO
 introduced_by_url: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/39652
 milestone: '13.4'
-gitlab_schema: gitlab_main
+gitlab_schema: gitlab_main_clusterwide

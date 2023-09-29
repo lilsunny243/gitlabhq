@@ -8,9 +8,6 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
   let(:entity3) { '34rfjuuy-ce56-sa35-ds34-dfer567dfrf2' }
   let(:entity4) { '8b9a2671-2abf-4bec-a682-22f6a8f7bf31' }
 
-  let(:default_context) { 'default' }
-  let(:invalid_context) { 'invalid' }
-
   around do |example|
     # We need to freeze to a reference time
     # because visits are grouped by the week number in the year
@@ -18,40 +15,52 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
     # depending on which day of the week test is run.
     # Monday 6th of June
     described_class.clear_memoization(:known_events)
+    described_class.clear_memoization(:known_events_names)
     reference_time = Time.utc(2020, 6, 1)
     travel_to(reference_time) { example.run }
     described_class.clear_memoization(:known_events)
+    described_class.clear_memoization(:known_events_names)
   end
 
   describe '.known_events' do
-    let(:ce_temp_dir) { Dir.mktmpdir }
-    let(:ce_temp_file) { Tempfile.new(%w[common .yml], ce_temp_dir) }
-    let(:ce_event) do
-      {
-        "name" => "ce_event",
-        "redis_slot" => "analytics",
-        "aggregation" => "weekly"
-      }
+    let(:ce_event) { { "name" => "ce_event" } }
+    let(:removed_ce_event) { { "name" => "removed_ce_event" } }
+    let(:metric_definition) do
+      Gitlab::Usage::MetricDefinition.new('ce_metric',
+        {
+          key_path: 'ce_metric_weekly',
+          status: 'active',
+          options: {
+            events: [ce_event['name']]
+          }
+        })
+    end
+
+    let(:removed_metric_definition) do
+      Gitlab::Usage::MetricDefinition.new('removed_ce_metric',
+        {
+          key_path: 'removed_ce_metric_weekly',
+          status: 'removed',
+          options: {
+            events: [removed_ce_event['name']]
+          }
+        })
     end
 
     before do
-      stub_const("#{described_class}::KNOWN_EVENTS_PATH", File.expand_path('*.yml', ce_temp_dir))
-      File.open(ce_temp_file.path, "w+b") { |f| f.write [ce_event].to_yaml }
-    end
-
-    after do
-      ce_temp_file.unlink
-      FileUtils.remove_entry(ce_temp_dir) if Dir.exist?(ce_temp_dir)
+      allow(Gitlab::Usage::MetricDefinition).to receive(:all).and_return([metric_definition, removed_metric_definition])
     end
 
     it 'returns ce events' do
       expect(described_class.known_events).to include(ce_event)
     end
+
+    it 'does not return removed events' do
+      expect(described_class.known_events).not_to include(removed_ce_event)
+    end
   end
 
   describe 'known_events' do
-    let(:feature) { 'test_hll_redis_counter_ff_check' }
-
     let(:weekly_event) { 'g_analytics_contribution' }
     let(:daily_event) { 'g_analytics_search' }
     let(:analytics_slot_event) { 'g_analytics_contribution' }
@@ -61,7 +70,6 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
     let(:no_slot) { 'no_slot' }
     let(:different_aggregation) { 'different_aggregation' }
     let(:custom_daily_event) { 'g_analytics_custom' }
-    let(:context_event) { 'context_event' }
 
     let(:global_category) { 'global' }
     let(:compliance_category) { 'compliance' }
@@ -71,13 +79,12 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
 
     let(:known_events) do
       [
-        { name: weekly_event, redis_slot: "analytics", aggregation: "weekly", feature_flag: feature },
-        { name: daily_event, redis_slot: "analytics", aggregation: "daily" },
-        { name: category_productivity_event, redis_slot: "analytics", aggregation: "weekly" },
-        { name: compliance_slot_event, redis_slot: "compliance", aggregation: "weekly" },
-        { name: no_slot, aggregation: "daily" },
-        { name: different_aggregation, aggregation: "monthly" },
-        { name: context_event, aggregation: 'weekly' }
+        { name: weekly_event },
+        { name: daily_event },
+        { name: category_productivity_event },
+        { name: compliance_slot_event },
+        { name: no_slot },
+        { name: different_aggregation }
       ].map(&:with_indifferent_access)
     end
 
@@ -106,32 +113,6 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
         end
       end
 
-      context 'with event feature flag set' do
-        it 'tracks the event when feature enabled' do
-          stub_feature_flags(feature => true)
-
-          expect(Gitlab::Redis::HLL).to receive(:add)
-
-          described_class.track_event(weekly_event, values: 1)
-        end
-
-        it 'does not track the event with feature flag disabled' do
-          stub_feature_flags(feature => false)
-
-          expect(Gitlab::Redis::HLL).not_to receive(:add)
-
-          described_class.track_event(weekly_event, values: 1)
-        end
-      end
-
-      context 'with no event feature flag set' do
-        it 'tracks the event' do
-          expect(Gitlab::Redis::HLL).to receive(:add)
-
-          described_class.track_event(daily_event, values: 1)
-        end
-      end
-
       context 'when usage_ping is disabled' do
         it 'does not track the event' do
           allow(::ServicePing::ServicePingSettings).to receive(:enabled?).and_return(false)
@@ -155,14 +136,10 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
 
         it 'tracks events with multiple values' do
           values = [entity1, entity2]
-          expect(Gitlab::Redis::HLL).to receive(:add).with(key: /g_{analytics}_contribution/, value: values,
-            expiry: described_class::DEFAULT_WEEKLY_KEY_EXPIRY_LENGTH)
+          expect(Gitlab::Redis::HLL).to receive(:add).with(key: /g_analytics_contribution/, value: values,
+            expiry: described_class::KEY_EXPIRY_LENGTH)
 
           described_class.track_event(:g_analytics_contribution, values: values)
-        end
-
-        it "raise error if metrics don't have same aggregation" do
-          expect { described_class.track_event(different_aggregation, values: entity1, time: Date.current) }.to raise_error(Gitlab::UsageDataCounters::HLLRedisCounter::UnknownAggregation)
         end
 
         it 'raise error if metrics of unknown event' do
@@ -197,66 +174,14 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
             described_class.track_event("g_compliance_dashboard", values: entity1)
 
             Gitlab::Redis::SharedState.with do |redis|
-              keys = redis.scan_each(match: "g_{compliance}_dashboard-*").to_a
+              keys = redis.scan_each(match: "{#{described_class::REDIS_SLOT}}_g_compliance_dashboard-*").to_a
               expect(keys).not_to be_empty
 
               keys.each do |key|
-                expect(redis.ttl(key)).to be_within(5.seconds).of(described_class::DEFAULT_WEEKLY_KEY_EXPIRY_LENGTH)
+                expect(redis.ttl(key)).to be_within(5.seconds).of(described_class::KEY_EXPIRY_LENGTH)
               end
             end
           end
-        end
-
-        context 'for daily events' do
-          it 'sets the keys in Redis to expire' do
-            described_class.track_event("no_slot", values: entity1)
-
-            Gitlab::Redis::SharedState.with do |redis|
-              keys = redis.scan_each(match: "*-{no_slot}").to_a
-              expect(keys).not_to be_empty
-
-              keys.each do |key|
-                expect(redis.ttl(key)).to be_within(5.seconds).of(described_class::DEFAULT_DAILY_KEY_EXPIRY_LENGTH)
-              end
-            end
-          end
-        end
-      end
-    end
-
-    describe '.track_event_in_context' do
-      context 'with valid contex' do
-        it 'increments context event counter' do
-          expect(Gitlab::Redis::HLL).to receive(:add) do |kwargs|
-            expect(kwargs[:key]).to match(/^#{default_context}_.*/)
-          end
-
-          described_class.track_event_in_context(context_event, values: entity1, context: default_context)
-        end
-
-        it 'tracks events with multiple values' do
-          values = [entity1, entity2]
-          expect(Gitlab::Redis::HLL).to receive(:add).with(key: /g_{analytics}_contribution/,
-            value: values,
-            expiry: described_class::DEFAULT_WEEKLY_KEY_EXPIRY_LENGTH)
-
-          described_class.track_event_in_context(:g_analytics_contribution, values: values, context: default_context)
-        end
-      end
-
-      context 'with empty context' do
-        it 'does not increment a counter' do
-          expect(Gitlab::Redis::HLL).not_to receive(:add)
-
-          described_class.track_event_in_context(context_event, values: entity1, context: '')
-        end
-      end
-
-      context 'when sending invalid context' do
-        it 'does not increment a counter' do
-          expect(Gitlab::Redis::HLL).not_to receive(:add)
-
-          described_class.track_event_in_context(context_event, values: entity1, context: invalid_context)
         end
       end
     end
@@ -300,18 +225,6 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
         expect(described_class.unique_events(event_names: [weekly_event], start_date: Date.current, end_date: 4.weeks.ago)).to eq(-1)
       end
 
-      it 'raise error if metrics are not in the same slot' do
-        expect do
-          described_class.unique_events(event_names: [compliance_slot_event, analytics_slot_event], start_date: 4.weeks.ago, end_date: Date.current)
-        end.to raise_error(Gitlab::UsageDataCounters::HLLRedisCounter::SlotMismatch)
-      end
-
-      it "raise error if metrics don't have same aggregation" do
-        expect do
-          described_class.unique_events(event_names: [daily_event, weekly_event], start_date: 4.weeks.ago, end_date: Date.current)
-        end.to raise_error(Gitlab::UsageDataCounters::HLLRedisCounter::AggregationMismatch)
-      end
-
       context 'when data for the last complete week' do
         it { expect(described_class.unique_events(event_names: [weekly_event], start_date: 1.week.ago, end_date: Date.current)).to eq(1) }
       end
@@ -328,12 +241,6 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
         it { expect(described_class.unique_events(event_names: [weekly_event.to_sym], start_date: 4.weeks.ago, end_date: 3.weeks.ago)).to eq(1) }
       end
 
-      context 'when using daily aggregation' do
-        it { expect(described_class.unique_events(event_names: [daily_event], start_date: 7.days.ago, end_date: Date.current)).to eq(2) }
-        it { expect(described_class.unique_events(event_names: [daily_event], start_date: 28.days.ago, end_date: Date.current)).to eq(3) }
-        it { expect(described_class.unique_events(event_names: [daily_event], start_date: 28.days.ago, end_date: 21.days.ago)).to eq(1) }
-      end
-
       context 'when no slot is set' do
         it { expect(described_class.unique_events(event_names: [no_slot], start_date: 7.days.ago, end_date: Date.current)).to eq(1) }
       end
@@ -347,26 +254,30 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
     end
   end
 
-  describe '.weekly_redis_keys' do
+  describe '.keys_for_aggregation' do
     using RSpec::Parameterized::TableSyntax
 
     let(:weekly_event) { 'i_search_total' }
     let(:redis_event) { described_class.send(:event_for, weekly_event) }
+    let(:week_one) { "{#{described_class::REDIS_SLOT}}_i_search_total-2020-52" }
+    let(:week_two) { "{#{described_class::REDIS_SLOT}}_i_search_total-2020-53" }
+    let(:week_three) { "{#{described_class::REDIS_SLOT}}_i_search_total-2021-01" }
+    let(:week_four) { "{#{described_class::REDIS_SLOT}}_i_search_total-2021-02" }
 
-    subject(:weekly_redis_keys) { described_class.send(:weekly_redis_keys, events: [redis_event], start_date: DateTime.parse(start_date), end_date: DateTime.parse(end_date)) }
+    subject(:keys_for_aggregation) { described_class.send(:keys_for_aggregation, events: [redis_event], start_date: DateTime.parse(start_date), end_date: DateTime.parse(end_date)) }
 
     where(:start_date, :end_date, :keys) do
       '2020-12-21' | '2020-12-21' | []
       '2020-12-21' | '2020-12-20' | []
       '2020-12-21' | '2020-11-21' | []
       '2021-01-01' | '2020-12-28' | []
-      '2020-12-21' | '2020-12-28' | ['i_{search}_total-2020-52']
-      '2020-12-21' | '2021-01-01' | ['i_{search}_total-2020-52']
-      '2020-12-27' | '2021-01-01' | ['i_{search}_total-2020-52']
-      '2020-12-26' | '2021-01-04' | ['i_{search}_total-2020-52', 'i_{search}_total-2020-53']
-      '2020-12-26' | '2021-01-11' | ['i_{search}_total-2020-52', 'i_{search}_total-2020-53', 'i_{search}_total-2021-01']
-      '2020-12-26' | '2021-01-17' | ['i_{search}_total-2020-52', 'i_{search}_total-2020-53', 'i_{search}_total-2021-01']
-      '2020-12-26' | '2021-01-18' | ['i_{search}_total-2020-52', 'i_{search}_total-2020-53', 'i_{search}_total-2021-01', 'i_{search}_total-2021-02']
+      '2020-12-21' | '2020-12-28' | lazy { [week_one] }
+      '2020-12-21' | '2021-01-01' | lazy { [week_one] }
+      '2020-12-27' | '2021-01-01' | lazy { [week_one] }
+      '2020-12-26' | '2021-01-04' | lazy { [week_one, week_two] }
+      '2020-12-26' | '2021-01-11' | lazy { [week_one, week_two, week_three] }
+      '2020-12-26' | '2021-01-17' | lazy { [week_one, week_two, week_three] }
+      '2020-12-26' | '2021-01-18' | lazy { [week_one, week_two, week_three, week_four] }
     end
 
     with_them do
@@ -376,53 +287,11 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
     end
 
     it 'returns 1 key for last for week' do
-      expect(described_class.send(:weekly_redis_keys, events: [redis_event], start_date: 7.days.ago.to_date, end_date: Date.current).size).to eq 1
+      expect(described_class.send(:keys_for_aggregation, events: [redis_event], start_date: 7.days.ago.to_date, end_date: Date.current).size).to eq 1
     end
 
     it 'returns 4 key for last for weeks' do
-      expect(described_class.send(:weekly_redis_keys, events: [redis_event], start_date: 4.weeks.ago.to_date, end_date: Date.current).size).to eq 4
-    end
-  end
-
-  describe 'context level tracking' do
-    using RSpec::Parameterized::TableSyntax
-
-    let(:known_events) do
-      [
-        { name: 'event_name_1', redis_slot: 'event', category: 'category1', aggregation: "weekly" },
-        { name: 'event_name_2', redis_slot: 'event', category: 'category1', aggregation: "weekly" },
-        { name: 'event_name_3', redis_slot: 'event', category: 'category1', aggregation: "weekly" }
-      ].map(&:with_indifferent_access)
-    end
-
-    before do
-      allow(described_class).to receive(:known_events).and_return(known_events)
-      allow(described_class).to receive(:categories).and_return(%w(category1 category2))
-
-      described_class.track_event_in_context('event_name_1', values: [entity1, entity3], context: default_context, time: 2.days.ago)
-      described_class.track_event_in_context('event_name_1', values: entity3, context: default_context, time: 2.days.ago)
-      described_class.track_event_in_context('event_name_1', values: entity3, context: invalid_context, time: 2.days.ago)
-      described_class.track_event_in_context('event_name_2', values: [entity1, entity2], context: '', time: 2.weeks.ago)
-    end
-
-    subject(:unique_events) { described_class.unique_events(event_names: event_names, start_date: 4.weeks.ago, end_date: Date.current, context: context) }
-
-    context 'with correct arguments' do
-      where(:event_names, :context, :value) do
-        ['event_name_1'] | 'default' | 2
-        ['event_name_1'] | ''        | 0
-        ['event_name_2'] | ''        | 0
-      end
-
-      with_them do
-        it { is_expected.to eq value }
-      end
-    end
-
-    context 'with invalid context' do
-      it 'raise error' do
-        expect { described_class.unique_events(event_names: 'event_name_1', start_date: 4.weeks.ago, end_date: Date.current, context: invalid_context) }.to raise_error(Gitlab::UsageDataCounters::HLLRedisCounter::InvalidContext)
-      end
+      expect(described_class.send(:keys_for_aggregation, events: [redis_event], start_date: 4.weeks.ago.to_date, end_date: Date.current).size).to eq 4
     end
   end
 
@@ -430,11 +299,11 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
     let(:time_range) { { start_date: 7.days.ago, end_date: DateTime.current } }
     let(:known_events) do
       [
-        { name: 'event1_slot', redis_slot: "slot", category: 'category1', aggregation: "weekly" },
-        { name: 'event2_slot', redis_slot: "slot", category: 'category2', aggregation: "weekly" },
-        { name: 'event3_slot', redis_slot: "slot", category: 'category3', aggregation: "weekly" },
-        { name: 'event5_slot', redis_slot: "slot", category: 'category4', aggregation: "daily" },
-        { name: 'event4', category: 'category2', aggregation: "weekly" }
+        { name: 'event1_slot' },
+        { name: 'event2_slot' },
+        { name: 'event3_slot' },
+        { name: 'event5_slot' },
+        { name: 'event4' }
       ].map(&:with_indifferent_access)
     end
 
@@ -459,14 +328,9 @@ RSpec.describe Gitlab::UsageDataCounters::HLLRedisCounter, :clean_gitlab_redis_s
       described_class.track_event('event4', values: entity2, time: 2.days.ago)
     end
 
-    it 'calculates union of given events', :aggregate_failure do
+    it 'calculates union of given events', :aggregate_failures do
       expect(described_class.calculate_events_union(**time_range.merge(event_names: %w[event4]))).to eq 2
       expect(described_class.calculate_events_union(**time_range.merge(event_names: %w[event1_slot event2_slot event3_slot]))).to eq 3
-    end
-
-    it 'validates and raise exception if events has mismatched slot or aggregation', :aggregate_failure do
-      expect { described_class.calculate_events_union(**time_range.merge(event_names: %w[event1_slot event4])) }.to raise_error described_class::SlotMismatch
-      expect { described_class.calculate_events_union(**time_range.merge(event_names: %w[event5_slot event3_slot])) }.to raise_error described_class::AggregationMismatch
     end
 
     it 'returns 0 if there are no keys for given events' do

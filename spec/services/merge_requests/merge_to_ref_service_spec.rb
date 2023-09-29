@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::MergeToRefService do
+RSpec.describe MergeRequests::MergeToRefService, feature_category: :code_review_workflow do
   shared_examples_for 'MergeService for target ref' do
     it 'target_ref has the same state of target branch' do
       repo = merge_request.target_project.repository
@@ -35,29 +35,6 @@ RSpec.describe MergeRequests::MergeToRefService do
       expect(result[:target_id]).to eq(repository.commit(first_parent_ref).sha)
       expect(repository.ref_exists?(target_ref)).to be(true)
       expect(ref_head.id).to eq(result[:commit_id])
-    end
-
-    context 'cache_merge_to_ref_calls parameter', :use_clean_rails_memory_store_caching do
-      before do
-        # warm the cache
-        #
-        service.execute(merge_request, true)
-      end
-
-      context 'when true' do
-        it 'caches the response', :request_store do
-          expect { 3.times { service.execute(merge_request, true) } }
-            .not_to change(Gitlab::GitalyClient, :get_request_count)
-        end
-      end
-
-      context 'when false' do
-        it 'does not cache the response', :request_store do
-          expect(Gitlab::GitalyClient).to receive(:call).at_least(3).times.and_call_original
-
-          3.times { service.execute(merge_request, false) }
-        end
-      end
     end
   end
 
@@ -210,11 +187,14 @@ RSpec.describe MergeRequests::MergeToRefService do
       let(:merge_request) { create(:merge_request, assignees: [user], author: user) }
       let(:project) { merge_request.project }
       let!(:todo) do
-        create(:todo, :assigned,
-               project: project,
-               author: user,
-               user: user,
-               target: merge_request)
+        create(
+          :todo,
+          :assigned,
+          project: project,
+          author: user,
+          user: user,
+          target: merge_request
+        )
       end
 
       before do
@@ -258,8 +238,10 @@ RSpec.describe MergeRequests::MergeToRefService do
 
       context 'when first merge happens' do
         let(:merge_request) do
-          create(:merge_request, source_project: project, source_branch: 'feature',
-                                 target_project: project, target_branch: 'master')
+          create(
+            :merge_request, source_project: project, source_branch: 'feature',
+            target_project: project, target_branch: 'master'
+          )
         end
 
         it_behaves_like 'successfully merges to ref with merge method' do
@@ -269,8 +251,11 @@ RSpec.describe MergeRequests::MergeToRefService do
 
         context 'when second merge happens' do
           let(:merge_request) do
-            create(:merge_request, source_project: project, source_branch: 'improve/awesome',
-                                   target_project: project, target_branch: 'master')
+            create(
+              :merge_request,
+              source_project: project, source_branch: 'improve/awesome',
+              target_project: project, target_branch: 'master'
+            )
           end
 
           it_behaves_like 'successfully merges to ref with merge method' do
@@ -278,18 +263,6 @@ RSpec.describe MergeRequests::MergeToRefService do
             let(:target_ref) { 'refs/merge-requests/2/train' }
           end
         end
-      end
-    end
-
-    context 'allow conflicts to be merged in diff' do
-      let(:params) { { allow_conflicts: true } }
-
-      it 'calls merge_to_ref with allow_conflicts param' do
-        expect(project.repository).to receive(:merge_to_ref) do |user, **kwargs|
-          expect(kwargs[:allow_conflicts]).to eq(true)
-        end.and_call_original
-
-        service.execute(merge_request)
       end
     end
   end

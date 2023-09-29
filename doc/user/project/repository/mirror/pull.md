@@ -2,10 +2,9 @@
 stage: Create
 group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
-# Pull from a remote repository **(PREMIUM)**
+# Pull from a remote repository **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -16,12 +15,15 @@ branches, tags, and commits from an upstream repository to yours.
 Unlike [push mirrors](push.md), pull mirrors retrieve changes from an upstream (remote)
 repository on a scheduled basis. To prevent the mirror from diverging from the upstream
 repository, don't push commits directly to the downstream mirror. Push commits to
-the upstream repository instead. Changes in the remote repository are pulled into the GitLab repository, either:
+the upstream repository instead. Changes in the remote repository are pulled into the GitLab repository:
 
-- Automatically in a certain period of time. Self-managed instances can
-  configure [pull mirroring intervals](../../../../administration/instance_limits.md#pull-mirroring-interval).
+- Automatically, 30 minutes after a previous pull. This cannot be disabled.
 - When an administrator [force-updates the mirror](index.md#force-an-update).
 - When an [API call triggers an update](#trigger-an-update-by-using-the-api).
+
+UI and API updates are subject to default
+[pull mirroring intervals](../../../../administration/instance_limits.md#pull-mirroring-interval)
+of 5 minutes. This interval can be configured by self-managed instances.
 
 By default, if any branch or tag on the downstream pull mirror diverges from the
 local repository, GitLab stops updating the branch. This prevents data loss.
@@ -53,22 +55,22 @@ After you configure a GitLab repository as a pull mirror:
 
 ## Configure pull mirroring
 
-Prerequisite:
+Prerequisites:
 
 - If your remote repository is on GitHub and you have
   [two-factor authentication (2FA) configured](https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa),
   create a [personal access token for GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
   with the `repo` scope. If 2FA is enabled, this personal access
   token serves as your GitHub password.
+- [GitLab Silent Mode](../../../../administration/silent_mode/index.md) is not enabled.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
-1. Enter the **Git repository URL**. Include the username
-   in the URL, if required: `https://MYUSERNAME@gitlab.com/GROUPNAME/PROJECTNAME.git`
+1. Enter the **Git repository URL**.
 
    NOTE:
-   To mirror the `gitlab` repository, use `git@gitlab.com:gitlab-org/gitlab.git`
+   To mirror the `gitlab` repository, use `gitlab.com:gitlab-org/gitlab.git`
    or `https://gitlab.com/gitlab-org/gitlab.git`.
 
 1. In **Mirror direction**, select **Pull**.
@@ -142,6 +144,6 @@ end
 
 ## Related topics
 
-- Configure [pull mirroring intervals](../../../../administration/instance_limits.md#pull-mirroring-interval)
-  on self-managed instances.
-- Configure [pull mirroring through the API](../../../../api/projects.md#configure-pull-mirroring-for-a-project).
+- [Troubleshooting](troubleshooting.md) for repository mirroring.
+- [Pull mirroring intervals](../../../../administration/instance_limits.md#pull-mirroring-interval)
+- [Pull mirroring API](../../../../api/projects.md#configure-pull-mirroring-for-a-project)

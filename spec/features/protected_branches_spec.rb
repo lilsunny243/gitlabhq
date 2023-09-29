@@ -27,7 +27,7 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
         find('input[data-testid="branch-search"]').set('fix')
         find('input[data-testid="branch-search"]').native.send_keys(:enter)
 
-        expect(page).to have_button('Only a project maintainer or owner can delete a protected branch', disabled: true)
+        expect(page).not_to have_button('Delete protected branch')
       end
     end
   end
@@ -40,6 +40,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
 
     it 'allows to create a protected branch with name containing HTML tags' do
       visit project_protected_branches_path(project)
+
+      show_add_form
       set_defaults
       set_protected_branch_name('foo<b>bar<\b>')
       click_on "Protect"
@@ -64,9 +66,11 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
         expect(page).to have_content('fix')
         expect(find('.all-branches')).to have_selector('li', count: 1)
 
+        find('[data-testid="branch-more-actions"] button').click
+        wait_for_requests
         expect(page).to have_button('Delete protected branch', disabled: false)
 
-        page.find('.js-delete-branch-button').click
+        find('[data-testid="delete-branch-button"]').click
         fill_in 'delete_branch_input', with: 'fix'
         click_button 'Yes, delete protected branch'
 
@@ -87,6 +91,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
     describe "explicit protected branches" do
       it "allows creating explicit protected branches" do
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_defaults
         set_protected_branch_name('some->branch')
         click_on "Protect"
@@ -96,11 +102,24 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
         expect(ProtectedBranch.last.name).to eq('some->branch')
       end
 
+      it "shows success alert once protected branch is created" do
+        visit project_protected_branches_path(project)
+
+        show_add_form
+        set_defaults
+        set_protected_branch_name('some->branch')
+        click_on "Protect"
+        wait_for_requests
+        expect(page).to have_content(s_('ProtectedBranch|View protected branches as branch rules'))
+      end
+
       it "displays the last commit on the matching branch if it exists" do
         commit = create(:commit, project: project)
         project.repository.add_branch(admin, 'some-branch', commit.id)
 
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_defaults
         set_protected_branch_name('some-branch')
         click_on "Protect"
@@ -113,6 +132,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
 
       it "displays an error message if the named branch does not exist" do
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_defaults
         set_protected_branch_name('some-branch')
         click_on "Protect"
@@ -124,6 +145,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
     describe "wildcard protected branches" do
       it "allows creating protected branches with a wildcard" do
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_defaults
         set_protected_branch_name('*-stable')
         click_on "Protect"
@@ -138,6 +161,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
         project.repository.add_branch(admin, 'staging-stable', 'master')
 
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_defaults
         set_protected_branch_name('*-stable')
         click_on "Protect"
@@ -153,6 +178,8 @@ RSpec.describe 'Protected Branches', :js, feature_category: :source_code_managem
         project.repository.add_branch(admin, 'development', 'master')
 
         visit project_protected_branches_path(project)
+
+        show_add_form
         set_protected_branch_name('*-stable')
         set_defaults
         click_on "Protect"

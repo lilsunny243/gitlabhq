@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe '"Explore" navbar', feature_category: :navigation do
+  include_context '"Explore" navbar structure'
+
+  it_behaves_like 'verified navigation bar' do
+    before do
+      stub_feature_flags(super_sidebar_logged_out: false)
+      visit explore_projects_path
+    end
+  end
+end

@@ -5,9 +5,10 @@ require 'spec_helper'
 RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
   include GraphqlHelpers
 
-  let_it_be(:developer) { create(:user) }
-  let_it_be(:guest) { create(:user) }
-  let_it_be(:project) { create(:project, :private) }
+  let_it_be(:group) { create(:group) }
+  let_it_be_with_reload(:project) { create(:project, :private, group: group) }
+  let_it_be(:developer) { create(:user).tap { |u| group.add_developer(u) } }
+  let_it_be(:guest) { create(:user).tap { |u| group.add_guest(u) } }
   let_it_be(:work_item) do
     create(
       :work_item,
@@ -35,11 +36,29 @@ RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
     graphql_query_for('workItem', { 'id' => global_id }, work_item_fields)
   end
 
-  context 'when the user can read the work item' do
+  context 'when project is archived' do
     before do
-      project.add_developer(developer)
-      project.add_guest(guest)
+      project.update!(archived: true)
+      post_graphql(query, current_user: current_user)
+    end
 
+    it 'returns the correct value in the archived field' do
+      expect(work_item_data).to include(
+        'id' => work_item.to_gid.to_s,
+        'iid' => work_item.iid.to_s,
+        'archived' => true
+      )
+    end
+  end
+
+  context 'when the user can read the work item' do
+    let(:incoming_email_token) { current_user.incoming_email_token }
+    let(:work_item_email) do
+      "p+#{project.full_path_slug}-#{project.project_id}-#{incoming_email_token}-issue-#{work_item.iid}@gl.ab"
+    end
+
+    before do
+      stub_incoming_email_setting(enabled: true, address: "p+%{key}@gl.ab")
       post_graphql(query, current_user: current_user)
     end
 
@@ -55,14 +74,34 @@ RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
         'title' => work_item.title,
         'confidential' => work_item.confidential,
         'workItemType' => hash_including('id' => work_item.work_item_type.to_gid.to_s),
+        'reference' => work_item.to_reference,
+        'createNoteEmail' => work_item_email,
+        'archived' => false,
         'userPermissions' => {
           'readWorkItem' => true,
           'updateWorkItem' => true,
           'deleteWorkItem' => false,
-          'adminWorkItem' => true
+          'adminWorkItem' => true,
+          'adminParentLink' => true,
+          'setWorkItemMetadata' => true,
+          'createNote' => true,
+          'adminWorkItemLink' => true
         },
         'project' => hash_including('id' => project.to_gid.to_s, 'fullPath' => project.full_path)
       )
+    end
+
+    context 'when work item is created at the group level' do
+      let_it_be(:group_work_item) { create(:work_item, :group_level, namespace: group) }
+      let(:global_id) { group_work_item.to_gid.to_s }
+
+      it 'always returns false in the archived field' do
+        expect(work_item_data).to include(
+          'id' => group_work_item.to_gid.to_s,
+          'iid' => group_work_item.iid.to_s,
+          'archived' => false
+        )
+      end
     end
 
     context 'when querying widgets' do
@@ -373,6 +412,363 @@ RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
           )
         end
       end
+
+      describe 'notifications widget' do
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetNotifications {
+                subscribed
+              }
+            }
+          GRAPHQL
+        end
+
+        it 'returns widget information' do
+          expect(work_item_data).to include(
+            'id' => work_item.to_gid.to_s,
+            'widgets' => include(
+              hash_including(
+                'type' => 'NOTIFICATIONS',
+                'subscribed' => work_item.subscribed?(current_user, project)
+              )
+            )
+          )
+        end
+      end
+
+      describe 'currentUserTodos widget' do
+        let_it_be(:current_user) { developer }
+        let_it_be(:other_todo) { create(:todo, state: :pending, user: current_user) }
+
+        let_it_be(:done_todo) do
+          create(:todo, state: :done, target: work_item, target_type: work_item.class.name, user: current_user)
+        end
+
+        let_it_be(:pending_todo) do
+          create(:todo, state: :pending, target: work_item, target_type: work_item.class.name, user: current_user)
+        end
+
+        let_it_be(:other_user_todo) do
+          create(:todo, state: :pending, target: work_item, target_type: work_item.class.name, user: create(:user))
+        end
+
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetCurrentUserTodos {
+                currentUserTodos {
+                  nodes {
+                    id
+                    state
+                  }
+                }
+              }
+            }
+          GRAPHQL
+        end
+
+        context 'with access' do
+          it 'returns widget information' do
+            expect(work_item_data).to include(
+              'id' => work_item.to_gid.to_s,
+              'widgets' => include(
+                hash_including(
+                  'type' => 'CURRENT_USER_TODOS',
+                  'currentUserTodos' => {
+                    'nodes' => match_array(
+                      [done_todo, pending_todo].map { |t| { 'id' => t.to_gid.to_s, 'state' => t.state } }
+                    )
+                  }
+                )
+              )
+            )
+          end
+        end
+
+        context 'with filter' do
+          let(:work_item_fields) do
+            <<~GRAPHQL
+              id
+              widgets {
+                type
+                ... on WorkItemWidgetCurrentUserTodos {
+                  currentUserTodos(state: done) {
+                    nodes {
+                      id
+                      state
+                    }
+                  }
+                }
+              }
+            GRAPHQL
+          end
+
+          it 'returns widget information' do
+            expect(work_item_data).to include(
+              'id' => work_item.to_gid.to_s,
+              'widgets' => include(
+                hash_including(
+                  'type' => 'CURRENT_USER_TODOS',
+                  'currentUserTodos' => {
+                    'nodes' => match_array(
+                      [done_todo].map { |t| { 'id' => t.to_gid.to_s, 'state' => t.state } }
+                    )
+                  }
+                )
+              )
+            )
+          end
+        end
+      end
+
+      describe 'award emoji widget' do
+        let_it_be(:emoji) { create(:award_emoji, name: 'star', awardable: work_item) }
+        let_it_be(:upvote) { create(:award_emoji, :upvote, awardable: work_item) }
+        let_it_be(:downvote) { create(:award_emoji, :downvote, awardable: work_item) }
+
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetAwardEmoji {
+                upvotes
+                downvotes
+                awardEmoji {
+                  nodes {
+                    name
+                  }
+                }
+              }
+            }
+          GRAPHQL
+        end
+
+        it 'returns widget information' do
+          expect(work_item_data).to include(
+            'id' => work_item.to_gid.to_s,
+            'widgets' => include(
+              hash_including(
+                'type' => 'AWARD_EMOJI',
+                'upvotes' => work_item.upvotes,
+                'downvotes' => work_item.downvotes,
+                'awardEmoji' => {
+                  'nodes' => match_array(
+                    [emoji, upvote, downvote].map { |e| { 'name' => e.name } }
+                  )
+                }
+              )
+            )
+          )
+        end
+      end
+
+      describe 'linked items widget' do
+        let_it_be(:related_item) { create(:work_item, project: project) }
+        let_it_be(:blocked_item) { create(:work_item, project: project) }
+        let_it_be(:link1) { create(:work_item_link, source: work_item, target: related_item, link_type: 'relates_to') }
+        let_it_be(:link2) { create(:work_item_link, source: work_item, target: blocked_item, link_type: 'blocks') }
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetLinkedItems {
+                linkedItems {
+                  nodes {
+                    linkId
+                    linkType
+                    linkCreatedAt
+                    linkUpdatedAt
+                    workItem {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          GRAPHQL
+        end
+
+        it 'returns widget information' do
+          expect(work_item_data).to include(
+            'widgets' => include(
+              hash_including(
+                'type' => 'LINKED_ITEMS',
+                'linkedItems' => { 'nodes' => match_array(
+                  [
+                    hash_including(
+                      'linkId' => link1.to_gid.to_s, 'linkType' => 'relates_to',
+                      'linkCreatedAt' => link1.created_at.iso8601, 'linkUpdatedAt' => link1.updated_at.iso8601,
+                      'workItem' => { 'id' => related_item.to_gid.to_s }
+                    ),
+                    hash_including(
+                      'linkId' => link2.to_gid.to_s, 'linkType' => 'blocks',
+                      'linkCreatedAt' => link2.created_at.iso8601, 'linkUpdatedAt' => link2.updated_at.iso8601,
+                      'workItem' => { 'id' => blocked_item.to_gid.to_s }
+                    )
+                  ]
+                ) }
+              )
+            )
+          )
+        end
+
+        context 'when filtering by link type' do
+          let(:work_item_fields) do
+            <<~GRAPHQL
+              widgets {
+                type
+                ... on WorkItemWidgetLinkedItems {
+                  linkedItems(filter: RELATED) {
+                    nodes {
+                      linkType
+                    }
+                  }
+                }
+              }
+            GRAPHQL
+          end
+
+          it 'returns items with specified type' do
+            widget_data = work_item_data["widgets"].find { |widget| widget.key?("linkedItems") }["linkedItems"]
+
+            expect(widget_data["nodes"].size).to eq(1)
+            expect(widget_data.dig("nodes", 0, "linkType")).to eq('relates_to')
+          end
+        end
+
+        context 'when `linked_work_items` feature flag is disabled' do
+          before do
+            stub_feature_flags(linked_work_items: false)
+            post_graphql(query, current_user: current_user)
+          end
+
+          it 'returns empty result' do
+            expect(work_item_data).to include(
+              'widgets' => include(
+                hash_including(
+                  'type' => 'LINKED_ITEMS',
+                  'linkedItems' => { "nodes" => [] }
+                )
+              )
+            )
+          end
+        end
+      end
+    end
+
+    describe 'notes widget' do
+      let(:work_item_fields) do
+        <<~GRAPHQL
+          id
+          widgets {
+            type
+            ... on WorkItemWidgetNotes {
+              system: discussions(filter: ONLY_ACTIVITY, first: 10) { nodes { id  notes { nodes { id system internal body } } } },
+              comments: discussions(filter: ONLY_COMMENTS, first: 10) { nodes { id  notes { nodes { id system internal body } } } },
+              all_notes: discussions(filter: ALL_NOTES, first: 10) { nodes { id  notes { nodes { id system internal body } } } }
+            }
+          }
+        GRAPHQL
+      end
+
+      context 'when fetching award emoji from notes' do
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetNotes {
+                discussions(filter: ONLY_COMMENTS, first: 10) {
+                  nodes {
+                    id
+                    notes {
+                      nodes {
+                        id
+                        body
+                        maxAccessLevelOfAuthor
+                        authorIsContributor
+                        awardEmoji {
+                          nodes {
+                            name
+                            user {
+                              name
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          GRAPHQL
+        end
+
+        let_it_be(:note) { create(:note, project: work_item.project, noteable: work_item, author: developer) }
+
+        before_all do
+          create(:award_emoji, awardable: note, name: 'rocket', user: developer)
+        end
+
+        it 'returns award emoji data' do
+          all_widgets = graphql_dig_at(work_item_data, :widgets)
+          notes_widget = all_widgets.find { |x| x['type'] == 'NOTES' }
+          notes = graphql_dig_at(notes_widget['discussions'], :nodes).flat_map { |d| d['notes']['nodes'] }
+
+          note_with_emoji = notes.find { |n| n['id'] == note.to_gid.to_s }
+
+          expect(note_with_emoji).to include(
+            'awardEmoji' => {
+              'nodes' => include(
+                hash_including(
+                  'name' => 'rocket',
+                  'user' => {
+                    'name' => developer.name
+                  }
+                )
+              )
+            }
+          )
+        end
+
+        it 'returns author contributor status and max access level' do
+          all_widgets = graphql_dig_at(work_item_data, :widgets)
+          notes_widget = all_widgets.find { |x| x['type'] == 'NOTES' }
+          notes = graphql_dig_at(notes_widget['discussions'], :nodes).flat_map { |d| d['notes']['nodes'] }
+
+          expect(notes).to contain_exactly(
+            hash_including('maxAccessLevelOfAuthor' => 'Developer', 'authorIsContributor' => false)
+          )
+        end
+
+        it 'avoids N+1 queries' do
+          another_user = create(:user).tap { |u| note.resource_parent.add_developer(u) }
+          create(:note, project: note.project, noteable: work_item, author: another_user)
+
+          post_graphql(query, current_user: developer)
+
+          control = ActiveRecord::QueryRecorder.new { post_graphql(query, current_user: developer) }
+
+          expect_graphql_errors_to_be_empty
+
+          another_note = create(:note, project: work_item.project, noteable: work_item)
+          create(:award_emoji, awardable: another_note, name: 'star', user: guest)
+          another_user = create(:user).tap { |u| note.resource_parent.add_developer(u) }
+          note_with_different_user = create(:note, project: note.project, noteable: work_item, author: another_user)
+          create(:award_emoji, awardable: note_with_different_user, name: 'star', user: developer)
+
+          # TODO: Fix existing N+1 queries in https://gitlab.com/gitlab-org/gitlab/-/issues/414747
+          expect { post_graphql(query, current_user: developer) }.not_to exceed_query_limit(control).with_threshold(4)
+          expect_graphql_errors_to_be_empty
+        end
+      end
     end
 
     context 'when an Issue Global ID is provided' do
@@ -395,6 +791,24 @@ RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
       expect(work_item_data).to be_nil
       expect(graphql_errors).to contain_exactly(
         hash_including('message' => ::Gitlab::Graphql::Authorize::AuthorizeResource::RESOURCE_ACCESS_ERROR)
+      )
+    end
+  end
+
+  context 'when the user cannot set work item metadata' do
+    let(:current_user) { guest }
+
+    before do
+      post_graphql(query, current_user: current_user)
+    end
+
+    it 'returns correct user permission' do
+      expect(work_item_data).to include(
+        'id' => work_item.to_gid.to_s,
+        'userPermissions' =>
+          hash_including(
+            'setWorkItemMetadata' => false
+          )
       )
     end
   end

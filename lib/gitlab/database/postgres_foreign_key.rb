@@ -5,6 +5,8 @@ module Gitlab
     class PostgresForeignKey < SharedModel
       self.primary_key = :oid
 
+      has_many :child_foreign_keys, class_name: 'Gitlab::Database::PostgresForeignKey', foreign_key: 'parent_oid'
+
       # These values come from the possible confdeltype / confupdtype values in pg_constraint
       ACTION_TYPES = {
         restrict: 'r',
@@ -19,7 +21,7 @@ module Gitlab
       enum on_update_action: ACTION_TYPES, _prefix: :on_update
 
       scope :by_referenced_table_identifier, ->(identifier) do
-        unless identifier =~ Database::FULLY_QUALIFIED_IDENTIFIER
+        unless Database::FULLY_QUALIFIED_IDENTIFIER.match?(identifier)
           raise ArgumentError, "Referenced table name is not fully qualified with a schema: #{identifier}"
         end
 
@@ -29,7 +31,7 @@ module Gitlab
       scope :by_referenced_table_name, ->(name) { where(referenced_table_name: name) }
 
       scope :by_constrained_table_identifier, ->(identifier) do
-        unless identifier =~ Database::FULLY_QUALIFIED_IDENTIFIER
+        unless Database::FULLY_QUALIFIED_IDENTIFIER.match?(identifier)
           raise ArgumentError, "Constrained table name is not fully qualified with a schema: #{identifier}"
         end
 
@@ -39,7 +41,7 @@ module Gitlab
       scope :by_constrained_table_name, ->(name) { where(constrained_table_name: name) }
 
       scope :by_constrained_table_name_or_identifier, ->(name) do
-        if name =~ Database::FULLY_QUALIFIED_IDENTIFIER
+        if Database::FULLY_QUALIFIED_IDENTIFIER.match?(name)
           by_constrained_table_identifier(name)
         else
           by_constrained_table_name(name)

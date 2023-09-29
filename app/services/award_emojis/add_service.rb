@@ -6,11 +6,11 @@ module AwardEmojis
 
     def execute
       unless awardable.user_can_award?(current_user)
-        return error('User cannot award emoji to awardable', status: :forbidden)
+        return error('User cannot add emoji reactions to awardable', status: :forbidden)
       end
 
       unless awardable.emoji_awardable?
-        return error('Awardable cannot be awarded emoji', status: :unprocessable_entity)
+        return error('Awardable cannot add emoji reactions', status: :unprocessable_entity)
       end
 
       award = awardable.award_emoji.create(name: name, user: current_user)
@@ -27,6 +27,8 @@ module AwardEmojis
 
     def after_create(award)
       TodoService.new.new_award_emoji(todoable, current_user) if todoable
+
+      execute_hooks(award, 'award')
     end
 
     def todoable

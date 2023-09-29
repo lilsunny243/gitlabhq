@@ -1,5 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import IssuePlaceholderNote from '~/vue_shared/components/notes/placeholder_note.vue';
 import { userDataMock } from 'jest/notes/mock_data';
@@ -29,11 +30,6 @@ describe('Issue placeholder note component', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   it('matches snapshot', () => {
     createComponent();

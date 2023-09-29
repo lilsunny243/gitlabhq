@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::GroupLinks::CreateService, '#execute' do
+RSpec.describe Groups::GroupLinks::CreateService, '#execute', feature_category: :groups_and_projects do
   let_it_be(:shared_with_group_parent) { create(:group, :private) }
   let_it_be(:shared_with_group) { create(:group, :private, parent: shared_with_group_parent) }
   let_it_be(:shared_with_group_child) { create(:group, :private, parent: shared_with_group) }
@@ -54,9 +54,8 @@ RSpec.describe Groups::GroupLinks::CreateService, '#execute' do
     it_behaves_like 'shareable'
 
     context 'when sharing outside the hierarchy is disabled' do
-      let_it_be(:group_parent) do
-        create(:group,
-               namespace_settings: create(:namespace_settings, prevent_sharing_groups_outside_hierarchy: true))
+      let_it_be_with_refind(:group_parent) do
+        create(:group, namespace_settings: create(:namespace_settings, prevent_sharing_groups_outside_hierarchy: true))
       end
 
       it_behaves_like 'not shareable'

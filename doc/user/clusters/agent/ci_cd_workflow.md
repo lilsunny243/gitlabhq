@@ -1,23 +1,23 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Using GitLab CI/CD with a Kubernetes cluster **(FREE)**
+# Using GitLab CI/CD with a Kubernetes cluster **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/327409) in GitLab 14.1.
-> - The pre-configured `KUBECONFIG` was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/324275) in GitLab 14.2.
+> - The pre-configured variable `$KUBECONFIG` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/324275) in GitLab 14.2.
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5784) the `ci_access` attribute in GitLab 14.3.
 > - The ability to authorize groups was [introduced](https://gitlab.com/groups/gitlab-org/-/epics/5784) in GitLab 14.3.
 > - [Moved](https://gitlab.com/groups/gitlab-org/-/epics/6290) to GitLab Free in 14.5.
-> - Support for Omnibus installations was [introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5686) in GitLab 14.5.
+> - Support for Linux package installations was [introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5686) in GitLab 14.5.
 > - The ability to switch between certificate-based clusters and agents was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/335089) in GitLab 14.9. The certificate-based cluster context is always called `gitlab-deploy`.
 > - [Renamed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80508) from _CI/CD tunnel_ to _CI/CD workflow_ in GitLab 14.9.
 
-You can use a GitLab CI/CD workflow to safely deploy to and update your Kubernetes clusters.
+You can use GitLab CI/CD to safely connect, deploy, and update your Kubernetes clusters.
 
-To do so, you must first [install an agent in your cluster](install/index.md). When done, you have a Kubernetes context and can
+To do so, [install an agent in your cluster](install/index.md). When done, you have a Kubernetes context and can
 run Kubernetes API commands in your GitLab CI/CD pipeline.
 
 To ensure access to your cluster is safe:
@@ -25,11 +25,11 @@ To ensure access to your cluster is safe:
 - Each agent has a separate context (`kubecontext`).
 - Only the project where the agent is configured, and any additional projects you authorize, can access the agent in your cluster.
 
-The CI/CD workflow requires runners to be registered with GitLab, but these runners do not have to be in the cluster where the agent is.
+To use GitLab CI/CD to interact with your cluster, runners must be registered with GitLab. However, these runners do not have to be in the cluster where the agent is.
 
-## GitLab CI/CD workflow steps
+## Use GitLab CI/CD with your cluster
 
-To update a Kubernetes cluster by using GitLab CI/CD, complete the following steps.
+To update a Kubernetes cluster with GitLab CI/CD:
 
 1. Ensure you have a working Kubernetes cluster and the manifests are in a GitLab project.
 1. In the same GitLab project, [register and install the GitLab agent](install/index.md).
@@ -64,7 +64,7 @@ Authorization configuration can take one or two minutes to propagate.
 
 To authorize the agent to access the GitLab project where you keep Kubernetes manifests:
 
-1. On the top bar, select **Main menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
+1. On the left sidebar, select **Search or go to** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
 1. Edit the `config.yaml` file. Under the `ci_access` keyword, add the `projects` attribute.
 1. For the `id`, add the path to the project. Do not wrap the path in quotation marks.
 
@@ -78,7 +78,8 @@ To authorize the agent to access the GitLab project where you keep Kubernetes ma
    - You can install additional agents into the same cluster to accommodate additional hierarchies.
    - You can authorize up to 100 projects.
 
-All CI/CD jobs now include a `KUBECONFIG` with contexts for every shared agent connection.
+All CI/CD jobs now include a `kubeconfig` file with contexts for every shared agent connection.
+The `kubeconfig` path is available in the environment variable `$KUBECONFIG`.
 Choose the context to run `kubectl` commands from your CI/CD scripts.
 
 ### Authorize the agent to access projects in your groups
@@ -88,7 +89,7 @@ Choose the context to run `kubectl` commands from your CI/CD scripts.
 
 To authorize the agent to access all of the GitLab projects in a group or subgroup:
 
-1. On the top bar, select **Main menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
+1. On the left sidebar, select **Search or go to** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
 1. Edit the `config.yaml` file. Under the `ci_access` keyword, add the `groups` attribute.
 1. For the `id`, add the path:
 
@@ -104,7 +105,8 @@ To authorize the agent to access all of the GitLab projects in a group or subgro
    - You can authorize up to 100 groups.
 
 All the projects that belong to the group and its subgroups are now authorized to access the agent.
-All CI/CD jobs now include a `KUBECONFIG` with contexts for every shared agent connection.
+All CI/CD jobs now include a `kubeconfig` file with contexts for every shared agent connection.
+The `kubeconfig` path is available in an environment variable `$KUBECONFIG`.
 Choose the context to run `kubectl` commands from your CI/CD scripts.
 
 ## Update your `.gitlab-ci.yml` file to run `kubectl` commands
@@ -159,10 +161,10 @@ When you deploy to an environment that has both a
 
 - The certificate-based cluster's context is called `gitlab-deploy`. This context
   is always selected by default.
-- In GitLab 14.9 and later, agent contexts are included in the
-  `KUBECONFIG`. You can select them by using `kubectl config use-context path/to/agent/repository:agent-name`.
+- In GitLab 14.9 and later, agent contexts are included in `$KUBECONFIG`.
+  You can select them by using `kubectl config use-context path/to/agent/repository:agent-name`.
 - In GitLab 14.8 and earlier, you can still use agent connections, but for environments that
-  already have a certificate-based cluster, the agent connections are not included in the `KUBECONFIG`.
+  already have a certificate-based cluster, the agent connections are not included in `$KUBECONFIG`.
 
 To use an agent connection when certificate-based connections are present, you can manually configure a new `kubectl`
 configuration context. For example:
@@ -183,7 +185,18 @@ deploy:
   # ... rest of your job configuration
 ```
 
-## Restrict project and group access by using impersonation **(PREMIUM)**
+### Environments with KAS that use self-signed certificates
+
+If you use an environment with KAS and a self-signed certificate, you must configure your Kubernetes client to trust the certificate authority (CA) that signed your certificate.
+
+To configure your client, do one of the following:
+
+- Set a CI/CD variable `SSL_CERT_FILE` with the KAS certificate in PEM format.
+- Configure the Kubernetes client with `--certificate-authority=$KAS_CERTIFICATE`, where `KAS_CERTIFICATE` is a CI/CD variable with the CA certificate of KAS.
+- Place the certificates in an appropriate location in the job container by updating the container image or mounting via the runner.
+- Not recommended. Configure the Kubernetes client with `--insecure-skip-tls-verify=true`.
+
+## Restrict project and group access by using impersonation **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345014) in GitLab 14.5.
 > - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/357934) in GitLab 15.5 to add impersonation support for environment tiers.
@@ -287,7 +300,7 @@ The identity can be specified with the following keys:
 
 See the [official Kubernetes documentation for details](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
 
-## Restrict project and group access to specific environments **(FREE)**
+## Restrict project and group access to specific environments **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/343885) in GitLab 15.7.
 
@@ -340,3 +353,28 @@ If you attempt to use `kubectl` without TLS, you might get an error like:
 $ kubectl get pods
 error: You must be logged in to the server (the server has asked for the client to provide credentials)
 ```
+
+### Unable to connect to the server: certificate signed by unknown authority
+
+If you use an environment with KAS and a self-signed certificate, your `kubectl` call might return this error:
+
+```plaintext
+kubectl get pods
+Unable to connect to the server: x509: certificate signed by unknown authority
+```
+
+The error occurs because the job does not trust the certificate authority (CA) that signed the KAS certificate.
+
+To resolve the issue, [configure `kubectl` to trust the CA](#environments-with-kas-that-use-self-signed-certificates).
+
+### Validation errors
+
+If you use `kubectl` versions v1.27.0 or v.1.27.1, you might get the following error:
+
+```plaintext
+error: error validating "file.yml": error validating data: the server responded with the status code 426 but did not return more information; if you choose to ignore these errors, turn validation off with --validate=false
+```
+
+This issue is caused by [a bug](https://github.com/kubernetes/kubernetes/issues/117463) with `kubectl` and other tools that use the shared Kubernetes libraries.
+
+To resolve the issue, use another version of `kubectl`.

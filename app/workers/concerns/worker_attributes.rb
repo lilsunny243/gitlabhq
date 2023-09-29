@@ -33,6 +33,8 @@ module WorkerAttributes
     security_scans: 2
   }.stringify_keys.freeze
 
+  DEFAULT_DEFER_DELAY = 5.seconds
+
   class_methods do
     def feature_category(value, *extras)
       set_class_attribute(:feature_category, value)
@@ -149,6 +151,10 @@ module WorkerAttributes
       set_class_attribute(:weight, value)
     end
 
+    def pause_control(value)
+      ::Gitlab::SidekiqMiddleware::PauseControl::WorkersMap.set_strategy_for(strategy: value, worker: self)
+    end
+
     def get_weight
       get_class_attribute(:weight) ||
         NAMESPACE_WEIGHTS[queue_namespace] ||
@@ -189,6 +195,21 @@ module WorkerAttributes
 
     def big_payload?
       !!get_class_attribute(:big_payload)
+    end
+
+    def defer_on_database_health_signal(gitlab_schema, tables = [], delay_by = DEFAULT_DEFER_DELAY)
+      set_class_attribute(
+        :database_health_check_attrs,
+        { gitlab_schema: gitlab_schema, tables: tables, delay_by: delay_by }
+      )
+    end
+
+    def defer_on_database_health_signal?
+      database_health_check_attrs.present?
+    end
+
+    def database_health_check_attrs
+      get_class_attribute(:database_health_check_attrs)
     end
   end
 end

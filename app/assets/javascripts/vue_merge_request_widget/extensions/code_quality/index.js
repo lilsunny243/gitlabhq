@@ -23,14 +23,17 @@ export default {
       const { newErrors, resolvedErrors, parsingInProgress } = data;
       if (parsingInProgress) {
         return i18n.loading;
-      } else if (newErrors.length >= 1 && resolvedErrors.length >= 1) {
+      }
+      if (newErrors.length >= 1 && resolvedErrors.length >= 1) {
         return i18n.improvementAndDegradationCopy(
           i18n.findings(resolvedErrors, codeQualityPrefixes.fixed),
           i18n.findings(newErrors, codeQualityPrefixes.new),
         );
-      } else if (resolvedErrors.length >= 1) {
+      }
+      if (resolvedErrors.length >= 1) {
         return i18n.singularCopy(i18n.findings(resolvedErrors, codeQualityPrefixes.fixed));
-      } else if (newErrors.length >= 1) {
+      }
+      if (newErrors.length >= 1) {
         return i18n.singularCopy(i18n.findings(newErrors, codeQualityPrefixes.new));
       }
       return i18n.noChanges;
@@ -38,7 +41,8 @@ export default {
     statusIcon() {
       if (this.collapsedData.newErrors.length >= 1) {
         return EXTENSION_ICONS.warning;
-      } else if (this.collapsedData.resolvedErrors.length >= 1) {
+      }
+      if (this.collapsedData.resolvedErrors.length >= 1) {
         return EXTENSION_ICONS.success;
       }
       return EXTENSION_ICONS.neutral;
@@ -63,7 +67,9 @@ export default {
 
       this.collapsedData.newErrors.map((e) => {
         return fullData.push({
-          text: `${capitalizeFirstCharacter(e.severity)} - ${e.description}`,
+          text: e.check_name
+            ? `${capitalizeFirstCharacter(e.severity)} - ${e.check_name} - ${e.description}`
+            : `${capitalizeFirstCharacter(e.severity)} - ${e.description}`,
           subtext: {
             prependText: i18n.prependText,
             text: `${e.file_path}:${e.line}`,
@@ -77,7 +83,9 @@ export default {
 
       this.collapsedData.resolvedErrors.map((e) => {
         return fullData.push({
-          text: `${capitalizeFirstCharacter(e.severity)} - ${e.description}`,
+          text: e.check_name
+            ? `${capitalizeFirstCharacter(e.severity)} - ${e.check_name} - ${e.description}`
+            : `${capitalizeFirstCharacter(e.severity)} - ${e.description}`,
           subtext: {
             prependText: i18n.prependText,
             text: `${e.file_path}:${e.line}`,

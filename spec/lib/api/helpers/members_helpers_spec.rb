@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Helpers::MembersHelpers, feature_category: :subgroups do
+RSpec.describe API::Helpers::MembersHelpers, feature_category: :groups_and_projects do
   let(:helper) do
     Class.new.include(described_class).new
   end
@@ -22,15 +22,6 @@ RSpec.describe API::Helpers::MembersHelpers, feature_category: :subgroups do
 
       it_behaves_like 'returns all direct members'
       it_behaves_like 'query with source filters'
-
-      context 'when project_members_index_by_project_namespace feature flag is disabled' do
-        before do
-          stub_feature_flags(project_members_index_by_project_namespace: false)
-        end
-
-        it_behaves_like 'returns all direct members'
-        it_behaves_like 'query with source filters'
-      end
     end
 
     context 'for a project' do
@@ -39,15 +30,6 @@ RSpec.describe API::Helpers::MembersHelpers, feature_category: :subgroups do
 
       it_behaves_like 'returns all direct members'
       it_behaves_like 'query without source filters'
-
-      context 'when project_members_index_by_project_namespace feature flag is disabled' do
-        before do
-          stub_feature_flags(project_members_index_by_project_namespace: false)
-        end
-
-        it_behaves_like 'returns all direct members'
-        it_behaves_like 'query with source filters'
-      end
     end
   end
 end

@@ -22,7 +22,17 @@ module QA
           r = put(Runtime::API::Request.new(api_client, APPLICATION_SETTINGS_PATH).url, **application_settings)
           return if r.code == QA::Support::API::HTTP_STATUS_OK
 
-          raise "Couldn't set application settings #{application_settings.inspect}"
+          body = parse_body(r)
+          raise("Couldn't set application settings #{application_settings.inspect}, code: '#{r.code}', body: #{body}")
+        end
+
+        # Get a single application setting
+        #
+        # @param setting [Symbol] the name of the setting to get
+        # @param api_client [Runtime::API::Client] the API client representing the admin user who will get the setting
+        # @return [String]
+        def get_application_setting(setting, api_client: admin_api_client)
+          get_application_settings(api_client: api_client).fetch(setting)
         end
 
         def get_application_settings(api_client: admin_api_client)
@@ -33,6 +43,20 @@ module QA
         # populated sometime in the past and there is no guarantee original settings instance variable is still valid
         def restore_application_settings(...)
           set_application_settings(**@original_application_settings.slice(...))
+        end
+
+        # Enable the application setting that allows requests from local services to the GitLab instance
+        #
+        # @return [Void]
+        def enable_local_requests
+          set_application_settings(allow_local_requests_from_web_hooks_and_services: true)
+        end
+
+        # Disables the application setting that allows local requests
+        #
+        # @return [Void]
+        def disable_local_requests
+          set_application_settings(allow_local_requests_from_web_hooks_and_services: false)
         end
 
         private

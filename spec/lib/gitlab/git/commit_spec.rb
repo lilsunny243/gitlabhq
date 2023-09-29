@@ -2,16 +2,17 @@
 
 require "spec_helper"
 
-RSpec.describe Gitlab::Git::Commit do
-  let(:repository) { create(:project, :repository).repository.raw }
+RSpec.describe Gitlab::Git::Commit, feature_category: :source_code_management do
+  let_it_be(:repository) { create(:project, :repository).repository.raw }
   let(:commit) { described_class.find(repository, SeedRepo::Commit::ID) }
 
   describe "Commit info from gitaly commit" do
     let(:subject) { (+"My commit").force_encoding('ASCII-8BIT') }
     let(:body) { subject + (+"My body").force_encoding('ASCII-8BIT') }
     let(:body_size) { body.length }
-    let(:gitaly_commit) { build(:gitaly_commit, subject: subject, body: body, body_size: body_size) }
+    let(:gitaly_commit) { build(:gitaly_commit, subject: subject, body: body, body_size: body_size, tree_id: tree_id) }
     let(:id) { gitaly_commit.id }
+    let(:tree_id) { 'd7f32d821c9cc7b1a9166ca7c4ba95b5c2d0d000' }
     let(:committer) { gitaly_commit.committer }
     let(:author) { gitaly_commit.author }
     let(:commit) { described_class.new(repository, gitaly_commit) }
@@ -26,6 +27,7 @@ RSpec.describe Gitlab::Git::Commit do
     it { expect(commit.committer_name).to eq(committer.name) }
     it { expect(commit.committer_email).to eq(committer.email) }
     it { expect(commit.parent_ids).to eq(gitaly_commit.parent_ids) }
+    it { expect(commit.tree_id).to eq(tree_id) }
 
     context 'non-UTC dates' do
       let(:seconds) { Time.now.to_i }
@@ -61,8 +63,39 @@ RSpec.describe Gitlab::Git::Commit do
       context 'body_size greater than threshold' do
         let(:body_size) { described_class::MAX_COMMIT_MESSAGE_DISPLAY_SIZE + 1 }
 
-        it 'returns the suject plus a notice about message size' do
+        it 'returns the subject plus a notice about message size' do
           expect(commit.safe_message).to eq("My commit\n\n--commit message is too big")
+        end
+      end
+
+      context "large commit message" do
+        let(:user) { create(:user) }
+        let(:sha) { create_commit_with_large_message }
+        let(:commit) { repository.commit(sha) }
+
+        def create_commit_with_large_message
+          repository.commit_files(
+            user,
+            branch_name: 'HEAD',
+            message: "Repeat " * 10 * 1024,
+            actions: []
+          ).newrev
+        end
+
+        it 'returns a String' do
+          # When #message is called, its encoding is forced from
+          # ASCII-8BIT to UTF-8, and the method returns a
+          # string. Calling #message again may cause BatchLoader to
+          # return since the encoding has been modified to UTF-8, and
+          # the encoding helper will return the original object unmodified.
+          #
+          # To ensure #fetch_body_from_gitaly returns a String, invoke
+          # #to_s. In the test below, do a strict type check to ensure
+          # that a String is always returned. Note that the Rspec
+          # matcher be_instance_of(String) appears to evaluate the
+          # BatchLoader result, so we have to do a strict comparison
+          # here.
+          2.times { expect(String === commit.message).to be true }
         end
       end
     end
@@ -389,7 +422,7 @@ RSpec.describe Gitlab::Git::Commit do
           commits = described_class.batch_by_oid(repository, oids)
 
           expect(commits.count).to eq(2)
-          expect(commits).to all( be_a(Gitlab::Git::Commit) )
+          expect(commits).to all( be_a(described_class) )
           expect(commits.first.sha).to eq(SeedRepo::Commit::ID)
           expect(commits.second.sha).to eq(SeedRepo::FirstCommit::ID)
         end
@@ -445,7 +478,7 @@ RSpec.describe Gitlab::Git::Commit do
         let(:commit_id) { '0b4bc9a49b562e85de7cc9e834518ea6828729b9' }
 
         it 'returns signature and signed text' do
-          signature, signed_text = subject
+          signature, signed_text, signer = subject.values_at(:signature, :signed_text, :signer)
 
           expected_signature = <<~SIGNATURE
             -----BEGIN PGP SIGNATURE-----
@@ -478,6 +511,7 @@ RSpec.describe Gitlab::Git::Commit do
 
           expect(signed_text).to eq(expected_signed_text)
           expect(signed_text).to be_a_binary_string
+          expect(signer).to eq(:SIGNER_USER)
         end
       end
 
@@ -544,6 +578,14 @@ RSpec.describe Gitlab::Git::Commit do
       subject { super().message }
 
       it { is_expected.to eq(sample_commit_hash[:message]) }
+    end
+
+    describe '#tree_id' do
+      subject { super().tree_id }
+
+      it "doesn't return tree id for non-Gitaly commits" do
+        is_expected.to be_nil
+      end
     end
   end
 
@@ -646,6 +688,100 @@ RSpec.describe Gitlab::Git::Commit do
       repository # preload repository so that the project factory does not pollute request counts
 
       expect { subject.map(&:itself) }.to change { Gitlab::GitalyClient.get_request_count }.by(1)
+    end
+  end
+
+  describe 'SHA patterns' do
+    shared_examples 'a SHA-matching pattern' do
+      let(:expected_match) { sha }
+
+      shared_examples 'a match' do
+        it 'matches the pattern' do
+          expect(value).to match(pattern)
+          expect(pattern.match(value).to_a).to eq([expected_match])
+        end
+      end
+
+      shared_examples 'no match' do
+        it 'does not match the pattern' do
+          expect(value).not_to match(pattern)
+        end
+      end
+
+      shared_examples 'a SHA pattern' do
+        context "with too short value" do
+          let(:value) { sha[0, described_class::MIN_SHA_LENGTH - 1] }
+
+          it_behaves_like 'no match'
+        end
+
+        context "with full length" do
+          let(:value) { sha }
+
+          it_behaves_like 'a match'
+        end
+
+        context "with exceeeding length" do
+          let(:value) { sha + sha }
+
+          # This case is not exactly pretty for SHA1 as we would still match the full SHA256 length. It's arguable what
+          # the correct behaviour would be, but without starting to distinguish SHA1 and SHA256 hashes this is the best
+          # we can do.
+          let(:expected_match) { (sha + sha)[0, described_class::MAX_SHA_LENGTH] }
+
+          it_behaves_like 'a match'
+        end
+
+        context "with embedded SHA" do
+          let(:value) { "xxx#{sha}xxx" }
+
+          it_behaves_like 'a match'
+        end
+      end
+
+      context 'abbreviated SHA pattern' do
+        let(:pattern) { described_class::SHA_PATTERN }
+
+        context "with minimum length" do
+          let(:value) { sha[0, described_class::MIN_SHA_LENGTH] }
+          let(:expected_match) { value }
+
+          it_behaves_like 'a match'
+        end
+
+        context "with medium length" do
+          let(:value) { sha[0, described_class::MIN_SHA_LENGTH + 20] }
+          let(:expected_match) { value }
+
+          it_behaves_like 'a match'
+        end
+
+        it_behaves_like 'a SHA pattern'
+      end
+
+      context 'full SHA pattern' do
+        let(:pattern) { described_class::FULL_SHA_PATTERN }
+
+        context 'with abbreviated length' do
+          let(:value) { sha[0, described_class::SHA1_LENGTH - 1] }
+
+          it_behaves_like 'no match'
+        end
+
+        it_behaves_like 'a SHA pattern'
+      end
+    end
+
+    context 'SHA1' do
+      let(:sha) { "5716ca5987cbf97d6bb54920bea6adde242d87e6" }
+
+      it_behaves_like 'a SHA-matching pattern'
+    end
+
+    context 'SHA256' do
+      let(:sha) { "a52e146ac2ab2d0efbb768ab8ebd1e98a6055764c81fe424fbae4522f5b4cb92" }
+
+      it_behaves_like 'a SHA-matching pattern'
     end
   end
 

@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe BulkImports::Common::Pipelines::LfsObjectsPipeline do
+RSpec.describe BulkImports::Common::Pipelines::LfsObjectsPipeline, feature_category: :importers do
   let_it_be(:portable) { create(:project) }
   let_it_be(:oid) { 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }
 
   let(:tmpdir) { Dir.mktmpdir }
-  let(:entity) { create(:bulk_import_entity, :project_entity, project: portable, source_full_path: 'test', source_xid: nil) }
+  let(:entity) { create(:bulk_import_entity, :project_entity, project: portable, source_xid: nil) }
   let(:tracker) { create(:bulk_import_tracker, entity: entity) }
   let(:context) { BulkImports::Pipeline::Context.new(tracker) }
   let(:lfs_dir_path) { tmpdir }
@@ -53,7 +53,7 @@ RSpec.describe BulkImports::Common::Pipelines::LfsObjectsPipeline do
         .to receive(:new)
         .with(
           configuration: context.configuration,
-          relative_url: "/#{entity.pluralized_name}/test/export_relations/download?relation=lfs_objects",
+          relative_url: "/#{entity.pluralized_name}/#{CGI.escape(entity.source_full_path)}/export_relations/download?relation=lfs_objects",
           tmpdir: tmpdir,
           filename: 'lfs_objects.tar.gz')
         .and_return(download_service)
@@ -105,7 +105,7 @@ RSpec.describe BulkImports::Common::Pipelines::LfsObjectsPipeline do
 
     context 'when file path is being traversed' do
       it 'raises an error' do
-        expect { pipeline.load(context, File.join(tmpdir, '..')) }.to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+        expect { pipeline.load(context, File.join(tmpdir, '..')) }.to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
       end
     end
 
@@ -118,10 +118,19 @@ RSpec.describe BulkImports::Common::Pipelines::LfsObjectsPipeline do
     context 'when file path is symlink' do
       it 'returns' do
         symlink = File.join(tmpdir, 'symlink')
+        FileUtils.ln_s(lfs_file_path, symlink)
 
-        FileUtils.ln_s(File.join(tmpdir, lfs_file_path), symlink)
-
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(symlink).and_call_original
         expect { pipeline.load(context, symlink) }.not_to change { portable.lfs_objects.count }
+      end
+    end
+
+    context 'when file path shares multiple hard links' do
+      it 'returns' do
+        FileUtils.link(lfs_file_path, File.join(tmpdir, 'hard_link'))
+
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(lfs_file_path).and_call_original
+        expect { pipeline.load(context, lfs_file_path) }.not_to change { portable.lfs_objects.count }
       end
     end
 

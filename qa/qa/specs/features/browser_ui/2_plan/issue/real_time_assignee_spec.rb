@@ -5,11 +5,7 @@ module QA
     describe 'Assignees' do
       let(:user1) { Resource::User.fabricate_or_use(Runtime::Env.gitlab_qa_username_1, Runtime::Env.gitlab_qa_password_1) }
       let(:user2) { Resource::User.fabricate_or_use(Runtime::Env.gitlab_qa_username_2, Runtime::Env.gitlab_qa_password_2) }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-to-test-assignees'
-        end
-      end
+      let(:project) { create(:project, name: 'project-to-test-assignees') }
 
       before do
         Flow::Login.sign_in
@@ -19,11 +15,7 @@ module QA
       end
 
       it 'update without refresh', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347941' do
-        issue = Resource::Issue.fabricate_via_api! do |issue|
-          issue.project = project
-          issue.assignee_ids = [user1.id]
-        end
-
+        issue = create(:issue, project: project, assignee_ids: [user1.id])
         issue.visit!
 
         Page::Project::Issue::Show.perform do |show|

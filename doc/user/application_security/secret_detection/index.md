@@ -4,7 +4,7 @@ group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Secret Detection **(FREE)**
+# Secret Detection **(FREE ALL)**
 
 > - In GitLab 13.1, Secret Detection was split from the [SAST configuration](../sast/index.md#configuration)
 >   into its own CI/CD template. If you're using GitLab 13.0 or earlier and SAST is enabled, then
@@ -15,40 +15,42 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 >   `secret_detection_default_branch` and `secret_detection` were consolidated into one job,
 >   `secret_detection`.
 
-People may accidentally commit secrets (such as keys, passwords, and API tokens) to remote Git repositories.
+People sometimes accidentally commit secrets like keys or API tokens to Git repositories.
+After a sensitive value is pushed to a remote repository, anyone with access to the repository can impersonate the authorized user of the secret for malicious purposes.
+Most organizations require exposed secrets to be revoked and replaced to address this risk.
 
-Anyone with access to the repository could use the secrets for malicious purposes. Exposed secrets
-must be considered compromised and be replaced, which can be costly.
+Secret Detection scans your repository to help prevent your secrets from being exposed.
+Secret Detection scanning works on all text files, regardless of the language or framework used.
 
-To help prevent secrets from being committed to a Git repository, you can use Secret Detection to
-scan your repository for secrets. Scanning is language and framework agnostic, but does not support
-scanning binary files.
+After you [enable Secret Detection](#enable-secret-detection), scans run in a CI/CD job named `secret_detection`.
+You can run scans and view [Secret Detection JSON report artifacts](../../../ci/yaml/artifacts_reports.md#artifactsreportssecret_detection) in any GitLab tier.
 
-Secret Detection uses an analyzer containing the [Gitleaks](https://github.com/zricethezav/gitleaks)
-tool to scan the repository for secrets. Detection occurs in the `secret-detection` job. The results
-are saved as a
-[Secret Detection report artifact](../../../ci/yaml/artifacts_reports.md#artifactsreportssecret_detection)
-that you can later download and analyze. Due to implementation limitations, we always take the
-latest Secret Detection artifact available.
+With GitLab Ultimate, Secret Detection results are also processed so you can:
 
-GitLab SaaS supports post-processing hooks, so you can take action when a secret is found. For
-more information, see [Post-processing and revocation](post_processing.md).
-
-All identified secrets are reported in the:
-
-- Merge request widget
-- Pipelines' **Security** tab
-- [Vulnerability Report](../vulnerability_report/index.md)
-
-![Secret Detection in merge request widget](img/secret_detection_v13_2.png)
+- See them in the [merge request widget](../index.md#merge-request), [pipeline security report](../vulnerability_report/pipeline.md), and [vulnerability report](../vulnerability_report/index.md) UIs.
+- Use them in approval workflows.
+- Review them in the security dashboard.
+- [Automatically respond](automatic_response.md) to leaks in public repositories.
 
 ## Detected secrets
 
-Secret Detection uses a [default ruleset](https://gitlab.com/gitlab-org/security-products/analyzers/secrets/-/blob/master/gitleaks.toml)
-containing more than 90 secret detection patterns. You can also customize the secret detection
-patterns using [custom rulesets](#custom-rulesets). If you want to contribute rulesets for
-"well-identifiable" secrets, follow the steps detailed in the
-[community contributions guidelines](https://gitlab.com/gitlab-org/gitlab/-/issues/345453).
+GitLab maintains the detection rules used in Secret Detection.
+The [default ruleset](https://gitlab.com/gitlab-org/security-products/analyzers/secrets/-/blob/master/gitleaks.toml)
+contains more than 100 patterns.
+
+Most Secret Detection patterns search for specific types of secrets.
+Many services add prefixes or other structural details to their secrets so they can be identified if they're leaked.
+For example, GitLab [adds a `glpat-` prefix](../../../administration/settings/account_and_limit_settings.md#personal-access-token-prefix) to project, group, and personal access tokens by default.
+
+To provide more reliable, high-confidence results, Secret Detection only looks for passwords or other unstructured secrets in specific contexts like URLs.
+
+### Adding new patterns
+
+To search for other types of secrets in your repositories, you can configure a [custom ruleset](#custom-rulesets).
+
+To propose a new detection rule for all users of Secret Detection, create a merge request against the [file containing the default rules](https://gitlab.com/gitlab-org/security-products/analyzers/secrets/-/blob/master/gitleaks.toml).
+
+If you operate a cloud or SaaS product and you're interested in partnering with GitLab to better protect your users, learn more about our [partner program for leaked credential notifications](automatic_response.md#partner-program-for-leaked-credential-notifications).
 
 ## Features per tier
 
@@ -59,6 +61,7 @@ Different features are available in different [GitLab tiers](https://about.gitla
 | [Configure Secret Detection scanner](#enable-secret-detection)   | **{check-circle}** Yes | **{check-circle}** Yes |
 | [Customize Secret Detection settings](#configure-scan-settings)  | **{check-circle}** Yes | **{check-circle}** Yes |
 | Download [JSON Report](../sast/index.md#reports-json-format)     | **{check-circle}** Yes | **{check-circle}** Yes |
+| [Check text for potential secrets](#warnings-for-potential-leaks-in-text-content) before it's posted | **{check-circle}** Yes | **{check-circle}** Yes |
 | See new findings in the merge request widget                     | **{dotted-circle}** No | **{check-circle}** Yes |
 | View identified secrets in the pipelines' **Security** tab       | **{dotted-circle}** No | **{check-circle}** Yes |
 | [Manage vulnerabilities](../vulnerability_report/index.md)       | **{dotted-circle}** No | **{check-circle}** Yes |
@@ -80,7 +83,7 @@ Secret Detection can detect if a secret was added in one commit and removed in a
 
 - Commit range
 
-  If the `SECRET_DETECTION_LOG_OPTS` variable is set, the secrets analyzer fetches the entire
+  If the `SECRET_DETECTION_LOG_OPTIONS` variable is set, the secrets analyzer fetches the entire
   history of the branch or reference the pipeline is being run for. Secret Detection then runs,
   scanning the commit range specified.
 
@@ -104,7 +107,8 @@ Secret Detection can detect if a secret was added in one commit and removed in a
 
   In a merge request, Secret Detection scans every commit made on the source branch. To use this
   feature, you must use the [`latest` Secret Detection template](#templates), as it supports
-  [merge request pipelines](../../../ci/pipelines/merge_request_pipelines.md).
+  [merge request pipelines](../../../ci/pipelines/merge_request_pipelines.md). Secret Detection's
+  results are only available after the pipeline is completed.
 
 ## Templates
 
@@ -113,7 +117,7 @@ provided with GitLab upgrades, allowing you to benefit from any improvements and
 
 Available templates:
 
-- [`Secret-Detection.gitlab-ci.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/Secret-Detection.gitlab-ci.yml): Stable version of the Secret Detection CI/CD template.
+- [`Secret-Detection.gitlab-ci.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/Secret-Detection.gitlab-ci.yml): Stable, default version of the Secret Detection CI/CD template.
 - [`Secret-Detection.latest.gitlab-ci.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/Secret-Detection.latest.gitlab-ci.yml): Latest version of the Secret Detection template.
 
 WARNING:
@@ -133,7 +137,7 @@ shared runners on GitLab.com, this is enabled by default.
   - Windows Runners are not supported.
   - CPU architectures other than amd64 are not supported.
 - If you use your own runners, make sure the Docker version installed is **not** `19.03.0`. See
-  [troubleshooting information](../sast#error-response-from-daemon-error-processing-tar-file-docker-tar-relocation-error)
+  [troubleshooting information](../sast/troubleshooting.md#error-response-from-daemon-error-processing-tar-file-docker-tar-relocation-error)
   for details.
 - GitLab CI/CD configuration (`.gitlab-ci.yml`) must include the `test` stage.
 
@@ -141,23 +145,23 @@ To enable Secret Detection, either:
 
 - Enable [Auto DevOps](../../../topics/autodevops/index.md), which includes [Auto Secret Detection](../../../topics/autodevops/stages.md#auto-secret-detection).
 
-- [Edit the `.gitlab.ci.yml` file manually](#edit-the-gitlabciyml-file-manually). Use this method if
-  your `.gitlab-ci.yml` file is complex.
+- [Edit the `.gitlab-ci.yml` file manually](#edit-the-gitlab-ciyml-file-manually). Use this method
+  if your `.gitlab-ci.yml` file is complex.
 
 - [Use an automatically configured merge request](#use-an-automatically-configured-merge-request).
 
-### Edit the `.gitlab.ci.yml` file manually
+### Edit the `.gitlab-ci.yml` file manually
 
 This method requires you to manually edit the existing `.gitlab-ci.yml` file. Use this method if
 your GitLab CI/CD configuration file is complex.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **CI/CD > Editor**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Build > Pipeline editor**.
 1. Copy and paste the following to the bottom of the `.gitlab-ci.yml` file:
 
    ```yaml
    include:
-     - template: Jobs/Secret-Detection.gitlab-ci.yml
+     - template: Security/Secret-Detection.gitlab-ci.yml
    ```
 
 1. Select the **Validate** tab, then select **Validate pipeline**.
@@ -180,12 +184,12 @@ the `.gitlab-ci.yml` file. You then merge the merge request to enable Secret Det
 NOTE:
 This method works best with no existing `.gitlab-ci.yml` file, or with a minimal configuration
 file. If you have a complex GitLab configuration file it may not be parsed successfully, and an
-error may occur. In that case, use the [manual](#edit-the-gitlabciyml-file-manually) method instead.
+error may occur. In that case, use the [manual](#edit-the-gitlab-ciyml-file-manually) method instead.
 
-To enable Secret Detection automatically:
+To enable Secret Detection:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and compliance > Configuration**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Security configuration**.
 1. In the **Secret Detection** row, select **Configure with a merge request**.
 1. Optional. Complete the fields.
 1. Select **Create merge request**.
@@ -195,12 +199,13 @@ Pipelines now include a Secret Detection job.
 
 ## Responding to a leaked secret
 
-Secrets detected by the analyzer should be immediately rotated.
-[Purging a file from the repository's history](../../project/repository/reducing_the_repo_size_using_git.md#purge-files-from-repository-history)
-may not be effective in removing all references to the file. Additionally, the secret will remain in any existing
-forks or clones of the repository.
+When a secret is detected, you should rotate it immediately. GitLab attempts to
+[automatically revoke](automatic_response.md) some types of leaked secrets. For those that are not
+automatically revoked, you must do so manually.
 
-GitLab will attempt to [automatically revoke](post_processing.md) some types of leaked secrets.
+[Purging a secret from the repository's history](../../project/repository/reducing_the_repo_size_using_git.md#purge-files-from-repository-history)
+does not fully address the leak. The original secret remains in any existing forks or
+clones of the repository.
 
 ## Pinning to specific analyzer version
 
@@ -330,21 +335,24 @@ pipeline.
 
 To enable full history Secret Detection, set the variable `SECRET_DETECTION_HISTORIC_SCAN` to `true` in your `.gitlab-ci.yml` file.
 
-## Custom rulesets **(ULTIMATE)**
+## Custom rulesets **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/211387) in GitLab 13.5.
-> - [Added](https://gitlab.com/gitlab-org/gitlab/-/issues/339614) support for passthrough chains.
+> - [Enabled](https://gitlab.com/gitlab-org/gitlab/-/issues/339614) support for passthrough chains.
 >   Expanded to include additional passthrough types of `file`, `git`, and `url` in GitLab 14.6.
-> - [Added](https://gitlab.com/gitlab-org/gitlab/-/issues/235359) support for overriding rules in
+> - [Enabled](https://gitlab.com/gitlab-org/gitlab/-/issues/235359) support for overriding rules in
 >   GitLab 14.8.
 
-You can customize the default Secret Detection rules provided with GitLab.
+You can customize which [secrets are reported in the GitLab UI](#secret-detection).
+However, the `secret_detection` job logs always include the number
+of secrets detected by the default Secret Detection rules.
 
 The following customization options can be used separately, or in combination:
 
 - [Disable predefined rules](#disable-predefined-analyzer-rules).
 - [Override predefined rules](#override-predefined-analyzer-rules).
 - [Synthesize a custom configuration](#synthesize-a-custom-configuration).
+- [Specify a remote configuration file](#specify-a-remote-configuration-file).
 
 ### Disable predefined analyzer rules
 
@@ -413,18 +421,16 @@ In the following example `secret-detection-ruleset.toml` file, rules are matched
 
 ### Synthesize a custom configuration
 
-To create a custom configuration, you can use passthrough chains. Passthroughs can also be chained
-to build more complex configurations. For more details, see
-[SAST Customize ruleset](../sast/customize_rulesets.md).
+You can use passthroughs to override the default Secret Detection ruleset. The
+following passthrough types are supported by the `secrets` analyzer:
 
-Only the following passthrough types are supported by the `secrets` analyzer:
-
-- `file`
 - `raw`
+- `file`
 
-In the `secret-detection-ruleset.toml` file, do one of the following:
+To define a passthrough, add _one_ of the following to the
+`secret-detection-ruleset.toml` file:
 
-- Define a custom ruleset, for example:
+- Using an inline (`raw`) value:
 
   ```toml
   [secrets]
@@ -442,7 +448,7 @@ In the `secret-detection-ruleset.toml` file, do one of the following:
   """
   ```
 
-- Provide the name of the file containing a custom ruleset, for example:
+- Using an external `file` committed to the current repository:
 
   ```toml
   [secrets]
@@ -453,6 +459,75 @@ In the `secret-detection-ruleset.toml` file, do one of the following:
       target = "gitleaks.toml"
       value = "config/gitleaks.toml"
   ```
+
+For more information on the syntax of passthroughs, see the
+[passthroughs section on the SAST customize rulesets](../sast/customize_rulesets.md#the-analyzerpassthrough-section)
+page.
+
+#### Extending the default configuration
+
+You can extend the default configuration with additional changes by using [Gitleaks `extend` support](https://github.com/gitleaks/gitleaks#configuration).
+
+In the following `file` passthrough example, the string `glpat-1234567890abcdefghij` is ignored by Secret Detection. That GitLab personal access token (PAT) is used in test cases. Detection of it would be a false positive.
+
+The `secret-detection-ruleset.toml` file defines that the configuration in `extended-gitleaks-config.toml` file is to be included. The `extended-gitleaks-config.toml` file defines the custom Gitleaks configuration. The `allowlist` stanza defines a regular expression that matches the secret that is to be ignored ("allowed").
+
+```toml
+# .gitlab/secret-detection-ruleset.toml
+[secrets]
+  description = 'secrets custom rules configuration'
+
+  [[secrets.passthrough]]
+    type  = "file"
+    target = "gitleaks.toml"
+    value = "extended-gitleaks-config.toml"
+```
+
+```toml
+# extended-gitleaks-config.toml
+title = "extension of gitlab's default gitleaks config"
+
+[extend]
+# Extends default packaged path
+path = "/gitleaks.toml"
+
+[allowlist]
+  description = "allow list of test tokens to ignore in detection"
+  regexTarget = "match"
+  regexes = [
+    '''glpat-1234567890abcdefghij''',
+  ]
+```
+
+### Specify a remote configuration file
+
+Projects can be configured with a [CI/CD variable](../../../ci/variables/index.md) in order
+to specify a ruleset configuration outside of the current repository.
+
+The `SECRET_DETECTION_RULESET_GIT_REFERENCE` variable uses an SCP-style syntax for specifying a URI,
+optional authentication, and optional Git SHA. The variable uses the following format:
+
+```plaintext
+<AUTH_USER>:<AUTH_PASSWORD>@<PROJECT_PATH>@<GIT_SHA>
+```
+
+NOTE:
+A local `.gitlab/secret-detection-ruleset.toml` file in the project takes precedence over `SECRET_DETECTION_RULESET_GIT_REFERENCE`.
+
+The following example includes the Secret Detection template in a project to be scanned and specifies
+the `SECRET_DETECTION_RULESET_GIT_REFERENCE` variable for referencing a separate project configuration.
+
+```yaml
+include:
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+variables:
+  SECRET_DETECTION_RULESET_GIT_REFERENCE: "gitlab.com/example-group/example-ruleset-project"
+```
+
+For more information on the syntax of remote configurations, see the
+[specify a private remote configuration example](../sast/customize_rulesets.md#specify-a-private-remote-configuration)
+on the SAST customize rulesets page.
 
 ## Running Secret Detection in an offline environment **(PREMIUM SELF)**
 
@@ -532,27 +607,39 @@ variable, or as a CI/CD variable.
 - If using a variable, set the value of `ADDITIONAL_CA_CERT_BUNDLE` to the text
   representation of the certificate.
 
+## Warnings for potential leaks in text content
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368434) in GitLab 15.11.
+> - Detection of personal access tokens with a custom prefix was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/411146)
+in GitLab 16.1. GitLab self-managed only.
+
+When you create an issue, propose a merge request, or write a comment, you might accidentally post a sensitive value.
+For example, you might paste in the details of an API request or an environment variable that contains an authentication token.
+
+GitLab checks if the text of your issue description, merge request description, comment, or reply contains a sensitive token.
+If a token is found, a warning message is displayed. You can then edit your message before posting it.
+This check happens in your browser before the message is sent to the server.
+The check is always on; you don't have to set it up.
+
+Your text is checked for the following secret types:
+
+- GitLab [personal access tokens](../../../security/token_overview.md#personal-access-tokens)
+  - If a [personal access token prefix](../../../administration/settings/account_and_limit_settings.md#personal-access-token-prefix) has been configured, a token using this prefix is checked.
+- GitLab [feed tokens](../../../security/token_overview.md#feed-token)
+
+This feature is separate from Secret Detection scanning, which checks your Git repository for leaked secrets.
+[Issue 405147](https://gitlab.com/gitlab-org/gitlab/-/issues/405147) tracks efforts to align these two types of protection.
+
 ## Troubleshooting
 
-### Set the logging level
+### Debug-level logging
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/10880) in GitLab 13.1.
-
-Set the logging level to `debug` when you need diagnostic information in a Secret Detection job log.
-
-WARNING:
-Debug logging can be a serious security risk. The output may contain the content of environment
-variables and other secrets available to the job. The output is uploaded to the GitLab server and
-visible in job logs.
-
-1. In the `.gitlab-ci.yml` file, set the `SECURE_LOG_LEVEL` CI/CD variable to `debug`.
-1. Run the Secret Detection job.
-1. Analyze the content of the Secret Detection job.
-1. In the `.gitlab-ci.yml` file, set the `SECURE_LOG_LEVEL` CI/CD variable to `info` (default).
+Debug-level logging can help when troubleshooting. For details, see
+[debug-level logging](../index.md#debug-level-logging).
 
 ### Warning: `gl-secret-detection-report.json: no matching files`
 
-For information on this, see the [general Application Security troubleshooting section](../../../ci/pipelines/job_artifacts.md#error-message-no-files-to-upload).
+For information on this, see the [general Application Security troubleshooting section](../../../ci/jobs/job_artifacts_troubleshooting.md#error-message-no-files-to-upload).
 
 ### Error: `Couldn't run the gitleaks command: exit status 2`
 
@@ -566,8 +653,8 @@ For example, you could have a pipeline triggered from a merge request containing
 clone is not deep enough to contain all of the relevant commits. To verify the current value, see
 [pipeline configuration](../../../ci/pipelines/settings.md#limit-the-number-of-changes-fetched-during-clone).
 
-To confirm this as the cause of the error, set the [logging level](#set-the-logging-level) to
-`debug`, then rerun the pipeline. The logs should look similar to the following example. The text
+To confirm this as the cause of the error, enable [debug-level logging](../index.md#debug-level-logging),
+then rerun the pipeline. The logs should look similar to the following example. The text
 "object not found" is a symptom of this error.
 
 ```plaintext

@@ -2,26 +2,18 @@
 
 require 'spec_helper'
 
-RSpec.describe RegistrationsHelper do
+RSpec.describe RegistrationsHelper, feature_category: :user_management do
   describe '#signup_username_data_attributes' do
     it 'has expected attributes' do
-      expect(helper.signup_username_data_attributes.keys).to include(:min_length, :min_length_message, :max_length, :max_length_message, :qa_selector)
+      expect(helper.signup_username_data_attributes.keys).to include(:min_length, :min_length_message, :max_length, :max_length_message, :testid)
     end
   end
 
-  describe '#arkose_labs_challenge_enabled?' do
-    before do
-      stub_application_setting(
-        arkose_labs_private_api_key: nil,
-        arkose_labs_public_api_key: nil,
-        arkose_labs_namespace: nil
-      )
-      stub_env('ARKOSE_LABS_PRIVATE_KEY', nil)
-      stub_env('ARKOSE_LABS_PUBLIC_KEY', nil)
-    end
+  describe '#register_omniauth_params' do
+    it 'adds intent to register' do
+      allow(helper).to receive(:glm_tracking_params).and_return({})
 
-    it 'is false' do
-      expect(helper.arkose_labs_challenge_enabled?).to eq false
+      expect(helper.register_omniauth_params({})).to eq({})
     end
   end
 end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Users::ActivityService do
+RSpec.describe Users::ActivityService, feature_category: :user_profile do
   include ExclusiveLeaseHelpers
 
   let(:user) { create(:user, last_activity_on: last_activity_on) }
@@ -48,8 +48,9 @@ RSpec.describe Users::ActivityService do
       end
 
       it 'tracks RedisHLL event' do
-        expect(Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track_event)
-                                                                .with('unique_active_user', values: user.id)
+        expect(Gitlab::UsageDataCounters::HLLRedisCounter)
+          .to receive(:track_event)
+          .with('unique_active_user', values: user.id)
 
         subject.execute
       end
@@ -57,15 +58,17 @@ RSpec.describe Users::ActivityService do
       it_behaves_like 'Snowplow event tracking with RedisHLL context' do
         subject(:record_activity) { described_class.new(author: user, namespace: namespace, project: project).execute }
 
-        let(:feature_flag_name) { :route_hll_to_snowplow_phase3 }
         let(:category) { described_class.name }
         let(:action) { 'perform_action' }
         let(:label) { 'redis_hll_counters.manage.unique_active_users_monthly' }
         let(:namespace) { build(:group) }
         let(:project) { build(:project) }
         let(:context) do
-          payload = Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll,
-                                                             event: 'unique_active_user').to_context
+          payload = Gitlab::Tracking::ServicePingContext.new(
+            data_source: :redis_hll,
+            event: 'unique_active_user'
+          ).to_context
+
           [Gitlab::Json.dump(payload)]
         end
       end

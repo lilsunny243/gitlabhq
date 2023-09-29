@@ -2,18 +2,10 @@
 
 module QA
   RSpec.describe 'Configure',
-                 only: { subdomain: %i[staging staging-canary] }, product_group: :configure do
+    only: { pipeline: %i[staging staging-canary canary production] }, product_group: :configure do
     describe 'Auto DevOps with a Kubernetes Agent' do
-      let!(:app_project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'autodevops-app-project'
-          project.template_name = 'express'
-          project.auto_devops_enabled = true
-        end
-      end
-
+      let!(:app_project) { create(:project, :auto_devops, name: 'autodevops-app-project', template_name: 'express') }
       let!(:cluster) { Service::KubernetesCluster.new(provider_class: Service::ClusterProvider::Gcloud).create! }
-
       let!(:kubernetes_agent) do
         Resource::Clusters::Agent.fabricate_via_api! do |agent|
           agent.name = 'agent1'
@@ -28,7 +20,7 @@ module QA
       end
 
       before do
-        cluster.install_kubernetes_agent(agent_token.token)
+        cluster.install_kubernetes_agent(agent_token.token, kubernetes_agent.name)
         upload_agent_config(app_project, kubernetes_agent.name)
 
         set_kube_ingress_base_domain(app_project)
@@ -45,7 +37,7 @@ module QA
 
         app_project.visit!
 
-        Page::Project::Menu.perform(&:click_ci_cd_pipelines)
+        Page::Project::Menu.perform(&:go_to_pipelines)
         Page::Project::Pipeline::Index.perform(&:click_run_pipeline_button)
         Page::Project::Pipeline::New.perform(&:click_run_pipeline_button)
 
@@ -55,7 +47,7 @@ module QA
         Page::Project::Job::Show.perform do |job|
           expect(job).to be_successful(timeout: 600)
 
-          job.click_element(:pipeline_path)
+          job.go_to_pipeline
         end
 
         Page::Project::Pipeline::Show.perform do |pipeline|
@@ -70,21 +62,14 @@ module QA
     private
 
     def set_kube_ingress_base_domain(project)
-      Resource::CiVariable.fabricate_via_api! do |resource|
-        resource.project = project
-        resource.key = 'KUBE_INGRESS_BASE_DOMAIN'
-        resource.value = 'example.com'
-        resource.masked = false
-      end
+      create(:ci_variable, project: project, key: 'KUBE_INGRESS_BASE_DOMAIN', value: 'example.com')
     end
 
     def set_kube_context(project)
-      Resource::CiVariable.fabricate_via_api! do |resource|
-        resource.project = project
-        resource.key = 'KUBE_CONTEXT'
-        resource.value = "#{project.path_with_namespace}:#{kubernetes_agent.name}"
-        resource.masked = false
-      end
+      create(:ci_variable,
+        project: project,
+        key: 'KUBE_CONTEXT',
+        value: "#{project.path_with_namespace}:#{kubernetes_agent.name}")
     end
 
     def upload_agent_config(project, agent)
@@ -116,12 +101,7 @@ module QA
         CONTAINER_SCANNING_DISABLED DAST_DISABLED REVIEW_DISABLED
         CODE_INTELLIGENCE_DISABLED CLUSTER_IMAGE_SCANNING_DISABLED
       ].each do |key|
-        Resource::CiVariable.fabricate_via_api! do |resource|
-          resource.project = project
-          resource.key = key
-          resource.value = '1'
-          resource.masked = false
-        end
+        create(:ci_variable, project: project, key: key, value: '1')
       end
     end
   end

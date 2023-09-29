@@ -87,6 +87,11 @@ Note:
 - confidential
 - last_edited_at
 - internal
+Notes::NoteMetadata:
+- note_id
+- email_participant
+- created_at
+- updated_at
 LabelLink:
 - id
 - target_type
@@ -603,6 +608,7 @@ ProjectHook:
 - confidential_note_events
 - repository_update_events
 - releases_events
+- emoji_events
 ProtectedBranch:
 - id
 - project_id
@@ -699,6 +705,7 @@ ProjectFeature:
 - releases_access_level
 - monitor_access_level
 - infrastructure_access_level
+- model_experiments_access_level
 - created_at
 - updated_at
 ProtectedBranch::MergeAccessLevel:
@@ -899,7 +906,7 @@ List:
 - max_issue_count
 - max_issue_weight
 - limit_metric
-ExternalPullRequest:
+Ci::ExternalPullRequest:
 - id
 - created_at
 - updated_at
@@ -1060,3 +1067,23 @@ ResourceIterationEvent:
   - action
 Iterations::Cadence:
   - title
+ApprovalProjectRule:
+  - approvals_required
+  - name
+  - rule_type
+  - scanners
+  - vulnerabilities_allowed
+  - severity_levels
+  - report_type
+  - vulnerability_states
+  - orchestration_policy_idx
+  - applies_to_all_protected_branches
+ApprovalProjectRulesUser:
+  - user_id
+  - approval_project_rule_id
+ApprovalProjectRulesProtectedBranch:
+  - protected_branch_id
+  - approval_project_rule_id
+  - branch_name
+WorkItems::Type:
+  - base_type

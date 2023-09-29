@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Files > Project owner creates a license file', :js, feature_category: :projects do
-  let(:project) { create(:project, :repository) }
-  let(:project_maintainer) { project.first_owner }
+RSpec.describe 'Projects > Files > Project owner creates a license file', :js, feature_category: :groups_and_projects do
+  let_it_be(:project_maintainer) { create(:user, :no_super_sidebar) }
+  let_it_be(:project) { create(:project, :repository, namespace: project_maintainer.namespace) }
 
   before do
     project.repository.delete_file(project_maintainer, 'LICENSE',
@@ -19,8 +19,6 @@ RSpec.describe 'Projects > Files > Project owner creates a license file', :js, f
     click_link 'New file'
 
     fill_in :file_name, with: 'LICENSE'
-
-    expect(page).to have_selector('.license-selector')
 
     select_template('MIT License')
 
@@ -44,7 +42,6 @@ RSpec.describe 'Projects > Files > Project owner creates a license file', :js, f
     expect(page).to have_current_path(
       project_new_blob_path(project, 'master'), ignore_query: true)
     expect(find('#file_name').value).to eq('LICENSE')
-    expect(page).to have_selector('.license-selector')
 
     select_template('MIT License')
 
@@ -62,9 +59,9 @@ RSpec.describe 'Projects > Files > Project owner creates a license file', :js, f
   end
 
   def select_template(template)
-    page.within('.js-license-selector-wrap') do
+    page.within('.gl-new-dropdown') do
       click_button 'Apply a template'
-      click_link template
+      find('.gl-new-dropdown-contents li', text: template).click
       wait_for_requests
     end
   end

@@ -7,7 +7,7 @@ module Banzai
     # Extends Banzai::Filter::BaseSanitizationFilter with specific rules.
     class SanitizationFilter < Banzai::Filter::BaseSanitizationFilter
       # Styles used by Markdown for table alignment
-      TABLE_ALIGNMENT_PATTERN = /text-align: (?<alignment>center|left|right)/.freeze
+      TABLE_ALIGNMENT_PATTERN = /text-align: (?<alignment>center|left|right)/
 
       def customize_allowlist(allowlist)
         allowlist[:allow_comments] = context[:allow_comments]
@@ -33,8 +33,8 @@ module Banzai
 
         # Allow section elements with data-footnotes attribute
         allowlist[:elements].push('section')
-        allowlist[:attributes]['section'] = %w(data-footnotes)
-        allowlist[:attributes]['a'].push('data-footnote-ref', 'data-footnote-backref')
+        allowlist[:attributes]['section'] = %w[data-footnotes]
+        allowlist[:attributes]['a'].push('data-footnote-ref', 'data-footnote-backref', 'data-footnote-backref-idx')
 
         allowlist
       end

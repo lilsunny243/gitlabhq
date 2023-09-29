@@ -6,7 +6,7 @@ import { difference, isEqual, escape, sortBy, template, union } from 'lodash';
 import initDeprecatedJQueryDropdown from '~/deprecated_jquery_dropdown';
 import IssuableBulkUpdateActions from '~/issuable/issuable_bulk_update_actions';
 import { isScopedLabel } from '~/lib/utils/common_utils';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { sprintf, __ } from '~/locale';
 import CreateLabelDropdown from './create_label_dropdown';
@@ -276,7 +276,8 @@ export default class LabelsSelect {
           if (selected && selected.id === 0) {
             this.selected = [];
             return __('No label');
-          } else if (isSelected) {
+          }
+          if (isSelected) {
             this.selected.push(title);
           } else if (!isSelected && title) {
             const index = this.selected.indexOf(title);
@@ -285,7 +286,8 @@ export default class LabelsSelect {
 
           if (selectedLabels.length === 1) {
             return selectedLabels;
-          } else if (selectedLabels.length) {
+          }
+          if (selectedLabels.length) {
             return sprintf(__('%{firstLabel} +%{labelCount} more'), {
               firstLabel: selectedLabels[0],
               labelCount: selectedLabels.length - 1,

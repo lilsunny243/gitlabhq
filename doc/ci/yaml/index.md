@@ -5,13 +5,16 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# `.gitlab-ci.yml` keyword reference **(FREE)**
+# `.gitlab-ci.yml` keyword reference **(FREE ALL)**
 
-This document lists the configuration options for your GitLab `.gitlab-ci.yml` file.
+This document lists the configuration options for the GitLab `.gitlab-ci.yml` file.
+This file is where you define the CI/CD jobs that make up your pipeline.
 
-- For a quick introduction to GitLab CI/CD, follow the [quick start guide](../quick_start/index.md).
-- For a collection of examples, see [GitLab CI/CD Examples](../examples/index.md).
-- To view a large `.gitlab-ci.yml` file used in an enterprise, see the [`.gitlab-ci.yml` file for `gitlab`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab-ci.yml).
+- To create your own `.gitlab-ci.yml` file, try a tutorial that demonstrates a
+  [simple](../quick_start/index.md) or [complex](../quick_start/tutorial.md) pipeline.
+- For a collection of examples, see [GitLab CI/CD examples](../examples/index.md).
+- To view a large `.gitlab-ci.yml` file used in an enterprise, see the
+  [`.gitlab-ci.yml` file for `gitlab`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab-ci.yml).
 
 When you are editing your `.gitlab-ci.yml` file, you can validate it with the
 [CI Lint](../lint.md) tool.
@@ -75,8 +78,11 @@ or import additional pipeline configuration.
 
 ### `default`
 
-You can set global defaults for some keywords. Jobs that do not define one or more
-of the listed keywords use the value defined in the `default` section.
+> Support for `id_tokens` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/419750) in GitLab 16.4.
+
+You can set global defaults for some keywords. Each default keyword is copied to every job
+that doesn't already have it defined. If the job already has a keyword defined, that default
+is not used.
 
 **Keyword type**: Global keyword.
 
@@ -87,6 +93,7 @@ of the listed keywords use the value defined in the `default` section.
 - [`before_script`](#before_script)
 - [`cache`](#cache)
 - [`hooks`](#hooks)
+- [`id_tokens`](#id_tokens)
 - [`image`](#image)
 - [`interruptible`](#interruptible)
 - [`retry`](#retry)
@@ -99,6 +106,7 @@ of the listed keywords use the value defined in the `default` section.
 ```yaml
 default:
   image: ruby:3.0
+  retry: 2
 
 rspec:
   script: bundle exec rspec
@@ -108,16 +116,17 @@ rspec 2.7:
   script: bundle exec rspec
 ```
 
-In this example, `ruby:3.0` is the default `image` value for all jobs in the pipeline.
-The `rspec 2.7` job does not use the default, because it overrides the default with
-a job-specific `image` section:
+In this example:
+
+- `image: ruby:3.0` and `retry: 2` are the default keywords for all jobs in the pipeline.
+- The `rspec` job does not have `image` or `retry` defined, so it uses the defaults of
+  `image: ruby:3.0` and `retry: 2`.
+- The `rspec 2.7` job does not have `retry` defined, but it does have `image` explicitly defined.
+  It uses the default `retry: 2`, but ignores the default `image` and uses the `image: ruby:2.7`
+  defined in the job.
 
 **Additional details**:
 
-- When the pipeline is created, each default is copied to all jobs that don't have
-  that keyword defined.
-- If a job already has one of the keywords configured, the configuration in the job
-  takes precedence and is not replaced by the default.
 - Control inheritance of default keywords in jobs with [`inherit:default`](#inheritdefault).
 
 ### `include`
@@ -136,11 +145,7 @@ The `include` files are:
 - Always evaluated first and then merged with the content of the `.gitlab-ci.yml` file,
   regardless of the position of the `include` keyword.
 
-You can [nest](includes.md#use-nested-includes) up to 100 includes. In [GitLab 14.9 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/28987),
-the same file can be included multiple times in nested includes, but duplicates are ignored.
-
-In [GitLab 12.4 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/28212),
-the time limit to resolve all files is 30 seconds.
+The time limit to resolve all files is 30 seconds.
 
 **Keyword type**: Global keyword.
 
@@ -153,6 +158,8 @@ the time limit to resolve all files is 30 seconds.
 
 **Additional details**:
 
+- Only [certain CI/CD variables](includes.md#use-variables-with-include) can be used
+  with `include` keywords.
 - Use merging to customize and override included CI/CD configurations with local
 - You can override included configuration by having the same job name or global keyword
   in the `.gitlab-ci.yml` file. The two configurations are merged together, and the
@@ -163,6 +170,16 @@ the time limit to resolve all files is 30 seconds.
     do not affect job reruns.
   - Pipeline, the `include` files are fetched again. If they changed after the last
     pipeline run, the new pipeline uses the changed configuration.
+- You can have up to 150 includes per pipeline by default, including [nested](includes.md#use-nested-includes). Additionally:
+  - In [GitLab 16.0 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/207270) self-managed users can
+    change the [maximum includes](../../administration/settings/continuous_integration.md#maximum-includes) value.
+  - In [GitLab 15.10 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/367150) you can have up to 150 includes.
+    In nested includes, the same file can be included multiple times, but duplicated includes
+    count towards the limit.
+  - From [GitLab 14.9 to GitLab 15.9](https://gitlab.com/gitlab-org/gitlab/-/issues/28987), you can have up to 100 includes.
+    The same file can be included multiple times in nested includes, but duplicates are ignored.
+  - In GitLab 14.9 and earlier you can have up to 100 includes, but the same file can not
+    be included multiple times.
 
 **Related topics**:
 
@@ -171,7 +188,7 @@ the time limit to resolve all files is 30 seconds.
 
 #### `include:local`
 
-Use `include:local` to include a file that is in the same repository as the project running the pipeline.
+Use `include:local` to include a file that is in the same repository and branch as the configuration file containing the `include` keyword.
 Use `include:local` instead of symbolic links.
 
 **Keyword type**: Global keyword.
@@ -201,8 +218,8 @@ include: '.gitlab-ci-production.yml'
 
 - The `.gitlab-ci.yml` file and the local file must be on the same branch.
 - You can't include local files through Git submodules paths.
-- All [nested includes](includes.md#use-nested-includes) are executed in the scope of the same project,
-  so you can use local, project, remote, or template includes.
+- All [nested includes](includes.md#use-nested-includes) are executed in the scope of the project containing the configuration file with the `include` keyword, not the project running the pipeline.
+  You can use local, project, remote, or template includes.
 
 #### `include:project`
 
@@ -220,8 +237,7 @@ use `include:project` and `include:file`.
   The YAML files must have the `.yml` or `.yaml` extension.
 - `include:ref`: Optional. The ref to retrieve the file from. Defaults to the `HEAD` of the project
   when not specified.
-
-You can use [certain CI/CD variables](includes.md#use-variables-with-include).
+- You can use [certain CI/CD variables](includes.md#use-variables-with-include).
 
 **Example of `include:project`**:
 
@@ -252,14 +268,19 @@ include:
 
 **Additional details**:
 
-- All [nested includes](includes.md#use-nested-includes) are executed in the scope of the target project.
-  You can use `local` (relative to the target project), `project`, `remote`, or `template` includes.
+- All [nested includes](includes.md#use-nested-includes) are executed in the scope of the project containing the configuration file with the nested `include` keyword.
+  You can use `local` (relative to the project containing the configuration file with the `include` keyword), `project`, `remote`, or `template` includes.
 - When the pipeline starts, the `.gitlab-ci.yml` file configuration included by all methods is evaluated.
   The configuration is a snapshot in time and persists in the database. GitLab does not reflect any changes to
   the referenced `.gitlab-ci.yml` file configuration until the next pipeline starts.
 - When you include a YAML file from another private project, the user running the pipeline
   must be a member of both projects and have the appropriate permissions to run pipelines.
   A `not found or access denied` error may be displayed if the user does not have access to any of the included files.
+- Be careful when including another project's CI/CD configuration file. No pipelines or notifications trigger when CI/CD configuration files change.
+  From a security perspective, this is similar to pulling a third-party dependency. For the `ref`, consider:
+  - Using a specific SHA hash, which should be the most stable option.
+  - Applying both [protected branch](../../user/project/protected_branches.md) and [protected tag](../../user/project/protected_tags.md#prevent-tag-creation-with-the-same-name-as-branches) rules to
+  the `ref` in the other project. Protected tags and branches are more likely to pass through change management before changing.
 
 #### `include:remote`
 
@@ -284,11 +305,13 @@ include:
 
 **Additional details**:
 
-- All [nested includes](includes.md#use-nested-includes) execute without context as a public user,
-  so you can only include public projects or templates.
-- Be careful when including a remote CI/CD configuration file. No pipelines or notifications
-  trigger when external CI/CD configuration files change. From a security perspective,
-  this is similar to pulling a third-party dependency.
+- All [nested includes](includes.md#use-nested-includes) are executed without context as a public user,
+  so you can only include public projects or templates. No variables are available in the `include` section of nested includes.
+- Be careful when including another project's CI/CD configuration file. No pipelines or notifications trigger
+  when the other project's files change. From a security perspective, this is similar to
+  pulling a third-party dependency. If you link to another GitLab project you own, consider the use of both
+  [protected branches](../../user/project/protected_branches.md) and [protected tags](../../user/project/protected_tags.md#prevent-tag-creation-with-the-same-name-as-branches)
+  to enforce change management rules.
 
 #### `include:template`
 
@@ -323,8 +346,8 @@ include:
 
 **Additional details**:
 
-- All [nested includes](includes.md#use-nested-includes) are executed only with the permission of the user,
-  so it's possible to use `project`, `remote`, or `template` includes.
+- All [nested includes](includes.md#use-nested-includes) are executed without context as a public user,
+  so you can only include public projects or templates. No variables are available in the `include` section of nested includes.
 
 ### `stages`
 
@@ -346,7 +369,7 @@ The order of the items in `stages` defines the execution order for jobs:
 
 If a pipeline contains only jobs in the `.pre` or `.post` stages, it does not run.
 There must be at least one other job in a different stage. `.pre` and `.post` stages
-can be used in [required pipeline configuration](../../user/admin_area/settings/continuous_integration.md#required-pipeline-configuration)
+can be used in [required pipeline configuration](../../administration/settings/continuous_integration.md#required-pipeline-configuration)
 to define compliance jobs that must run before or after project pipeline jobs.
 
 **Keyword type**: Global keyword.
@@ -609,7 +632,9 @@ Scripts you specify in `after_script` execute in a new shell, separate from any
   - Command aliases and variables exported in `script` scripts.
   - Changes outside of the working tree (depending on the runner executor), like
     software installed by a `before_script` or `script` script.
-- Have a separate timeout, which is [hard-coded to 5 minutes](https://gitlab.com/gitlab-org/gitlab-runner/-/issues/2716).
+- Have a separate timeout. For GitLab Runner 16.4 and later, this defaults to 5 minutes, and can be configured with the
+  [`RUNNER_AFTER_SCRIPT_TIMEOUT`](../runners/configure_runners.md#set-script-and-after_script-timeouts) variable.
+  In GitLab 16.3 and earlier, the timeout is hard-coded to 5 minutes.
 - Don't affect the job's exit code. If the `script` section succeeds and the
   `after_script` times out or fails, the job exits with code `0` (`Job Succeeded`).
 
@@ -726,13 +751,13 @@ test_job_2:
 
 ### `artifacts`
 
-Use `artifacts` to specify which files to save as [job artifacts](../pipelines/job_artifacts.md).
+Use `artifacts` to specify which files to save as [job artifacts](../jobs/job_artifacts.md).
 Job artifacts are a list of files and directories that are
 attached to the job when it [succeeds, fails, or always](#artifactswhen).
 
 The artifacts are sent to GitLab after the job finishes. They are
 available for download in the GitLab UI if the size is smaller than the
-the [maximum artifact size](../../user/gitlab_com/index.md#gitlab-cicd).
+[maximum artifact size](../../user/gitlab_com/index.md#gitlab-cicd).
 
 By default, jobs in later stages automatically download all the artifacts created
 by jobs in earlier stages. You can control artifact download behavior in jobs with
@@ -744,7 +769,7 @@ artifacts from the jobs defined in the `needs` configuration.
 Job artifacts are only collected for successful jobs by default, and
 artifacts are restored after [caches](#cache).
 
-[Read more about artifacts](../pipelines/job_artifacts.md).
+[Read more about artifacts](../jobs/job_artifacts.md).
 
 #### `artifacts:paths`
 
@@ -783,7 +808,7 @@ This example creates an artifact with `.config` and all the files in the `binari
 **Related topics**:
 
 - To restrict which jobs a specific job fetches artifacts from, see [`dependencies`](#dependencies).
-- [Create job artifacts](../pipelines/job_artifacts.md#create-job-artifacts).
+- [Create job artifacts](../jobs/job_artifacts.md#create-job-artifacts).
 
 #### `artifacts:exclude`
 
@@ -822,7 +847,7 @@ subdirectories of `binaries/`.
 
 **Related topics**:
 
-- [Exclude files from job artifacts](../pipelines/job_artifacts.md#exclude-files-from-job-artifacts).
+- [Exclude files from job artifacts](../jobs/job_artifacts.md#without-excluded-files).
 
 #### `artifacts:expire_in`
 
@@ -830,17 +855,13 @@ subdirectories of `binaries/`.
 > - [Made default behavior](https://gitlab.com/gitlab-org/gitlab/-/issues/229936) in GitLab 13.4.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/241026) in GitLab 13.8, keeping latest job artifacts can be disabled at the project level.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/276583) in GitLab 13.9, keeping latest job artifacts can be disabled instance-wide.
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/321323) in GitLab 13.12, the latest pipeline artifacts are kept regardless of expiry time.
 
-Use `expire_in` to specify how long [job artifacts](../pipelines/job_artifacts.md) are stored before
+Use `expire_in` to specify how long [job artifacts](../jobs/job_artifacts.md) are stored before
 they expire and are deleted. The `expire_in` setting does not affect:
 
-- Artifacts from the latest job, unless keeping the latest job artifacts is:
-  - [Disabled at the project level](../pipelines/job_artifacts.md#keep-artifacts-from-most-recent-successful-jobs).
-  - [Disabled instance-wide](../../user/admin_area/settings/continuous_integration.md#keep-the-latest-artifacts-for-all-jobs-in-the-latest-successful-pipelines).
-- [Pipeline artifacts](../pipelines/pipeline_artifacts.md). You can't specify an expiration date for
-  pipeline artifacts. See [When pipeline artifacts are deleted](../pipelines/pipeline_artifacts.md#when-pipeline-artifacts-are-deleted)
-  for more information.
+- Artifacts from the latest job, unless keeping the latest job artifacts is disabled
+  [at the project level](../jobs/job_artifacts.md#keep-artifacts-from-most-recent-successful-jobs).
+  or [instance-wide](../../administration/settings/continuous_integration.md#keep-the-latest-artifacts-for-all-jobs-in-the-latest-successful-pipelines).
 
 After their expiry, artifacts are deleted hourly by default (using a cron job), and are not
 accessible anymore.
@@ -872,7 +893,7 @@ job:
 **Additional details**:
 
 - The expiration time period begins when the artifact is uploaded and stored on GitLab.
-  If the expiry time is not defined, it defaults to the [instance wide setting](../../user/admin_area/settings/continuous_integration.md#default-artifacts-expiration).
+  If the expiry time is not defined, it defaults to the [instance wide setting](../../administration/settings/continuous_integration.md#default-artifacts-expiration).
 - To override the expiration date and protect artifacts from being automatically deleted:
   - Select **Keep** on the job page.
   - [In GitLab 13.3 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/22761), set the value of
@@ -883,7 +904,7 @@ job:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15018) in GitLab 12.5.
 
 Use the `artifacts:expose_as` keyword to
-[expose job artifacts in the merge request UI](../pipelines/job_artifacts.md#expose-job-artifacts-in-the-merge-request-ui).
+[expose job artifacts in the merge request UI](../jobs/job_artifacts.md#link-to-job-artifacts-in-the-merge-request-ui).
 
 **Keyword type**: Job keyword. You can use it only as part of a job or in the
 [`default` section](#default).
@@ -909,7 +930,7 @@ test:
 - A maximum of 10 job artifacts per merge request can be exposed.
 - Glob patterns are unsupported.
 - If a directory is specified and there is more than one file in the directory,
-  the link is to the job [artifacts browser](../pipelines/job_artifacts.md#download-job-artifacts).
+  the link is to the job [artifacts browser](../jobs/job_artifacts.md#download-job-artifacts).
 - If [GitLab Pages](../../administration/pages/index.md) is enabled, GitLab automatically
   renders the artifacts when the artifacts is a single file with one of these extensions:
   - `.html` or `.htm`
@@ -920,7 +941,7 @@ test:
 
 **Related topics**:
 
-- [Expose job artifacts in the merge request UI](../pipelines/job_artifacts.md#expose-job-artifacts-in-the-merge-request-ui).
+- [Expose job artifacts in the merge request UI](../jobs/job_artifacts.md#link-to-job-artifacts-in-the-merge-request-ui).
 
 #### `artifacts:name`
 
@@ -951,19 +972,20 @@ job:
 
 **Related topics**:
 
-- [Use CI/CD variables to define the artifacts name](../pipelines/job_artifacts.md#use-cicd-variables-to-define-the-artifacts-name).
+- [Use CI/CD variables to define the artifacts name](../jobs/job_artifacts.md#with-a-dynamically-defined-name).
 
 #### `artifacts:public`
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/49775) in GitLab 13.8
-> - It's [deployed behind a feature flag](../../user/feature_flags.md), disabled by default.
-> - It's disabled on GitLab.com.
-> - It's recommended for production use.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/223273) in GitLab 13.8 [with a flag](../../user/feature_flags.md) named `non_public_artifacts`, disabled by default.
+> - [Updated](https://gitlab.com/gitlab-org/gitlab/-/issues/322454) in GitLab 15.10. Artifacts created with `artifacts:public` before 15.10 are not guaranteed to remain private after this update.
 
-FLAG:
+WARNING:
 On self-managed GitLab, by default this feature is not available. To make it available,
-ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `non_public_artifacts`. On
-GitLab.com, this feature is not available.
+an administrator can [enable the feature flag](../../administration/feature_flags.md) named `non_public_artifacts`. On
+GitLab.com, this feature is not available. Due to [issue 413822](https://gitlab.com/gitlab-org/gitlab/-/issues/413822),
+the keyword can be used when the feature flag is disabled, but the feature does not work.
+Do not attempt to use this feature when the feature flag is disabled, and always test
+with non-production data first.
 
 Use `artifacts:public` to determine whether the job artifacts should be
 publicly available.
@@ -1048,7 +1070,7 @@ job:
 
 **Related topics**:
 
-- [Add untracked files to artifacts](../pipelines/job_artifacts.md#add-untracked-files-to-artifacts).
+- [Add untracked files to artifacts](../jobs/job_artifacts.md#with-untracked-files).
 
 #### `artifacts:when`
 
@@ -1448,6 +1470,7 @@ Must be used with `cache: paths`, or nothing is cached.
 - `pull`
 - `push`
 - `pull-push` (default)
+- [CI/CD variables](../variables/where_variables_can_be_used.md#gitlab-ciyml-file).
 
 **Example of `cache:policy`**:
 
@@ -1475,6 +1498,37 @@ faster-test-job:
     - echo "Running tests..."
 ```
 
+**Related topics**:
+
+- You can [use a variable to control a job's cache policy](../caching/index.md#use-a-variable-to-control-a-jobs-cache-policy).
+
+#### `cache:fallback_keys`
+
+Use `cache:fallback_keys` to specify a list of keys to try to restore cache from
+if there is no cache found for the `cache:key`. Caches are retrieved in the order specified
+in the `fallback_keys` section.
+
+**Keyword type**: Job keyword. You can use it only as part of a job or in the
+[`default` section](#default).
+
+**Possible inputs**:
+
+- An array of cache keys
+
+**Example of `cache:fallback_keys`**:
+
+```yaml
+rspec:
+  script: rspec
+  cache:
+    key: gems-$CI_COMMIT_REF_SLUG
+    paths:
+      - rspec/
+    fallback_keys:
+      - gems
+    when: 'always'
+```
+
 ### `coverage`
 
 Use `coverage` with a custom regular expression to configure how code coverage
@@ -1482,31 +1536,33 @@ is extracted from the job output. The coverage is shown in the UI if at least on
 line in the job output matches the regular expression.
 
 To extract the code coverage value from the match, GitLab uses
-this smaller regular expression: `\d+(\.\d+)?`.
+this smaller regular expression: `\d+(?:\.\d+)?`.
 
 **Possible inputs**:
 
-- A regular expression. Must start and end with `/`. Must match the coverage number.
+- An RE2 regular expression. Must start and end with `/`. Must match the coverage number.
   May match surrounding text as well, so you don't need to use a regular expression character group
   to capture the exact number.
+  Because it uses RE2 syntax, all groups must be non-capturing.
 
 **Example of `coverage`**:
 
 ```yaml
 job1:
   script: rspec
-  coverage: '/Code coverage: \d+\.\d+/'
+  coverage: '/Code coverage: \d+(?:\.\d+)?/'
 ```
 
 In this example:
 
 1. GitLab checks the job log for a match with the regular expression. A line
    like `Code coverage: 67.89% of lines covered` would match.
-1. GitLab then checks the matched fragment to find a match to `\d+(\.\d+)?`.
+1. GitLab then checks the matched fragment to find a match to `\d+(?:\.\d+)?`.
    The sample matching line above gives a code coverage of `67.89`.
 
 **Additional details**:
 
+- You can find parse examples in [Code Coverage](../testing/code_coverage.md#test-coverage-examples).
 - If there is more than one matched line in the job output, the last line is used
   (the first result of reverse search).
 - If there are multiple matches in a single line, the last match is searched
@@ -1517,7 +1573,7 @@ In this example:
   is not recorded or displayed. Check [the related issue](https://gitlab.com/gitlab-org/gitlab/-/issues/280818)
   for more details.
 
-### `dast_configuration` **(ULTIMATE)**
+### `dast_configuration` **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5981) in GitLab 14.1.
 
@@ -1621,7 +1677,7 @@ the [stage](#stages) precedence.
 
 - The job status does not matter. If a job fails or it's a manual job that isn't triggered, no error occurs.
 - If the artifacts of a dependent job are [expired](#artifactsexpire_in) or
-  [deleted](../pipelines/job_artifacts.md#delete-job-artifacts), then the job fails.
+  [deleted](../jobs/job_artifacts.md#delete-job-log-and-artifacts), then the job fails.
 
 ### `environment`
 
@@ -1729,7 +1785,7 @@ Use the `action` keyword to specify how the job interacts with the environment.
 |:----------|:----------------|
 | `start`   | Default value. Indicates that the job starts the environment. The deployment is created after the job starts. |
 | `prepare` | Indicates that the job is only preparing the environment. It does not trigger deployments. [Read more about preparing environments](../environments/index.md#access-an-environment-for-preparation-or-verification-purposes). |
-| `stop`    | Indicates that the job stops an environment. [Read more about stopping an environment](../environments/index.md#stop-an-environment). |
+| `stop`    | Indicates that the job stops an environment. [Read more about stopping an environment](../environments/index.md#stopping-an-environment). |
 | `verify`  | Indicates that the job is only verifying the environment. It does not trigger deployments. [Read more about verifying environments](../environments/index.md#access-an-environment-for-preparation-or-verification-purposes). |
 | `access`  | Indicates that the job is only accessing the environment. It does not trigger deployments. [Read more about accessing environments](../environments/index.md#access-an-environment-for-preparation-or-verification-purposes). |
 
@@ -1813,7 +1869,7 @@ environment, using the `production`
 
 **Related topics**:
 
-- [Available settings for `kubernetes`](../environments/index.md#configure-kubernetes-deployments-deprecated).
+- [Available settings for `kubernetes`](../environments/configure_kubernetes_deployments.md).
 
 #### `environment:deployment_tier`
 
@@ -1960,12 +2016,19 @@ at certain stages of job execution, like before retrieving the Git repository.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/381840) in GitLab 15.10. Feature flag `ci_hooks_pre_get_sources_script` removed.
 
 Use `hooks:pre_get_sources_script` to specify a list of commands to execute on the runner
-before retrieving the Git repository and any submodules. You can use it
-to adjust the Git client configuration first, for example.
+before cloning the Git repository and any submodules.
+You can use it for example to:
 
-**Related topics**:
+- Adjust the [Git configuration](../troubleshooting.md#get_sources-job-section-fails-because-of-an-http2-problem).
+- Export [tracing variables](../../topics/git/useful_git_commands.md).
 
-- [GitLab Runner configuration](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section)
+**Possible inputs**: An array including:
+
+- Single line commands.
+- Long commands [split over multiple lines](script.md#split-long-commands).
+- [YAML anchors](yaml_optimization.md#yaml-anchors-for-scripts).
+
+CI/CD variables [are supported](../variables/where_variables_can_be_used.md#gitlab-ciyml-file).
 
 **Example of `hooks:pre_get_sources_script`**:
 
@@ -1977,6 +2040,10 @@ job1:
   script: echo 'hello job1 script'
 ```
 
+**Related topics**:
+
+- [GitLab Runner configuration](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section)
+
 ### `id_tokens`
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/356986) in GitLab 15.7.
@@ -1986,7 +2053,10 @@ JWTs created this way support OIDC authentication. The required `aud` sub-keywor
 
 **Possible inputs**:
 
-- Token names with their `aud` claims. `aud` can be a single string or as an array of strings.
+- Token names with their `aud` claims. `aud` supports:
+  - A single string.
+  - An array of strings.
+  - [CI/CD variables](../variables/where_variables_can_be_used.md#gitlab-ciyml-file).
 
 **Example of `id_tokens`**:
 
@@ -1999,10 +2069,16 @@ job_with_id_tokens:
       aud:
         - https://gcp.com
         - https://aws.com
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
   script:
     - command_to_authenticate_with_gitlab $ID_TOKEN_1
     - command_to_authenticate_with_aws $ID_TOKEN_2
 ```
+
+**Related topics**:
+
+- [Keyless signing with Sigstore](signing_examples.md).
 
 ### `image`
 
@@ -2343,6 +2419,8 @@ This example creates four paths of execution:
   it depends on all jobs created in parallel, not just one job. It also downloads
   artifacts from all the parallel jobs by default. If the artifacts have the same
   name, they overwrite each other and only the last one downloaded is saved.
+  - To have `needs` refer to a subset of parallelized jobs (and not all of the parallelized jobs),
+    use the [`needs:parallel:matrix`](#needsparallelmatrix) keyword.
 - In [GitLab 14.1 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/30632) you
   can refer to jobs in the same stage as the job you are configuring. This feature is
   enabled on GitLab.com and ready for production use. On self-managed [GitLab 14.2 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/30632)
@@ -2408,7 +2486,7 @@ In this example:
 - In GitLab 12.6 and later, you can't combine the [`dependencies`](#dependencies) keyword
   with `needs`.
 
-#### `needs:project` **(PREMIUM)**
+#### `needs:project` **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/14311) in GitLab 12.7.
 
@@ -2551,11 +2629,10 @@ can use that variable in `needs:pipeline` to download artifacts from the parent 
 To need a job that sometimes does not exist in the pipeline, add `optional: true`
 to the `needs` configuration. If not defined, `optional: false` is the default.
 
-Jobs that use [`rules`](#rules), [`only`, or `except`](#only--except) might not always
-be added to a pipeline. GitLab checks the `needs` relationships before starting a
-pipeline:
+Jobs that use [`rules`](#rules), [`only`, or `except`](#only--except) and that are added with [`include`](#include)
+might not always be added to a pipeline. GitLab checks the `needs` relationships before starting a pipeline:
 
-- If the needs entry has `optional: true` and the needed job is present in the pipeline,
+- If the `needs` entry has `optional: true` and the needed job is present in the pipeline,
   the job waits for it to complete before starting.
 - If the needed job is not present, the job can start when all other needs requirements are met.
 - If the `needs` section contains only optional jobs, and none are added to the pipeline,
@@ -2608,9 +2685,9 @@ In this example:
 
 #### `needs:pipeline`
 
-You can mirror the pipeline status from an upstream pipeline to a bridge job by
+You can mirror the pipeline status from an upstream pipeline to a job by
 using the `needs:pipeline` keyword. The latest pipeline status from the default branch is
-replicated to the bridge job.
+replicated to the job.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -2623,7 +2700,7 @@ replicated to the bridge job.
 **Example of `needs:pipeline`**:
 
 ```yaml
-upstream_bridge:
+upstream_status:
   stage: test
   needs:
     pipeline: other/project
@@ -2634,11 +2711,66 @@ upstream_bridge:
 - If you add the `job` keyword to `needs:pipeline`, the job no longer mirrors the
   pipeline status. The behavior changes to [`needs:pipeline:job`](#needspipelinejob).
 
+#### `needs:parallel:matrix`
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/254821) in GitLab 16.3.
+
+Jobs can use [`parallel:matrix`](#parallelmatrix) to run a job multiple times in parallel in a single pipeline,
+but with different variable values for each instance of the job.
+
+Use `needs:parallel:matrix` to execute jobs out-of-order depending on parallelized jobs.
+
+**Keyword type**: Job keyword. You can use it only as part of a job. Must be used with `needs:job`.
+
+**Possible inputs**: An array of hashes of variables:
+
+- The variables and values must be selected from the variables and values defined in the `parallel:matrix` job.
+
+**Example of `needs:parallel:matrix`**:
+
+```yaml
+linux:build:
+  stage: build
+  script: echo "Building linux..."
+  parallel:
+    matrix:
+      - PROVIDER: aws
+        STACK:
+          - monitoring
+          - app1
+          - app2
+
+linux:rspec:
+  stage: test
+  needs:
+    - job: linux:build
+      parallel:
+        matrix:
+          - PROVIDER: aws
+            STACK: app1
+  script: echo "Running rspec on linux..."
+```
+
+The above example generates the following jobs:
+
+```plaintext
+linux:build: [aws, monitoring]
+linux:build: [aws, app1]
+linux:build: [aws, app2]
+linux:rspec
+```
+
+The `linux:rspec` job runs as soon as the `linux:build: [aws, app1]` job finishes.
+
+**Related topics**:
+
+- [Specify a parallelized job using needs with multiple parallelized jobs](../jobs/job_control.md#specify-a-parallelized-job-using-needs-with-multiple-parallelized-jobs).
+
 ### `only` / `except`
 
 NOTE:
-`only` and `except` are not being actively developed. [`rules`](#rules) is the preferred
-keyword to control when to add jobs to pipelines.
+`only` and `except` are not being actively developed. To control when to add jobs to pipelines,
+use [`rules`](#rules) instead.
 
 You can use `only` and `except` to control when to add jobs to pipelines.
 
@@ -2650,12 +2782,12 @@ for more details and examples.
 
 #### `only:refs` / `except:refs`
 
+NOTE:
+`only:refs` and `except:refs` are not being actively developed. To use refs, regular expressions,
+or variables to control when to add jobs to pipelines, use [`rules:if`](#rulesif) instead.
+
 Use the `only:refs` and `except:refs` keywords to control when to add jobs to a
 pipeline based on branch names or pipeline types.
-
-`only:refs` and `except:refs` are not being actively developed. [`rules:if`](#rulesif)
-is the preferred keyword when using refs, regular expressions, or variables to control
-when to add jobs to pipelines.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -2679,7 +2811,7 @@ when to add jobs to pipelines.
   | `schedules`              | For [scheduled pipelines](../pipelines/schedules.md). |
   | `tags`                   | When the Git reference for a pipeline is a tag. |
   | `triggers`               | For pipelines created by using a [trigger token](../triggers/index.md#configure-cicd-jobs-to-run-in-triggered-pipelines). |
-  | `web`                    | For pipelines created by selecting **Run pipeline** in the GitLab UI, from the project's **CI/CD > Pipelines** section. |
+  | `web`                    | For pipelines created by selecting **Run pipeline** in the GitLab UI, from the project's **Build > Pipelines** section. |
 
 **Example of `only:refs` and `except:refs`**:
 
@@ -2739,12 +2871,12 @@ job2:
 
 #### `only:variables` / `except:variables`
 
+NOTE:
+`only:variables` and `except:variables` are not being actively developed. To use refs,
+regular expressions, or variables to control when to add jobs to pipelines, use [`rules:if`](#rulesif) instead.
+
 Use the `only:variables` or `except:variables` keywords to control when to add jobs
 to a pipeline, based on the status of [CI/CD variables](../variables/index.md).
-
-`only:variables` and `except:variables` are not being actively developed. [`rules:if`](#rulesif)
-is the preferred keyword when using refs, regular expressions, or variables to control
-when to add jobs to pipelines.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -2769,6 +2901,10 @@ deploy:
 
 #### `only:changes` / `except:changes`
 
+NOTE:
+`only:changes` and `except:changes` are not being actively developed. To use changed files
+to control when to add a job to a pipeline, use [`rules:changes`](#ruleschanges) instead.
+
 Use the `changes` keyword with `only` to run a job, or with `except` to skip a job,
 when a Git push event modifies a file.
 
@@ -2777,9 +2913,6 @@ Use `changes` in pipelines with the following refs:
 - `branches`
 - `external_pull_requests`
 - `merge_requests` (see additional details about [using `only:changes` with merge request pipelines](../jobs/job_control.md#use-onlychanges-with-merge-request-pipelines))
-
-`only:changes` and `except:changes` are not being actively developed. [`rules:changes`](#ruleschanges)
-is the preferred keyword when using changed files to control when to add jobs to pipelines.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -2828,12 +2961,13 @@ docker build:
 
 #### `only:kubernetes` / `except:kubernetes`
 
+NOTE:
+`only:refs` and `except:refs` are not being actively developed. To control if jobs are added
+to the pipeline when the Kubernetes service is active in the project, use [`rules:if`](#rulesif)
+with the [`CI_KUBERNETES_ACTIVE`](../variables/predefined_variables.md) predefined CI/CD variable instead.
+
 Use `only:kubernetes` or `except:kubernetes` to control if jobs are added to the pipeline
 when the Kubernetes service is active in the project.
-
-`only:refs` and `except:refs` are not being actively developed. Use [`rules:if`](#rulesif)
-with the [`CI_KUBERNETES_ACTIVE`](../variables/predefined_variables.md) predefined CI/CD variable
-to control if jobs are added to the pipeline when the Kubernetes service is active in the project.
 
 **Keyword type**: Job-specific. You can use it only as part of a job.
 
@@ -2857,6 +2991,12 @@ in the project.
 Use `pages` to define a [GitLab Pages](../../user/project/pages/index.md) job that
 uploads static content to GitLab. The content is then published as a website.
 
+You must:
+
+- Define [`artifacts`](#artifacts) with a path to the content directory, which is
+  `public` by default.
+- Use [`publish`](#pagespublish) if want to use a different content directory.
+
 **Keyword type**: Job name.
 
 **Example of `pages`**:
@@ -2865,9 +3005,7 @@ uploads static content to GitLab. The content is then published as a website.
 pages:
   stage: deploy
   script:
-    - mkdir .public
-    - cp -r * .public
-    - mv .public public
+    - mv my-html-content public
   artifacts:
     paths:
       - public
@@ -2876,15 +3014,38 @@ pages:
   environment: production
 ```
 
-This example moves all files from the root of the project to the `public/` directory.
-The `.public` workaround is so `cp` does not also copy `public/` to itself in an infinite loop.
+This example moves all files from a `my-html-content/` directory to the `public/` directory.
+This directory is exported as an artifact and published with GitLab Pages.
 
-**Additional details**:
+#### `pages:publish`
 
-You must:
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/415821) in GitLab 16.1.
 
-- Place any static content in a `public/` directory.
-- Define [`artifacts`](#artifacts) with a path to the `public/` directory.
+Use `publish` to configure the content directory of a [`pages` job](#pages).
+
+**Keyword type**: Job keyword. You can use it only as part of a `pages` job.
+
+**Possible inputs**: A path to a directory containing the Pages content.
+
+**Example of `publish`**:
+
+```yaml
+pages:
+  stage: deploy
+  script:
+    - npx @11ty/eleventy --input=path/to/eleventy/root --output=dist
+  artifacts:
+    paths:
+      - dist
+  publish: dist
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment: production
+```
+
+This example uses [Eleventy](https://www.11ty.dev) to generate a static website and
+output the generated HTML files into a the `dist/` directory. This directory is exported
+as an artifact and published with GitLab Pages.
 
 ### `parallel`
 
@@ -2900,7 +3061,7 @@ Parallel jobs are named sequentially from `job_name 1/N` to `job_name N/N`.
 
 **Possible inputs**:
 
-- A numeric value from `2` to `200`.
+- A numeric value from `1` to `200`.
 
 **Example of `parallel`**:
 
@@ -2916,6 +3077,11 @@ This example creates 5 jobs that run in parallel, named `test 1/5` to `test 5/5`
 
 - Every parallel job has a `CI_NODE_INDEX` and `CI_NODE_TOTAL`
   [predefined CI/CD variable](../variables/index.md#predefined-cicd-variables) set.
+- A pipeline with jobs that use `parallel` might:
+  - Create more jobs running in parallel than available runners. Excess jobs are queued
+    and marked `pending` while waiting for an available runner.
+  - Create too many jobs, and the pipeline fails with a `job_activity_limit_exceeded` error.
+    The maximum number of jobs that can exist in active pipelines is [limited at the instance-level](../../administration/instance_limits.md#number-of-jobs-in-active-pipelines).
 
 **Related topics**:
 
@@ -3037,7 +3203,7 @@ release_job:
 This example creates a release:
 
 - When you push a Git tag.
-- When you add a Git tag in the UI at **Repository > Tags**.
+- When you add a Git tag in the UI at **Code > Tags**.
 
 **Additional details**:
 
@@ -3081,8 +3247,7 @@ CI/CD variables [are supported](../variables/where_variables_can_be_used.md#gitl
 To create a release when a new tag is added to the project:
 
 - Use the `$CI_COMMIT_TAG` CI/CD variable as the `tag_name`.
-- Use [`rules:if`](#rulesif) or [`only: tags`](#onlyrefs--exceptrefs) to configure
-  the job to run only for new tags.
+- Use [`rules:if`](#rulesif) to configure the job to run only for new tags.
 
 ```yaml
 job:
@@ -3094,7 +3259,7 @@ job:
     - if: $CI_COMMIT_TAG
 ```
 
-To create a release and a new tag at the same time, your [`rules`](#rules) or [`only`](#only--except)
+To create a release and a new tag at the same time, your [`rules`](#rules)
 should **not** configure the job to run only for new tags. A semantic versioning example:
 
 ```yaml
@@ -3173,6 +3338,14 @@ job:
     description: './path/to/CHANGELOG.md'
 ```
 
+**Additional details**:
+
+- The `description` is evaluated by the shell that runs `release-cli`.
+  You can use CI/CD variables to define the description, but some shells
+  [use different syntax](../variables/index.md#use-cicd-variables-in-job-scripts)
+  to reference variables. Similarly, some shells might require special characters
+  to be escaped. For example, backticks (`` ` ``) might need to be escaped with a backslash (<code>&#92;</code>).
+
 #### `release:ref`
 
 The `ref` for the release, if the `release: tag_name` doesn't exist yet.
@@ -3237,6 +3410,8 @@ For example, if multiple jobs that belong to the same resource group are queued 
 only one of the jobs starts. The other jobs wait until the `resource_group` is free.
 
 Resource groups behave similar to semaphores in other programming languages.
+
+You can choose a [process mode](../resource_groups/index.md#process-modes) to strategically control the job concurrency for your deployment preferences. The default process mode is `unordered`. To change the process mode of a resource group, use the [API](../../api/resource_groups.md#edit-an-existing-resource-group) to send a request to edit an existing resource group.
 
 You can define multiple resource groups per environment. For example,
 when deploying to physical devices, you might have multiple physical devices. Each device
@@ -3457,10 +3632,10 @@ to specific files.
 WARNING:
 You should use `rules: changes` only with **branch pipelines** or **merge request pipelines**.
 You can use `rules: changes` with other pipeline types, but `rules: changes` always
-evaluates to true when there is no Git `push` event. Tag pipelines, scheduled pipelines, manual pipelines,
-and so on do **not** have a Git `push` event associated with them. A `rules: changes` job
-is **always** added to those pipelines if there is no `if` that limits the job to
-branch or merge request pipelines.
+evaluates to true for new branch pipelines or when there is no Git `push` event. Pipelines like tag pipelines,
+scheduled pipelines, and manual pipelines, all do **not**
+have a Git `push` event associated with them. In these cases, use [`rules: changes: compare_to`](#ruleschangescompare_to)
+to specify the branch to compare against.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -3496,6 +3671,7 @@ docker build:
 - If the pipeline is a merge request pipeline, check `Dockerfile` for changes.
 - If `Dockerfile` has changed, add the job to the pipeline as a manual job, and the pipeline
   continues running even if the job is not triggered (`allow_failure: true`).
+- A maximum of 50 patterns or file paths can be defined per `rules:changes` section.
 - If `Dockerfile` has not changed, do not add job to any pipeline (same as `when: never`).
 - [`rules:changes:paths`](#ruleschangespaths) is the same as `rules:changes` without
   any subkeys.
@@ -3608,11 +3784,12 @@ job:
 
 - Glob patterns are interpreted with Ruby [`File.fnmatch`](https://docs.ruby-lang.org/en/2.7.0/File.html#method-c-fnmatch)
   with the flags `File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB`.
-- For performance reasons, GitLab matches a maximum of 10,000 `exists` patterns or
-  file paths. After the 10,000th check, rules with patterned globs always match.
-  In other words, `exists` always reports `true` if more than 10,000 checks
-  run. Repositories with less than 10,000 files might still be impacted if the `exists`
-  rules are checked more than 10,000 times.
+- For performance reasons, GitLab performs a maximum of 10,000 checks against
+  `exists` patterns or file paths. After the 10,000th check, rules with patterned
+  globs always match. In other words, the `exists` rule always assumes a match in
+  projects with more than 10,000 files, or if there are fewer than 10,000 files but
+  the `exists` rules are checked more than 10,000 times.
+- A maximum of 50 patterns or file paths can be defined per `rules:exists` section.
 - `exists` resolves to `true` if any of the listed files are found (an `OR` operation).
 
 #### `rules:allow_failure`
@@ -3650,6 +3827,56 @@ If the rule matches, then the job is a manual job with `allow_failure: true`.
 
 - The rule-level `rules:allow_failure` overrides the job-level [`allow_failure`](#allow_failure),
   and only applies when the specific rule triggers the job.
+
+#### `rules:needs`
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/31581) in GitLab 16.0 [with a flag](../../user/feature_flags.md) named `introduce_rules_with_needs`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/408871) in GitLab 16.2. Feature flag `introduce_rules_with_needs` removed.
+
+Use `needs` in rules to update a job's [`needs`](#needs) for specific conditions. When a condition matches a rule, the job's `needs` configuration is completely replaced with the `needs` in the rule.
+
+**Keyword type**: Job-specific. You can use it only as part of a job.
+
+**Possible inputs**:
+
+- An array of job names as strings.
+- A hash with a job name, optionally with additional attributes.
+- An empty array (`[]`), to set the job needs to none when the specific condition is met.
+
+**Example of `rules:needs`**:
+
+```yaml
+build-dev:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+  script: echo "Feature branch, so building dev version..."
+
+build-prod:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script: echo "Default branch, so building prod version..."
+
+specs:
+  stage: test
+  needs: ['build-dev']
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      needs: ['build-prod']
+    - when: on_success # Run the job in other cases
+  script: echo "Running dev specs by default, or prod specs when default branch..."
+```
+
+In this example:
+
+- If the pipeline runs on a branch that is not the default branch, the `specs` job needs the `build-dev` job (default behavior).
+- If the pipeline runs on the default branch, and therefore the rule matches the condition, the `specs` job needs the `build-prod` job instead.
+
+**Additional details**:
+
+- `needs` in rules override any `needs` defined at the job-level. When overridden, the behavior is same as [job-level `needs`](#needs).
+- `needs` in rules can accept [`artifacts`](#needsartifacts) and [`optional`](#needsoptional).
 
 #### `rules:variables`
 
@@ -3722,7 +3949,7 @@ job2:
 - [Create custom collapsible sections](../jobs/index.md#custom-collapsible-sections)
   to simplify job log output.
 
-### `secrets` **(PREMIUM)**
+### `secrets` **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/33014) in GitLab 13.4.
 
@@ -3731,8 +3958,6 @@ Use `secrets` to specify [CI/CD secrets](../secrets/index.md) to:
 - Retrieve from an external secrets provider.
 - Make available in the job as [CI/CD variables](../variables/index.md)
   ([`file` type](../variables/index.md#use-file-type-cicd-variables) by default).
-
-This keyword must be used with `secrets:vault`.
 
 #### `secrets:vault`
 
@@ -3784,6 +4009,34 @@ job:
       vault: production/db/password@ops  # Translates to secret: `ops/data/production/db`, field: `password`
 ```
 
+#### `secrets:azure_key_vault`
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/271271) in GitLab 16.3 and GitLab Runner 16.3.
+
+Use `secrets:azure_key_vault` to specify secrets provided by a [Azure Key Vault](https://azure.microsoft.com/en-us/products/key-vault/).
+
+**Keyword type**: Job keyword. You can use it only as part of a job.
+
+**Possible inputs**:
+
+- `name`: Name of the secret.
+- `version`: Version of the secret.
+
+**Example of `secrets:azure_key_vault`**:
+
+```yaml
+job:
+  secrets:
+    DATABASE_PASSWORD:
+      azure_key_vault:
+        name: 'test'
+        version: 'test'
+```
+
+**Related topics**:
+
+- [Use Azure Key Vault secrets in GitLab CI/CD](../secrets/azure_key_vault.md).
+
 #### `secrets:file`
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/250695) in GitLab 14.1 and GitLab Runner 14.1.
@@ -3824,9 +4077,6 @@ job:
 
 Use `secrets:token` to explicitly select a token to use when authenticating with Vault by referencing the token's CI/CD variable.
 
-This keyword has no effect if [**Limit JSON Web Token (JWT) access**](../secrets/id_token_authentication.md#enable-automatic-id-token-authentication)
-is disabled.
-
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
 **Possible inputs**:
@@ -3850,8 +4100,8 @@ job:
 
 **Additional details**:
 
-- When the `token` keyword is not set and **Limit JSON Web Token (JWT) access** enabled, the first ID token
-  is used to authenticate.
+- When the `token` keyword is not set, the first ID token is used to authenticate.
+- In GitLab 15.8 to 15.11, you must enable [**Limit JSON Web Token (JWT) access**](../secrets/id_token_authentication.md#enable-automatic-id-token-authentication-deprecated) for this keyword to be available.
 - When **Limit JSON Web Token (JWT) access** is disabled, the `token` keyword is ignored and the `CI_JOB_JWT`
   CI/CD variable is used to authenticate.
 
@@ -3958,9 +4208,9 @@ If `stage` is not defined, the job uses the `test` stage by default.
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
-**Possible inputs**: An array including any number of stage names. Stage names can be:
+**Possible inputs**: A string, which can be a:
 
-- The [default stages](#stages).
+- [Default stage](#stages).
 - User-defined stages.
 
 **Example of `stage`**:
@@ -4152,6 +4402,9 @@ test:
 
 ### `trigger`
 
+> - Support for `resource_group` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/39057) support for `resource_group` in GitLab 13.9.
+> - Support for `environment` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/369061) in GitLab 16.4.
+
 Use `trigger` to declare that a job is a "trigger job" which starts a
 [downstream pipeline](../pipelines/downstream_pipelines.md) that is either:
 
@@ -4170,6 +4423,8 @@ The keywords available for use in trigger jobs are:
 - [`trigger`](#trigger).
 - [`variables`](#variables).
 - [`when`](#when) (only with a value of `on_success`, `on_failure`, or `always`).
+- [`resource_group`](#resource_group).
+- [`environment`](#environment).
 
 **Keyword type**: Job keyword. You can use it only as part of a job.
 
@@ -4177,7 +4432,7 @@ The keywords available for use in trigger jobs are:
 
 - For multi-project pipelines, the path to the downstream project. CI/CD variables [are supported](../variables/where_variables_can_be_used.md#gitlab-ciyml-file)
   in GitLab 15.3 and later, but not [job-level persisted variables](../variables/where_variables_can_be_used.md#persisted-variables).
-  Alternatively, use [`trigger:project](#triggerproject).
+  Alternatively, use [`trigger:project`](#triggerproject).
 - For child pipelines, use [`trigger:include`](#triggerinclude).
 
 **Example of `trigger`**:
@@ -4201,6 +4456,7 @@ trigger-multi-project-pipeline:
   to forward these variables to downstream pipelines.
 - [Job-level persisted variables](../variables/where_variables_can_be_used.md#persisted-variables)
   are not available in trigger jobs.
+- Environment variables [defined in the runner's `config.toml`](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section) are not available to trigger jobs and are not passed to downstream pipelines.
 
 **Related topics**:
 
@@ -4551,14 +4807,16 @@ the default value is `when: on_success`.
 
 **Possible inputs**:
 
-- `on_success` (default): Run the job only when all jobs in earlier stages succeed
+- `on_success` (default): Run the job only when no jobs in earlier stages fail
   or have `allow_failure: true`.
-- `manual`: Run the job only when [triggered manually](../jobs/job_control.md#create-a-job-that-must-be-run-manually).
+- `on_failure`: Run the job only when at least one job in an earlier stage fails. A job in an earlier stage
+  with `allow_failure: true` is always considered successful.
+- `never`: Don't run the job regardless of the status of jobs in earlier stages.
+  Can only be used in a [`rules`](#rules) section or `workflow: rules`.
 - `always`: Run the job regardless of the status of jobs in earlier stages. Can also be used in `workflow:rules`.
-- `on_failure`: Run the job only when at least one job in an earlier stage fails. A job with `allow_failure: true` is always considered successful.
+- `manual`: Run the job only when [triggered manually](../jobs/job_control.md#create-a-job-that-must-be-run-manually).
 - `delayed`: [Delay the execution of a job](../jobs/job_control.md#run-a-job-after-a-delay)
   for a specified duration.
-- `never`: Don't run the job. Can only be used in a [`rules`](#rules) section or `workflow: rules`.
 
 **Example of `when`**:
 
@@ -4655,6 +4913,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example, `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

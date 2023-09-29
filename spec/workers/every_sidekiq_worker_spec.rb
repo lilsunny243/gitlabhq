@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Every Sidekiq worker' do
+RSpec.describe 'Every Sidekiq worker', feature_category: :shared do
+  include EverySidekiqWorkerTestHelper
+
   let(:workers_without_defaults) do
     Gitlab::SidekiqConfig.workers - Gitlab::SidekiqConfig::DEFAULT_WORKERS.values
   end
@@ -120,11 +122,9 @@ RSpec.describe 'Every Sidekiq worker' do
         'AdminEmailsWorker' => 3,
         'Analytics::CodeReviewMetricsWorker' => 3,
         'Analytics::DevopsAdoption::CreateSnapshotWorker' => 3,
-        'Analytics::InstanceStatistics::CounterJobWorker' => 3,
         'Analytics::UsageTrends::CounterJobWorker' => 3,
         'ApprovalRules::ExternalApprovalRulePayloadWorker' => 3,
         'ApproveBlockedPendingApprovalUsersWorker' => 3,
-        'ArchiveTraceWorker' => 3,
         'AuthorizedKeysWorker' => 3,
         'AuthorizedProjectUpdate::UserRefreshOverUserRangeWorker' => 3,
         'AuthorizedProjectUpdate::UserRefreshWithLowUrgencyWorker' => 3,
@@ -134,7 +134,6 @@ RSpec.describe 'Every Sidekiq worker' do
         'AutoMergeProcessWorker' => 3,
         'BackgroundMigrationWorker' => 3,
         'BackgroundMigration::CiDatabaseWorker' => 3,
-        'BuildFinishedWorker' => 3,
         'BuildHooksWorker' => 3,
         'BuildQueueWorker' => 3,
         'BuildSuccessWorker' => 3,
@@ -142,6 +141,8 @@ RSpec.describe 'Every Sidekiq worker' do
         'BulkImports::ExportRequestWorker' => 5,
         'BulkImports::EntityWorker' => false,
         'BulkImports::PipelineWorker' => false,
+        'BulkImports::PipelineBatchWorker' => false,
+        'BulkImports::FinishProjectImportWorker' => 5,
         'Chaos::CpuSpinWorker' => 3,
         'Chaos::DbSpinWorker' => 3,
         'Chaos::KillWorker' => false,
@@ -149,12 +150,10 @@ RSpec.describe 'Every Sidekiq worker' do
         'Chaos::SleepWorker' => 3,
         'ChatNotificationWorker' => false,
         'Ci::ArchiveTraceWorker' => 3,
-        'Ci::BatchResetMinutesWorker' => 10,
         'Ci::BuildFinishedWorker' => 3,
         'Ci::BuildPrepareWorker' => 3,
         'Ci::BuildScheduleWorker' => 3,
         'Ci::BuildTraceChunkFlushWorker' => 3,
-        'Ci::CreateCrossProjectPipelineWorker' => 3,
         'Ci::CreateDownstreamPipelineWorker' => 3,
         'Ci::DailyBuildGroupReportResultsWorker' => 3,
         'Ci::DeleteObjectsWorker' => 0,
@@ -162,14 +161,18 @@ RSpec.describe 'Every Sidekiq worker' do
         'Ci::InitialPipelineProcessWorker' => 3,
         'Ci::MergeRequests::AddTodoWhenBuildFailsWorker' => 3,
         'Ci::Minutes::UpdateProjectAndNamespaceUsageWorker' => 3,
+        'Ci::Llm::GenerateConfigWorker' => 3,
         'Ci::PipelineArtifacts::CoverageReportWorker' => 3,
         'Ci::PipelineArtifacts::CreateQualityReportWorker' => 3,
+        'Ci::PipelineCleanupRefWorker' => 3,
         'Ci::PipelineBridgeStatusWorker' => 3,
         'Ci::PipelineSuccessUnlockArtifactsWorker' => 3,
         'Ci::RefDeleteUnlockArtifactsWorker' => 3,
+        'Ci::Refs::UnlockPreviousPipelinesWorker' => 3,
         'Ci::ResourceGroups::AssignResourceFromResourceGroupWorker' => 3,
         'Ci::TestFailureHistoryWorker' => 3,
         'Ci::TriggerDownstreamSubscriptionsWorker' => 3,
+        'Ci::UnlockPipelinesInQueueWorker' => 0,
         'Ci::SyncReportsToReportApprovalRulesWorker' => 3,
         'CleanupContainerRepositoryWorker' => 3,
         'ClusterConfigureIstioWorker' => 3,
@@ -185,18 +188,18 @@ RSpec.describe 'Every Sidekiq worker' do
         'Clusters::Applications::DeactivateIntegrationWorker' => 3,
         'Clusters::Applications::UninstallWorker' => 3,
         'Clusters::Applications::WaitForUninstallAppWorker' => 3,
-        'Clusters::Cleanup::AppWorker' => 3,
         'Clusters::Cleanup::ProjectNamespaceWorker' => 3,
         'Clusters::Cleanup::ServiceAccountWorker' => 3,
         'ContainerExpirationPolicies::CleanupContainerRepositoryWorker' => 0,
         'ContainerRegistry::DeleteContainerRepositoryWorker' => 0,
+        'ContainerRegistry::RecordDataRepairDetailWorker' => 0,
         'CreateCommitSignatureWorker' => 3,
         'CreateGithubWebhookWorker' => 3,
         'CreateNoteDiffFileWorker' => 3,
         'CreatePipelineWorker' => 3,
+        'Database::LockTablesWorker' => false,
         'Database::BatchedBackgroundMigration::CiExecutionWorker' => 0,
         'Database::BatchedBackgroundMigration::MainExecutionWorker' => 0,
-        'DeleteContainerRepositoryWorker' => 3,
         'DeleteDiffFilesWorker' => 3,
         'DeleteMergedBranchesWorker' => 3,
         'DeleteStoredFilesWorker' => 3,
@@ -204,11 +207,7 @@ RSpec.describe 'Every Sidekiq worker' do
         'DependencyProxy::CleanupBlobWorker' => 3,
         'DependencyProxy::CleanupManifestWorker' => 3,
         'Deployments::AutoRollbackWorker' => 3,
-        'Deployments::DropOlderDeploymentsWorker' => 3,
-        'Deployments::FinishedWorker' => 3,
-        'Deployments::ForwardDeploymentWorker' => 3,
         'Deployments::LinkMergeRequestWorker' => 3,
-        'Deployments::SuccessWorker' => 3,
         'Deployments::UpdateEnvironmentWorker' => 3,
         'Deployments::ApprovalWorker' => 3,
         'DesignManagement::CopyDesignCollectionWorker' => 3,
@@ -237,11 +236,8 @@ RSpec.describe 'Every Sidekiq worker' do
         'Geo::Batch::ProjectRegistrySchedulerWorker' => 3,
         'Geo::Batch::ProjectRegistryWorker' => 3,
         'Geo::ContainerRepositorySyncWorker' => 1,
-        'Geo::DesignRepositoryShardSyncWorker' => false,
-        'Geo::DesignRepositorySyncWorker' => 1,
         'Geo::DestroyWorker' => 3,
         'Geo::EventWorker' => 3,
-        'Geo::FileRegistryRemovalWorker' => 3,
         'Geo::FileRemovalWorker' => 3,
         'Geo::ProjectSyncWorker' => 1,
         'Geo::RenameRepositoryWorker' => 3,
@@ -251,6 +247,8 @@ RSpec.describe 'Every Sidekiq worker' do
         'Geo::RepositoryVerification::Primary::SingleWorker' => false,
         'Geo::RepositoryVerification::Secondary::SingleWorker' => false,
         'Geo::ReverificationBatchWorker' => 0,
+        'Geo::BulkMarkPendingBatchWorker' => 0,
+        'Geo::BulkMarkVerificationPendingBatchWorker' => 0,
         'Geo::Scheduler::Primary::SchedulerWorker' => false,
         'Geo::Scheduler::SchedulerWorker' => false,
         'Geo::Scheduler::Secondary::SchedulerWorker' => false,
@@ -259,9 +257,20 @@ RSpec.describe 'Every Sidekiq worker' do
         'Geo::VerificationTimeoutWorker' => false,
         'Geo::VerificationWorker' => 3,
         'GeoRepositoryDestroyWorker' => 3,
-        'GitGarbageCollectWorker' => false,
+        'Gitlab::BitbucketImport::AdvanceStageWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::FinishImportWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::ImportIssuesWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::ImportIssuesNotesWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::ImportPullRequestsWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::ImportPullRequestsNotesWorker' => 3,
+        'Gitlab::BitbucketImport::Stage::ImportRepositoryWorker' => 3,
+        'Gitlab::BitbucketServerImport::AdvanceStageWorker' => 3,
+        'Gitlab::BitbucketServerImport::Stage::FinishImportWorker' => 3,
+        'Gitlab::BitbucketServerImport::Stage::ImportLfsObjectsWorker' => 3,
+        'Gitlab::BitbucketServerImport::Stage::ImportNotesWorker' => 3,
+        'Gitlab::BitbucketServerImport::Stage::ImportPullRequestsWorker' => 3,
+        'Gitlab::BitbucketServerImport::Stage::ImportRepositoryWorker' => 3,
         'Gitlab::GithubImport::AdvanceStageWorker' => 3,
-        'Gitlab::GithubImport::ImportReleaseAttachmentsWorker' => 5,
         'Gitlab::GithubImport::Attachments::ImportReleaseWorker' => 5,
         'Gitlab::GithubImport::Attachments::ImportNoteWorker' => 5,
         'Gitlab::GithubImport::Attachments::ImportIssueWorker' => 5,
@@ -272,9 +281,10 @@ RSpec.describe 'Every Sidekiq worker' do
         'Gitlab::GithubImport::ImportLfsObjectWorker' => 5,
         'Gitlab::GithubImport::ImportNoteWorker' => 5,
         'Gitlab::GithubImport::ImportProtectedBranchWorker' => 5,
-        'Gitlab::GithubImport::ImportPullRequestMergedByWorker' => 5,
-        'Gitlab::GithubImport::ImportPullRequestReviewWorker' => 5,
+        'Gitlab::GithubImport::ImportCollaboratorWorker' => 5,
         'Gitlab::GithubImport::PullRequests::ImportReviewRequestWorker' => 5,
+        'Gitlab::GithubImport::PullRequests::ImportReviewWorker' => 5,
+        'Gitlab::GithubImport::PullRequests::ImportMergedByWorker' => 5,
         'Gitlab::GithubImport::ImportPullRequestWorker' => 5,
         'Gitlab::GithubImport::RefreshImportJidWorker' => 5,
         'Gitlab::GithubImport::Stage::FinishImportWorker' => 5,
@@ -285,6 +295,7 @@ RSpec.describe 'Every Sidekiq worker' do
         'Gitlab::GithubImport::Stage::ImportAttachmentsWorker' => 5,
         'Gitlab::GithubImport::Stage::ImportProtectedBranchesWorker' => 5,
         'Gitlab::GithubImport::Stage::ImportNotesWorker' => 5,
+        'Gitlab::GithubImport::Stage::ImportCollaboratorsWorker' => 5,
         'Gitlab::GithubImport::Stage::ImportPullRequestsMergedByWorker' => 5,
         'Gitlab::GithubImport::Stage::ImportPullRequestsReviewRequestsWorker' => 5,
         'Gitlab::GithubImport::Stage::ImportPullRequestsReviewsWorker' => 5,
@@ -301,7 +312,6 @@ RSpec.describe 'Every Sidekiq worker' do
         'Gitlab::JiraImport::Stage::ImportLabelsWorker' => 5,
         'Gitlab::JiraImport::Stage::ImportNotesWorker' => 5,
         'Gitlab::JiraImport::Stage::StartImportWorker' => 5,
-        'Gitlab::PhabricatorImport::ImportTasksWorker' => 5,
         'GitlabPerformanceBarStatsWorker' => 3,
         'GitlabSubscriptions::RefreshSeatsWorker' => 0,
         'GitlabShellWorker' => 3,
@@ -341,31 +351,33 @@ RSpec.describe 'Every Sidekiq worker' do
         'JiraConnect::SyncProjectWorker' => 3,
         'LdapGroupSyncWorker' => 3,
         'Licenses::ResetSubmitLicenseUsageDataBannerWorker' => 13,
+        'Llm::Embedding::GitlabDocumentation::SetEmbeddingsOnTheRecordWorker' => 5,
+        'Llm::Embedding::GitlabDocumentation::CreateEmptyEmbeddingsRecordsWorker' => 3,
+        'Llm::Embedding::GitlabDocumentation::CreateDbEmbeddingsPerDocFileWorker' => 5,
+        'Llm::TanukiBot::UpdateWorker' => 1,
+        'Llm::TanukiBot::RecreateRecordsWorker' => 3,
         'MailScheduler::IssueDueWorker' => 3,
         'MailScheduler::NotificationServiceWorker' => 3,
         'MembersDestroyer::UnassignIssuablesWorker' => 3,
         'MergeRequestCleanupRefsWorker' => 3,
         'MergeRequestMergeabilityCheckWorker' => 3,
         'MergeRequestResetApprovalsWorker' => 3,
-        'MergeRequests::AssigneesChangeWorker' => 3,
         'MergeRequests::CaptureSuggestedReviewersAcceptedWorker' => 3,
+        'MergeRequests::CleanupRefWorker' => 3,
         'MergeRequests::CreatePipelineWorker' => 3,
         'MergeRequests::DeleteSourceBranchWorker' => 3,
         'MergeRequests::FetchSuggestedReviewersWorker' => 3,
         'MergeRequests::HandleAssigneesChangeWorker' => 3,
+        'MergeRequests::MergeabilityCheckBatchWorker' => 3,
         'MergeRequests::ResolveTodosWorker' => 3,
         'MergeRequests::SyncCodeOwnerApprovalRulesWorker' => 3,
         'MergeTrains::RefreshWorker' => 3,
         'MergeWorker' => 3,
-        'Metrics::Dashboard::PruneOldAnnotationsWorker' => 3,
-        'Metrics::Dashboard::SyncDashboardsWorker' => 3,
         'MigrateExternalDiffsWorker' => 3,
         'Onboarding::IssueCreatedWorker' => 3,
         'Onboarding::PipelineCreatedWorker' => 3,
         'Onboarding::ProgressWorker' => 3,
         'Onboarding::UserAddedWorker' => 3,
-        'Namespaces::FreeUserCap::OverLimitNotificationWorker' => false,
-        'Namespaces::RefreshRootStatisticsWorker' => 3,
         'Namespaces::RootStatisticsWorker' => 3,
         'Namespaces::ScheduleAggregationWorker' => 3,
         'NewEpicWorker' => 3,
@@ -377,7 +389,6 @@ RSpec.describe 'Every Sidekiq worker' do
         'ObjectPool::JoinWorker' => 3,
         'ObjectPool::ScheduleJoinWorker' => 3,
         'ObjectStorage::MigrateUploadsWorker' => 3,
-        'Onboarding::CreateLearnGitlabWorker' => 3,
         'Packages::CleanupPackageFileWorker' => 0,
         'Packages::Cleanup::ExecutePolicyWorker' => 0,
         'Packages::Composer::CacheUpdateWorker' => false,
@@ -397,14 +408,13 @@ RSpec.describe 'Every Sidekiq worker' do
         'PipelineProcessWorker' => 3,
         'PostReceive' => 3,
         'ProcessCommitWorker' => 3,
-        'ProductAnalytics::InitializeAnalyticsWorker' => 3,
+        'ProductAnalytics::InitializeSnowplowProductAnalyticsWorker' => 1,
         'ProjectCacheWorker' => 3,
         'ProjectDestroyWorker' => 3,
         'ProjectExportWorker' => false,
         'ProjectImportScheduleWorker' => 1,
-        'ProjectScheduleBulkRepositoryShardMovesWorker' => 3,
         'ProjectTemplateExportWorker' => false,
-        'ProjectUpdateRepositoryStorageWorker' => 3,
+        'Projects::DeregisterSuggestedReviewersProjectWorker' => 3,
         'Projects::DisableLegacyOpenSourceLicenseForInactiveProjectsWorker' => 3,
         'Projects::GitGarbageCollectWorker' => false,
         'Projects::InactiveProjectsDeletionNotificationWorker' => 3,
@@ -436,15 +446,12 @@ RSpec.describe 'Every Sidekiq worker' do
         'RequirementsManagement::ProcessRequirementsReportsWorker' => 3,
         'RunPipelineScheduleWorker' => 3,
         'ScanSecurityReportSecretsWorker' => 17,
+        'Search::ElasticGroupAssociationDeletionWorker' => 3,
         'Security::AutoFixWorker' => 3,
         'Security::StoreScansWorker' => 3,
         'Security::TrackSecureScansWorker' => 1,
-        'SelfMonitoringProjectCreateWorker' => 3,
-        'SelfMonitoringProjectDeleteWorker' => 3,
         'ServiceDeskEmailReceiverWorker' => 3,
         'SetUserStatusBasedOnUserCapSettingWorker' => 3,
-        'SnippetScheduleBulkRepositoryShardMovesWorker' => 3,
-        'SnippetUpdateRepositoryStorageWorker' => 3,
         'Snippets::ScheduleBulkRepositoryShardMovesWorker' => 3,
         'Snippets::UpdateRepositoryStorageWorker' => 3,
         'StageUpdateWorker' => 3,
@@ -472,12 +479,30 @@ RSpec.describe 'Every Sidekiq worker' do
         'VulnerabilityExports::ExportWorker' => 3,
         'WaitForClusterCreationWorker' => 3,
         'WebHookWorker' => 4,
-        'WebHooks::DestroyWorker' => 3,
         'WebHooks::LogExecutionWorker' => 3,
         'Wikis::GitGarbageCollectWorker' => false,
+        'WorkItems::ImportWorkItemsCsvWorker' => 3,
         'X509CertificateRevokeWorker' => 3,
-        'ComplianceManagement::MergeRequests::ComplianceViolationsWorker' => 3
-      }
+        'ComplianceManagement::MergeRequests::ComplianceViolationsWorker' => 3,
+        'Zoekt::IndexerWorker' => 2
+      }.merge(extra_retry_exceptions)
+    end
+
+    it 'defines `retry_exceptions` only for existing workers', if: Gitlab.ee? do
+      removed_workers = retry_exceptions.keys - retry_exception_workers.map { |worker| worker.klass.to_s }
+      message = -> do
+        list = removed_workers.map { |name| "- #{name}" }
+
+        <<~MESSAGE
+          The following workers no longer exist but are defined in `retry_exceptions`:
+
+          #{list.join("\n")}
+
+          Make sure to remove them from `retry_exceptions` because their definition is unnecessary.
+        MESSAGE
+      end
+
+      expect(removed_workers).to be_empty, message
     end
 
     it 'uses the default number of retries for new jobs' do
@@ -491,7 +516,7 @@ RSpec.describe 'Every Sidekiq worker' do
     it 'uses specified numbers of retries for workers with exceptions encoded here', :aggregate_failures do
       retry_exception_workers.each do |worker|
         expect(worker.retries).to eq(retry_exceptions[worker.klass.to_s]),
-                                  "#{worker.klass} has #{worker.retries} retries, expected #{retry_exceptions[worker.klass]}"
+          "#{worker.klass} has #{worker.retries} retries, expected #{retry_exceptions[worker.klass]}"
       end
     end
   end

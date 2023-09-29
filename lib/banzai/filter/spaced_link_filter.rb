@@ -39,10 +39,10 @@ module Banzai
       )
 
       # Text matching LINK_OR_IMAGE_PATTERN inside these elements will not be linked
-      IGNORE_PARENTS = %w(a code kbd pre script style).to_set
+      IGNORE_PARENTS = %w[a code kbd pre script style].to_set
 
       # The XPath query to use for finding text nodes to parse.
-      TEXT_QUERY = %Q(descendant-or-self::text()[
+      TEXT_QUERY = %(descendant-or-self::text()[
         not(#{IGNORE_PARENTS.map { |p| "ancestor::#{p}" }.join(' or ')})
         and contains(., ']\(')
       ])

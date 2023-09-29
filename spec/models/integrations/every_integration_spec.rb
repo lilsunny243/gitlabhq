@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Every integration' do
+RSpec.describe 'Every integration', feature_category: :integrations do
   all_integration_names = Integration.available_integration_names
 
   all_integration_names.each do |integration_name|
@@ -11,18 +11,18 @@ RSpec.describe 'Every integration' do
       let(:integration) { integration_class.new }
 
       context 'secret fields', :aggregate_failures do
-        it "uses type: 'password' for all secret fields, except when bypassed" do
+        it "uses type: 'password' for all secret fields" do
           integration.fields.each do |field|
-            next unless Integrations::Field::SECRET_NAME.match?(field[:name]) && field[:is_secret]
+            next unless field[:is_secret]
 
-            expect(field[:type]).to eq('password'),
+            expect(field[:type]).to eq(:password),
               "Field '#{field[:name]}' should use type 'password'"
           end
         end
 
         it 'defines non-empty titles and help texts for all secret fields' do
           integration.fields.each do |field|
-            next unless field[:type] == 'password'
+            next unless field[:type] == :password
 
             expect(field[:non_empty_password_title]).to be_present,
               "Field '#{field[:name]}' should define :non_empty_password_title"

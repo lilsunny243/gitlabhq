@@ -1,14 +1,12 @@
 import ShortcutsNavigation from '~/behaviors/shortcuts/shortcuts_navigation';
-
-import initInviteMembersModal from '~/invite_members/init_invite_members_modal';
-import initInviteMembersTrigger from '~/invite_members/init_invite_members_trigger';
 import initClustersDeprecationAlert from '~/projects/clusters_deprecation_alert';
 import leaveByUrl from '~/namespaces/leave_by_url';
 import initVueNotificationsDropdown from '~/notifications';
-import Star from '~/projects/star';
+import { initStarButton } from '~/projects/project_star_button';
 import initTerraformNotification from '~/projects/terraform_notification';
 import { initUploadFileTrigger } from '~/projects/upload_file';
 import initReadMore from '~/read_more';
+import initForksButton from '~/forks/init_forks_button';
 
 // Project show page loads different overview content based on user preferences
 if (document.getElementById('js-tree-list')) {
@@ -42,13 +40,11 @@ initVueNotificationsDropdown();
 new ShortcutsNavigation(); // eslint-disable-line no-new
 
 initUploadFileTrigger();
-initInviteMembersModal();
-initInviteMembersTrigger();
 initClustersDeprecationAlert();
 initTerraformNotification();
 
 initReadMore();
-new Star(); // eslint-disable-line no-new
+initStarButton();
 
 if (document.querySelector('.js-autodevops-banner')) {
   import(/* webpackChunkName: 'userCallOut' */ '~/user_callout')
@@ -61,3 +57,5 @@ if (document.querySelector('.js-autodevops-banner')) {
     })
     .catch(() => {});
 }
+
+initForksButton();

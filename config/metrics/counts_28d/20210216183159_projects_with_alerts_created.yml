@@ -5,11 +5,11 @@ description: Monthly count of unique projects with HTTP alerting enabled
 product_section: ops
 product_stage: monitor
 product_group: monitor
-product_category: metrics
 value_type: number
 status: active
 time_frame: 28d
 data_source: database
+instrumentation_class: CountProjectsWithAlertsCreatedMetric
 distribution:
 - ce
 - ee

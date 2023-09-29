@@ -1,11 +1,10 @@
 ---
-type: reference, howto
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Import and migrate projects **(FREE)**
+# Import and migrate projects **(FREE ALL)**
 
 If you want to bring existing projects to GitLab or copy GitLab projects to a different location, you can:
 
@@ -15,16 +14,11 @@ If you want to bring existing projects to GitLab or copy GitLab projects to a di
   - Between a self-managed instance and GitLab.com in both directions.
   - In the same GitLab instance.
 
-Prerequisite:
-
-- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
-  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
-
 For any type of source and target, you can migrate GitLab projects:
 
 - When [migrating groups by direct transfer](../../group/import/index.md#migrate-groups-by-direct-transfer-recommended),
   which allows you to migrate all projects in a group simultaneously. Migrating projects by direct transfer is in
-  [Beta](../../../policy/alpha-beta-support.md#beta-features). The feature is not ready for production use.
+  [Beta](../../../policy/experiment-beta-support.md#beta). The feature is not ready for production use.
 - Using [file exports](../settings/import_export.md). With this method you can migrate projects one by one. No network
   connection between instances is required.
 
@@ -32,12 +26,27 @@ If you only need to migrate Git repositories, you can [import each project by UR
 import issues and merge requests this way. To retain metadata like issues and merge requests, either:
 
 - [Migrate projects with groups by direct transfer](../../group/import/index.md#migrate-groups-by-direct-transfer-recommended).
-  This feature is in [Beta](../../../policy/alpha-beta-support.md#beta-features). It is not ready for production use.
+  This feature is in [Beta](../../../policy/experiment-beta-support.md#beta). It is not ready for production use.
 - Use [file exports](../settings/import_export.md) to import projects.
 
 Keep in mind the limitations of [migrating using file exports](../settings/import_export.md#items-that-are-exported).
 When migrating from self-managed to GitLab.com, user associations (such as comment author)
 are changed to the user who is importing the projects.
+
+## Security
+
+Only import projects from sources you trust. If you import a project from an untrusted source,
+an attacker could steal your sensitive data. For example, an imported project
+with a malicious `.gitlab-ci.yml` file could allow an attacker to exfiltrate group CI/CD variables.
+
+GitLab self-managed administrators can reduce their attack surface by disabling import sources they don't need:
+
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Settings > General**.
+1. Expand **Visibility and access controls**.
+1. Scroll to **Import sources**.
+1. Clear checkboxes for importers that are not required.
 
 ## Available project importers
 
@@ -65,7 +74,7 @@ You can then [connect your external repository to get CI/CD benefits](../../../c
 
 GitLab can not automatically migrate Subversion repositories to Git. Converting Subversion repositories to Git can be difficult, but several tools exist including:
 
-- [`git svn`](https://git-scm.com/book/en/v2/Git-and-Other-Systems-Migrating-to-Git), for very small and simple repositories.
+- [`git svn`](https://git-scm.com/book/en/v2/Git-and-Other-Systems-Migrating-to-Git), for very small and basic repositories.
 - [`reposurgeon`](http://www.catb.org/~esr/reposurgeon/repository-editing.html), for larger and more complex repositories.
 
 ## Migrate using the API
@@ -82,10 +91,9 @@ over a series of Docker pulls and pushes. Re-run any CI pipelines to retrieve an
 
 ## Migrate between two self-managed GitLab instances
 
-To migrate from an existing self-managed GitLab instance to a new self-managed GitLab instance, it's
-best to [back up](../../../raketasks/backup_restore.md)
-the existing instance and restore it on the new instance. For example, this is useful when migrating
-a self-managed instance from an old server to a new server.
+To migrate from an existing self-managed GitLab instance to a new self-managed GitLab instance,
+you should [back up](../../../administration/backup_restore/index.md)
+the existing instance and restore it on the new instance. For example, you could use this method to migrate a self-managed instance from an old server to a new server.
 
 The backups produced don't depend on the operating system running GitLab. You can therefore use
 the restore method to switch between different operating system distributions or versions, as long
@@ -106,8 +114,7 @@ You can view all project imports created by you. This list includes the followin
 To view project import history:
 
 1. Sign in to GitLab.
-1. On the top bar, select **Create new...** (**{plus-square}**).
-1. Select **New project/repository**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Import project**.
 1. In the upper-right corner, select **History**.
 1. If there are any errors for a particular import, you can see them by selecting **Details**.
@@ -140,7 +147,7 @@ repository. For example, if an administrator creates the alias `gitlab` for the 
 `https://gitlab.com/gitlab-org/gitlab`, you can clone the project with
 `git clone git@gitlab.com:gitlab.git` instead of `git clone git@gitlab.com:gitlab-org/gitlab.git`.
 
-## Automate group and project import **(PREMIUM)**
+## Automate group and project import **(PREMIUM ALL)**
 
 The GitLab Professional Services team uses [Congregate](https://gitlab.com/gitlab-org/professional-services-automation/tools/migration/congregate)
 to orchestrate user, group, and project import API calls. With Congregate, you can migrate data to
@@ -154,8 +161,20 @@ GitLab from:
 
 For more information, see:
 
+- Information on paid GitLab [migration services](https://about.gitlab.com/services/migration/).
 - [Quick Start](https://gitlab.com/gitlab-org/professional-services-automation/tools/migration/congregate/-/blob/master/docs/using-congregate.md#quick-start).
 - [Frequently Asked Migration Questions](https://gitlab.com/gitlab-org/professional-services-automation/tools/migration/congregate/-/blob/master/customer/famq.md),
   including settings that need checking afterwards and other limitations.
 
 For support, customers must enter into a paid engagement with GitLab Professional Services.
+
+## Troubleshooting
+
+### Imported repository is missing branches
+
+If an imported repository does not contain all branches of the source repository:
+
+1. Set the [environment variable](../../../administration/logs/index.md#override-default-log-level) `IMPORT_DEBUG=true`.
+1. Retry the import with a [different group, subgroup, or project name](https://about.gitlab.com/releases/2023/02/22/gitlab-15-9-released/#re-import-projects-from-external-providers).
+1. If some branches are still missing, inspect [`importer.log`](../../../administration/logs/index.md#importerlog)
+   (for example, with [`jq`](../../../administration/logs/log_parsing.md#parsing-gitlab-railsimporterlog)).

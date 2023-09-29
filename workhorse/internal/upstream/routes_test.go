@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"bytes"
 	"testing"
 
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/testhelper"
@@ -17,6 +18,17 @@ func TestAdminGeoPathsWithGeoProxy(t *testing.T) {
 		{"Projects replication subpaths", "/admin/geo/replication/projects/2", "Local Rails server received request to path /admin/geo/replication/projects/2"},
 		{"Designs replication", "/admin/geo/replication/designs", "Local Rails server received request to path /admin/geo/replication/designs"},
 		{"Designs replication subpaths", "/admin/geo/replication/designs/3", "Local Rails server received request to path /admin/geo/replication/designs/3"},
+	}
+
+	runTestCasesWithGeoProxyEnabled(t, testCases)
+}
+
+func TestApiGeoPathsWithGeoProxy(t *testing.T) {
+	testCases := []testCase{
+		{"Geo replication endpoint", "/api/v4/geo_replication", "Local Rails server received request to path /api/v4/geo_replication"},
+		{"Geo GraphQL endpoint", "/api/v4/geo/graphql", "Local Rails server received request to path /api/v4/geo/graphql"},
+		{"Current geo node failures", "/api/v4/geo_nodes/current/failures", "Local Rails server received request to path /api/v4/geo_nodes/current/failures"},
+		{"Current geo sites failures", "/api/v4/geo_sites/current/failures", "Local Rails server received request to path /api/v4/geo_sites/current/failures"},
 	}
 
 	runTestCasesWithGeoProxyEnabled(t, testCases)
@@ -74,4 +86,14 @@ func TestAssetsServedLocallyWithGeoProxy(t *testing.T) {
 	}
 
 	runTestCasesWithGeoProxyEnabled(t, testCases)
+}
+
+func TestLfsBatchSecondaryGitSSHPullWithGeoProxy(t *testing.T) {
+	body := bytes.NewBuffer([]byte(`{"operation":"download","objects": [{"oid":"fakeoid", "size":10}], "transfers":["basic", "ssh","lfs-standalone-file"],"ref":{"name":"refs/heads/fakeref"},"hash_algo":"sha256"}`))
+	contentType := "application/vnd.git-lfs+json; charset=utf-8"
+	testCases := []testCasePost{
+		{testCase{"GitLab Shell call to /group/project.git/info/lfs/objects/batch", "/group/project.git/info/lfs/objects/batch", "Local Rails server received request to path /group/project.git/info/lfs/objects/batch"}, contentType, body},
+	}
+
+	runTestCasesWithGeoProxyEnabledPost(t, testCases)
 }

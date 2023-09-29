@@ -55,7 +55,11 @@ RSpec.describe Gitlab::UsageDataMetrics, :with_license, feature_category: :servi
         let(:metric_files_key_paths) do
           Gitlab::Usage::MetricDefinition
             .definitions
-            .select { |k, v| v.attributes[:data_source] == 'redis_hll' && v.key_path.starts_with?('redis_hll_counters') && v.available? }
+            .select do |_, v|
+              (v.data_source == 'redis_hll' || v.data_source == 'internal_events') &&
+                v.key_path.starts_with?('redis_hll_counters') &&
+                v.available?
+            end
             .keys
             .sort
         end
@@ -83,18 +87,6 @@ RSpec.describe Gitlab::UsageDataMetrics, :with_license, feature_category: :servi
           expect(metric_files_key_paths).to match_array(service_ping_key_paths)
         end
       end
-    end
-  end
-
-  describe '.suggested_names' do
-    subject { described_class.suggested_names }
-
-    let(:suggested_names) do
-      ::Gitlab::Usage::Metric.all.map(&:with_suggested_name).reduce({}, :deep_merge)
-    end
-
-    it 'includes Service Ping suggested names' do
-      expect(subject).to match_array(suggested_names)
     end
   end
 end

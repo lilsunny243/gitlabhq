@@ -2,35 +2,30 @@
 
 class WebHook < ApplicationRecord
   include Sortable
+  include WebHooks::AutoDisabling
 
   InterpolationError = Class.new(StandardError)
 
-  MAX_FAILURES = 100
-  FAILURE_THRESHOLD = 3 # three strikes
-  EXCEEDED_FAILURE_THRESHOLD = FAILURE_THRESHOLD + 1
-  INITIAL_BACKOFF = 1.minute
-  MAX_BACKOFF = 1.day
-  BACKOFF_GROWTH_FACTOR = 2.0
   SECRET_MASK = '************'
 
   attr_encrypted :token,
-                 mode: :per_attribute_iv,
-                 algorithm: 'aes-256-gcm',
-                 key: Settings.attr_encrypted_db_key_base_32
+    mode: :per_attribute_iv,
+    algorithm: 'aes-256-gcm',
+    key: Settings.attr_encrypted_db_key_base_32
 
   attr_encrypted :url,
-                 mode: :per_attribute_iv,
-                 algorithm: 'aes-256-gcm',
-                 key: Settings.attr_encrypted_db_key_base_32
+    mode: :per_attribute_iv,
+    algorithm: 'aes-256-gcm',
+    key: Settings.attr_encrypted_db_key_base_32
 
   attr_encrypted :url_variables,
-                 mode: :per_attribute_iv,
-                 key: Settings.attr_encrypted_db_key_base_32,
-                 algorithm: 'aes-256-gcm',
-                 marshal: true,
-                 marshaler: ::Gitlab::Json,
-                 encode: false,
-                 encode_iv: false
+    mode: :per_attribute_iv,
+    key: Settings.attr_encrypted_db_key_base_32,
+    algorithm: 'aes-256-gcm',
+    marshal: true,
+    marshaler: ::Gitlab::Json,
+    encode: false,
+    encode_iv: false
 
   has_many :web_hook_logs
 
@@ -41,7 +36,7 @@ class WebHook < ApplicationRecord
   after_initialize :initialize_url_variables
 
   before_validation :reset_token
-  before_validation :reset_url_variables, unless: ->(hook) { hook.is_a?(ServiceHook) }
+  before_validation :reset_url_variables, unless: ->(hook) { hook.is_a?(ServiceHook) }, on: :update
   before_validation :set_branch_filter_nil, if: :branch_filter_strategy_all_branches?
   validates :push_events_branch_filter, untrusted_regexp: true, if: :branch_filter_strategy_regex?
   validates :push_events_branch_filter, "web_hooks/wildcard_branch_filter": true, if: :branch_filter_strategy_wildcard?
@@ -78,46 +73,6 @@ class WebHook < ApplicationRecord
     'user/project/integrations/webhooks'
   end
 
-  def next_backoff
-    return MAX_BACKOFF if backoff_count >= 8 # optimization to prevent expensive exponentiation and possible overflows
-
-    (INITIAL_BACKOFF * (BACKOFF_GROWTH_FACTOR**backoff_count))
-      .clamp(INITIAL_BACKOFF, MAX_BACKOFF)
-      .seconds
-  end
-
-  def disable!
-    update_attribute(:recent_failures, EXCEEDED_FAILURE_THRESHOLD)
-  end
-
-  def enable!
-    return if recent_failures == 0 && disabled_until.nil? && backoff_count == 0
-
-    assign_attributes(recent_failures: 0, disabled_until: nil, backoff_count: 0)
-    save(validate: false)
-  end
-
-  # Don't actually back-off until FAILURE_THRESHOLD failures have been seen
-  # we mark the grace-period using the recent_failures counter
-  def backoff!
-    attrs = { recent_failures: next_failure_count }
-
-    if recent_failures >= FAILURE_THRESHOLD
-      attrs[:backoff_count] = next_backoff_count
-      attrs[:disabled_until] = next_backoff.from_now
-    end
-
-    assign_attributes(attrs)
-    save(validate: false) if changed?
-  end
-
-  def failed!
-    return unless recent_failures < MAX_FAILURES
-
-    assign_attributes(disabled_until: nil, backoff_count: 0, recent_failures: next_failure_count)
-    save(validate: false)
-  end
-
   # @return [Boolean] Whether or not the WebHook is currently throttled.
   def rate_limited?
     rate_limiter.rate_limited?
@@ -148,9 +103,9 @@ class WebHook < ApplicationRecord
   end
 
   # See app/validators/json_schemas/web_hooks_url_variables.json
-  VARIABLE_REFERENCE_RE = /\{([A-Za-z]+[0-9]*(?:[._-][A-Za-z0-9]+)*)\}/.freeze
+  VARIABLE_REFERENCE_RE = /\{([A-Za-z]+[0-9]*(?:[._-][A-Za-z0-9]+)*)\}/
 
-  def interpolated_url
+  def interpolated_url(url = self.url, url_variables = self.url_variables)
     return url unless url.include?('{')
 
     vars = url_variables
@@ -176,15 +131,20 @@ class WebHook < ApplicationRecord
   end
 
   def reset_url_variables
-    self.url_variables = {} if url_changed? && !encrypted_url_variables_changed?
+    interpolated_url_was = interpolated_url(decrypt_url_was, url_variables_were)
+
+    return if url_variables_were.blank? || interpolated_url_was == interpolated_url
+
+    self.url_variables = {} if url_variables_were.keys.intersection(url_variables.keys).any?
+    self.url_variables = {} if url_changed? && url_variables_were.to_a.intersection(url_variables.to_a).any?
   end
 
-  def next_failure_count
-    recent_failures.succ.clamp(1, MAX_FAILURES)
+  def decrypt_url_was
+    self.class.decrypt_url(encrypted_url_was, iv: Base64.decode64(encrypted_url_iv_was))
   end
 
-  def next_backoff_count
-    backoff_count.succ.clamp(1, MAX_FAILURES)
+  def url_variables_were
+    self.class.decrypt_url_variables(encrypted_url_variables_was, iv: encrypted_url_variables_iv_was)
   end
 
   def initialize_url_variables

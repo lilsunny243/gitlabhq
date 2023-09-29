@@ -2,21 +2,23 @@
 import { GlSprintf, GlAvatarLink, GlAvatar } from '@gitlab/ui';
 import $ from 'jquery';
 import { escape, isEmpty } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import { INLINE_DIFF_LINES_KEY } from '~/diffs/constants';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { HTTP_STATUS_GONE } from '~/lib/utils/http_status';
 import { ignoreWhilePending } from '~/lib/utils/ignore_while_pending';
 import { truncateSha } from '~/lib/utils/text_utility';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
 import { __, s__, sprintf } from '~/locale';
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
+import { containsSensitiveToken, confirmSensitiveAction } from '~/lib/utils/secret_detection';
 import eventHub from '../event_hub';
 import noteable from '../mixins/noteable';
 import resolvable from '../mixins/resolvable';
-import { renderMarkdown } from '../utils';
+import { renderMarkdown, updateNoteErrorMessage } from '../utils';
 import {
   getStartLineNumber,
   getEndLineNumber,
@@ -209,7 +211,8 @@ export default {
       return fileResolvedFromAvailableSource || null;
     },
     isMRDiffView() {
-      return this.line && !this.isOverviewTab;
+      const isFileComment = this.note.position?.position_type === 'file';
+      return !this.isOverviewTab && (this.line || isFileComment);
     },
   },
   created() {
@@ -294,10 +297,9 @@ export default {
       this.isRequesting = false;
       this.oldContent = null;
       renderGFM(this.$refs.noteBody.$el);
-      this.$refs.noteBody.resetAutoSave();
       this.$emit('updateSuccess');
     },
-    formUpdateHandler({ noteText, callback, resolveDiscussion }) {
+    async formUpdateHandler({ noteText, callback, resolveDiscussion }) {
       const position = {
         ...this.note.position,
       };
@@ -315,10 +317,20 @@ export default {
         noteText,
         resolveDiscussion,
         position,
+        flashContainer: this.$el,
         callback: () => this.updateSuccess(),
+        errorCallback: () => callback(),
       });
 
       if (this.isDraft) return;
+
+      if (containsSensitiveToken(noteText)) {
+        const confirmed = await confirmSensitiveAction();
+        if (!confirmed) {
+          callback();
+          return;
+        }
+      }
 
       const data = {
         endpoint: this.note.path,
@@ -342,8 +354,8 @@ export default {
           this.updateSuccess();
           callback();
         })
-        .catch((response) => {
-          if (response.status === HTTP_STATUS_GONE) {
+        .catch((e) => {
+          if (e.status === HTTP_STATUS_GONE) {
             this.removeNote(this.note);
             this.updateSuccess();
             callback();
@@ -352,17 +364,16 @@ export default {
             this.isEditing = true;
             this.setSelectedCommentPositionHover();
             this.$nextTick(() => {
-              this.handleUpdateError(response); // The 'response' parameter is being used in JH, don't remove it
-              this.recoverNoteContent(noteText);
+              this.handleUpdateError(e); // The 'e' parameter is being used in JH, don't remove it
+              this.recoverNoteContent();
               callback();
             });
           }
         });
     },
-    handleUpdateError() {
-      const msg = __('Something went wrong while editing your comment. Please try again.');
+    handleUpdateError(e) {
       createAlert({
-        message: msg,
+        message: updateNoteErrorMessage(e),
         parent: this.$el,
       });
     },
@@ -383,23 +394,14 @@ export default {
         });
         if (!confirmed) return;
       }
-      this.$refs.noteBody.resetAutoSave();
-      if (this.oldContent) {
-        // eslint-disable-next-line vue/no-mutating-props
-        this.note.note_html = this.oldContent;
-        this.oldContent = null;
-      }
+      this.recoverNoteContent();
       this.isEditing = false;
       this.$emit('cancelForm');
     }),
-    recoverNoteContent(noteText) {
-      // we need to do this to prevent noteForm inconsistent content warning
-      // this is something we intentionally do so we need to recover the content
-      // eslint-disable-next-line vue/no-mutating-props
-      this.note.note = noteText;
-      const { noteBody } = this.$refs;
-      if (noteBody) {
-        noteBody.note.note = noteText;
+    recoverNoteContent() {
+      if (this.oldContent) {
+        // eslint-disable-next-line vue/no-mutating-props
+        this.note.note_html = this.oldContent;
       }
     },
     getLineClasses(lineNumber) {
@@ -437,7 +439,12 @@ export default {
     </div>
 
     <div v-if="isMRDiffView" class="timeline-avatar gl-float-left gl-pt-2">
-      <gl-avatar-link :href="author.path">
+      <gl-avatar-link
+        :href="author.path"
+        :data-user-id="author.id"
+        :data-username="author.username"
+        class="js-user-link"
+      >
         <gl-avatar
           :src="author.avatar_url"
           :entity-name="author.username"
@@ -450,7 +457,12 @@ export default {
     </div>
 
     <div v-else class="timeline-avatar gl-float-left">
-      <gl-avatar-link :href="author.path">
+      <gl-avatar-link
+        :href="author.path"
+        :data-user-id="author.id"
+        :data-username="author.username"
+        class="js-user-link"
+      >
         <gl-avatar
           :src="author.avatar_url"
           :entity-name="author.username"
@@ -470,6 +482,7 @@ export default {
           :note-id="note.id"
           :is-internal-note="note.internal"
           :noteable-type="noteableType"
+          :email-participant="note.external_author"
         >
           <template #note-header-info>
             <slot name="note-header-info"></slot>

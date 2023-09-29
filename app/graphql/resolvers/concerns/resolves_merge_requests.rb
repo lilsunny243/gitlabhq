@@ -11,6 +11,11 @@ module ResolvesMergeRequests
   end
 
   def resolve_with_lookahead(**args)
+    if args[:group_id]
+      args[:group_id] = ::GitlabSchema.parse_gid(args[:group_id], expected_type: ::Group).model_id
+      args[:include_subgroups] = true
+    end
+
     mr_finder = MergeRequestsFinder.new(current_user, args.compact)
     finder = Gitlab::Graphql::Loaders::IssuableLoader.new(mr_parent, mr_finder)
 
@@ -40,6 +45,7 @@ module ResolvesMergeRequests
   def preloads
     {
       assignees: [:assignees],
+      award_emoji: { award_emoji: [:awardable] },
       reviewers: [:reviewers],
       participants: MergeRequest.participant_includes,
       author: [:author],
@@ -53,7 +59,8 @@ module ResolvesMergeRequests
       timelogs: [:timelogs],
       pipelines: [:merge_request_diffs], # used by `recent_diff_head_shas` to load pipelines
       committers: [merge_request_diff: [:merge_request_diff_commits]],
-      suggested_reviewers: [:predictions]
+      suggested_reviewers: [:predictions],
+      diff_stats: [latest_merge_request_diff: [:merge_request_diff_commits]]
     }
   end
 end

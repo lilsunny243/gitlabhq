@@ -1,8 +1,8 @@
 <script>
 import { GlIcon, GlBadge, GlButton, GlIntersectionObserver, GlTooltipDirective } from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
+import { STATUS_OPEN } from '~/issues/constants';
 import { __ } from '~/locale';
-import { IssuableStates } from '~/vue_shared/issuable/list/constants';
 
 export default {
   i18n: {
@@ -39,7 +39,7 @@ export default {
   },
   computed: {
     badgeVariant() {
-      return this.issuable.state === IssuableStates.Opened ? 'success' : 'info';
+      return this.issuable.state === STATUS_OPEN ? 'success' : 'info';
     },
   },
   methods: {
@@ -60,8 +60,7 @@ export default {
         v-safe-html="issuable.titleHtml || issuable.title"
         class="title gl-font-size-h-display"
         dir="auto"
-        data-qa-selector="title_content"
-        data-testid="title"
+        data-testid="issuable-title"
       ></h1>
       <gl-button
         v-if="enableEdit"
@@ -81,9 +80,12 @@ export default {
           data-testid="header"
         >
           <div
-            class="issue-sticky-header-text gl-display-flex gl-align-items-center gl-mx-auto gl-px-5"
+            class="issue-sticky-header-text gl-display-flex gl-align-items-baseline gl-mx-auto gl-px-5"
           >
-            <gl-badge class="gl-white-space-nowrap gl-mr-3" :variant="badgeVariant">
+            <gl-badge
+              class="gl-white-space-nowrap gl-mr-3 gl-align-self-center"
+              :variant="badgeVariant"
+            >
               <gl-icon v-if="statusIcon" class="gl-sm-display-none" :name="statusIcon" />
               <span class="gl-display-none gl-sm-display-block">
                 <slot name="status-badge"></slot>

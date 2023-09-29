@@ -4,9 +4,9 @@ require 'spec_helper'
 
 RSpec.describe 'User creates snippet', :js, feature_category: :source_code_management do
   include DropzoneHelper
-  include Spec::Support::Helpers::Features::SnippetSpecHelpers
+  include Features::SnippetSpecHelpers
 
-  let_it_be(:user) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
 
   let(:title) { 'My Snippet Title' }
   let(:file_content) { 'Hello World!' }
@@ -21,7 +21,7 @@ RSpec.describe 'User creates snippet', :js, feature_category: :source_code_manag
     visit new_snippet_path
   end
 
-  it_behaves_like 'a dashboard page with sidebar', :new_snippet_path, :snippets
+  it_behaves_like 'a "Your work" page with sidebar and breadcrumbs', :new_snippet_path, :snippets
 
   def fill_form
     snippet_fill_in_form(title: title, content: file_content, description: md_description)
@@ -81,8 +81,10 @@ RSpec.describe 'User creates snippet', :js, feature_category: :source_code_manag
 
   context 'when snippets default visibility level is restricted' do
     before do
-      stub_application_setting(restricted_visibility_levels: [Gitlab::VisibilityLevel::PRIVATE],
-                               default_snippet_visibility: Gitlab::VisibilityLevel::PRIVATE)
+      stub_application_setting(
+        restricted_visibility_levels: [Gitlab::VisibilityLevel::PRIVATE],
+        default_snippet_visibility: Gitlab::VisibilityLevel::PRIVATE
+      )
     end
 
     it 'creates a snippet using the lowest available visibility level as default' do
@@ -143,7 +145,11 @@ RSpec.describe 'User creates snippet', :js, feature_category: :source_code_manag
       # Adds a cache buster for checking if the image exists as Selenium is now handling the cached requests
       # not anymore as requests when they come straight from memory cache.
       # accept_confirm is needed because of https://gitlab.com/gitlab-org/gitlab/-/issues/262102
-      reqs = inspect_requests { accept_confirm { visit("#{link}?ran=#{SecureRandom.base64(20)}") } }
+      reqs = inspect_requests do
+        visit("#{link}?ran=#{SecureRandom.base64(20)}") do
+          page.driver.browser.switch_to.alert.accept
+        end
+      end
       expect(reqs.first.status_code).to eq(200)
     end
   end

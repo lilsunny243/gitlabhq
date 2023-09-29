@@ -2,14 +2,13 @@
 
 require 'carrierwave/orm/activerecord'
 
-class User < ApplicationRecord
+class User < MainClusterwide::ApplicationRecord
   extend Gitlab::ConfigHelper
 
   include Gitlab::ConfigHelper
   include Gitlab::SQL::Pattern
   include AfterCommitQueue
   include Avatarable
-  include Awareness
   include Referable
   include Sortable
   include CaseSensitivity
@@ -23,14 +22,36 @@ class User < ApplicationRecord
   include FromUnion
   include BatchDestroyDependentAssociations
   include BatchNullifyDependentAssociations
-  include HasUniqueInternalUsers
   include IgnorableColumns
   include UpdateHighestRole
   include HasUserType
   include Gitlab::Auth::Otp::Fortinet
+  include Gitlab::Auth::Otp::DuoAuth
   include RestrictedSignup
   include StripAttribute
   include EachBatch
+  include CrossDatabaseIgnoredTables
+  include IgnorableColumns
+
+  ignore_column %i[
+    email_opted_in
+    email_opted_in_ip
+    email_opted_in_source_id
+    email_opted_in_at
+  ], remove_with: '16.6', remove_after: '2023-10-22'
+
+  # `ensure_namespace_correct` needs to be moved to an after_commit (?)
+  cross_database_ignore_tables %w[namespaces namespace_settings], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424279'
+
+  # `notification_settings_for` is called, and elsewhere `save` is then called.
+  cross_database_ignore_tables %w[notification_settings], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424284'
+
+  # Associations with dependent: option
+  cross_database_ignore_tables(
+    %w[namespaces projects project_authorizations issues merge_requests merge_requests issues issues merge_requests],
+    url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424285',
+    on: :destroy
+  )
 
   DEFAULT_NOTIFICATION_LEVEL = :participating
 
@@ -54,10 +75,14 @@ class User < ApplicationRecord
     :public_email
   ].freeze
 
-  FORBIDDEN_SEARCH_STATES = %w(blocked banned ldap_blocked).freeze
+  FORBIDDEN_SEARCH_STATES = %w[blocked banned ldap_blocked].freeze
 
-  add_authentication_token_field :incoming_email_token, token_generator: -> { SecureRandom.hex.to_i(16).to_s(36) }
-  add_authentication_token_field :feed_token
+  INCOMING_MAIL_TOKEN_PREFIX = 'glimt-'
+  FEED_TOKEN_PREFIX = 'glft-'
+
+  # lib/tasks/tokens.rake needs to be updated when changing mail and feed tokens
+  add_authentication_token_field :incoming_email_token, token_generator: -> { self.generate_incoming_mail_token }
+  add_authentication_token_field :feed_token, format_with_prefix: :prefix_for_feed_token
   add_authentication_token_field :static_object_token, encrypted: :optional
 
   attribute :admin, default: false
@@ -80,17 +105,18 @@ class User < ApplicationRecord
     algorithm: 'aes-256-cbc'
 
   devise :two_factor_authenticatable,
-         otp_secret_encryption_key: Gitlab::Application.secrets.otp_key_base
+    otp_secret_encryption_key: Gitlab::Application.secrets.otp_key_base
 
   devise :two_factor_backupable, otp_number_of_backup_codes: 10
   devise :two_factor_backupable_pbkdf2
   serialize :otp_backup_codes, JSON # rubocop:disable Cop/ActiveRecordSerialize
 
   devise :lockable, :recoverable, :rememberable, :trackable,
-         :validatable, :omniauthable, :confirmable, :registerable
+    :validatable, :omniauthable, :confirmable, :registerable
 
   # Must be included after `devise`
   include EncryptedUserPassword
+  include RecoverableByAnyEmail
 
   include AdminChangedPasswordNotifier
 
@@ -132,11 +158,11 @@ class User < ApplicationRecord
 
   # Namespace for personal projects
   has_one :namespace,
-          -> { where(type: Namespaces::UserNamespace.sti_name) },
-          dependent: :destroy, # rubocop:disable Cop/ActiveRecordDependent
-          foreign_key: :owner_id,
-          inverse_of: :owner,
-          autosave: true # rubocop:disable Cop/ActiveRecordDependent
+    -> { where(type: Namespaces::UserNamespace.sti_name) },
+    dependent: :destroy, # rubocop:disable Cop/ActiveRecordDependent
+    foreign_key: :owner_id,
+    inverse_of: :owner,
+    autosave: true # rubocop:disable Cop/ActiveRecordDependent
 
   # Profile
   has_many :keys, -> { regular_keys }, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
@@ -149,7 +175,6 @@ class User < ApplicationRecord
   has_many :emails
   has_many :personal_access_tokens, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
   has_many :identities, dependent: :destroy, autosave: true # rubocop:disable Cop/ActiveRecordDependent
-  has_many :u2f_registrations, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
   has_many :webauthn_registrations
   has_many :chat_names, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
   has_many :saved_replies, class_name: '::Users::SavedReply'
@@ -163,8 +188,11 @@ class User < ApplicationRecord
   has_many :following_users, foreign_key: :followee_id, class_name: 'Users::UserFollowUser'
   has_many :followers, through: :following_users
 
-  # Groups
+  # Namespaces
   has_many :members
+  has_many :member_namespaces, through: :members
+
+  # Groups
   has_many :group_members, -> { where(requested_at: nil).where("access_level >= ?", Gitlab::Access::GUEST) }, class_name: 'GroupMember'
   has_many :groups, through: :group_members
   has_many :groups_with_active_memberships, -> { where(members: { state: ::Member::STATE_ACTIVE }) }, through: :group_members, source: :group
@@ -172,18 +200,18 @@ class User < ApplicationRecord
   has_many :maintainers_groups, -> { where(members: { access_level: Gitlab::Access::MAINTAINER }) }, through: :group_members, source: :group
   has_many :developer_groups, -> { where(members: { access_level: ::Gitlab::Access::DEVELOPER }) }, through: :group_members, source: :group
   has_many :owned_or_maintainers_groups,
-           -> { where(members: { access_level: [Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
-           through: :group_members,
-           source: :group
+    -> { where(members: { access_level: [Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
+    through: :group_members,
+    source: :group
   alias_attribute :masters_groups, :maintainers_groups
   has_many :developer_maintainer_owned_groups,
-           -> { where(members: { access_level: [Gitlab::Access::DEVELOPER, Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
-           through: :group_members,
-           source: :group
+    -> { where(members: { access_level: [Gitlab::Access::DEVELOPER, Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
+    through: :group_members,
+    source: :group
   has_many :reporter_developer_maintainer_owned_groups,
-           -> { where(members: { access_level: [Gitlab::Access::REPORTER, Gitlab::Access::DEVELOPER, Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
-           through: :group_members,
-           source: :group
+    -> { where(members: { access_level: [Gitlab::Access::REPORTER, Gitlab::Access::DEVELOPER, Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER] }) },
+    through: :group_members,
+    source: :group
   has_many :minimal_access_group_members, -> { where(access_level: [Gitlab::Access::MINIMAL_ACCESS]) }, class_name: 'GroupMember'
   has_many :minimal_access_groups, through: :minimal_access_group_members, source: :group
 
@@ -216,9 +244,13 @@ class User < ApplicationRecord
   has_many :releases,                 dependent: :nullify, foreign_key: :author_id # rubocop:disable Cop/ActiveRecordDependent
   has_many :subscriptions,            dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
   has_many :oauth_applications, class_name: 'Doorkeeper::Application', as: :owner, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
-  has_many :abuse_reports,            dependent: :destroy, foreign_key: :user_id # rubocop:disable Cop/ActiveRecordDependent
-  has_many :reported_abuse_reports,   dependent: :destroy, foreign_key: :reporter_id, class_name: "AbuseReport" # rubocop:disable Cop/ActiveRecordDependent
+  has_many :abuse_reports,            dependent: :nullify, foreign_key: :user_id, inverse_of: :user # rubocop:disable Cop/ActiveRecordDependent
+  has_many :reported_abuse_reports,   dependent: :nullify, foreign_key: :reporter_id, class_name: "AbuseReport", inverse_of: :reporter # rubocop:disable Cop/ActiveRecordDependent
+  has_many :assigned_abuse_reports,   foreign_key: :assignee_id, class_name: "AbuseReport", inverse_of: :assignee
+  has_many :resolved_abuse_reports,   foreign_key: :resolved_by_id, class_name: "AbuseReport", inverse_of: :resolved_by
+  has_many :abuse_events,             foreign_key: :user_id, class_name: 'Abuse::Event', inverse_of: :user
   has_many :spam_logs,                dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
+  has_many :abuse_trust_scores,       class_name: 'Abuse::TrustScore', foreign_key: :user_id
   has_many :builds,                   class_name: 'Ci::Build'
   has_many :pipelines,                class_name: 'Ci::Pipeline'
   has_many :todos,                    dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
@@ -245,7 +277,8 @@ class User < ApplicationRecord
   has_many :term_agreements
   belongs_to :accepted_term, class_name: 'ApplicationSetting::Term'
 
-  has_many :metrics_users_starred_dashboards, class_name: 'Metrics::UsersStarredDashboard', inverse_of: :user
+  has_many :organization_users, class_name: 'Organizations::OrganizationUser', inverse_of: :user
+  has_many :organizations, through: :organization_users, class_name: 'Organizations::Organization', inverse_of: :users
 
   has_one :status, class_name: 'UserStatus'
   has_one :user_preference
@@ -265,12 +298,15 @@ class User < ApplicationRecord
 
   has_many :resource_label_events, dependent: :nullify # rubocop:disable Cop/ActiveRecordDependent
   has_many :resource_state_events, dependent: :nullify # rubocop:disable Cop/ActiveRecordDependent
+  has_many :issue_assignment_events, class_name: 'ResourceEvents::IssueAssignmentEvent', dependent: :nullify # rubocop:disable Cop/ActiveRecordDependent
+  has_many :merge_request_assignment_events, class_name: 'ResourceEvents::MergeRequestAssignmentEvent', dependent: :nullify # rubocop:disable Cop/ActiveRecordDependent
   has_many :authored_events, class_name: 'Event', dependent: :destroy, foreign_key: :author_id # rubocop:disable Cop/ActiveRecordDependent
   has_many :namespace_commit_emails, class_name: 'Users::NamespaceCommitEmail'
   has_many :user_achievements, class_name: 'Achievements::UserAchievement', inverse_of: :user
   has_many :awarded_user_achievements, class_name: 'Achievements::UserAchievement', foreign_key: 'awarded_by_user_id', inverse_of: :awarded_by_user
   has_many :revoked_user_achievements, class_name: 'Achievements::UserAchievement', foreign_key: 'revoked_by_user_id', inverse_of: :revoked_by_user
   has_many :achievements, through: :user_achievements, class_name: 'Achievements::Achievement', inverse_of: :users
+  has_many :vscode_settings, class_name: 'VsCode::VsCodeSetting', inverse_of: :user
 
   #
   # Validations
@@ -290,7 +326,7 @@ class User < ApplicationRecord
   validate  :check_password_weakness, if: :encrypted_password_changed?
 
   validates :namespace, presence: true
-  validate :namespace_move_dir_allowed, if: :username_changed?
+  validate :namespace_move_dir_allowed, if: :username_changed?, unless: :new_record?
 
   validate :unique_email, if: :email_changed?
   validate :notification_email_verified, if: :notification_email_changed?
@@ -327,7 +363,9 @@ class User < ApplicationRecord
         email_to_confirm.confirm
       end
     else
-      add_primary_email_to_emails!
+      ignore_cross_database_tables_if_factory_bot(%w[emails]) do
+        add_primary_email_to_emails!
+      end
     end
   end
   after_commit(on: :update) do
@@ -341,31 +379,35 @@ class User < ApplicationRecord
   enum dashboard: { projects: 0, stars: 1, your_activity: 10, project_activity: 2, starred_project_activity: 3, groups: 4, todos: 5, issues: 6, merge_requests: 7, operations: 8, followed_user_activity: 9 }
 
   # User's Project preference
-  enum project_view: { readme: 0, activity: 1, files: 2 }
+  enum project_view: { readme: 0, activity: 1, files: 2, wiki: 3 }
 
   # User's role
   enum role: { software_developer: 0, development_team_lead: 1, devops_engineer: 2, systems_administrator: 3, security_analyst: 4, data_analyst: 5, product_manager: 6, product_designer: 7, other: 8 }, _suffix: true
 
-  delegate  :notes_filter_for,
-            :set_notes_filter,
-            :first_day_of_week, :first_day_of_week=,
-            :timezone, :timezone=,
-            :time_display_relative, :time_display_relative=,
-            :time_format_in_24h, :time_format_in_24h=,
-            :show_whitespace_in_diffs, :show_whitespace_in_diffs=,
-            :view_diffs_file_by_file, :view_diffs_file_by_file=,
-            :tab_width, :tab_width=,
-            :sourcegraph_enabled, :sourcegraph_enabled=,
-            :gitpod_enabled, :gitpod_enabled=,
-            :setup_for_company, :setup_for_company=,
-            :render_whitespace_in_code, :render_whitespace_in_code=,
-            :markdown_surround_selection, :markdown_surround_selection=,
-            :markdown_automatic_lists, :markdown_automatic_lists=,
-            :diffs_deletion_color, :diffs_deletion_color=,
-            :diffs_addition_color, :diffs_addition_color=,
-            :use_legacy_web_ide, :use_legacy_web_ide=,
-            :use_new_navigation, :use_new_navigation=,
-            to: :user_preference
+  delegate :notes_filter_for,
+    :set_notes_filter,
+    :first_day_of_week, :first_day_of_week=,
+    :timezone, :timezone=,
+    :time_display_relative, :time_display_relative=,
+    :show_whitespace_in_diffs, :show_whitespace_in_diffs=,
+    :view_diffs_file_by_file, :view_diffs_file_by_file=,
+    :pass_user_identities_to_ci_jwt, :pass_user_identities_to_ci_jwt=,
+    :tab_width, :tab_width=,
+    :sourcegraph_enabled, :sourcegraph_enabled=,
+    :gitpod_enabled, :gitpod_enabled=,
+    :setup_for_company, :setup_for_company=,
+    :project_shortcut_buttons, :project_shortcut_buttons=,
+    :keyboard_shortcuts_enabled, :keyboard_shortcuts_enabled=,
+    :render_whitespace_in_code, :render_whitespace_in_code=,
+    :markdown_surround_selection, :markdown_surround_selection=,
+    :markdown_automatic_lists, :markdown_automatic_lists=,
+    :diffs_deletion_color, :diffs_deletion_color=,
+    :diffs_addition_color, :diffs_addition_color=,
+    :use_new_navigation, :use_new_navigation=,
+    :pinned_nav_items, :pinned_nav_items=,
+    :achievements_enabled, :achievements_enabled=,
+    :enabled_following, :enabled_following=,
+    to: :user_preference
 
   delegate :path, to: :namespace, allow_nil: true, prefix: true
   delegate :job_title, :job_title=, to: :user_detail, allow_nil: true
@@ -374,7 +416,6 @@ class User < ApplicationRecord
   delegate :pronouns, :pronouns=, to: :user_detail, allow_nil: true
   delegate :pronunciation, :pronunciation=, to: :user_detail, allow_nil: true
   delegate :registration_objective, :registration_objective=, to: :user_detail, allow_nil: true
-  delegate :requires_credit_card_verification, :requires_credit_card_verification=, to: :user_detail, allow_nil: true
   delegate :linkedin, :linkedin=, to: :user_detail, allow_nil: true
   delegate :twitter, :twitter=, to: :user_detail, allow_nil: true
   delegate :skype, :skype=, to: :user_detail, allow_nil: true
@@ -382,6 +423,7 @@ class User < ApplicationRecord
   delegate :location, :location=, to: :user_detail, allow_nil: true
   delegate :organization, :organization=, to: :user_detail, allow_nil: true
   delegate :discord, :discord=, to: :user_detail, allow_nil: true
+  delegate :email_reset_offered_at, :email_reset_offered_at=, to: :user_detail, allow_nil: true
 
   accepts_nested_attributes_for :user_preference, update_only: true
   accepts_nested_attributes_for :user_detail, update_only: true
@@ -479,11 +521,19 @@ class User < ApplicationRecord
     end
 
     after_transition any => :active do |user|
-      user.starred_projects.update_counters(star_count: 1)
+      user.class.temporary_ignore_cross_database_tables(
+        %w[projects], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424278'
+      ) do
+        user.starred_projects.update_counters(star_count: 1)
+      end
     end
 
     after_transition active: any do |user|
-      user.starred_projects.update_counters(star_count: -1)
+      user.class.temporary_ignore_cross_database_tables(
+        %w[projects], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424278'
+      ) do
+        user.starred_projects.update_counters(star_count: -1)
+      end
     end
   end
 
@@ -499,7 +549,11 @@ class User < ApplicationRecord
   scope :active, -> { with_state(:active).non_internal }
   scope :active_without_ghosts, -> { with_state(:active).without_ghosts }
   scope :deactivated, -> { with_state(:deactivated).non_internal }
-  scope :without_projects, -> { joins('LEFT JOIN project_authorizations ON users.id = project_authorizations.user_id').where(project_authorizations: { user_id: nil }) }
+  scope :without_projects, -> do
+    joins('LEFT JOIN project_authorizations ON users.id = project_authorizations.user_id')
+    .where(project_authorizations: { user_id: nil })
+    .allow_cross_joins_across_databases(url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/422045')
+  end
   scope :by_username, -> (usernames) { iwhere(username: Array(usernames).map(&:to_s)) }
   scope :by_name, -> (names) { iwhere(name: Array(names)) }
   scope :by_login, -> (login) do
@@ -514,28 +568,27 @@ class User < ApplicationRecord
   scope :with_dashboard, -> (dashboard) { where(dashboard: dashboard) }
   scope :with_public_profile, -> { where(private_profile: false) }
   scope :with_expiring_and_not_notified_personal_access_tokens, ->(at) do
-    where('EXISTS (?)',
-          ::PersonalAccessToken
-            .where('personal_access_tokens.user_id = users.id')
-            .without_impersonation
-            .expiring_and_not_notified(at).select(1))
+    where('EXISTS (?)', ::PersonalAccessToken
+      .where('personal_access_tokens.user_id = users.id')
+      .without_impersonation
+      .expiring_and_not_notified(at).select(1)
+    )
   end
   scope :with_personal_access_tokens_expired_today, -> do
-    where('EXISTS (?)',
-          ::PersonalAccessToken
-            .select(1)
-            .where('personal_access_tokens.user_id = users.id')
-            .without_impersonation
-            .expired_today_and_not_notified)
+    where('EXISTS (?)', ::PersonalAccessToken
+      .select(1)
+      .where('personal_access_tokens.user_id = users.id')
+      .without_impersonation
+      .expired_today_and_not_notified
+    )
   end
 
   scope :with_ssh_key_expiring_soon, -> do
     includes(:expiring_soon_and_unnotified_keys)
-      .where('EXISTS (?)',
-         ::Key
-         .select(1)
-         .where('keys.user_id = users.id')
-         .expiring_soon_and_not_notified)
+      .where('EXISTS (?)', ::Key
+        .select(1)
+        .where('keys.user_id = users.id')
+        .expiring_soon_and_not_notified)
   end
   scope :order_recent_sign_in, -> { reorder(arel_table[:current_sign_in_at].desc.nulls_last) }
   scope :order_oldest_sign_in, -> { reorder(arel_table[:current_sign_in_at].asc.nulls_last) }
@@ -615,13 +668,12 @@ class User < ApplicationRecord
 
   def self.with_two_factor
     where(otp_required_for_login: true)
-      .or(where_exists(U2fRegistration.where(U2fRegistration.arel_table[:user_id].eq(arel_table[:id]))))
       .or(where_exists(WebauthnRegistration.where(WebauthnRegistration.arel_table[:user_id].eq(arel_table[:id]))))
   end
 
   def self.without_two_factor
     where
-      .missing(:u2f_registrations, :webauthn_registrations)
+      .missing(:webauthn_registrations)
       .where(otp_required_for_login: false)
   end
 
@@ -860,81 +912,6 @@ class User < ApplicationRecord
         }x
     end
 
-    # Return (create if necessary) the ghost user. The ghost user
-    # owns records previously belonging to deleted users.
-    def ghost
-      email = 'ghost%s@example.com'
-      unique_internal(where(user_type: :ghost), 'ghost', email) do |u|
-        u.bio = _('This is a "Ghost User", created to hold all issues authored by users that have since been deleted. This user cannot be removed.')
-        u.name = 'Ghost User'
-      end
-    end
-
-    def alert_bot
-      email_pattern = "alert%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :alert_bot), 'alert-bot', email_pattern) do |u|
-        u.bio = 'The GitLab alert bot'
-        u.name = 'GitLab Alert Bot'
-        u.avatar = bot_avatar(image: 'alert-bot.png')
-      end
-    end
-
-    def migration_bot
-      email_pattern = "noreply+gitlab-migration-bot%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :migration_bot), 'migration-bot', email_pattern) do |u|
-        u.bio = 'The GitLab migration bot'
-        u.name = 'GitLab Migration Bot'
-        u.confirmed_at = Time.zone.now
-      end
-    end
-
-    def security_bot
-      email_pattern = "security-bot%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :security_bot), 'GitLab-Security-Bot', email_pattern) do |u|
-        u.bio = 'System bot that monitors detected vulnerabilities for solutions and creates merge requests with the fixes.'
-        u.name = 'GitLab Security Bot'
-        u.website_url = Gitlab::Routing.url_helpers.help_page_url('user/application_security/security_bot/index.md')
-        u.avatar = bot_avatar(image: 'security-bot.png')
-        u.confirmed_at = Time.zone.now
-      end
-    end
-
-    def support_bot
-      email_pattern = "support%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :support_bot), 'support-bot', email_pattern) do |u|
-        u.bio = 'The GitLab support bot used for Service Desk'
-        u.name = 'GitLab Support Bot'
-        u.avatar = bot_avatar(image: 'support-bot.png')
-        u.confirmed_at = Time.zone.now
-      end
-    end
-
-    def automation_bot
-      email_pattern = "automation%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :automation_bot), 'automation-bot', email_pattern) do |u|
-        u.bio = 'The GitLab automation bot used for automated workflows and tasks'
-        u.name = 'GitLab Automation Bot'
-        u.avatar = bot_avatar(image: 'support-bot.png') # todo: add an avatar for automation-bot
-      end
-    end
-
-    def admin_bot
-      email_pattern = "admin-bot%s@#{Settings.gitlab.host}"
-
-      unique_internal(where(user_type: :admin_bot), 'GitLab-Admin-Bot', email_pattern) do |u|
-        u.bio = 'Admin bot used for tasks that require admin privileges'
-        u.name = 'GitLab Admin Bot'
-        u.avatar = bot_avatar(image: 'admin-bot.png')
-        u.admin = true
-        u.confirmed_at = Time.zone.now
-      end
-    end
-
     # Return true if there is only single non-internal user in the deployment,
     # ghost user is ignored.
     def single_user?
@@ -947,6 +924,10 @@ class User < ApplicationRecord
 
     def get_ids_by_ids_or_usernames(ids, usernames)
       by_ids_or_usernames(ids, usernames).pluck(:id)
+    end
+
+    def generate_incoming_mail_token
+      "#{INCOMING_MAIL_TOKEN_PREFIX}#{SecureRandom.hex.to_i(16).to_s(36)}"
     end
   end
 
@@ -1026,17 +1007,32 @@ class User < ApplicationRecord
     password_allowed
   end
 
+  # Override Devise Rememberable#remember_me!
+  #
+  # In Devise this method sets `remember_created_at` and writes the session token
+  # to the session cookie. When remember me is disabled this method ensures these
+  # values aren't set.
   def remember_me!
-    super if ::Gitlab::Database.read_write?
+    super if ::Gitlab::Database.read_write? && ::Gitlab::CurrentSettings.remember_me_enabled?
   end
 
   def forget_me!
     super if ::Gitlab::Database.read_write?
   end
 
+  # Override Devise Rememberable#remember_me?
+  #
+  # In Devise this method compares the remember me token received from the user session
+  # and compares to the stored value. When remember me is disabled this method ensures
+  # the upstream comparison does not happen.
+  def remember_me?(token, generated_at)
+    return false unless ::Gitlab::CurrentSettings.remember_me_enabled?
+
+    super
+  end
+
   def disable_two_factor!
     transaction do
-      self.u2f_registrations.destroy_all # rubocop:disable Cop/DestroyAll
       self.disable_webauthn!
       self.disable_two_factor_otp!
       self.reset_backup_codes!
@@ -1063,32 +1059,17 @@ class User < ApplicationRecord
   end
 
   def two_factor_enabled?
-    two_factor_otp_enabled? || two_factor_webauthn_u2f_enabled?
+    two_factor_otp_enabled? || two_factor_webauthn_enabled?
   end
 
   def two_factor_otp_enabled?
     otp_required_for_login? ||
     forti_authenticator_enabled?(self) ||
-    forti_token_cloud_enabled?(self)
-  end
-
-  def two_factor_u2f_enabled?
-    return false if Feature.enabled?(:webauthn)
-
-    if u2f_registrations.loaded?
-      u2f_registrations.any?
-    else
-      u2f_registrations.exists?
-    end
-  end
-
-  def two_factor_webauthn_u2f_enabled?
-    two_factor_u2f_enabled? || two_factor_webauthn_enabled?
+    forti_token_cloud_enabled?(self) ||
+    duo_auth_enabled?(self)
   end
 
   def two_factor_webauthn_enabled?
-    return false unless Feature.enabled?(:webauthn)
-
     (webauthn_registrations.loaded? && webauthn_registrations.any?) || (!webauthn_registrations.loaded? && webauthn_registrations.exists?)
   end
 
@@ -1513,7 +1494,7 @@ class User < ApplicationRecord
   end
 
   def full_website_url
-    return "http://#{website_url}" if website_url !~ %r{\Ahttps?://}
+    return "http://#{website_url}" unless %r{\Ahttps?://}.match?(website_url)
 
     website_url
   end
@@ -1537,7 +1518,9 @@ class User < ApplicationRecord
   # rubocop: enable CodeReuse/ServiceClass
 
   def primary_email_verified?
-    confirmed? && !temp_oauth_email?
+    return false unless confirmed? && !temp_oauth_email?
+
+    !email_changed? || new_record?
   end
 
   def accept_pending_invitations!
@@ -1647,8 +1630,21 @@ class User < ApplicationRecord
   end
   # rubocop: enable CodeReuse/ServiceClass
 
+  DELETION_DELAY_IN_DAYS = 7.days
+
   def delete_async(deleted_by:, params: {})
+    if should_delay_delete?(deleted_by)
+      new_note = format(_("User deleted own account on %{timestamp}"), timestamp: Time.zone.now)
+      self.note = "#{new_note}\n#{note}".strip
+
+      block_or_ban
+      DeleteUserWorker.perform_in(DELETION_DELAY_IN_DAYS, deleted_by.id, id, params.to_h)
+
+      return
+    end
+
     block if params[:hard_delete]
+
     DeleteUserWorker.perform_async(deleted_by.id, id, params.to_h)
   end
 
@@ -1694,7 +1690,7 @@ class User < ApplicationRecord
   end
 
   def follow(user)
-    return false if self.id == user.id
+    return false unless following_users_allowed?(user)
 
     begin
       followee = Users::UserFollowUser.create(follower_id: self.id, followee_id: user.id)
@@ -1713,24 +1709,27 @@ class User < ApplicationRecord
     end
   end
 
+  def following_users_allowed?(user)
+    return false if self.id == user.id
+
+    enabled_following && user.enabled_following
+  end
+
   def forkable_namespaces
     strong_memoize(:forkable_namespaces) do
       personal_namespace = Namespace.where(id: namespace_id)
+      groups_allowing_project_creation = Groups::AcceptingProjectCreationsFinder.new(self).execute
 
       Namespace.from_union(
         [
-          manageable_groups(include_groups_with_developer_maintainer_access: true),
+          groups_allowing_project_creation,
           personal_namespace
         ])
     end
   end
 
   def manageable_groups(include_groups_with_developer_maintainer_access: false)
-    owned_and_maintainer_group_hierarchy = if Feature.enabled?(:linear_user_manageable_groups, self)
-                                             owned_or_maintainers_groups.self_and_descendants
-                                           else
-                                             Gitlab::ObjectHierarchy.new(owned_or_maintainers_groups).base_and_descendants
-                                           end
+    owned_and_maintainer_group_hierarchy = owned_or_maintainers_groups.self_and_descendants
 
     if include_groups_with_developer_maintainer_access
       union_sql = ::Gitlab::SQL::Union.new(
@@ -1775,8 +1774,12 @@ class User < ApplicationRecord
     Project.where(id: events).not_aimed_for_deletion
   end
 
+  # Returns true if the user can be removed, false otherwise.
+  # A user can be removed if they do not own any groups where they are the sole owner
+  # Method `none?` is used to ensure faster retrieval, See https://gitlab.com/gitlab-org/gitlab/-/issues/417105
+
   def can_be_removed?
-    !solo_owned_groups.present?
+    solo_owned_groups.none?
   end
 
   def can_remove_self?
@@ -1948,7 +1951,7 @@ class User < ApplicationRecord
 
   def access_level=(new_level)
     new_level = new_level.to_s
-    return unless %w(admin regular).include?(new_level)
+    return unless %w[admin regular].include?(new_level)
 
     self.admin = (new_level == 'admin')
   end
@@ -1989,7 +1992,7 @@ class User < ApplicationRecord
   end
 
   def enabled_incoming_email_token
-    incoming_email_token if Gitlab::IncomingEmail.supports_issue_creation?
+    incoming_email_token if Gitlab::Email::IncomingEmail.supports_issue_creation?
   end
 
   def sync_attribute?(attribute)
@@ -2011,16 +2014,26 @@ class User < ApplicationRecord
   # override, from Devise
   def lock_access!(opts = {})
     Gitlab::AppLogger.info("Account Locked: username=#{username}")
+    audit_lock_access(reason: opts.delete(:reason))
     super
+  end
+
+  # override, from Devise
+  def unlock_access!(unlocked_by: self)
+    audit_unlock_access(author: unlocked_by)
+
+    super()
   end
 
   # Determine the maximum access level for a group of projects in bulk.
   #
   # Returns a Hash mapping project ID -> maximum access level.
   def max_member_access_for_project_ids(project_ids)
-    Gitlab::SafeRequestLoader.execute(resource_key: max_member_access_for_resource_key(Project),
-                                      resource_ids: project_ids,
-                                      default_value: Gitlab::Access::NO_ACCESS) do |project_ids|
+    Gitlab::SafeRequestLoader.execute(
+      resource_key: max_member_access_for_resource_key(Project),
+      resource_ids: project_ids,
+      default_value: Gitlab::Access::NO_ACCESS
+    ) do |project_ids|
       project_authorizations.where(project: project_ids)
                             .group(:project_id)
                             .maximum(:access_level)
@@ -2035,9 +2048,11 @@ class User < ApplicationRecord
   #
   # Returns a Hash mapping project ID -> maximum access level.
   def max_member_access_for_group_ids(group_ids)
-    Gitlab::SafeRequestLoader.execute(resource_key: max_member_access_for_resource_key(Group),
-                                      resource_ids: group_ids,
-                                      default_value: Gitlab::Access::NO_ACCESS) do |group_ids|
+    Gitlab::SafeRequestLoader.execute(
+      resource_key: max_member_access_for_resource_key(Group),
+      resource_ids: group_ids,
+      default_value: Gitlab::Access::NO_ACCESS
+    ) do |group_ids|
       group_members.where(source: group_ids).group(:source_id).maximum(:access_level)
     end
   end
@@ -2047,7 +2062,7 @@ class User < ApplicationRecord
   end
 
   def terms_accepted?
-    return true if project_bot?
+    return true if project_bot? || service_account? || security_policy_bot?
 
     accepted_term_id.present?
   end
@@ -2102,16 +2117,6 @@ class User < ApplicationRecord
     [last_activity, last_sign_in].compact.max
   end
 
-  REQUIRES_ROLE_VALUE = 99
-
-  def role_required?
-    role_before_type_cast == REQUIRES_ROLE_VALUE
-  end
-
-  def set_role_required!
-    update_column(:role, REQUIRES_ROLE_VALUE)
-  end
-
   def dismissed_callout?(feature_name:, ignore_dismissal_earlier_than: nil)
     callout = callouts_by_feature_name[feature_name]
 
@@ -2137,7 +2142,15 @@ class User < ApplicationRecord
   end
 
   def confirmation_required_on_sign_in?
-    !confirmed? && !confirmation_period_valid?
+    return false if confirmed?
+
+    if ::Gitlab::CurrentSettings.email_confirmation_setting_off?
+      false
+    elsif ::Gitlab::CurrentSettings.email_confirmation_setting_soft?
+      !in_confirmation_period?
+    elsif ::Gitlab::CurrentSettings.email_confirmation_setting_hard?
+      true
+    end
   end
 
   def impersonated?
@@ -2207,21 +2220,41 @@ class User < ApplicationRecord
       namespace_commit_emails.find_by(namespace: project.root_namespace)
   end
 
+  def abuse_metadata
+    {
+      account_age: account_age_in_days,
+      two_factor_enabled: two_factor_enabled? ? 1 : 0
+    }
+  end
+
+  def allow_possible_spam?
+    custom_attributes.by_key(UserCustomAttribute::ALLOW_POSSIBLE_SPAM).exists?
+  end
+
+  def namespace_commit_email_for_namespace(namespace)
+    return if namespace.nil?
+
+    namespace_commit_emails.find_by(namespace: namespace)
+  end
+
   protected
 
   # override, from Devise::Validatable
   def password_required?
-    return false if internal? || project_bot?
+    return false if internal? || project_bot? || security_policy_bot?
 
     super
   end
 
   # override from Devise::Confirmable
   def confirmation_period_valid?
-    return false if Feature.disabled?(:soft_email_confirmation)
+    return super if ::Gitlab::CurrentSettings.email_confirmation_setting_soft?
 
-    super
+    # Following devise logic for method, we want to return `true`
+    # See: https://github.com/heartcombo/devise/blob/ec0674523e7909579a5a008f16fb9fe0c3a71712/lib/devise/models/confirmable.rb#L191-L218
+    true
   end
+  alias_method :in_confirmation_period?, :confirmation_period_valid?
 
   # This is copied from Devise::Models::TwoFactorAuthenticatable#consume_otp!
   #
@@ -2241,6 +2274,46 @@ class User < ApplicationRecord
   end
 
   private
+
+  def block_or_ban
+    user_scores = Abuse::UserTrustScore.new(self)
+    if user_scores.spammer? && account_age_in_days < 7
+      ban_and_report
+    else
+      block
+    end
+  end
+
+  def ban_and_report
+    msg = 'Potential spammer account deletion'
+    attrs = { user_id: id, reporter: Users::Internal.security_bot, category: 'spam' }
+    abuse_report = AbuseReport.find_by(attrs)
+
+    if abuse_report.nil?
+      abuse_report = AbuseReport.create!(attrs.merge(message: msg))
+    else
+      abuse_report.update(message: "#{abuse_report.message}\n\n#{msg}")
+    end
+
+    UserCustomAttribute.set_banned_by_abuse_report(abuse_report)
+
+    ban
+  end
+
+  def has_possible_spam_contributions?
+    events
+      .for_action('commented')
+      .or(events.for_action('created').where(target_type: %w[Issue MergeRequest]))
+      .any?
+  end
+
+  def should_delay_delete?(deleted_by)
+    is_deleting_own_record = deleted_by.id == id
+
+    is_deleting_own_record &&
+      ::Feature.enabled?(:delay_delete_own_user) &&
+      has_possible_spam_contributions?
+  end
 
   def pbkdf2?
     return false unless otp_backup_codes&.any?
@@ -2294,9 +2367,10 @@ class User < ApplicationRecord
   def authorized_groups_without_shared_membership
     Group.from_union(
       [
-        groups.select(*Namespace.cached_column_list),
-        authorized_projects.joins(:namespace).select(*Namespace.cached_column_list)
-      ])
+        groups,
+        Group.id_in(authorized_projects.select(:namespace_id))
+      ]
+    )
   end
 
   def authorized_groups_with_shared_membership
@@ -2377,7 +2451,7 @@ class User < ApplicationRecord
   def update_highest_role?
     return false unless persisted?
 
-    (previous_changes.keys & %w(state user_type)).any?
+    (previous_changes.keys & %w[state user_type]).any?
   end
 
   def update_highest_role_attribute
@@ -2452,6 +2526,16 @@ class User < ApplicationRecord
 
     Ci::NamespaceMirror.contains_traversal_ids(traversal_ids)
   end
+
+  def prefix_for_feed_token
+    FEED_TOKEN_PREFIX
+  end
+
+  # method overriden in EE
+  def audit_lock_access(reason: nil); end
+
+  # method overriden in EE
+  def audit_unlock_access(author: self); end
 end
 
 User.prepend_mod_with('User')

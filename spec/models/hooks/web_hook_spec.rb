@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe WebHook, feature_category: :integrations do
+RSpec.describe WebHook, feature_category: :webhooks do
   include AfterNextHelpers
 
   let_it_be(:project) { create(:project) }
@@ -242,12 +242,47 @@ RSpec.describe WebHook, feature_category: :integrations do
         expect(hook.url_variables).to eq({})
       end
 
+      it 'resets url variables if url is changed and url variables are appended' do
+        hook.url = 'http://suspicious.example.com/{abc}/{foo}'
+        hook.url_variables = hook.url_variables.merge('foo' => 'bar')
+
+        expect(hook).not_to be_valid
+        expect(hook.url_variables).to eq({})
+      end
+
+      it 'resets url variables if url is changed and url variables are removed' do
+        hook.url = 'http://suspicious.example.com/{abc}'
+        hook.url_variables = hook.url_variables.except("def")
+
+        expect(hook).not_to be_valid
+        expect(hook.url_variables).to eq({})
+      end
+
+      it 'resets url variables if url variables are overwritten' do
+        hook.url_variables = hook.url_variables.merge('abc' => 'baz')
+
+        expect(hook).not_to be_valid
+        expect(hook.url_variables).to eq({})
+      end
+
       it 'does not reset url variables if both url and url variables are changed' do
         hook.url = 'http://example.com/{one}/{two}'
         hook.url_variables = { 'one' => 'foo', 'two' => 'bar' }
 
         expect(hook).to be_valid
         expect(hook.url_variables).to eq({ 'one' => 'foo', 'two' => 'bar' })
+      end
+
+      context 'without url variables' do
+        subject(:hook) { build_stubbed(:project_hook, project: project, url: 'http://example.com', url_variables: nil) }
+
+        it 'does not reset url variables' do
+          hook.url = 'http://example.com/{one}/{two}'
+          hook.url_variables = { 'one' => 'foo', 'two' => 'bar' }
+
+          expect(hook).to be_valid
+          expect(hook.url_variables).to eq({ 'one' => 'foo', 'two' => 'bar' })
+        end
       end
     end
 
@@ -318,7 +353,7 @@ RSpec.describe WebHook, feature_category: :integrations do
       end
 
       it 'is 10 minutes' do
-        expect(hook.next_backoff).to eq(described_class::INITIAL_BACKOFF)
+        expect(hook.next_backoff).to eq(WebHooks::AutoDisabling::INITIAL_BACKOFF)
       end
     end
 
@@ -328,7 +363,7 @@ RSpec.describe WebHook, feature_category: :integrations do
       end
 
       it 'is twice the initial value' do
-        expect(hook.next_backoff).to eq(2 * described_class::INITIAL_BACKOFF)
+        expect(hook.next_backoff).to eq(2 * WebHooks::AutoDisabling::INITIAL_BACKOFF)
       end
     end
 
@@ -338,7 +373,7 @@ RSpec.describe WebHook, feature_category: :integrations do
       end
 
       it 'grows exponentially' do
-        expect(hook.next_backoff).to eq(2 * 2 * 2 * described_class::INITIAL_BACKOFF)
+        expect(hook.next_backoff).to eq(2 * 2 * 2 * WebHooks::AutoDisabling::INITIAL_BACKOFF)
       end
     end
 
@@ -348,7 +383,7 @@ RSpec.describe WebHook, feature_category: :integrations do
       end
 
       it 'does not exceed the max backoff value' do
-        expect(hook.next_backoff).to eq(described_class::MAX_BACKOFF)
+        expect(hook.next_backoff).to eq(WebHooks::AutoDisabling::MAX_BACKOFF)
       end
     end
   end
@@ -470,13 +505,13 @@ RSpec.describe WebHook, feature_category: :integrations do
       end
 
       it 'reduces to MAX_FAILURES' do
-        expect { hook.backoff! }.to change(hook, :recent_failures).to(described_class::MAX_FAILURES)
+        expect { hook.backoff! }.to change(hook, :recent_failures).to(WebHooks::AutoDisabling::MAX_FAILURES)
       end
     end
 
     context 'when the recent failure value is MAX_FAILURES' do
       before do
-        hook.update!(recent_failures: described_class::MAX_FAILURES, disabled_until: 1.hour.ago)
+        hook.update!(recent_failures: WebHooks::AutoDisabling::MAX_FAILURES, disabled_until: 1.hour.ago)
       end
 
       it 'does not change recent_failures' do
@@ -486,7 +521,7 @@ RSpec.describe WebHook, feature_category: :integrations do
 
     context 'when we have exhausted the grace period' do
       before do
-        hook.update!(recent_failures: described_class::FAILURE_THRESHOLD)
+        hook.update!(recent_failures: WebHooks::AutoDisabling::FAILURE_THRESHOLD)
       end
 
       it 'sets disabled_until to the next backoff' do
@@ -499,8 +534,8 @@ RSpec.describe WebHook, feature_category: :integrations do
 
       context 'when we have backed off MAX_FAILURES times' do
         before do
-          stub_const("#{described_class}::MAX_FAILURES", 5)
-          (described_class::FAILURE_THRESHOLD + 5).times { hook.backoff! }
+          stub_const("WebHooks::AutoDisabling::MAX_FAILURES", 5)
+          (WebHooks::AutoDisabling::FAILURE_THRESHOLD + 5).times { hook.backoff! }
         end
 
         it 'does not let the backoff count exceed the maximum failure count' do
@@ -516,7 +551,7 @@ RSpec.describe WebHook, feature_category: :integrations do
         it 'changes disabled_until when it has elapsed', :skip_freeze_time do
           travel_to(hook.disabled_until + 1.minute) do
             expect { hook.backoff! }.to change { hook.disabled_until }
-            expect(hook.backoff_count).to eq(described_class::MAX_FAILURES)
+            expect(hook.backoff_count).to eq(WebHooks::AutoDisabling::MAX_FAILURES)
           end
         end
       end
@@ -539,7 +574,7 @@ RSpec.describe WebHook, feature_category: :integrations do
     end
 
     it 'does not update the hook if the the failure count exceeds the maximum value' do
-      hook.recent_failures = described_class::MAX_FAILURES
+      hook.recent_failures = WebHooks::AutoDisabling::MAX_FAILURES
 
       sql_count = ActiveRecord::QueryRecorder.new { hook.failed! }.count
 

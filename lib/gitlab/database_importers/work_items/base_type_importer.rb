@@ -18,7 +18,11 @@ module Gitlab
           progress: 'Progress',
           status: 'Status',
           requirement_legacy: 'Requirement legacy',
-          test_reports: 'Test reports'
+          test_reports: 'Test reports',
+          notifications: 'Notifications',
+          current_user_todos: 'Current user todos',
+          award_emoji: 'Award emoji',
+          linked_items: 'Linked items'
         }.freeze
 
         WIDGETS_FOR_TYPE = {
@@ -32,23 +36,40 @@ module Gitlab
             :notes,
             :iteration,
             :weight,
-            :health_status
+            :health_status,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           incident: [
+            :assignees,
             :description,
             :hierarchy,
-            :notes
+            :notes,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           test_case: [
             :description,
-            :notes
+            :notes,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           requirement: [
             :description,
             :notes,
             :status,
             :requirement_legacy,
-            :test_reports
+            :test_reports,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           task: [
             :assignees,
@@ -59,7 +80,11 @@ module Gitlab
             :milestone,
             :notes,
             :iteration,
-            :weight
+            :weight,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           objective: [
             :assignees,
@@ -69,7 +94,11 @@ module Gitlab
             :milestone,
             :notes,
             :health_status,
-            :progress
+            :progress,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ],
           key_result: [
             :assignees,
@@ -79,7 +108,41 @@ module Gitlab
             :start_and_due_date,
             :notes,
             :health_status,
-            :progress
+            :progress,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
+          ],
+          epic: [
+            :assignees,
+            :description,
+            :hierarchy,
+            :labels,
+            :notes,
+            :start_and_due_date,
+            :health_status,
+            :status,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
+          ],
+          ticket: [
+            :assignees,
+            :labels,
+            :description,
+            :hierarchy,
+            :start_and_due_date,
+            :milestone,
+            :notes,
+            :iteration,
+            :weight,
+            :health_status,
+            :notifications,
+            :current_user_todos,
+            :award_emoji,
+            :linked_items
           ]
         }.freeze
 

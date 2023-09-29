@@ -35,11 +35,6 @@ export default {
       required: false,
       default: NO_USER_ID,
     },
-    addButtonClass: {
-      type: String,
-      required: false,
-      default: '',
-    },
     defaultAwards: {
       type: Array,
       required: false,
@@ -49,6 +44,11 @@ export default {
       type: String,
       required: false,
       default: 'selected',
+    },
+    boundary: {
+      type: String,
+      required: false,
+      default: '',
     },
   },
   data() {
@@ -184,6 +184,7 @@ export default {
       class="gl-mr-3 gl-my-2"
       :class="awardList.classes"
       :title="awardList.title"
+      :data-emoji-name="awardList.name"
       data-testid="award-button"
       @click="handleAward(awardList.name)"
     >
@@ -201,13 +202,14 @@ export default {
         v-gl-tooltip.viewport
         :title="__('Add reaction')"
         :toggle-class="['add-reaction-button btn-icon gl-relative!', { 'is-active': isMenuOpen }]"
+        :right="false"
+        :boundary="boundary"
         data-testid="emoji-picker"
         @click="handleAward"
         @shown="setIsMenuOpen(true)"
         @hidden="setIsMenuOpen(false)"
       >
         <template #button-content>
-          <span class="gl-sr-only">{{ __('Add reaction') }}</span>
           <span class="reaction-control-icon reaction-control-icon-neutral">
             <gl-icon name="slight-smile" />
           </span>

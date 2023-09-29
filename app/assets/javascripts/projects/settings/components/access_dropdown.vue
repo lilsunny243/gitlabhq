@@ -9,16 +9,17 @@ import {
   GlSprintf,
 } from '@gitlab/ui';
 import { debounce, intersectionWith, groupBy, differenceBy, intersectionBy } from 'lodash';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, s__, n__ } from '~/locale';
 import { getUsers, getGroups, getDeployKeys } from '../api/access_dropdown_api';
-import { LEVEL_TYPES, ACCESS_LEVELS } from '../constants';
+import { LEVEL_TYPES, ACCESS_LEVELS, ACCESS_LEVEL_NONE } from '../constants';
 
 export const i18n = {
-  selectUsers: s__('ProtectedEnvironment|Select users'),
+  defaultLabel: s__('AccessDropdown|Select'),
   rolesSectionHeader: s__('AccessDropdown|Roles'),
   groupsSectionHeader: s__('AccessDropdown|Groups'),
   usersSectionHeader: s__('AccessDropdown|Users'),
+  noRole: s__('AccessDropdown|No role'),
   deployKeysSectionHeader: s__('AccessDropdown|Deploy Keys'),
   ownedBy: __('Owned by %{image_tag}'),
 };
@@ -51,7 +52,7 @@ export default {
     label: {
       type: String,
       required: false,
-      default: i18n.selectUsers,
+      default: i18n.defaultLabel,
     },
     disabled: {
       type: Boolean,
@@ -62,6 +63,36 @@ export default {
       type: Array,
       required: false,
       default: () => [],
+    },
+    items: {
+      type: Array,
+      required: false,
+      default: () => [],
+    },
+    toggleClass: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    searchEnabled: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
+    block: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    testId: {
+      type: String,
+      required: false,
+      default: undefined,
+    },
+    showUsers: {
+      type: Boolean,
+      required: false,
+      default: true,
     },
   },
   data() {
@@ -86,7 +117,13 @@ export default {
       return groupBy(this.preselectedItems, 'type');
     },
     showDeployKeys() {
-      return this.accessLevel === ACCESS_LEVELS.PUSH && this.deployKeys.length;
+      return (
+        (this.accessLevel === ACCESS_LEVELS.PUSH || this.accessLevel === ACCESS_LEVELS.CREATE) &&
+        this.deployKeys.length
+      );
+    },
+    isAccessesLevelNoneSelected() {
+      return this.selected.role[0].id === ACCESS_LEVEL_NONE;
     },
     toggleLabel() {
       const counts = Object.entries(this.selected).reduce((acc, [key, value]) => {
@@ -107,7 +144,11 @@ export default {
       const labelPieces = [];
 
       if (counts[LEVEL_TYPES.ROLE] > 0) {
-        labelPieces.push(n__('1 role', '%d roles', counts[LEVEL_TYPES.ROLE]));
+        if (this.isAccessesLevelNoneSelected) {
+          labelPieces.push(this.$options.i18n.noRole);
+        } else {
+          labelPieces.push(n__('1 role', '%d roles', counts[LEVEL_TYPES.ROLE]));
+        }
       }
 
       if (counts[LEVEL_TYPES.USER] > 0) {
@@ -124,8 +165,14 @@ export default {
 
       return labelPieces.join(', ') || this.label;
     },
-    toggleClass() {
-      return this.toggleLabel === this.label ? 'gl-text-gray-500!' : '';
+    fossWithMergeAccess() {
+      return !this.hasLicense && this.accessLevel === ACCESS_LEVELS.MERGE;
+    },
+    dropdownToggleClass() {
+      return {
+        'gl-text-gray-500!': this.toggleLabel === this.label,
+        [this.toggleClass]: true,
+      };
     },
     selection() {
       return [
@@ -140,13 +187,39 @@ export default {
     query: debounce(function debouncedSearch() {
       return this.getData();
     }, 500),
+    items(items) {
+      this.setDataForSave(items);
+    },
   },
   created() {
     this.getData({ initial: true });
   },
   methods: {
+    setDataForSave(items) {
+      this.selected = items.reduce(
+        (selected, item) => {
+          if (item.group_id) {
+            selected[LEVEL_TYPES.GROUP].push({ id: item.group_id, ...item });
+          } else if (item.user_id) {
+            selected[LEVEL_TYPES.USER].push({ id: item.user_id, ...item });
+          } else if (item.access_level) {
+            const level = this.accessLevelsData.find(({ id }) => item.access_level === id);
+            selected[LEVEL_TYPES.ROLE].push(level);
+          } else if (item.deploy_key_id) {
+            selected[LEVEL_TYPES.DEPLOY_KEY].push({ id: item.deploy_key_id, ...item });
+          }
+          return selected;
+        },
+        {
+          [LEVEL_TYPES.GROUP]: [],
+          [LEVEL_TYPES.USER]: [],
+          [LEVEL_TYPES.ROLE]: [],
+          [LEVEL_TYPES.DEPLOY_KEY]: [],
+        },
+      );
+    },
     focusInput() {
-      this.$refs.search.focusInput();
+      this.$refs.search?.focusInput();
     },
     getData({ initial = false } = {}) {
       this.initialLoading = initial;
@@ -156,10 +229,10 @@ export default {
         Promise.all([
           getDeployKeys(this.query),
           getUsers(this.query),
-          this.groups.length ? Promise.resolve({ data: this.groups }) : getGroups(),
+          this.groups.length ? Promise.resolve(this.groups) : getGroups(),
         ])
           .then(([deployKeysResponse, usersResponse, groupsResponse]) => {
-            this.consolidateData(deployKeysResponse.data, usersResponse.data, groupsResponse.data);
+            this.consolidateData(deployKeysResponse.data, usersResponse.data, groupsResponse);
             this.setSelected({ initial });
           })
           .catch(() =>
@@ -190,13 +263,18 @@ export default {
 
       if (this.hasLicense) {
         this.groups = groupsResponse.map((group) => ({ ...group, type: LEVEL_TYPES.GROUP }));
-        this.users = usersResponse.map(({ id, name, username, avatar_url }) => ({
-          id,
-          name,
-          username,
-          avatar_url,
-          type: LEVEL_TYPES.USER,
-        }));
+
+        // Has to be checked against server response
+        // because the selected item can be in filter results
+        if (this.showUsers) {
+          this.users = usersResponse.map(({ id, name, username, avatar_url }) => ({
+            id,
+            name,
+            username,
+            avatar_url,
+            type: LEVEL_TYPES.USER,
+          }));
+        }
       }
 
       this.deployKeys = deployKeysResponse.map((response) => {
@@ -294,14 +372,38 @@ export default {
       return [...added, ...removed, ...preserved];
     },
     onItemClick(item) {
-      this.toggleSelection(this.selected[item.type], item);
+      this.toggleSelection(item);
       this.emitUpdate();
     },
-    toggleSelection(arr, item) {
-      const itemIndex = arr.findIndex(({ id }) => id === item.id);
-      if (itemIndex > -1) {
-        arr.splice(itemIndex, 1);
-      } else arr.push(item);
+    toggleSelection(item) {
+      if (item.id === ACCESS_LEVEL_NONE) {
+        this.selected[LEVEL_TYPES.ROLE] = [item];
+        return;
+      }
+
+      const itemSelected = this.isSelected(item);
+      if (itemSelected) {
+        this.selected[item.type] = this.selected[item.type].filter(({ id }) => id !== item.id);
+        return;
+      }
+
+      // We're not multiselecting quite yet in "Merge" access dropdown, on FOSS:
+      // remove all preselected items before selecting this item
+      // https://gitlab.com/gitlab-org/gitlab/-/merge_requests/37499
+      if (this.fossWithMergeAccess) this.clearSelection();
+      else if (item.type === LEVEL_TYPES.ROLE) this.unselectNone();
+
+      this.selected[item.type].push(item);
+    },
+    unselectNone() {
+      this.selected[LEVEL_TYPES.ROLE] = this.selected[LEVEL_TYPES.ROLE].filter(
+        ({ id }) => id !== ACCESS_LEVEL_NONE,
+      );
+    },
+    clearSelection() {
+      Object.values(LEVEL_TYPES).forEach((level) => {
+        this.selected[level] = [];
+      });
     },
     isSelected(item) {
       return this.selected[item.type].some((selected) => selected.id === item.id);
@@ -312,6 +414,10 @@ export default {
     onHide() {
       this.$emit('hidden', this.selection);
     },
+    onShown() {
+      this.$emit('shown');
+      this.focusInput();
+    },
   },
 };
 </script>
@@ -320,13 +426,15 @@ export default {
   <gl-dropdown
     :disabled="disabled || initialLoading"
     :text="toggleLabel"
-    class="gl-min-w-20"
-    :toggle-class="toggleClass"
+    :block="block"
+    class="gl-min-w-20 gl-p-0!"
+    :toggle-class="dropdownToggleClass"
     aria-labelledby="allowed-users-label"
-    @shown="focusInput"
+    :data-testid="testId"
+    @shown="onShown"
     @hidden="onHide"
   >
-    <template #header>
+    <template v-if="searchEnabled" #header>
       <gl-search-box-by-type ref="search" v-model.trim="query" :is-loading="loading" />
     </template>
     <template v-if="roles.length">

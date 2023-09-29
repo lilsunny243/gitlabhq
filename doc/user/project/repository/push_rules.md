@@ -4,7 +4,9 @@ group: Source Code
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 ---
 
-# Push rules **(PREMIUM)**
+# Push rules **(PREMIUM ALL)**
+
+> Maximum regular expression length for push rules [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/411901) from 255 to 511 characters in GitLab 16.3.
 
 Push rules are [pre-receive Git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) you
 can enable in a user-friendly interface. Push rules give you more control over what
@@ -13,12 +15,13 @@ can and can't be pushed to your repository. While GitLab offers
 
 - Evaluating the contents of a commit.
 - Confirming commit messages match expected formats.
-- Enforcing branch name rules.
+- Enforcing [branch name rules](branches/index.md#name-your-branch).
 - Evaluating the details of files.
 - Preventing Git tag removal.
 
 GitLab uses [RE2 syntax](https://github.com/google/re2/wiki/Syntax) for regular expressions
 in push rules. You can test them at the [regex101 regex tester](https://regex101.com/).
+Each regular expression is limited to 511 characters.
 
 For custom push rules use [server hooks](../../../administration/server_hooks.md).
 
@@ -36,8 +39,9 @@ Prerequisite:
 
 To create global push rules:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Push Rules**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Push Rules**.
 1. Expand **Push rules**.
 1. Set the rule you want.
 1. Select **Save push rules**.
@@ -48,8 +52,8 @@ The push rule of an individual project overrides the global push rule.
 To override global push rules for a specific project, or to update the rules
 for an existing project to match new global push rules:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Push rules**.
 1. Set the rule you want.
 1. Select **Save push rules**.
@@ -69,11 +73,13 @@ Use these rules for your commit messages.
 
 - **Require expression in commit messages**: Messages must match the
   expression. To allow any commit message, leave empty.
-  Uses multiline mode, which can be disabled by using `(?-m)`.
+  Uses multiline mode, which can be disabled by using `(?-m)`. Some validation examples:
 
-  For example, if every commit should reference a Jira issue
-  (like `Refactored css. Fixes JIRA-123.`), the regular expression would be
-  `JIRA\-\d+`.
+  - `JIRA\-\d+` requires every commit to reference a Jira issue, like `Refactored css. Fixes JIRA-123`.
+  - `[[:^punct:]]\b$` rejects a commit if the final character is a punctuation mark.
+    The word boundary character (`\b`) prevents false negatives, because Git adds a
+    newline character (`\n`) to the end of the commit message.
+
 - **Reject expression in commit messages**: Commit messages must not match
   the expression. To allow any commit message, leave empty.
   Uses multiline mode, which can be disabled by using `(?-m)`.
@@ -120,7 +126,7 @@ Some validation examples:
 
 Use these rules to prevent unintended consequences.
 
-- **Reject unsigned commits**: Commit must be signed through [GPG](gpg_signed_commits/index.md). This rule
+- **Reject unsigned commits**: Commit must be signed through [GPG](signed_commits/gpg.md). This rule
   can block some legitimate commits [created in the Web IDE](#reject-unsigned-commits-push-rule-disables-web-ide),
   and allow [unsigned commits created in the GitLab UI](#unsigned-commits-created-in-the-gitlab-ui).
 - **Do not allow users to remove Git tags with `git push`**: Users cannot use `git push` to remove Git tags.
@@ -228,7 +234,7 @@ These examples use regex (regular expressions) string boundary characters to mat
 the beginning of a string (`^`), and its end (`$`). They also include instances
 where either the directory path or the filename can include `.` or `/`. Both of
 these special regex characters must be escaped with a backslash `\\` if you want
-to use them as normal characters in a match condition.
+to use them as standard characters in a match condition.
 
 - **Prevent pushing `.exe` files to any location in the repository** - This regex
   matches any filename that contains `.exe` at the end:
@@ -268,7 +274,7 @@ to use them as normal characters in a match condition.
 ## Related topics
 
 - [Git server hooks](../../../administration/server_hooks.md) (previously called server hooks), to create complex custom push rules
-- [Signing commits with GPG](gpg_signed_commits/index.md)
+- [Signing commits with GPG](signed_commits/gpg.md)
 - [Protected branches](../protected_branches.md)
 
 ## Troubleshooting

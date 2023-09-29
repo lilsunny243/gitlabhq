@@ -235,7 +235,7 @@ body.gl-dark {
   }
 
 
-  .navbar-gitlab {
+  .navbar.navbar-gitlab {
     background-color: var(--gray-50);
     box-shadow: 0 1px 0 0 var(--gray-100);
 
@@ -261,7 +261,7 @@ body.gl-dark {
       }
     }
 
-    .header-search {
+    .header-search-form {
       background-color: var(--gray-100) !important;
       box-shadow: inset 0 0 0 1px var(--border-color) !important;
 
@@ -299,4 +299,14 @@ body.gl-dark {
 .timeline-entry.draft-note:not(.note-form) .timeline-content {
   // soften on darkmode
   background-color: mix($gray-50, $orange-50, 75%) !important;
+}
+
+.tanuki-bot-chat-drawer .tanuki-bot-message {
+  // lightens chat bubble in darkmode as $gray-50 matches drawer background.  See tanuki_bot_chat.scss
+  background-color: $gray-100;
+}
+
+.ai-genie-chat,
+.ai-genie-chat .gl-form-input {
+  background-color: $gray-10;
 }

@@ -1,22 +1,14 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Import your project from Gitea to GitLab **(FREE)**
+# Import your project from Gitea to GitLab **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/381902) in GitLab 15.8, GitLab no longer automatically creates namespaces or groups that don't exist. GitLab also no longer falls back to using the user's personal namespace if the namespace or group name is taken.
 
-Import your projects from Gitea to GitLab with minimal effort.
-
-NOTE:
-This requires Gitea `v1.0.0` or later.
-
-Prerequisite:
-
-- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
-  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
+Import your projects from Gitea to GitLab.
 
 The Gitea importer can import:
 
@@ -30,12 +22,20 @@ The Gitea importer can import:
 When importing, repository public access is retained. If a repository is private in Gitea, it's
 created as private in GitLab as well.
 
-## How it works
-
 Because Gitea isn't an OAuth provider, author/assignee can't be mapped to users
 in your GitLab instance. This means the project creator (usually the user that
 started the import process) is set as the author. A reference, however, is kept
 on the issue about the original Gitea author.
+
+## Prerequisites
+
+> Requirement for Maintainer role instead of Developer role introduced in GitLab 16.0 and backported to GitLab 15.11.1 and GitLab 15.10.5.
+
+- Gitea version 1.0.0 or later.
+- [Gitea import source](../../../administration/settings/import_and_export_settings.md#configure-allowed-import-sources)
+  must be enabled. If not enabled, ask your GitLab administrator to enable it. The Gitea import source is enabled
+  by default on GitLab.com.
+- At least the Maintainer role on the destination group to import to.
 
 ## Import your Gitea repositories
 
@@ -57,7 +57,7 @@ GitLab access your repositories:
 1. Select **Generate Token**.
 1. Copy the token hash.
 1. Go back to GitLab and provide the token to the Gitea importer.
-1. Select **List Your Gitea Repositories** and wait while GitLab reads
+1. Select **List your Gitea repositories** and wait while GitLab reads
    your repositories' information. After it's done, GitLab displays the importer
    page to select the repositories to import.
 

@@ -3,9 +3,8 @@ data_category: optional
 key_path: redis_hll_counters.ci_templates.p_ci_templates_auto_devops_deploy_monthly
 description: Count of pipelines using the stable Auto Deploy template
 product_section: ops
-product_stage: configure
-product_group: configure
-product_category: infrastructure_as_code
+product_stage: deploy
+product_group: environments
 value_type: number
 status: removed
 milestone_removed: '14.6'
@@ -24,3 +23,4 @@ tier:
 - ultimate
 performance_indicator_type: []
 milestone: "<13.9"
+removed_by_url:

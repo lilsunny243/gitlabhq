@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe WikiPage do
+RSpec.describe WikiPage, feature_category: :wiki do
   let(:user) { create(:user) }
   let(:container) { create(:project) }
   let(:wiki) { container.wiki }
@@ -230,7 +230,7 @@ RSpec.describe WikiPage do
 
           expect(subject).not_to be_valid
           expect(subject.errors.messages).to eq(
-            content: ['is too long (11 Bytes). The maximum size is 10 Bytes.']
+            content: ['is too long (11 B). The maximum size is 10 B.']
           )
         end
 
@@ -239,7 +239,7 @@ RSpec.describe WikiPage do
 
           expect(subject).not_to be_valid
           expect(subject.errors.messages).to eq(
-            content: ['is too long (12 Bytes). The maximum size is 10 Bytes.']
+            content: ['is too long (12 B). The maximum size is 10 B.']
           )
         end
       end
@@ -261,7 +261,7 @@ RSpec.describe WikiPage do
 
           expect(subject).not_to be_valid
           expect(subject.errors.messages).to eq(
-            content: ['is too long (12 Bytes). The maximum size is 11 Bytes.']
+            content: ['is too long (12 B). The maximum size is 11 B.']
           )
         end
       end
@@ -588,6 +588,20 @@ RSpec.describe WikiPage do
         expect(page.content).to eq new_content
       end
 
+      context 'when page combine with directory' do
+        it 'moving the file and directory' do
+          wiki.create_page('testpage/testtitle', 'content')
+          wiki.create_page('testpage', 'content')
+
+          page = wiki.find_page('testpage')
+          page.update(title: 'testfolder/testpage')
+
+          page = wiki.find_page('testfolder/testpage/testtitle')
+
+          expect(page.slug).to eq 'testfolder/testpage/testtitle'
+        end
+      end
+
       describe 'in subdir' do
         it 'moves the page to the root folder if the title is preceded by /' do
           page = create_wiki_page(container, title: 'foo/Existing Page')
@@ -816,10 +830,18 @@ RSpec.describe WikiPage do
         expect(subject.content_changed?).to be(true)
       end
 
-      it 'returns false if only the newline format has changed' do
+      it 'returns false if only the newline format has changed from LF to CRLF' do
         expect(subject.page).to receive(:text_data).and_return("foo\nbar")
 
         subject.attributes[:content] = "foo\r\nbar"
+
+        expect(subject.content_changed?).to be(false)
+      end
+
+      it 'returns false if only the newline format has changed from CRLF to LF' do
+        expect(subject.page).to receive(:text_data).and_return("foo\r\nbar")
+
+        subject.attributes[:content] = "foo\nbar"
 
         expect(subject.content_changed?).to be(false)
       end

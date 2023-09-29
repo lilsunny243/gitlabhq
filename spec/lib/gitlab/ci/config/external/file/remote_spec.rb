@@ -184,7 +184,7 @@ RSpec.describe Gitlab::Ci::Config::External::File::Remote, feature_category: :pi
       let(:location) { 'http://127.0.0.1/some/path/to/config.yaml' }
 
       it 'includes details about blocked URL' do
-        expect(subject).to eq "Remote file could not be fetched because URL '#{location}' " \
+        expect(subject).to eq "Remote file could not be fetched because URL " \
                               'is blocked: Requests to localhost are not allowed!'
       end
     end
@@ -234,15 +234,13 @@ RSpec.describe Gitlab::Ci::Config::External::File::Remote, feature_category: :pi
   end
 
   describe '#to_hash' do
-    subject(:to_hash) { remote_file.to_hash }
-
     before do
       stub_full_request(location).to_return(body: remote_file_content)
     end
 
     context 'with a valid remote file' do
       it 'returns the content as a hash' do
-        expect(to_hash).to eql(
+        expect(remote_file.to_hash).to eql(
           before_script: ["apt-get update -qq && apt-get install -y -qq sqlite3 libsqlite3-dev nodejs",
                           "ruby -v",
                           "which ruby",
@@ -262,9 +260,42 @@ RSpec.describe Gitlab::Ci::Config::External::File::Remote, feature_category: :pi
       end
 
       it 'returns the content as a hash' do
-        expect(to_hash).to eql(
+        expect(remote_file.to_hash).to eql(
           include: [
             { local: 'another-file.yml',
+              rules: [{ exists: ['Dockerfile'] }] }
+          ]
+        )
+      end
+    end
+
+    context 'when interpolation has been used' do
+      let_it_be(:project) { create(:project) }
+
+      let(:remote_file_content) do
+        <<~YAML
+        spec:
+          inputs:
+            include:
+        ---
+        include:
+          - local: $[[ inputs.include ]]
+            rules:
+              - exists: [Dockerfile]
+        YAML
+      end
+
+      let(:params) { { remote: location, inputs: { include: 'some-file.yml' } } }
+
+      let(:context_params) do
+        { sha: '12345', variables: variables, project: project, user: build(:user) }
+      end
+
+      it 'returns the content as a hash' do
+        expect(remote_file).to be_valid
+        expect(remote_file.to_hash).to eql(
+          include: [
+            { local: 'some-file.yml',
               rules: [{ exists: ['Dockerfile'] }] }
           ]
         )

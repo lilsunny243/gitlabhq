@@ -4,14 +4,10 @@ group: Threat Insights
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Vulnerability Page **(ULTIMATE)**
+# Vulnerability Page **(ULTIMATE ALL)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13561) in GitLab 13.0.
-
-Each vulnerability in a project has a Vulnerability Page, containing details of the
-vulnerability. The details included vary according to the type of vulnerability.
-
-Details of each vulnerability include:
+Each vulnerability in a project has a vulnerability page containing details of the vulnerability,
+including:
 
 - Description
 - When it was detected
@@ -20,17 +16,66 @@ Details of each vulnerability include:
 - Linked issues
 - Actions log
 
-In GitLab 14.3 and later, if the scanner determined the vulnerability to be a false positive, an
-alert message is included at the top of the vulnerability's page.
+If the scanner determined the vulnerability to be a false positive, an alert message is included at
+the top of the vulnerability's page.
 
-On the vulnerability's page, you can:
+When a vulnerability is no longer detected in a project's default branch, you should
+change its status to **Resolved**. This ensures that if it is accidentally reintroduced in a future
+merge, it is reported again as a new record. To change the status of multiple vulnerabilities, use
+the Vulnerability Report's [Activity filter](../vulnerability_report/index.md#activity-filter).
 
-- [Change the vulnerability's status](#change-status-of-a-vulnerability).
-- [Create an issue](#creating-an-issue-for-a-vulnerability).
-- [Link issues to the vulnerability](#linking-a-vulnerability-to-issues).
-- [Resolve the vulnerability](#resolve-a-vulnerability) if a solution is
-  available.
-- [View security training specific to the detected vulnerability](#view-security-training-for-a-vulnerability).
+## Explaining a vulnerability **(ULTIMATE SAAS BETA)**
+
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/10368) in GitLab 16.0 as an [Experiment](../../../policy/experiment-beta-support.md#experiment) on GitLab.com.
+> - Promoted to [Beta](../../../policy/experiment-beta-support.md#beta) status in GitLab 16.2.
+
+GitLab can help you with a vulnerability by using a large language model to:
+
+- Summarize the vulnerability.
+- Help developers and security analysts to understand the vulnerability, how it could be exploited, and how to fix it.
+- Provide a suggested mitigation.
+
+### Explain a vulnerability
+
+Explain a vulnerability with GitLab Duo Vulnerability summary. Use the explanation to better
+understand a vulnerability and its possible mitigation.
+
+Prerequisites:
+
+- You must have the GitLab Ultimate subscription tier.
+- You must be a member of the project.
+- The vulnerability must be a SAST finding.
+
+Learn more about [how to enable all GitLab Duo features](../../ai_features.md#enable-aiml-features).
+
+To explain the vulnerability:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Security and Compliance > Vulnerability report**.
+1. In the **Tool** dropdown list, select **SAST**.
+1. Select the SAST vulnerability you want explained.
+1. At the bottom of the vulnerability's page, select **Try it out**.
+
+The response is shown on the right side of the page.
+
+![Explain this vulnerability](img/explain_this_vulnerability_beta_v16_3.png)
+
+On GitLab.com this feature is available. By default, it is powered by Google's `text-bison-001`
+model. In the event of degraded performance with that model, the feature instead uses Anthropic's
+`claude` model.
+
+We cannot guarantee that the large language model produces results that are correct. Use the
+explanation with caution.
+
+### Data shared with third-party AI APIs
+
+The following data is shared with third-party AI APIs:
+
+- Vulnerability title (which might contain the filename, depending on which scanner is used).
+- Vulnerability identifiers.
+- Code block, but only if the "Send code with prompt" checkbox is selected (single and multi-line as instructed by the vulnerability
+  record).
+- Filename.
 
 ## Vulnerability status values
 
@@ -38,28 +83,42 @@ A vulnerability's status can be:
 
 - **Detected**: The default state for a newly discovered vulnerability. Appears as "Needs triage" in the UI.
 - **Confirmed**: A user has seen this vulnerability and confirmed it to be accurate.
-- **Dismissed**: A user has seen this vulnerability and dismissed it because it is not accurate or otherwise not to be resolved.
-- **Resolved**: The vulnerability has been fixed or is no longer present.
+- **Dismissed**: A user has seen this vulnerability and dismissed it because it is not accurate or
+  otherwise not to be resolved. Dismissed vulnerabilities are ignored if detected in subsequent
+  scans.
+- **Resolved**: The vulnerability has been fixed or is no longer present. If a resolved
+  vulnerability is reintroduced and detected again, its record is reinstated and its status set to
+  detected.
 
-Dismissed vulnerabilities are ignored if detected in subsequent scans. Resolved vulnerabilities that
-are reintroduced and detected by subsequent scans have a _new_ vulnerability record created. When an
-existing vulnerability is no longer detected in a project's `default` branch, you should change its
-status to **Resolved**. This ensures that if it is accidentally reintroduced in a future merge, it
-is reported again as a new record. You can use the Vulnerability Report's
-[Activity filter](../vulnerability_report/index.md#activity-filter) to select all vulnerabilities that are
-no longer detected, and change their status.
+## Vulnerability dismissal reasons
+
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4942) in GitLab 15.11 with a feature flag named `dismissal_reason`.
+> - Enabled on GitLab.com in GitLab 15.11. For self-managed customers, [contact Support](https://about.gitlab.com/support/) if you would like to use this feature in GitLab 15.11.
+> - Enabled by default in GitLab 16.0.
+
+When dismissing a vulnerability, one of the following reasons must be chosen to clarify why it is being dismissed:
+
+- **Acceptable risk**: The vulnerability is known, and has not been remediated or mitigated, but is considered to be an acceptable business risk.
+- **False positive**: An error in reporting in which a test result incorrectly indicates the presence of a vulnerability in a system when the vulnerability is not present.
+- **Mitigating control**: A management, operational, or technical control (that is, safeguard or countermeasure) employed by an organization that provides equivalent or comparable protection for an information system.
+- **Used in tests**: The finding is not a vulnerability because it is part of a test or is test data.
+- **Not applicable**: The vulnerability is known, and has not been remediated or mitigated, but is considered to be in a part of the application that will not be updated.
 
 ## Change status of a vulnerability
 
 To change a vulnerability's status from its Vulnerability Page:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. From the **Status** dropdown list select a status, then select **Change status**.
+
+   In GitLab 15.11 and later, you must select a [dismissal reason](#vulnerability-dismissal-reasons) when you change a vulnerability's status to **Dismissed**.
+
 1. Optionally, at the bottom of the page, add a comment to the log entry.
 
-The Actions log records each status change along with which user changed the status and the time of the change.
+Details of the status change, including who made the change and when, are recorded in the
+vulnerability's action log.
 
 ## Creating an issue for a vulnerability
 
@@ -71,16 +130,12 @@ You can create either:
 - [A GitLab issue](#create-a-gitlab-issue-for-a-vulnerability) (default).
 - [A Jira issue](#create-a-jira-issue-for-a-vulnerability).
 
-Creating a Jira issue requires that
-[Jira integration](../../../integration/jira/index.md) is enabled on the project. Note
-that when Jira integration is enabled, the GitLab issue feature is not available.
-
 ### Create a GitLab issue for a vulnerability
 
 To create a GitLab issue for a vulnerability:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. Select **Create issue**.
 
@@ -88,9 +143,6 @@ An issue is created in the project, pre-populated with information from the vuln
 The issue is then opened so you can take further action.
 
 ### Create a Jira issue for a vulnerability
-
-> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4677) in GitLab 13.9.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/283850) in GitLab 13.12.
 
 Prerequisites:
 
@@ -101,8 +153,8 @@ Prerequisites:
 
 To create a Jira issue for a vulnerability:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. Select **Create Jira issue**.
 1. If you're not already logged in to Jira, sign in.
@@ -113,29 +165,22 @@ fields are pre-populated from the vulnerability's details.
 Unlike GitLab issues, the status of whether a Jira issue is open or closed does not display in the
 GitLab user interface.
 
-## Linking a vulnerability to issues
+## Linking a vulnerability to GitLab and Jira issues
 
-NOTE:
-If Jira issue support is enabled, GitLab issues are disabled so this feature is not available.
+You can link a vulnerability to one or more existing [GitLab](#create-a-gitlab-issue-for-a-vulnerability)
+or [Jira](#create-a-jira-issue-for-a-vulnerability) issues. Only one linking feature is available at the same time.
+Adding a link helps track the issue that resolves or mitigates a vulnerability.
 
-You can link a vulnerability to one or more existing GitLab issues. Adding a link helps track
-the issue that resolves or mitigates a vulnerability.
+### Link a vulnerability to existing GitLab issues
 
-Issues linked to a vulnerability are shown in the Vulnerability Report and the vulnerability's page.
+Prerequisite:
 
-Be aware of the following conditions between a vulnerability and a linked issue:
+- [Jira issue integration](../../../integration/jira/configure.md) must not be enabled.
 
-- The vulnerability page shows related issues, but the issue page doesn't show the vulnerability
-  it's related to.
-- An issue can only be related to one vulnerability at a time.
-- Issues can be linked across groups and projects.
+To link a vulnerability to existing GitLab issues:
 
-## Link a vulnerability to existing issues
-
-To link a vulnerability to existing issues:
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. In the **Linked issues** section, select the plus icon (**{plus}**).
 1. For each issue to be linked, either:
@@ -143,8 +188,42 @@ To link a vulnerability to existing issues:
    - Enter the issue's ID (prefixed with a hash `#`).
 1. Select **Add**.
 
-The selected issues are added to the **Linked issues** section, and the linked issues counter is
+The selected GitLab issues are added to the **Linked items** section, and the linked issues counter is
 updated.
+
+GitLab issues linked to a vulnerability are shown in the Vulnerability Report and the vulnerability's page.
+
+Be aware of the following conditions between a vulnerability and a linked GitLab issue:
+
+- The vulnerability page shows related issues, but the issue page doesn't show the vulnerability
+  it's related to.
+- An issue can only be related to one vulnerability at a time.
+- Issues can be linked across groups and projects.
+
+### Link a vulnerability to existing Jira issues
+
+Prerequisite:
+
+- [Jira issue integration](../../../integration/jira/configure.md) must be enabled, with option **Enable Jira issue creation from vulnerabilities** also enabled.
+
+To link a vulnerability to existing Jira issues, add the following line to the Jira issue's description:
+
+```plaintext
+/-/security/vulnerabilities/<id>
+```
+
+`<id>` is any [vulnerability ID](../../../api/vulnerabilities.md#single-vulnerability).
+You can add several lines with different IDs to one description.
+
+Jira issues with appropriate description are added to the **Related Jira issues** section, and the linked issues counter is
+updated.
+
+Jira issues linked to a vulnerability are shown only on the vulnerability page.
+
+Be aware of the following conditions between a vulnerability and a linked Jira issue:
+
+- The vulnerability page and the issue page show the vulnerability they are related to.
+- An issue can be related to one or more vulnerabilities at the same time.
 
 ## Resolve a vulnerability
 
@@ -169,8 +248,8 @@ To resolve a vulnerability, you can either:
 
 To resolve the vulnerability with a merge request:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. From the **Resolve with merge request** dropdown list, select **Resolve with merge request**.
 
@@ -181,8 +260,8 @@ Process the merge request according to your standard workflow.
 
 To manually apply the patch that GitLab generated for a vulnerability:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability's description.
 1. From the **Resolve with merge request** dropdown list, select **Download patch to resolve**.
 1. Ensure your local project has the same commit checked out that was used to generate the patch.
@@ -196,17 +275,20 @@ To manually apply the patch that GitLab generated for a vulnerability:
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/6176) in GitLab 14.9.
 
 NOTE:
-Security training is not available in an offline environment because it uses content from
-third-party vendors.
+Security training is not accessible in an environment that is offline, meaning computers that are isolated from the public internet as a security measure. Some third-party training vendors may require you to sign up for a _free_ account. Sign up for an account by going to
+any of [Secure Code Warrior](https://www.securecodewarrior.com/), [Kontra](https://application.security/), or [SecureFlag](https://www.secureflag.com/).
+GitLab does not send any user information to these third-party vendors; we do send the CWE or OWASP identifier and the language name of the file extension.
 
 Security training helps your developers learn how to fix vulnerabilities. Developers can view security training from selected educational providers, relevant to the detected vulnerability.
 
 To enable security training for vulnerabilities in your project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Configuration**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Security configuration**.
 1. On the tab bar, select **Vulnerability Management**.
 1. To enable a security training provider, turn on the toggle.
+
+Each integration submits the Vulnerability identifier, for example CWE or OWASP, and the language to the security training vendor. The resulting link to the vendor training is what appears in a GitLab Vulnerability.
 
 ## View security training for a vulnerability
 
@@ -215,13 +297,13 @@ To enable security training for vulnerabilities in your project:
 The vulnerability page may include a training link relevant to the detected vulnerability if security training is enabled.
 The availability of training depends on whether the enabled training vendor has content matching the particular vulnerability.
 Training content is requested based on the [vulnerability identifiers](../../../development/integrations/secure.md#identifiers).
-The identifier given to a vulnerability varies from one vulnerability to the next. The available training
-content varies between vendors. This means some vulnerabilities do not display training content.
+The identifier given to a vulnerability varies from one vulnerability to the next and the available training
+content varies between vendors. Some vulnerabilities do not display training content.
 Vulnerabilities with a CWE are most likely to return a training result.
 
 To view the security training for a vulnerability:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Vulnerability report**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Vulnerability report**.
 1. Select the vulnerability for which you want to view security training.
 1. Select **View training**.

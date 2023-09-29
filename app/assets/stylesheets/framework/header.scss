@@ -5,10 +5,10 @@ $search-input-field-x-min-width: 200px;
   padding: 0 16px;
   z-index: $header-zindex;
   margin-bottom: 0;
-  min-height: $header-height;
+  min-height: var(--header-height);
   border: 0;
   position: fixed;
-  top: 0;
+  top: $calc-system-headers-height;
   left: 0;
   right: 0;
   border-radius: 0;
@@ -22,7 +22,7 @@ $search-input-field-x-min-width: 200px;
     display: flex;
     justify-content: space-between;
     position: relative;
-    min-height: $header-height;
+    min-height: var(--header-height);
     padding-left: 0;
 
     .title {
@@ -76,7 +76,7 @@ $search-input-field-x-min-width: 200px;
     }
   }
 
-  .header-search {
+  .header-search-form {
     min-width: $search-input-field-min-width;
 
     // This is a temporary workaround!
@@ -123,7 +123,9 @@ $search-input-field-x-min-width: 200px;
     padding: 0;
 
     @include media-breakpoint-down(xs) {
-      flex: 1 1 auto;
+      .legacy-top-bar & {
+        flex: 1 1 auto;
+      }
     }
 
     .nav {
@@ -193,8 +195,10 @@ $search-input-field-x-min-width: 200px;
         padding: 6px 8px;
         height: 32px;
 
-        @include media-breakpoint-down(xs) {
-          padding: 0;
+        .legacy-top-bar & {
+          @include media-breakpoint-down(xs) {
+            padding: 0;
+          }
         }
 
         &.header-user-dropdown-toggle {
@@ -312,22 +316,32 @@ $search-input-field-x-min-width: 200px;
   margin-top: $dropdown-vertical-offset;
 }
 
+.top-bar-container {
+  min-height: $top-bar-height;
+}
+
+.top-bar-fixed {
+  @include gl-inset-border-b-1-gray-100;
+  background-color: $body-bg;
+  left: var(--application-bar-left);
+  position: fixed;
+  right: var(--application-bar-right);
+  top: $calc-application-bars-height;
+  width: auto;
+  z-index: $top-bar-z-index;
+
+  @media (prefers-reduced-motion: no-preference) {
+    transition: left $gl-transition-duration-medium, right $gl-transition-duration-medium;
+  }
+
+  .breadcrumbs-list {
+    @include media-breakpoint-down(xs) {
+      flex-wrap: nowrap;
+    }
+  }
+}
+
 .breadcrumbs {
-  display: flex;
-  min-height: $breadcrumb-min-height;
-  color: $gl-text-color;
-}
-
-.breadcrumbs-container {
-  display: flex;
-  width: 100%;
-  padding-top: $gl-padding / 2;
-  padding-bottom: $gl-padding / 2;
-  align-items: center;
-  border-bottom: 1px solid $border-color;
-}
-
-.breadcrumbs-links {
   flex: 1;
   min-width: 0;
   align-self: center;
@@ -349,16 +363,6 @@ $search-input-field-x-min-width: 200px;
       top: 1px;
     }
   }
-
-  .dropdown-menu li a .identicon {
-    width: 17px;
-    height: 17px;
-    font-size: $gl-font-size-xs;
-    vertical-align: middle;
-    text-indent: 0;
-    line-height: $gl-font-size-xs + 2px;
-    display: inline-block;
-  }
 }
 
 .breadcrumbs-list {
@@ -374,14 +378,11 @@ $search-input-field-x-min-width: 200px;
     display: flex;
     align-items: center;
     position: relative;
+    min-width: 0;
     padding: 2px 0;
 
     &:not(:last-child) {
       padding-right: 20px;
-
-      &:not(.dropdown) {
-        overflow: hidden;
-      }
     }
 
     &:last-child {
@@ -430,7 +431,7 @@ $search-input-field-x-min-width: 200px;
 }
 
 @include media-breakpoint-down(xs) {
-  .navbar-gitlab .container-fluid {
+  .navbar-gitlab.legacy-top-bar .container-fluid {
     font-size: 18px;
 
     .navbar-nav {
@@ -502,14 +503,9 @@ $search-input-field-x-min-width: 200px;
   visibility: visible;
 }
 
-.with-performance-bar .navbar-gitlab,
-.with-performance-bar .fixed-top {
-  top: $performance-bar-height;
-}
-
 .navbar-empty {
   justify-content: center;
-  height: $header-height;
+  height: var(--header-height);
   background: $white;
   border-bottom: 1px solid $gray-100;
 
@@ -562,7 +558,7 @@ $search-input-field-x-min-width: 200px;
   @include media-breakpoint-down(sm) {
     @include gl-display-block;
 
-    + .breadcrumbs-links {
+    + .breadcrumbs {
       @include gl-pl-4;
       @include gl-border-l-1;
       @include gl-border-l-solid;
@@ -627,6 +623,30 @@ $search-input-field-x-min-width: 200px;
 
     .navbar-gitlab .header-content .title-container {
       flex: 0;
+    }
+  }
+}
+
+header.navbar-gitlab.super-sidebar-logged-out {
+  background-color: $brand-charcoal !important;
+
+  li.nav-item > a {
+    @include gl-text-white;
+    @include gl-font-weight-normal;
+
+    &:hover,
+    &:focus {
+      background-color: $brand-gray-04;
+      text-decoration: none;
+    }
+
+    &:focus,
+    &:active {
+      @include gl-focus;
+    }
+
+    &:active {
+      background-color: $brand-gray-03;
     }
   }
 }

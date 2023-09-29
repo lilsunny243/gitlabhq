@@ -37,19 +37,21 @@ class ProjectsController < Projects::ApplicationController
   before_action :check_export_rate_limit!, only: [:export, :download_export, :generate_new_export]
 
   before_action do
-    push_frontend_feature_flag(:highlight_js, @project)
-    push_frontend_feature_flag(:file_line_blame, @project)
-    push_frontend_feature_flag(:increase_page_size_exponentially, @project)
+    push_frontend_feature_flag(:highlight_js_worker, @project)
+    push_frontend_feature_flag(:remove_monitor_metrics, @project)
+    push_frontend_feature_flag(:explain_code_chat, current_user)
+    push_frontend_feature_flag(:service_desk_custom_email, @project)
     push_licensed_feature(:file_locks) if @project.present? && @project.licensed_feature_available?(:file_locks)
     push_licensed_feature(:security_orchestration_policies) if @project.present? && @project.licensed_feature_available?(:security_orchestration_policies)
     push_force_frontend_feature_flag(:work_items, @project&.work_items_feature_flag_enabled?)
     push_force_frontend_feature_flag(:work_items_mvc, @project&.work_items_mvc_feature_flag_enabled?)
     push_force_frontend_feature_flag(:work_items_mvc_2, @project&.work_items_mvc_2_feature_flag_enabled?)
+    push_force_frontend_feature_flag(:linked_work_items, @project&.linked_work_items_feature_flag_enabled?)
   end
 
   layout :determine_layout
 
-  feature_category :projects, [
+  feature_category :groups_and_projects, [
     :index, :show, :new, :create, :edit, :update, :transfer,
     :destroy, :archive, :unarchive, :toggle_star, :activity
   ]
@@ -83,8 +85,6 @@ class ProjectsController < Projects::ApplicationController
     @current_user_group =
       if current_user.manageable_groups(include_groups_with_developer_maintainer_access: true).count == 1
         current_user.manageable_groups(include_groups_with_developer_maintainer_access: true).first
-      else
-        nil
       end
 
     @project = Project.new(namespace_id: @namespace&.id)
@@ -173,11 +173,21 @@ class ProjectsController < Projects::ApplicationController
       flash.now[:alert] = _("Project '%{project_name}' queued for deletion.") % { project_name: @project.name }
     end
 
+    if Feature.enabled?(:redirect_with_ref_type, @project)
+      @ref_type = 'heads'
+    elsif ambiguous_ref?(@project, @ref)
+      branch = @project.repository.find_branch(@ref)
+
+      # The files view would render a ref other than the default branch
+      # This redirect can be removed once the view is fixed
+      redirect_to(project_tree_path(@project, branch.target), alert: _("The default branch of this project clashes with another ref"))
+      return
+    end
+
     respond_to do |format|
       format.html do
         @notification_setting = current_user.notification_settings_for(@project) if current_user
         @project = @project.present(current_user: current_user)
-
         render_landing_page
       end
 
@@ -201,7 +211,7 @@ class ProjectsController < Projects::ApplicationController
   end
 
   def new_issuable_address
-    return render_404 unless Gitlab::IncomingEmail.supports_issue_creation?
+    return render_404 unless Gitlab::Email::IncomingEmail.supports_issue_creation?
 
     current_user.reset_incoming_email_token!
     render json: { new_address: @project.new_issuable_address(current_user, params[:issuable_type]) }
@@ -256,12 +266,12 @@ class ProjectsController < Projects::ApplicationController
     @project.add_export_job(current_user: current_user)
 
     redirect_to(
-      edit_project_path(@project, anchor: 'js-export-project'),
+      edit_project_path(@project, anchor: 'js-project-advanced-settings'),
       notice: _("Project export started. A download link will be sent by email and made available on this page.")
     )
   rescue Project::ExportLimitExceeded => e
     redirect_to(
-      edit_project_path(@project, anchor: 'js-export-project'),
+      edit_project_path(@project, anchor: 'js-project-advanced-settings'),
       alert: e.to_s
     )
   end
@@ -272,13 +282,13 @@ class ProjectsController < Projects::ApplicationController
         send_upload(@project.export_file, attachment: @project.export_file.filename)
       else
         redirect_to(
-          edit_project_path(@project, anchor: 'js-export-project'),
+          edit_project_path(@project, anchor: 'js-project-advanced-settings'),
           alert: _("The file containing the export is not available yet; it may still be transferring. Please try again later.")
         )
       end
     else
       redirect_to(
-        edit_project_path(@project, anchor: 'js-export-project'),
+        edit_project_path(@project, anchor: 'js-project-advanced-settings'),
         alert: _("Project export link has expired. Please generate a new export from your project settings.")
       )
     end
@@ -291,7 +301,7 @@ class ProjectsController < Projects::ApplicationController
       flash[:alert] = _("Project export could not be deleted.")
     end
 
-    redirect_to(edit_project_path(@project, anchor: 'js-export-project'))
+    redirect_to(edit_project_path(@project, anchor: 'js-project-advanced-settings'))
   end
 
   def generate_new_export
@@ -299,7 +309,7 @@ class ProjectsController < Projects::ApplicationController
       export
     else
       redirect_to(
-        edit_project_path(@project, anchor: 'js-export-project'),
+        edit_project_path(@project, anchor: 'js-project-advanced-settings'),
         alert: _("Project export could not be deleted.")
       )
     end
@@ -449,6 +459,7 @@ class ProjectsController < Projects::ApplicationController
       feature_flags_access_level
       monitor_access_level
       infrastructure_access_level
+      model_experiments_access_level
     ]
   end
 
@@ -459,6 +470,7 @@ class ProjectsController < Projects::ApplicationController
       mr_default_target_self
       warn_about_potentially_unwanted_characters
       enforce_auth_checks_on_uploads
+      emails_enabled
     ]
   end
 
@@ -471,7 +483,6 @@ class ProjectsController < Projects::ApplicationController
       :resolve_outdated_diff_discussions,
       :container_registry_enabled,
       :description,
-      :emails_disabled,
       :external_authorization_classification_label,
       :import_url,
       :issues_tracker,

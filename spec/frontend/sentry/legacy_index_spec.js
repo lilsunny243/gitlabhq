@@ -1,11 +1,8 @@
 import index from '~/sentry/legacy_index';
 
 import LegacySentryConfig from '~/sentry/legacy_sentry_config';
-import SentryConfig from '~/sentry/sentry_config';
 
 describe('Sentry init', () => {
-  let originalGon;
-
   const dsn = 'https://123@sentry.gitlab.test/123';
   const environment = 'test';
   const currentUserId = '1';
@@ -14,7 +11,6 @@ describe('Sentry init', () => {
   const featureCategory = 'my_feature_category';
 
   beforeEach(() => {
-    originalGon = window.gon;
     window.gon = {
       sentry_dsn: dsn,
       sentry_environment: environment,
@@ -25,11 +21,6 @@ describe('Sentry init', () => {
     };
 
     jest.spyOn(LegacySentryConfig, 'init').mockImplementation();
-    jest.spyOn(SentryConfig, 'init').mockImplementation();
-  });
-
-  afterEach(() => {
-    window.gon = originalGon;
   });
 
   it('exports legacy version of Sentry in the global object', () => {
@@ -55,10 +46,6 @@ describe('Sentry init', () => {
           feature_category: featureCategory,
         },
       });
-    });
-
-    it('does not configure new sentry', () => {
-      expect(SentryConfig.init).not.toHaveBeenCalled();
     });
   });
 });

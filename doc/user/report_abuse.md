@@ -1,14 +1,14 @@
 ---
-stage: Anti-Abuse
+stage: Govern
 group: Anti-Abuse
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Report abuse **(FREE)**
+# Report abuse **(FREE ALL)**
 
 You can report abuse from other GitLab users to GitLab administrators.
 
-A GitLab administrator [can then choose](admin_area/review_abuse_reports.md) to:
+A GitLab administrator [can then choose](../administration/review_abuse_reports.md) to:
 
 - Remove the user, which deletes them from the instance.
 - Block the user, which denies them access to the instance.
@@ -24,15 +24,26 @@ You can report a user through their:
 
 ## Report abuse from the user's profile page
 
+> - Report abuse from overflow menu [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/414773) in GitLab 16.4 [with a flag](../administration/feature_flags.md) named `user_profile_overflow_menu_vue`. Disabled by default.
+> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/414773) in GitLab 16.4.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../administration/feature_flags.md) named `user_profile_overflow_menu_vue`.
+On GitLab.com, this feature is available.
+
 To report abuse from a user's profile page:
 
 1. Anywhere in GitLab, select the name of the user.
-1. In the upper-right corner of the user's profile, select **Report abuse to administrator** (**{information-o}**).
+1. In the upper-right corner of the user's profile, if the `user_profile_overflow_menu_vue` feature flag is:
+   - Enabled, select the vertical ellipsis (**{ellipsis_v}**), then **Report abuse to administrator**.
+   - Disabled, select **Report abuse to administrator** (**{information-o}**).
 1. Select a reason for reporting the user.
 1. Complete an abuse report.
 1. Select **Send report**.
 
 ## Report abuse from a user's comment
+
+> Reporting abuse from comments in epics [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/389992) in GitLab 15.10.
 
 To report abuse from a user's comment:
 
@@ -48,7 +59,7 @@ A URL to the reported user's comment is pre-filled in the abuse report's
 
 ## Report abuse from an issue
 
-1. On the issue, in the upper-right corner, select the vertical ellipsis (**{ellipsis_v}**).
+1. On the issue, in the upper-right corner, select **Issue actions** (**{ellipsis_v}**).
 1. Select **Report abuse to administrator**.
 1. Select a reason for reporting the user.
 1. Complete an abuse report.
@@ -56,7 +67,7 @@ A URL to the reported user's comment is pre-filled in the abuse report's
 
 ## Report abuse from a merge request
 
-1. On the merge request, in the upper-right corner, select the vertical ellipsis (**{ellipsis_v}**).
+1. On the merge request, in the upper-right corner, select **Merge request actions** (**{ellipsis_v}**).
 1. Select **Report abuse to administrator**.
 1. Select a reason for reporting this user.
 1. Complete an abuse report.
@@ -64,5 +75,4 @@ A URL to the reported user's comment is pre-filled in the abuse report's
 
 ## Related topics
 
-- Administrators can view and resolve abuse reports.
-  For more information, see [abuse reports administration documentation](admin_area/review_abuse_reports.md).
+- [Abuse reports administration documentation](../administration/review_abuse_reports.md)

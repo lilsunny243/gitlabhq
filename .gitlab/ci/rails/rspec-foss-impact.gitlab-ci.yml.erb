@@ -1,4 +1,4 @@
-# RSpec FOSS impact pipeline loaded dynamically by script: scripts/generate-rspec-foss-impact-pipeline
+# RSpec FOSS impact pipeline loaded dynamically by script: scripts/generate_rspec_pipeline.rb
 
 include:
   - local: .gitlab/ci/rails/shared.gitlab-ci.yml
@@ -22,7 +22,7 @@ dont-interrupt-me:
     - echo "This jobs makes sure this pipeline won't be interrupted! See https://docs.gitlab.com/ee/ci/yaml/#interruptible."
 
 .base-rspec-foss-impact:
-  extends: .rspec-base-pg12-as-if-foss
+  extends: .rspec-base-pg14-as-if-foss
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: detect-tests
@@ -39,7 +39,7 @@ dont-interrupt-me:
     RSPEC_TESTS_MAPPING_ENABLED: "true"
   script:
     - !reference [.base-script, script]
-    - rspec_paralellized_job "--tag ~quarantine --tag ~level:migration --tag ~zoekt"
+    - rspec_paralellized_job "--fail-fast=${RSPEC_FAIL_FAST_THRESHOLD} --tag ~quarantine --tag ~level:background_migration --tag ~zoekt --tag ~click_house"
   artifacts:
     expire_in: 7d
     paths:
@@ -54,7 +54,7 @@ rspec migration foss-impact:
 <% end %>
   script:
     - !reference [.base-script, script]
-    - rspec_paralellized_job "--tag ~quarantine --tag ~zoekt"
+    - rspec_paralellized_job "--fail-fast=${RSPEC_FAIL_FAST_THRESHOLD} --tag ~quarantine --tag ~zoekt --tag ~click_house"
 <% end %>
 
 <% if rspec_files_per_test_level[:background_migration][:files].size > 0 %>

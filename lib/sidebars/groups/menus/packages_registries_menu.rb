@@ -23,6 +23,11 @@ module Sidebars
           'package'
         end
 
+        override :serialize_as_menu_item_args
+        def serialize_as_menu_item_args
+          nil
+        end
+
         private
 
         def packages_registry_menu_item
@@ -31,6 +36,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Package Registry'),
             link: group_packages_path(context.group),
+            super_sidebar_parent: ::Sidebars::Groups::SuperSidebarMenus::DeployMenu,
             active_routes: { controller: 'groups/packages' },
             item_id: :packages_registry
           )
@@ -44,14 +50,14 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Container Registry'),
             link: group_container_registries_path(context.group),
+            super_sidebar_parent: ::Sidebars::Groups::SuperSidebarMenus::DeployMenu,
             active_routes: { controller: 'groups/registry/repositories' },
             item_id: :container_registry
           )
         end
 
         def harbor_registry_menu_item
-          if Feature.disabled?(:harbor_registry_integration) ||
-              context.group.harbor_integration.nil? ||
+          if context.group.harbor_integration.nil? ||
               !context.group.harbor_integration.activated?
             return nil_menu_item(:harbor_registry)
           end
@@ -59,6 +65,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Harbor Registry'),
             link: group_harbor_repositories_path(context.group),
+            super_sidebar_parent: ::Sidebars::Groups::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: 'groups/harbor/repositories' },
             item_id: :harbor_registry
           )
@@ -74,6 +81,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Dependency Proxy'),
             link: group_dependency_proxy_path(context.group),
+            super_sidebar_parent: ::Sidebars::Groups::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: 'groups/dependency_proxies' },
             item_id: :dependency_proxy
           )

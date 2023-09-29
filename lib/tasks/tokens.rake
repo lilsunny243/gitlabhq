@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative '../../app/models/concerns/token_authenticatable'
-require_relative '../../app/models/concerns/token_authenticatable_strategies/base'
-require_relative '../../app/models/concerns/token_authenticatable_strategies/insecure'
-require_relative '../../app/models/concerns/token_authenticatable_strategies/digest'
-
 namespace :tokens do
+  require_relative '../../app/models/concerns/token_authenticatable'
+  require_relative '../../app/models/concerns/token_authenticatable_strategies/base'
+  require_relative '../../app/models/concerns/token_authenticatable_strategies/insecure'
+  require_relative '../../app/models/concerns/token_authenticatable_strategies/digest'
+
   desc "Reset all GitLab incoming email tokens"
   task reset_all_email: :environment do
     reset_all_users_token(:reset_incoming_email_token!)
@@ -31,6 +31,11 @@ class TmpUser < ActiveRecord::Base # rubocop:disable Rails/ApplicationRecord
 
   self.table_name = 'users'
 
-  add_authentication_token_field :incoming_email_token, token_generator: -> { SecureRandom.hex.to_i(16).to_s(36) }
-  add_authentication_token_field :feed_token
+  add_authentication_token_field :incoming_email_token,
+    token_generator: -> { User.generate_incoming_mail_token }
+  add_authentication_token_field :feed_token, format_with_prefix: :prefix_for_feed_token
+
+  def prefix_for_feed_token
+    User::FEED_TOKEN_PREFIX
+  end
 end

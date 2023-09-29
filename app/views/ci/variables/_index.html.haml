@@ -1,14 +1,17 @@
 - save_endpoint = local_assigns.fetch(:save_endpoint, nil)
-
-- if ci_variable_protected_by_default?
-  = render Pajamas::AlertComponent.new(variant: :warning, show_icon: false, dismissible: false,
-    alert_options: { class: 'gl-mb-3'}) do |c|
-    = c.body do
-      - link_start = '<a href="%{url}">'.html_safe % { url: help_page_path('ci/variables/index', anchor: 'protect-a-cicd-variable') }
-      = _('Environment variables are configured by your administrator to be %{link_start}protected%{link_end} by default.').html_safe % { link_start: link_start, link_end: '</a>'.html_safe }
-
 - is_group = !@group.nil?
 - is_project = !@project.nil?
+
+%p
+  = _('Variables can have several attributes.')
+  = link_to _('Learn more.'), help_page_path('ci/variables/index', anchor: 'define-a-cicd-variable-in-the-ui'), target: '_blank', rel: 'noopener noreferrer'
+%ul
+  %li
+    = html_escape(_('%{code_open}Protected:%{code_close} Only exposed to protected branches or protected tags.')) % { code_open: '<code>'.html_safe, code_close: '</code>'.html_safe }
+  %li
+    = html_escape(_('%{code_open}Masked:%{code_close} Hidden in job logs. Must match masking requirements.')) % { code_open: '<code>'.html_safe, code_close: '</code>'.html_safe }
+  %li
+    = html_escape(_('%{code_open}Expanded:%{code_close} Variables with %{code_open}$%{code_close} will be treated as the start of a reference to another variable.')) % { code_open: '<code>'.html_safe, code_close: '</code>'.html_safe }
 
 #js-ci-variables{ data: { endpoint: save_endpoint,
   is_project: is_project.to_s,
@@ -20,16 +23,10 @@
   maskable_raw_regex: ci_variable_maskable_raw_regex,
   maskable_regex: ci_variable_maskable_regex,
   protected_by_default: ci_variable_protected_by_default?.to_s,
-  aws_logo_svg_path: image_path('aws_logo.svg'),
-  aws_tip_deploy_link: help_page_path('ci/cloud_deployment/index.md', anchor: 'deploy-your-application-to-ecs'),
-  aws_tip_commands_link: help_page_path('ci/cloud_deployment/index.md', anchor: 'use-an-image-to-run-aws-commands'),
-  aws_tip_learn_link: help_page_path('ci/cloud_deployment/index.md'),
   contains_variable_reference_link: help_page_path('ci/variables/index', anchor: 'prevent-cicd-variable-expansion'),
   masked_environment_variables_link: help_page_path('ci/variables/index', anchor: 'mask-a-cicd-variable'),
   environment_scope_link: help_page_path('ci/environments/index', anchor: 'limit-the-environment-scope-of-a-cicd-variable') } }
 
 - if !@group && @project.group
-  .settings-header.border-top.gl-mt-6
-    = render 'ci/group_variables/header'
-  .settings-content.pr-0
-    = render 'ci/group_variables/index'
+  = render 'ci/group_variables/header'
+  = render 'ci/group_variables/index'

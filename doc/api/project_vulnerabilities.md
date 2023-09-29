@@ -1,11 +1,11 @@
 ---
-stage: Create
-group: Source Code
+stage: Govern
+group: Threat Insights
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, api
 ---
 
-# Project Vulnerabilities API **(ULTIMATE)**
+# Project Vulnerabilities API **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/10242) in GitLab 12.6.
 
@@ -90,7 +90,7 @@ Example response:
             "path": "security-reports",
             "path_with_namespace": "gitlab-org/security-reports"
         },
-        "project_default_branch": "master",
+        "project_default_branch": "main",
         "report_type": "dependency_scanning",
         "resolved_at": null,
         "resolved_by_id": null,
@@ -178,7 +178,7 @@ Example response:
         "path": "security-reports",
         "path_with_namespace": "gitlab-org/security-reports"
     },
-    "project_default_branch": "master",
+    "project_default_branch": "main",
     "report_type": "dependency_scanning",
     "resolved_at": null,
     "resolved_by_id": null,

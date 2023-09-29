@@ -35,7 +35,11 @@ namespace :admin do
 
   resource :impersonation, only: :destroy
 
-  resources :abuse_reports, only: [:index, :destroy]
+  resources :abuse_reports, only: [:index, :show, :update, :destroy] do
+    member do
+      put :moderate_user
+    end
+  end
   resources :gitaly_servers, only: [:index]
 
   resources :spam_logs, only: [:index, :destroy] do
@@ -50,9 +54,11 @@ namespace :admin do
 
   resources :groups, only: [:index, :new, :create]
 
-  scope(path: 'groups/*id',
-        controller: :groups,
-        constraints: { id: Gitlab::PathRegex.full_namespace_route_regex, format: /(html|json|atom)/ }) do
+  scope(
+    path: 'groups/*id',
+    controller: :groups,
+    constraints: { id: Gitlab::PathRegex.full_namespace_route_regex, format: /(html|json|atom)/ }
+  ) do
     scope(as: :group) do
       put :members_update
       get :edit, action: :edit
@@ -113,16 +119,24 @@ namespace :admin do
   get 'dev_ops_report', to: redirect('admin/dev_ops_reports')
   resources :cohorts, only: :index
 
-  scope(path: 'projects/*namespace_id',
-        as: :namespace,
-        constraints: { namespace_id: Gitlab::PathRegex.full_namespace_route_regex }) do
-    resources(:projects,
-              path: '/',
-              constraints: { id: Gitlab::PathRegex.project_route_regex },
-              only: [:show, :destroy]) do
+  scope(
+    path: 'projects/*namespace_id',
+    as: :namespace,
+    constraints: { namespace_id: Gitlab::PathRegex.full_namespace_route_regex }
+  ) do
+    resources(
+      :projects,
+      path: '/',
+      constraints: { id: Gitlab::PathRegex.project_route_regex },
+      only: [:show, :destroy]
+    ) do
       member do
         put :transfer
         post :repository_check
+        get :edit, action: :edit
+        get '/', action: :show
+        patch '/', action: :update
+        put '/', action: :update
       end
 
       resources :runner_projects, only: [:create, :destroy]
@@ -145,12 +159,8 @@ namespace :admin do
     put :clear_repository_check_states
     match :general, :integrations, :repository, :ci_cd, :reporting, :metrics_and_profiling, :network, :preferences, via: [:get, :patch]
     get :lets_encrypt_terms_of_service
-
-    post :create_self_monitoring_project
-    get :status_create_self_monitoring_project
-    delete :delete_self_monitoring_project
-    get :status_delete_self_monitoring_project
-
+    get :slack_app_manifest_download, format: :json
+    get :slack_app_manifest_share
     get :service_usage_data
 
     resource :appearances, only: [:show, :create, :update], path: 'appearance', module: 'application_settings' do

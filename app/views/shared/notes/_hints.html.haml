@@ -1,15 +1,9 @@
-- supports_quick_actions = local_assigns.fetch(:supports_quick_actions, false)
 - supports_file_upload = local_assigns.fetch(:supports_file_upload, true)
-.comment-toolbar.clearfix
-  .toolbar-text
-    - markdownLinkStart = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: help_page_path('user/markdown') }
-    - quickActionsLinkStart = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: help_page_path('user/project/quick_actions') }
-    - if supports_quick_actions
-      = html_escape(s_('NoteToolbar|Supports %{markdownDocsLinkStart}Markdown%{markdownDocsLinkEnd}. For %{quickActionsDocsLinkStart}quick actions%{quickActionsDocsLinkEnd}, type %{keyboardStart}/%{keyboardEnd}.')) % { markdownDocsLinkStart: markdownLinkStart, markdownDocsLinkEnd: '</a>'.html_safe, quickActionsDocsLinkStart: quickActionsLinkStart, quickActionsDocsLinkEnd: '</a>'.html_safe, keyboardStart: '<kbd>'.html_safe, keyboardEnd: '</kbd>'.html_safe }
-    - else
-      = html_escape(s_('MarkdownToolbar|Supports %{markdownDocsLinkStart}Markdown%{markdownDocsLinkEnd}')) % { markdownDocsLinkStart: markdownLinkStart, markdownDocsLinkEnd: '</a>'.html_safe }
+.comment-toolbar.gl-px-2.gl-display-flex.gl-justify-content-end.gl-rounded-bottom-left-base.gl-rounded-bottom-right-base.clearfix
+  .content-editor-switcher.gl-display-inline-flex.gl-align-items-center
+    = render Pajamas::ButtonComponent.new(category: :tertiary, icon: 'markdown-mark', size: :small, href: help_page_path('user/markdown'), target: '_blank', button_options: { class: 'gl-px-3!' })
   - if supports_file_upload
-    %span.uploading-container.gl-line-height-32
+    %span.uploading-container.gl-line-height-32.gl-font-sm
       %span.uploading-progress-container.hide
         = sprite_icon('paperclip', css_class: 'gl-icon gl-vertical-align-text-bottom')
         %span.attaching-file-message
@@ -22,15 +16,15 @@
           = sprite_icon('paperclip', css_class: 'gl-icon gl-vertical-align-text-bottom')
         %span.uploading-error-message
           -# Populated by app/assets/javascripts/dropzone_input.js
-        %button.btn.gl-button.btn-link.gl-vertical-align-baseline.retry-uploading-link
+        = render Pajamas::ButtonComponent.new(variant: :link, button_options: { class: 'retry-uploading-link' }) do
           %span.gl-button-text
             = _("Try again")
         = _("or")
-        %button.btn.gl-button.btn-link.attach-new-file.markdown-selector.gl-vertical-align-baseline
+        = render Pajamas::ButtonComponent.new(variant: :link, button_options: { class: 'attach-new-file markdown-selector' }) do
           %span.gl-button-text
             = _("attach a new file")
         = _(".")
 
-      %button.btn.gl-button.btn-link.button-cancel-uploading-files.gl-vertical-align-baseline.hide
+      = render Pajamas::ButtonComponent.new(variant: :link, button_options: { class: 'button-cancel-uploading-files hide' }) do
         %span.gl-button-text
           = _("Cancel")

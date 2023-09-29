@@ -51,9 +51,7 @@ RSpec.describe 'Update of an existing issue', feature_category: :team_planning d
         expect do
           post_graphql_mutation(mutation, current_user: current_user)
           issue.reload
-        end.to change { issue.work_item_type.base_type }.from('issue').to('incident').and(
-          change(issue, :issue_type).from('issue').to('incident')
-        )
+        end.to change { issue.work_item_type.base_type }.from('issue').to('incident')
       end
     end
 
@@ -148,6 +146,11 @@ RSpec.describe 'Update of an existing issue', feature_category: :team_planning d
           expect(mutation_response['issue']['labels']['nodes']).to eq([{ "id" => label1.to_global_id.to_s }, { "id" => label2.to_global_id.to_s }])
         end
       end
+    end
+
+    it_behaves_like 'updating time estimate' do
+      let(:resource) { issue }
+      let(:mutation_name) { 'updateIssue' }
     end
   end
 end

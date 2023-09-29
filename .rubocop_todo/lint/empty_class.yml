@@ -1,5 +1,0 @@
----
-Lint/EmptyClass:
-  Details: grace period
-  Exclude:
-    - 'spec/lib/gitlab/multi_destination_logger_spec.rb'

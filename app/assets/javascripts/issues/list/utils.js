@@ -1,4 +1,4 @@
-import { createTerm } from '@gitlab/ui/src/components/base/filtered_search/filtered_search_utils';
+import produce from 'immer';
 import { isPositiveInteger } from '~/lib/utils/number_utils';
 import { getParameterByName } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
@@ -6,6 +6,7 @@ import {
   FILTERED_SEARCH_TERM,
   OPERATOR_NOT,
   OPERATOR_OR,
+  OPERATOR_AFTER,
   TOKEN_TYPE_ASSIGNEE,
   TOKEN_TYPE_AUTHOR,
   TOKEN_TYPE_CONFIDENTIAL,
@@ -16,6 +17,16 @@ import {
   TOKEN_TYPE_HEALTH,
   TOKEN_TYPE_LABEL,
 } from '~/vue_shared/components/filtered_search_bar/constants';
+import { DEFAULT_PAGE_SIZE } from '~/vue_shared/issuable/list/constants';
+import {
+  WORK_ITEM_TO_ISSUE_MAP,
+  WIDGET_TYPE_MILESTONE,
+  WIDGET_TYPE_AWARD_EMOJI,
+  EMOJI_THUMBSUP,
+  EMOJI_THUMBSDOWN,
+  WIDGET_TYPE_ASSIGNEES,
+  WIDGET_TYPE_LABELS,
+} from '~/work_items/constants';
 import {
   ALTERNATIVE_FILTER,
   API_PARAM,
@@ -27,7 +38,7 @@ import {
   CREATED_DESC,
   DUE_DATE_ASC,
   DUE_DATE_DESC,
-  filters,
+  filtersMap,
   HEALTH_STATUS_ASC,
   HEALTH_STATUS_DESC,
   LABEL_PRIORITY_ASC,
@@ -35,7 +46,6 @@ import {
   MILESTONE_DUE_ASC,
   MILESTONE_DUE_DESC,
   NORMAL_FILTER,
-  PAGE_SIZE,
   PARAM_ASSIGNEE_ID,
   POPULARITY_ASC,
   POPULARITY_DESC,
@@ -56,7 +66,7 @@ import {
 
 export const getInitialPageParams = (
   pageSize,
-  firstPageSize = pageSize ?? PAGE_SIZE,
+  firstPageSize = pageSize ?? DEFAULT_PAGE_SIZE,
   lastPageSize,
   afterCursor,
   beforeCursor,
@@ -196,10 +206,10 @@ export const getSortOptions = ({
   return sortOptions;
 };
 
-const tokenTypes = Object.keys(filters);
+const tokenTypes = Object.keys(filtersMap);
 
 const getUrlParams = (tokenType) =>
-  Object.values(filters[tokenType][URL_PARAM]).flatMap((filterObj) => Object.values(filterObj));
+  Object.values(filtersMap[tokenType][URL_PARAM]).flatMap((filterObj) => Object.values(filterObj));
 
 const urlParamKeys = tokenTypes.flatMap(getUrlParams);
 
@@ -207,11 +217,11 @@ const getTokenTypeFromUrlParamKey = (urlParamKey) =>
   tokenTypes.find((tokenType) => getUrlParams(tokenType).includes(urlParamKey));
 
 const getOperatorFromUrlParamKey = (tokenType, urlParamKey) =>
-  Object.entries(filters[tokenType][URL_PARAM]).find(([, filterObj]) =>
+  Object.entries(filtersMap[tokenType][URL_PARAM]).find(([, filterObj]) =>
     Object.values(filterObj).includes(urlParamKey),
   )[0];
 
-const convertToFilteredTokens = (locationSearch) =>
+export const getFilterTokens = (locationSearch) =>
   Array.from(new URLSearchParams(locationSearch).entries())
     .filter(([key]) => urlParamKeys.includes(key))
     .map(([key, data]) => {
@@ -223,28 +233,10 @@ const convertToFilteredTokens = (locationSearch) =>
       };
     });
 
-const convertToFilteredSearchTerms = (locationSearch) =>
-  new URLSearchParams(locationSearch)
-    .get('search')
-    ?.split(' ')
-    .map((word) => ({
-      type: FILTERED_SEARCH_TERM,
-      value: {
-        data: word,
-      },
-    })) || [];
+export const isNotEmptySearchToken = (token) =>
+  !(token.type === FILTERED_SEARCH_TERM && !token.value.data);
 
-export const getFilterTokens = (locationSearch) => {
-  if (!locationSearch) {
-    return [createTerm()];
-  }
-  const filterTokens = convertToFilteredTokens(locationSearch);
-  const searchTokens = convertToFilteredSearchTerms(locationSearch);
-  const tokens = filterTokens.concat(searchTokens);
-  return tokens.length ? tokens : [createTerm()];
-};
-
-const isSpecialFilter = (type, data) => {
+export const isSpecialFilter = (type, data) => {
   const isAssigneeIdParam =
     type === TOKEN_TYPE_ASSIGNEE &&
     isPositiveInteger(data) &&
@@ -255,8 +247,9 @@ const isSpecialFilter = (type, data) => {
 const getFilterType = ({ type, value: { data, operator } }) => {
   const isUnionedAuthor = type === TOKEN_TYPE_AUTHOR && operator === OPERATOR_OR;
   const isUnionedLabel = type === TOKEN_TYPE_LABEL && operator === OPERATOR_OR;
+  const isAfter = operator === OPERATOR_AFTER;
 
-  if (isUnionedAuthor || isUnionedLabel) {
+  if (isUnionedAuthor || isUnionedLabel || isAfter) {
     return ALTERNATIVE_FILTER;
   }
   if (isSpecialFilter(type, data)) {
@@ -289,53 +282,115 @@ const formatData = (token) => {
 };
 
 export const convertToApiParams = (filterTokens) => {
-  const params = {};
-  const not = {};
-  const or = {};
+  const params = new Map();
+  const not = new Map();
+  const or = new Map();
 
-  filterTokens
-    .filter((token) => token.type !== FILTERED_SEARCH_TERM)
-    .forEach((token) => {
-      const filterType = getFilterType(token);
-      const apiField = filters[token.type][API_PARAM][filterType];
-      let obj;
-      if (token.value.operator === OPERATOR_NOT) {
-        obj = not;
-      } else if (token.value.operator === OPERATOR_OR) {
-        obj = or;
-      } else {
-        obj = params;
-      }
-      const data = formatData(token);
-      Object.assign(obj, {
-        [apiField]: obj[apiField] ? [obj[apiField], data].flat() : data,
-      });
-    });
+  filterTokens.filter(isNotEmptySearchToken).forEach((token) => {
+    const filterType = getFilterType(token);
+    const apiField = filtersMap[token.type][API_PARAM][filterType];
+    let obj;
+    if (token.value.operator === OPERATOR_NOT) {
+      obj = not;
+    } else if (token.value.operator === OPERATOR_OR) {
+      obj = or;
+    } else {
+      obj = params;
+    }
+    const data = formatData(token);
+    obj.set(apiField, obj.has(apiField) ? [obj.get(apiField), data].flat() : data);
+  });
 
-  if (Object.keys(not).length) {
-    Object.assign(params, { not });
+  if (not.size) {
+    params.set('not', Object.fromEntries(not));
   }
 
-  if (Object.keys(or).length) {
-    Object.assign(params, { or });
+  if (or.size) {
+    params.set('or', Object.fromEntries(or));
   }
 
-  return params;
+  return Object.fromEntries(params);
 };
 
-export const convertToUrlParams = (filterTokens) =>
-  filterTokens
-    .filter((token) => token.type !== FILTERED_SEARCH_TERM)
-    .reduce((acc, token) => {
-      const filterType = getFilterType(token);
-      const urlParam = filters[token.type][URL_PARAM][token.value.operator]?.[filterType];
-      return Object.assign(acc, {
-        [urlParam]: acc[urlParam] ? [acc[urlParam], token.value.data].flat() : token.value.data,
-      });
-    }, {});
+export const convertToUrlParams = (filterTokens) => {
+  const urlParamsMap = filterTokens.filter(isNotEmptySearchToken).reduce((acc, token) => {
+    const filterType = getFilterType(token);
+    const urlParam = filtersMap[token.type][URL_PARAM][token.value.operator]?.[filterType];
+    return acc.set(
+      urlParam,
+      acc.has(urlParam) ? [acc.get(urlParam), token.value.data].flat() : token.value.data,
+    );
+  }, new Map());
+
+  return Object.fromEntries(urlParamsMap);
+};
 
 export const convertToSearchQuery = (filterTokens) =>
   filterTokens
     .filter((token) => token.type === FILTERED_SEARCH_TERM && token.value.data)
     .map((token) => token.value.data)
     .join(' ') || undefined;
+
+function findWidget(type, workItem) {
+  return workItem?.widgets?.find((widget) => widget.type === type);
+}
+
+export function mapWorkItemWidgetsToIssueFields(issuesList, workItem) {
+  return produce(issuesList, (draftData) => {
+    const activeItem = draftData.project.issues.nodes.find((issue) => issue.iid === workItem.iid);
+
+    Object.keys(WORK_ITEM_TO_ISSUE_MAP).forEach((type) => {
+      const currentWidget = findWidget(type, workItem);
+      if (!currentWidget) {
+        return;
+      }
+      const property = WORK_ITEM_TO_ISSUE_MAP[type];
+
+      // handling the case for assignees and labels
+      if (
+        property === WORK_ITEM_TO_ISSUE_MAP[WIDGET_TYPE_ASSIGNEES] ||
+        property === WORK_ITEM_TO_ISSUE_MAP[WIDGET_TYPE_LABELS]
+      ) {
+        activeItem[property] = {
+          ...currentWidget[property],
+          nodes: currentWidget[property].nodes.map((node) => ({
+            __persist: true,
+            ...node,
+          })),
+        };
+        return;
+      }
+
+      // handling the case for milestone
+      if (property === WORK_ITEM_TO_ISSUE_MAP[WIDGET_TYPE_MILESTONE] && currentWidget[property]) {
+        activeItem[property] = { __persist: true, ...currentWidget[property] };
+        return;
+      }
+      activeItem[property] = currentWidget[property];
+    });
+
+    activeItem.title = workItem.title;
+    activeItem.confidential = workItem.confidential;
+  });
+}
+
+export function updateUpvotesCount(issuesList, workItem) {
+  const type = WIDGET_TYPE_AWARD_EMOJI;
+  const property = WORK_ITEM_TO_ISSUE_MAP[type];
+
+  return produce(issuesList, (draftData) => {
+    const activeItem = draftData.project.issues.nodes.find((issue) => issue.iid === workItem.iid);
+
+    const currentWidget = findWidget(type, workItem);
+    if (!currentWidget) {
+      return;
+    }
+
+    const upvotesCount =
+      currentWidget[property].nodes.filter((emoji) => emoji.name === EMOJI_THUMBSUP)?.length ?? 0;
+    const downvotesCount =
+      currentWidget[property].nodes.filter((emoji) => emoji.name === EMOJI_THUMBSDOWN)?.length ?? 0;
+    activeItem.upvotes = upvotesCount;
+    activeItem.downvotes = downvotesCount;
+  });
+}

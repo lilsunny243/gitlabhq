@@ -4,12 +4,13 @@ require 'mime/types'
 module API
   class Commits < ::API::Base
     include PaginationParams
+    include Helpers::Unidiff
 
     feature_category :source_code_management
 
     before do
       require_repository_enabled!
-      authorize! :read_code, user_project
+      authorize_read_code!
 
       verify_pagination_params!
     end
@@ -20,6 +21,8 @@ module API
       end
 
       def authorize_push_to_branch!(branch)
+        authenticate!
+
         unless user_access.can_push_to_branch?(branch)
           forbidden!("You are not allowed to push into this branch")
         end
@@ -32,8 +35,6 @@ module API
         Gitlab::UsageDataCounters::EditorUniqueCounter.track_web_ide_edit_action(author: current_user, project: user_project)
         namespace = user_project.namespace
 
-        return unless Feature.enabled?(:route_hll_to_snowplow_phase3, namespace)
-
         Gitlab::Tracking.event(
           'API::Commits',
           :commit,
@@ -41,7 +42,7 @@ module API
           namespace: namespace,
           user: current_user,
           label: 'counts.web_ide_commits',
-          context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis, key_path: 'counts.web_ide_commits').to_context]
+          context: [Gitlab::Usage::MetricDefinition.context_for('counts.web_ide_commits').to_context]
         )
       end
     end
@@ -76,6 +77,10 @@ module API
                  type: String,
                  desc: 'The file path',
                  documentation: { example: 'README.md' }
+        optional :author,
+                 type: String,
+                 desc: 'Search commits by commit author',
+                 documentation: { example: 'John Smith' }
         optional :all, type: Boolean, desc: 'Every commit will be returned'
         optional :with_stats, type: Boolean, desc: 'Stats about each commit will be added to the response'
         optional :first_parent, type: Boolean, desc: 'Only include the first parent of merges'
@@ -86,25 +91,31 @@ module API
       get ':id/repository/commits', urgency: :low do
         not_found! 'Repository' unless user_project.repository_exists?
 
+        page = params[:page] > 0 ? params[:page] : 1
+        per_page = params[:per_page] > 0 ? params[:per_page] : Kaminari.config.default_per_page
+        limit = [per_page, Kaminari.config.max_per_page].min
+        offset = (page - 1) * limit
+
         path = params[:path]
         before = params[:until]
         after = params[:since]
         ref = params[:ref_name].presence || user_project.default_branch unless params[:all]
-        offset = (params[:page] - 1) * params[:per_page]
         all = params[:all]
         with_stats = params[:with_stats]
         first_parent = params[:first_parent]
         order = params[:order]
+        author = params[:author]
 
         commits = user_project.repository.commits(ref,
                                                   path: path,
-                                                  limit: params[:per_page],
+                                                  limit: limit,
                                                   offset: offset,
                                                   before: before,
                                                   after: after,
                                                   all: all,
                                                   first_parent: first_parent,
                                                   order: order,
+                                                  author: author,
                                                   trailers: params[:trailers])
 
         serializer = with_stats ? Entities::CommitWithStats : Entities::Commit
@@ -123,6 +134,8 @@ module API
         tags %w[commits]
         failure [
           { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
           { code: 404, message: 'Not found' }
         ]
         detail 'This feature was introduced in GitLab 8.13'
@@ -207,7 +220,7 @@ module API
         if params[:start_project]
           start_project = find_project!(params[:start_project])
 
-          unless user_project.forked_from?(start_project)
+          unless can?(current_user, :read_code, start_project) && user_project.forked_from?(start_project)
             forbidden!("Project is not included in the fork network for #{start_project.full_name}")
           end
         end
@@ -262,6 +275,7 @@ module API
       params do
         requires :sha, type: String, desc: 'A commit sha, or the name of a branch or tag'
         use :pagination
+        use :with_unidiff
       end
       get ':id/repository/commits/:sha/diff', requirements: API::COMMIT_ENDPOINT_REQUIREMENTS, urgency: :low do
         commit = user_project.commit(params[:sha])
@@ -270,7 +284,7 @@ module API
 
         raw_diffs = ::Kaminari.paginate_array(commit.diffs(expanded: true).diffs.to_a)
 
-        present paginate(raw_diffs), with: Entities::Diff
+        present paginate(raw_diffs), with: Entities::Diff, enable_unidiff: declared_params[:unidiff]
       end
 
       desc "Get a commit's comments" do

@@ -4,10 +4,11 @@ key_path: redis_hll_counters.code_review.code_review_total_unique_counts_weekly
 description: Count of unique users per week who interact with a merge request
 product_stage: create
 product_group: code_review
-product_category: code_review
 product_section: 'TBD'
 value_type: number
-status: active
+status: removed
+removed_by_url: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/113422
+milestone_removed: "15.10"
 time_frame: 7d
 data_source: redis_hll
 instrumentation_class: AggregatedMetric
@@ -106,6 +107,9 @@ options:
     - i_code_review_user_edit_multiline_mr_comment
     - i_code_review_user_gitlab_cli_api_request
     - i_code_review_user_jetbrains_api_request
+    - i_editor_extensions_user_jetbrains_bundled_api_request
+    - i_editor_extensions_user_visual_studio_api_request
+    - i_editor_extensions_user_neovim_plugin_api_request
     - i_code_review_user_labels_changed
     - i_code_review_user_load_conflict_ui
     - i_code_review_user_marked_as_draft
@@ -139,11 +143,11 @@ options:
     - i_code_review_merge_request_widget_security_reports_full_report_clicked
     - i_code_review_merge_request_widget_security_reports_view
 distribution:
-- ce
-- ee
+  - ce
+  - ee
 tier:
-- free
-- premium
-- ultimate
+  - free
+  - premium
+  - ultimate
 performance_indicator_type: []
-milestone: "<13.9"
+milestone: '<13.9'

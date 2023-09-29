@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe NavHelper do
+RSpec.describe NavHelper, feature_category: :navigation do
   describe '#header_links' do
     include_context 'custom session'
 
@@ -136,59 +136,91 @@ RSpec.describe NavHelper do
   end
 
   describe '#show_super_sidebar?' do
-    shared_examples '#show_super_sidebar returns false' do
-      it 'returns false' do
-        expect(helper.show_super_sidebar?).to eq(false)
-      end
-    end
-
-    it 'returns false by default' do
-      allow(helper).to receive(:current_user).and_return(nil)
-
-      expect(helper.show_super_sidebar?).to be_falsy
-    end
-
-    context 'when used is signed-in' do
-      let_it_be(:user) { create(:user) }
-
+    shared_examples 'show_super_sidebar is supposed to' do
       before do
-        allow(helper).to receive(:current_user).and_return(user)
-        stub_feature_flags(super_sidebar_nav: new_nav_ff)
         user.update!(use_new_navigation: user_preference)
       end
 
-      context 'with feature flag off' do
-        let(:new_nav_ff) { false }
+      context 'when user has not interacted with the new nav toggle yet' do
+        let(:user_preference) { nil }
 
-        context 'when user has new nav disabled' do
-          let(:user_preference) { false }
+        specify { expect(subject).to eq true }
 
-          it_behaves_like '#show_super_sidebar returns false'
-        end
+        context 'when the user was not enrolled into the new nav via a special feature flag' do
+          before do
+            stub_feature_flags(super_sidebar_nav_enrolled: false)
+          end
 
-        context 'when user has new nav enabled' do
-          let(:user_preference) { true }
-
-          it_behaves_like '#show_super_sidebar returns false'
+          specify { expect(subject).to eq false }
         end
       end
 
-      context 'with feature flag on' do
-        let(:new_nav_ff) { true }
+      context 'when user has new nav disabled' do
+        let(:user_preference) { false }
 
-        context 'when user has new nav disabled' do
-          let(:user_preference) { false }
+        specify { expect(subject).to eq false }
+      end
 
-          it_behaves_like '#show_super_sidebar returns false'
+      context 'when user has new nav enabled' do
+        let(:user_preference) { true }
+
+        specify { expect(subject).to eq true }
+      end
+    end
+
+    shared_examples 'anonymous show_super_sidebar is supposed to' do
+      before do
+        stub_feature_flags(super_sidebar_logged_out: feature_flag)
+      end
+
+      context 'when super_sidebar_logged_out feature flag is disabled' do
+        let(:feature_flag) { false }
+
+        specify { expect(subject).to eq false }
+      end
+
+      context 'when super_sidebar_logged_out feature flag is enabled' do
+        let(:feature_flag) { true }
+
+        specify { expect(subject).to eq true }
+      end
+    end
+
+    context 'without a user' do
+      context 'with current_user (nil) as a default' do
+        before do
+          allow(helper).to receive(:current_user).and_return(nil)
         end
 
-        context 'when user has new nav enabled' do
-          let(:user_preference) { true }
+        subject { helper.show_super_sidebar? }
 
-          it 'returns true' do
-            expect(helper.show_super_sidebar?).to eq(true)
-          end
+        it_behaves_like 'anonymous show_super_sidebar is supposed to'
+      end
+
+      context 'with nil provided as an argument' do
+        subject { helper.show_super_sidebar?(nil) }
+
+        it_behaves_like 'anonymous show_super_sidebar is supposed to'
+      end
+    end
+
+    context 'when user is signed-in' do
+      let_it_be(:user) { create(:user) }
+
+      context 'with current_user as a default' do
+        before do
+          allow(helper).to receive(:current_user).and_return(user)
         end
+
+        subject { helper.show_super_sidebar? }
+
+        it_behaves_like 'show_super_sidebar is supposed to'
+      end
+
+      context 'with user provided as an argument' do
+        subject { helper.show_super_sidebar?(user) }
+
+        it_behaves_like 'show_super_sidebar is supposed to'
       end
     end
   end

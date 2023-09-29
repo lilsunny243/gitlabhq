@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GitalyClient::RepositoryService do
+RSpec.describe Gitlab::GitalyClient::RepositoryService, feature_category: :gitaly do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be(:project) { create(:project, :repository) }
@@ -76,6 +76,21 @@ RSpec.describe Gitlab::GitalyClient::RepositoryService do
         .and_return(size: 0)
 
       client.repository_size
+    end
+  end
+
+  describe '#repository_info' do
+    it 'sends a repository_info message' do
+      expect_any_instance_of(Gitaly::RepositoryService::Stub)
+        .to receive(:repository_info)
+        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
+        .and_call_original
+
+      response = client.repository_info
+
+      expect(response.size).to be_an(Integer)
+      expect(response.references).to be_a(Gitaly::RepositoryInfoResponse::ReferencesInfo)
+      expect(response.objects).to be_a(Gitaly::RepositoryInfoResponse::ObjectsInfo)
     end
   end
 
@@ -275,7 +290,8 @@ RSpec.describe Gitlab::GitalyClient::RepositoryService do
     it 'sends a create_repository message without arguments' do
       expect_any_instance_of(Gitaly::RepositoryService::Stub)
         .to receive(:create_repository)
-        .with(gitaly_request_with_path(storage_name, relative_path).and(gitaly_request_with_params(default_branch: '')), kind_of(Hash))
+        .with(gitaly_request_with_path(storage_name, relative_path)
+        .and(gitaly_request_with_params(default_branch: '')), kind_of(Hash))
         .and_return(double)
 
       client.create_repository
@@ -284,26 +300,27 @@ RSpec.describe Gitlab::GitalyClient::RepositoryService do
     it 'sends a create_repository message with default branch' do
       expect_any_instance_of(Gitaly::RepositoryService::Stub)
         .to receive(:create_repository)
-        .with(gitaly_request_with_path(storage_name, relative_path).and(gitaly_request_with_params(default_branch: 'default-branch-name')), kind_of(Hash))
+        .with(gitaly_request_with_path(storage_name, relative_path)
+        .and(gitaly_request_with_params(default_branch: 'default-branch-name')), kind_of(Hash))
         .and_return(double)
 
       client.create_repository('default-branch-name')
     end
-  end
 
-  describe '#create_from_snapshot' do
-    it 'sends a create_repository_from_snapshot message' do
+    it 'sends a create_repository message with default branch containing non ascii chars' do
       expect_any_instance_of(Gitaly::RepositoryService::Stub)
-        .to receive(:create_repository_from_snapshot)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return(double)
+        .to receive(:create_repository)
+        .with(gitaly_request_with_path(storage_name, relative_path)
+        .and(gitaly_request_with_params(
+          default_branch: Gitlab::EncodingHelper.encode_binary('feature/新機能'))), kind_of(Hash)
+        ).and_return(double)
 
-      client.create_from_snapshot('http://example.com?wiki=1', 'Custom xyz')
+      client.create_repository('feature/新機能')
     end
   end
 
   describe '#raw_changes_between' do
-    it 'sends a create_repository_from_snapshot message' do
+    it 'sends a get_raw_changes message' do
       expect_any_instance_of(Gitaly::RepositoryService::Stub)
         .to receive(:get_raw_changes)
         .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
@@ -314,17 +331,31 @@ RSpec.describe Gitlab::GitalyClient::RepositoryService do
   end
 
   describe '#search_files_by_regexp' do
-    subject(:result) { client.search_files_by_regexp('master', '.*') }
+    subject(:result) { client.search_files_by_regexp(ref, '.*') }
 
     before do
       expect_any_instance_of(Gitaly::RepositoryService::Stub)
         .to receive(:search_files_by_name)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return([double(files: ['file1.txt']), double(files: ['file2.txt'])])
+              .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
+              .and_return([double(files: ['file1.txt']), double(files: ['file2.txt'])])
     end
 
-    it 'sends a search_files_by_name message and returns a flatten array' do
-      expect(result).to contain_exactly('file1.txt', 'file2.txt')
+    shared_examples 'a search for files by regexp' do
+      it 'sends a search_files_by_name message and returns a flatten array' do
+        expect(result).to contain_exactly('file1.txt', 'file2.txt')
+      end
+    end
+
+    context 'with ASCII ref' do
+      let(:ref) { 'master' }
+
+      it_behaves_like 'a search for files by regexp'
+    end
+
+    context 'with non-ASCII ref' do
+      let(:ref) { 'ref-ñéüçæøß-val' }
+
+      it_behaves_like 'a search for files by regexp'
     end
   end
 
@@ -408,6 +439,16 @@ RSpec.describe Gitlab::GitalyClient::RepositoryService do
       end
 
       client.find_license
+    end
+  end
+
+  describe '#object_pool' do
+    it 'sends a get_object_pool_request message' do
+      expect_any_instance_of(Gitaly::ObjectPoolService::Stub)
+        .to receive(:get_object_pool)
+        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
+
+      client.object_pool
     end
   end
 end

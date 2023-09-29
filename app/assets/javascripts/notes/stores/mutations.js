@@ -1,5 +1,7 @@
 import { isEqual } from 'lodash';
+import { STATUS_CLOSED, STATUS_REOPENED } from '~/issues/constants';
 import { isInMRPage } from '~/lib/utils/common_utils';
+import { uuids } from '~/lib/utils/uuids';
 import * as constants from '../constants';
 import * as types from './mutation_types';
 import * as utils from './utils';
@@ -81,7 +83,7 @@ export default {
       const note = discussions[i];
       const children = note.notes;
 
-      if (children.length && !note.individual_note) {
+      if (children.length > 1) {
         // remove placeholder from discussions
         for (let j = children.length - 1; j >= 0; j -= 1) {
           if (children[j].isPlaceholderNote) {
@@ -184,6 +186,7 @@ export default {
     }
 
     notesArr.push({
+      id: uuids()[0],
       individual_note: true,
       isPlaceholderNote: true,
       placeholderType: data.isSystemNote ? constants.SYSTEM_NOTE : constants.NOTE,
@@ -235,25 +238,35 @@ export default {
   },
 
   [types.UPDATE_NOTE](state, note) {
-    const noteObj = utils.findNoteObjectById(state.discussions, note.discussion_id);
+    const discussion = utils.findNoteObjectById(state.discussions, note.discussion_id);
 
     // Disable eslint here so we can delete the property that we no longer need
     // in the note object
     // eslint-disable-next-line no-param-reassign
     delete note.base_discussion;
 
-    if (noteObj.individual_note) {
+    if (discussion.individual_note) {
       if (note.type === constants.DISCUSSION_NOTE) {
-        noteObj.individual_note = false;
+        discussion.individual_note = false;
       }
 
-      noteObj.notes.splice(0, 1, note);
+      discussion.notes.splice(0, 1, note);
     } else {
-      const comment = utils.findNoteObjectById(noteObj.notes, note.id);
+      const comment = utils.findNoteObjectById(discussion.notes, note.id);
 
       if (!isEqual(comment, note)) {
-        noteObj.notes.splice(noteObj.notes.indexOf(comment), 1, note);
+        discussion.notes.splice(discussion.notes.indexOf(comment), 1, note);
       }
+    }
+
+    if (note.resolvable && note.id === discussion.notes[0].id) {
+      Object.assign(discussion, {
+        resolvable: note.resolvable,
+        resolved: note.resolved,
+        resolved_at: note.resolved_at,
+        resolved_by: note.resolved_by,
+        resolved_by_push: note.resolved_by_push,
+      });
     }
   },
 
@@ -319,11 +332,11 @@ export default {
   },
 
   [types.CLOSE_ISSUE](state) {
-    Object.assign(state.noteableData, { state: constants.CLOSED });
+    Object.assign(state.noteableData, { state: STATUS_CLOSED });
   },
 
   [types.REOPEN_ISSUE](state) {
-    Object.assign(state.noteableData, { state: constants.REOPENED });
+    Object.assign(state.noteableData, { state: STATUS_REOPENED });
   },
 
   [types.TOGGLE_STATE_BUTTON_LOADING](state, value) {
@@ -430,5 +443,8 @@ export default {
   },
   [types.SET_IS_POLLING_INITIALIZED](state, value) {
     state.isPollingInitialized = value;
+  },
+  [types.SET_MERGE_REQUEST_FILTERS](state, value) {
+    state.mergeRequestFilters = value;
   },
 };

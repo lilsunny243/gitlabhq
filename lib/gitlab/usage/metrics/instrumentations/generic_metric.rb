@@ -32,14 +32,10 @@ module Gitlab
             super(metric_definition.reverse_merge(time_frame: 'none'))
           end
 
-          def value
+          def value(...)
             alt_usage_data(fallback: self.class.fallback) do
-              self.class.metric_value.call
+              self.class.metric_value.call(...)
             end
-          end
-
-          def suggested_name
-            Gitlab::Usage::Metrics::NameSuggestion.for(:alt)
           end
         end
       end

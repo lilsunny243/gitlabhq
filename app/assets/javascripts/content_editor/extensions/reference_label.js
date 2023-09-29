@@ -1,10 +1,10 @@
 import { VueNodeViewRenderer } from '@tiptap/vue-2';
 import { SCOPED_LABEL_DELIMITER } from '~/sidebar/components/labels/labels_select_widget/constants';
-import LabelWrapper from '../components/wrappers/label.vue';
+import LabelWrapper from '../components/wrappers/reference_label.vue';
 import Reference from './reference';
 
 export default Reference.extend({
-  name: 'reference_label',
+  name: 'referenceLabel',
 
   addAttributes() {
     return {
@@ -20,9 +20,19 @@ export default Reference.extend({
       },
       color: {
         default: null,
-        parseHTML: (element) => element.querySelector('.gl-label-text').style.backgroundColor,
+        parseHTML: (element) => {
+          let color = element.querySelector('.gl-label-text').style.backgroundColor;
+          if (!color || color.startsWith('var'))
+            color = element.style.getPropertyValue('--label-background-color');
+
+          return color;
+        },
       },
     };
+  },
+
+  addInputRules() {
+    return [];
   },
 
   parseHTML() {

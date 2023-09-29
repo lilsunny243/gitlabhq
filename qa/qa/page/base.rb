@@ -4,9 +4,22 @@ require 'capybara/dsl'
 
 module QA
   module Page
+    # Page base class
+    #
+    # @!method self.perform
+    #   Perform action on the page
+    #   @yieldparam [self] instance of page object
     class Base
+      # Generic matcher for common css selectors like:
+      # - class name '.someclass'
+      # - id '#someid'
+      # - selection by attributes 'input[attribute=name][value=value]'
+      #
+      # @return [Regex]
+      CSS_SELECTOR_PATTERN = /^(\.[a-z-]+|\#[a-z-]+)+|([a-z]+\[.*\])$/i
+
       prepend Support::Page::Logging
-      prepend Mobile::Page::Base if QA::Runtime::Env.remote_mobile_device_name
+      prepend Mobile::Page::Base if QA::Runtime::Env.mobile_layout?
 
       include Capybara::DSL
       include Scenario::Actable
@@ -152,7 +165,7 @@ module QA
           raise ArgumentError, "Please use :minimum, :maximum, :count, or :between so that all is more reliable"
         end
 
-        wait_for_requests
+        wait_for_requests(skip_finished_loading_check: !!kwargs.delete(:skip_finished_loading_check))
 
         all(element_selector_css(name), **kwargs)
       end
@@ -230,17 +243,31 @@ module QA
         wait = kwargs.delete(:wait) || Capybara.default_max_wait_time
         text = kwargs.delete(:text)
 
-        find(element_selector_css(name, kwargs), text: text, wait: wait).click
+        begin
+          find(element_selector_css(name, kwargs), text: text, wait: wait).click
+        rescue Net::ReadTimeout => error
+          # In some situations due to perhaps a slow environment we can encounter errors
+          # where clicks are registered, but the calls to selenium-webdriver result in
+          # timeout errors. In these cases rescue from the error and attempt to continue in
+          # the test to avoid a flaky test failure. This should be safe as assertions in the
+          # tests will catch any case where the click wasn't actually registered.
+          QA::Runtime::Logger.warn "click_element -- #{error} -- #{error.backtrace.inspect}"
+          # There may be a 5xx error -- lets refresh the page like the warning page suggests
+          # and it if resolves itself we can avoid a flaky failure
+          refresh
+        end
+
         page.validate_elements_present! if page
       end
 
-      # Uses capybara to locate and click an element instead of `click_element`.
-      # This can be used when it's not possible to add a QA selector but we still want to log the click
+      # Uses capybara to locate and interact with an element instead of using `*_element`.
+      # This can be used when it's not possible to add a QA selector but we still want to log the action
       #
       # @param [String] method the capybara method to use
       # @param [String] locator the selector used to find the element
-      def click_via_capybara(method, locator)
-        page.public_send(method, locator)
+      # @param [Hash] **kwargs optional arguments
+      def act_via_capybara(method, locator, **kwargs)
+        page.public_send(method, locator, **kwargs)
       end
 
       def fill_element(name, content)
@@ -283,17 +310,13 @@ module QA
           false
         end
 
-        # Check for the element before waiting for requests, just in case unrelated requests are in progress.
-        # This is to avoid waiting unnecessarily after the element we're interested in has already appeared.
-        return true if try_find_element.call(wait)
+        # Check to see if we can return early, without the need to wait for all network requests to complete
+        # We don't want to add overhead to cases where wait=0 as the caller in these cases is indicating that they
+        # don't want any overhead
+        return true if wait > 1 && try_find_element.call(1)
 
-        # If the element didn't appear, wait for requests and then check again
         wait_for_requests(skip_finished_loading_check: !!kwargs.delete(:skip_finished_loading_check))
-
-        # We only wait one second now because we previously waited the full expected duration,
-        # plus however long it took for requests to complete. One second should be enough
-        # for the UI to update after requests complete.
-        try_find_element.call(1)
+        try_find_element.call(wait)
       end
 
       def has_no_element?(name, **kwargs)
@@ -371,7 +394,7 @@ module QA
       end
 
       def within_element(name, **kwargs, &block)
-        wait_for_requests(skip_finished_loading_check: kwargs.delete(:skip_finished_loading_check))
+        wait_for_requests(skip_finished_loading_check: !!kwargs.delete(:skip_finished_loading_check))
         text = kwargs.delete(:text)
 
         page.within(element_selector_css(name, kwargs), text: text, &block)
@@ -389,6 +412,7 @@ module QA
 
       def element_selector_css(name, *attributes)
         return name.selector_css if name.is_a? Page::Element
+        return name if name.is_a?(String) && name.match?(CSS_SELECTOR_PATTERN)
 
         Page::Element.new(name, *attributes).selector_css
       end
@@ -509,8 +533,14 @@ module QA
         return element_when_flag_disabled if has_element?(element_when_flag_disabled, visible: visibility)
 
         raise ElementNotFound,
-              "Could not find the expected element as #{element_when_flag_enabled} or #{element_when_flag_disabled}." \
-              "The relevant feature flag is #{feature_flag}"
+          "Could not find the expected element as #{element_when_flag_enabled} or #{element_when_flag_disabled}." \
+          "The relevant feature flag is #{feature_flag}"
+      end
+
+      def wait_for_gitlab_to_respond
+        wait_until(sleep_interval: 5, message: '502 - GitLab is taking too much time to respond') do
+          Capybara.page.has_no_text?('GitLab is taking too much time to respond')
+        end
       end
     end
   end

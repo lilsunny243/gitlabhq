@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# User passwords **(FREE)**
+# User passwords **(FREE ALL)**
 
 If you use a password to sign in to GitLab, a strong password is very important. A weak or guessable password makes it
 easier for unauthorized people to log into your account.
@@ -23,18 +23,29 @@ authorization provider, you do not need to choose a password. GitLab
 
 ## Change your password
 
+> Password reset emails sent to any verified email address [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/16311) in GitLab 16.1.
+
 You can change your password. GitLab enforces [password requirements](#password-requirements) when you choose your new
 password.
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Password**.
 1. In the **Current password** text box, enter your current password.
 1. In the **New password** and **Password confirmation** text box, enter your new password.
 1. Select **Save password**.
 
-If you don't know your current password, select the **I forgot my password** link. A password reset email is sent to the
-account's **primary** email address.
+If you do not know your current password, select **I forgot my password**
+and complete the form. A password reset email is sent to the email address you
+enter into this form, provided that the email address is verified. If you enter an
+unverified email address into this form, no email is sent, and you see the following
+message:
+
+> "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes."
+
+NOTE:
+Your account can have more than one verified email address, and any email address
+associated with your account can be verified.
 
 ## Password requirements
 
@@ -56,7 +67,7 @@ By default GitLab enforces the following password requirements:
 Self-managed installations can configure the following additional password requirements:
 
 - [Password minimum and maximum length limits](../../security/password_length_limits.md).
-- [Password complexity requirements](../admin_area/settings/sign_up_restrictions.md#password-complexity-requirements).
+- [Password complexity requirements](../../administration/settings/sign_up_restrictions.md#password-complexity-requirements).
 
 ## Block weak passwords
 

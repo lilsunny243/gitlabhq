@@ -184,8 +184,46 @@ RSpec.describe Banzai::Filter::References::ExternalIssueReferenceFilter, feature
     end
   end
 
+  context "clickup project" do
+    before_all do
+      create(:clickup_integration, project: project)
+    end
+
+    before do
+      project.update!(issues_enabled: false)
+    end
+
+    context "with right markdown" do
+      let(:issue) { ExternalIssue.new("PRJ-123", project) }
+      let(:reference) { issue.to_reference }
+
+      it_behaves_like "external issue tracker"
+    end
+
+    context "with underscores in the prefix" do
+      let(:issue) { ExternalIssue.new("PRJ_1-123", project) }
+      let(:reference) { issue.to_reference }
+
+      it_behaves_like "external issue tracker"
+    end
+
+    context "with a hash prefix and alphanumeric" do
+      let(:issue) { ExternalIssue.new("#abcd123", project) }
+      let(:reference) { issue.to_reference }
+
+      it_behaves_like "external issue tracker"
+    end
+
+    context "with prefix and alphanumeric" do
+      let(:issue) { ExternalIssue.new("CU-abcd123", project) }
+      let(:reference) { issue.to_reference }
+
+      it_behaves_like "external issue tracker"
+    end
+  end
+
   context "jira project" do
-    let_it_be(:service) { create(:jira_integration, project: project) }
+    let_it_be_with_reload(:service) { create(:jira_integration, project: project) }
 
     let(:reference) { issue.to_reference }
 
@@ -210,6 +248,36 @@ RSpec.describe Banzai::Filter::References::ExternalIssueReferenceFilter, feature
       it "ignores reference" do
         exp = act = "Issue #{reference}"
         expect(filter(act).to_html).to eq exp
+      end
+    end
+
+    context 'with a custom regex' do
+      before do
+        service.jira_tracker_data.update!(jira_issue_regex: '[JIRA]{2,}-\\d+')
+      end
+
+      context "with right markdown" do
+        let(:issue) { ExternalIssue.new("JIRA-123", project) }
+
+        it_behaves_like "external issue tracker"
+      end
+
+      context "with a single-letter prefix" do
+        let(:issue) { ExternalIssue.new("J-123", project) }
+
+        it "ignores reference" do
+          exp = act = "Issue #{reference}"
+          expect(filter(act).to_html).to eq exp
+        end
+      end
+
+      context "with wrong markdown" do
+        let(:issue) { ExternalIssue.new("#123", project) }
+
+        it "ignores reference" do
+          exp = act = "Issue #{reference}"
+          expect(filter(act).to_html).to eq exp
+        end
       end
     end
   end

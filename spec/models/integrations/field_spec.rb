@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::Integrations::Field do
+RSpec.describe ::Integrations::Field, feature_category: :integrations do
   subject(:field) { described_class.new(**attrs) }
 
   let(:attrs) { { name: nil, integration_class: test_integration } }
@@ -15,33 +15,33 @@ RSpec.describe ::Integrations::Field do
   end
 
   describe '#initialize' do
-    it 'sets type password for secret names' do
-      attrs[:name] = 'token'
-      attrs[:type] = 'text'
+    it 'sets type password for secret fields' do
+      attrs[:is_secret] = true
+      attrs[:type] = :text
 
-      expect(field[:type]).to eq('password')
+      expect(field[:type]).to eq(:password)
     end
 
     it 'uses the given type for other names' do
       attrs[:name] = 'field'
-      attrs[:type] = 'select'
+      attrs[:type] = :select
 
-      expect(field[:type]).to eq('select')
+      expect(field[:type]).to eq(:select)
     end
 
     it 'raises an error if an invalid attribute is given' do
       attrs[:foo] = 'foo'
       attrs[:bar] = 'bar'
       attrs[:name] = 'name'
-      attrs[:type] = 'text'
+      attrs[:type] = :text
 
       expect { field }.to raise_error(ArgumentError, "Invalid attributes [:foo, :bar]")
     end
 
     it 'raises an error if an invalid type is given' do
-      attrs[:type] = 'other'
+      attrs[:type] = :other
 
-      expect { field }.to raise_error(ArgumentError, 'Invalid type "other"')
+      expect { field }.to raise_error(ArgumentError, 'Invalid type :other')
     end
   end
 
@@ -82,9 +82,11 @@ RSpec.describe ::Integrations::Field do
           when :api_only
             be false
           when :type
-            eq 'text'
+            eq :text
           when :is_secret
-            eq true
+            eq false
+          when :if
+            be true
           else
             be_nil
           end
@@ -169,20 +171,10 @@ RSpec.describe ::Integrations::Field do
 
     context 'when a secret field' do
       before do
-        attrs[:type] = 'password'
+        attrs[:type] = :password
       end
 
       it { is_expected.to be_secret }
-    end
-
-    %w[token api_token api_key secret_key secret_sauce password passphrase].each do |name|
-      context "when named #{name}" do
-        before do
-          attrs[:name] = name
-        end
-
-        it { is_expected.to be_secret }
-      end
     end
 
     context "when named url" do
@@ -192,5 +184,10 @@ RSpec.describe ::Integrations::Field do
 
       it { is_expected.not_to be_secret }
     end
+  end
+
+  describe '#key?' do
+    it { is_expected.to be_key(:type) }
+    it { is_expected.not_to be_key(:foo) }
   end
 end

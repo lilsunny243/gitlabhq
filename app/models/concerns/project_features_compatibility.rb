@@ -4,7 +4,7 @@
 #
 # After migrating issues_enabled merge_requests_enabled builds_enabled snippets_enabled and wiki_enabled
 # fields to a new table "project_features", support for the old fields is still needed in the API.
-require 'gitlab/utils'
+require 'gitlab/utils/all'
 
 module ProjectFeaturesCompatibility
   extend ActiveSupport::Concern
@@ -112,6 +112,10 @@ module ProjectFeaturesCompatibility
 
   def infrastructure_access_level=(value)
     write_feature_attribute_string(:infrastructure_access_level, value)
+  end
+
+  def model_experiments_access_level=(value)
+    write_feature_attribute_string(:model_experiments_access_level, value)
   end
 
   # TODO: Remove this method after we drop support for project create/edit APIs to set the

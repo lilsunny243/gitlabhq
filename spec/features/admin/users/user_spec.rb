@@ -3,11 +3,11 @@
 require 'spec_helper'
 
 RSpec.describe 'Admin::Users::User', feature_category: :user_management do
-  include Spec::Support::Helpers::Features::AdminUsersHelpers
+  include Features::AdminUsersHelpers
   include Spec::Support::Helpers::ModalHelpers
 
-  let_it_be(:user) { create(:omniauth_user, provider: 'twitter', extern_uid: '123456') }
-  let_it_be(:current_user) { create(:admin) }
+  let_it_be(:user) { create(:omniauth_user, :no_super_sidebar, provider: 'twitter', extern_uid: '123456') }
+  let_it_be(:current_user) { create(:admin, :no_super_sidebar) }
 
   before do
     sign_in(current_user)
@@ -145,7 +145,7 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
     end
 
     describe 'Impersonation' do
-      let_it_be(:another_user) { create(:user) }
+      let_it_be(:another_user) { create(:user, :no_super_sidebar) }
 
       context 'before impersonating' do
         subject { visit admin_user_path(user_to_visit) }
@@ -156,7 +156,7 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
           it 'disables impersonate button' do
             subject
 
-            impersonate_btn = find('[data-testid="impersonate_user_link"]')
+            impersonate_btn = find('[data-testid="impersonate-user-link"]')
 
             expect(impersonate_btn).not_to be_nil
             expect(impersonate_btn['disabled']).not_to be_nil
@@ -174,7 +174,7 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
             subject
 
             expect(page).to have_content('Impersonate')
-            impersonate_btn = find('[data-testid="impersonate_user_link"]')
+            impersonate_btn = find('[data-testid="impersonate-user-link"]')
             expect(impersonate_btn['disabled']).to be_nil
           end
         end
@@ -260,7 +260,7 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
         it 'logs in as the user when impersonate is clicked' do
           subject
 
-          find('[data-testid="user-menu"]').click
+          find('[data-testid="user-dropdown"]').click
 
           expect(page.find(:css, '[data-testid="user-profile-link"]')['data-user']).to eql(another_user.username)
         end
@@ -270,6 +270,39 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
 
           icon = first('[data-testid="incognito-icon"]')
           expect(icon).not_to be nil
+        end
+
+        context 'when viewing the confirm email warning', :js do
+          before do
+            stub_application_setting_enum('email_confirmation_setting', 'soft')
+          end
+
+          let_it_be(:another_user) { create(:user, :unconfirmed) }
+          let(:warning_alert) { page.find(:css, '[data-testid="alert-warning"]') }
+          let(:expected_styling) { { 'pointer-events' => 'none', 'cursor' => 'default' } }
+
+          context 'with an email that does not contain HTML' do
+            before do
+              subject
+            end
+
+            it 'displays the warning alert including the email' do
+              expect(warning_alert.text).to include("Please check your email (#{another_user.email}) to verify")
+            end
+          end
+
+          context 'with an email that contains HTML' do
+            let(:malicious_email) { "malicious@test.com<form><input/title='<script>alert(document.domain)</script>'>" }
+            let(:another_user) { create(:user, confirmed_at: nil, unconfirmed_email: malicious_email) }
+
+            before do
+              subject
+            end
+
+            it 'displays the impersonation alert, excludes email, and disables links' do
+              expect(warning_alert.text).to include("check your email (#{another_user.unconfirmed_email}) to verify")
+            end
+          end
         end
       end
 
@@ -284,7 +317,7 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
         it 'logs out of impersonated user back to original user' do
           subject
 
-          find('[data-testid="user-menu"]').click
+          find('[data-testid="user-dropdown"]').click
 
           expect(page.find(:css, '[data-testid="user-profile-link"]')['data-user']).to eq(current_user.username)
         end
@@ -471,7 +504,9 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
   end
 
   context 'when user has an unconfirmed email', :js do
-    let(:unconfirmed_user) { create(:user, :unconfirmed) }
+    # Email address contains HTML to ensure email address is displayed in an HTML safe way.
+    let_it_be(:unconfirmed_email) { "#{generate(:email)}<h2>testing<img/src=http://localhost:8000/test.png>" }
+    let_it_be(:unconfirmed_user) { create(:user, :unconfirmed, unconfirmed_email: unconfirmed_email) }
 
     where(:path_helper) do
       [
@@ -491,7 +526,9 @@ RSpec.describe 'Admin::Users::User', feature_category: :user_management do
 
         within_modal do
           expect(page).to have_content("Confirm user #{unconfirmed_user.name}?")
-          expect(page).to have_content('This user has an unconfirmed email address. You may force a confirmation.')
+          expect(page).to have_content(
+            "This user has an unconfirmed email address (#{unconfirmed_email}). You may force a confirmation."
+          )
 
           click_button 'Confirm user'
         end

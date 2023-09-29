@@ -15,8 +15,8 @@ import { setUrlFragment } from '~/lib/utils/url_utility';
 import { s__, sprintf } from '~/locale';
 import Tracking from '~/tracking';
 import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
+import { trackSavedUsingEditor } from '~/vue_shared/components/markdown/tracking';
 import {
-  SAVED_USING_CONTENT_EDITOR_ACTION,
   WIKI_CONTENT_EDITOR_TRACKING_LABEL,
   WIKI_FORMAT_LABEL,
   WIKI_FORMAT_UPDATED_ACTION,
@@ -107,7 +107,7 @@ export default {
     MarkdownEditor,
   },
   mixins: [trackingMixin],
-  inject: ['formatOptions', 'pageInfo'],
+  inject: ['formatOptions', 'pageInfo', 'drawioUrl'],
   data() {
     return {
       editingMode: 'source',
@@ -128,6 +128,9 @@ export default {
     };
   },
   computed: {
+    autocompleteDataSources() {
+      return gl.GfmAutoComplete?.dataSources;
+    },
     noContent() {
       return !this.content.trim();
     },
@@ -179,6 +182,9 @@ export default {
     },
     disableSubmitButton() {
       return this.noContent || !this.title;
+    },
+    drawioEnabled() {
+      return typeof this.drawioUrl === 'string' && this.drawioUrl.length > 0;
     },
   },
   mounted() {
@@ -251,9 +257,8 @@ export default {
     },
 
     trackFormSubmit() {
-      if (this.isContentEditorActive) {
-        this.track(SAVED_USING_CONTENT_EDITOR_ACTION);
-      }
+      // eslint-disable-next-line @gitlab/require-i18n-strings
+      trackSavedUsingEditor(this.isContentEditorActive, 'Wiki');
     },
 
     trackWikiFormat() {
@@ -339,7 +344,7 @@ export default {
       </div>
     </div>
 
-    <div class="row" data-testid="wiki-form-content-fieldset">
+    <div class="row">
       <div class="col-sm-12 row-sm-5">
         <gl-form-group>
           <markdown-editor
@@ -351,7 +356,9 @@ export default {
             :enable-content-editor="isMarkdownFormat"
             :enable-preview="isMarkdownFormat"
             :autofocus="pageInfo.persisted"
-            :drawio-enabled="true"
+            :enable-autocomplete="true"
+            :autocomplete-data-sources="autocompleteDataSources"
+            :drawio-enabled="drawioEnabled"
             @contentEditor="notifyContentEditorActive"
             @markdownField="notifyContentEditorInactive"
             @keydown.ctrl.enter="submitFormShortcut"

@@ -4,12 +4,12 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Sorting and ordering issue lists **(FREE)**
+# Sorting and ordering issue lists **(FREE ALL)**
 
 You can sort a list of issues several ways.
 The available sorting options can change based on the context of the list.
 
-## Sorting by blocking issues **(PREMIUM)**
+## Sorting by blocking issues **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/34247/) in GitLab 13.7.
 
@@ -73,8 +73,12 @@ then issues with a milestone without a due date.
 ## Sorting by popularity
 
 When you sort by **Popularity**, the issue order changes to sort descending by the
-number of upvotes ([awarded](../../award_emojis.md) a "thumbs up" emoji)
+number of upvotes ([emoji reactions](../../emoji_reactions.md) with the "thumbs up")
 on each issue. You can use this to identify issues that are in high demand.
+
+The total number of votes is not summed up. An issue with 18 upvotes and 5
+downvotes is considered more popular than an issue with 17 upvotes and no
+downvotes.
 
 ## Sorting by priority
 
@@ -101,7 +105,7 @@ title in this order:
 - Numbers
 - Letters: first Latin, then accented (for example, `ö`)
 
-## Sorting by health status **(ULTIMATE)**
+## Sorting by health status **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/377841) in GitLab 15.7.
 

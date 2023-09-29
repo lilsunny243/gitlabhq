@@ -88,7 +88,11 @@ export default {
       return !this.canUpdate && !this.dueDate && !this.startDate;
     },
     labelClass() {
-      return this.isReadonlyWithNoDates ? 'gl-align-self-center gl-pb-0!' : 'gl-mt-3 gl-pb-0!';
+      return {
+        'work-item-field-label': true,
+        'gl-align-self-center gl-pb-0!': this.isReadonlyWithNoDates,
+        'gl-mt-3 gl-pb-0!': !this.isReadonlyWithNoDates,
+      };
     },
     showDueDateButton() {
       return this.canUpdate && !this.showDueDateInput;
@@ -215,7 +219,6 @@ export default {
           ref="startDatePicker"
           v-model="dirtyStartDate"
           container="body"
-          data-testid="work-item-start-date-picker"
           :disabled="isDatepickerDisabled"
           :input-id="$options.startDateInputId"
           show-clear-button
@@ -223,7 +226,12 @@ export default {
           @clear="clearStartDatePicker"
           @close="handleStartDateInput"
         />
-        <gl-button v-if="showStartDateButton" category="tertiary" @click="clickShowStartDate">
+        <gl-button
+          v-if="showStartDateButton"
+          category="tertiary"
+          class="gl-text-gray-500!"
+          @click="clickShowStartDate"
+        >
           {{ $options.i18n.addStartDate }}
         </gl-button>
       </gl-form-group>
@@ -241,7 +249,6 @@ export default {
           ref="dueDatePicker"
           v-model="dirtyDueDate"
           container="body"
-          data-testid="work-item-due-date-picker"
           :disabled="isDatepickerDisabled"
           :input-id="$options.dueDateInputId"
           :min-date="dirtyStartDate"
@@ -250,7 +257,12 @@ export default {
           @clear="clearDueDatePicker"
           @close="updateDates"
         />
-        <gl-button v-if="showDueDateButton" category="tertiary" @click="clickShowDueDate">
+        <gl-button
+          v-if="showDueDateButton"
+          category="tertiary"
+          class="gl-text-gray-500!"
+          @click="clickShowDueDate"
+        >
           {{ $options.i18n.addDueDate }}
         </gl-button>
       </gl-form-group>

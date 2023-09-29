@@ -2,19 +2,27 @@
 
 require 'spec_helper'
 
-RSpec.describe Import::GithubService do
+RSpec.describe Import::GithubService, feature_category: :importers do
   let_it_be(:user) { create(:user) }
   let_it_be(:token) { 'complex-token' }
-  let_it_be(:access_params) { { github_access_token: 'github-complex-token' } }
+  let_it_be(:access_params) do
+    {
+      github_access_token: 'github-complex-token',
+      additional_access_tokens: %w[foo bar]
+    }
+  end
+
   let(:settings) { instance_double(Gitlab::GithubImport::Settings) }
   let(:user_namespace_path) { user.namespace_path }
   let(:optional_stages) { nil }
+  let(:timeout_strategy) { "optimistic" }
   let(:params) do
     {
       repo_id: 123,
       new_name: 'new_repo',
       target_namespace: user_namespace_path,
-      optional_stages: optional_stages
+      optional_stages: optional_stages,
+      timeout_strategy: timeout_strategy
     }
   end
 
@@ -26,7 +34,13 @@ RSpec.describe Import::GithubService do
 
     before do
       allow(Gitlab::GithubImport::Settings).to receive(:new).with(project_double).and_return(settings)
-      allow(settings).to receive(:write).with(optional_stages)
+      allow(settings)
+        .to receive(:write)
+        .with(
+          optional_stages: optional_stages,
+          additional_access_tokens: access_params[:additional_access_tokens],
+          timeout_strategy: timeout_strategy
+        )
     end
 
     context 'do not raise an exception on input error' do
@@ -82,7 +96,12 @@ RSpec.describe Import::GithubService do
       context 'when there is no repository size limit defined' do
         it 'skips the check, succeeds, and tracks an access level' do
           expect(subject.execute(access_params, :github)).to include(status: :success)
-          expect(settings).to have_received(:write).with(nil)
+          expect(settings)
+            .to have_received(:write)
+            .with(optional_stages: nil,
+              additional_access_tokens: access_params[:additional_access_tokens],
+              timeout_strategy: timeout_strategy
+            )
           expect_snowplow_event(
             category: 'Import::GithubService',
             action: 'create',
@@ -102,7 +121,13 @@ RSpec.describe Import::GithubService do
 
         it 'succeeds when the repository is smaller than the limit' do
           expect(subject.execute(access_params, :github)).to include(status: :success)
-          expect(settings).to have_received(:write).with(nil)
+          expect(settings)
+            .to have_received(:write)
+            .with(
+              optional_stages: nil,
+              additional_access_tokens: access_params[:additional_access_tokens],
+              timeout_strategy: timeout_strategy
+            )
           expect_snowplow_event(
             category: 'Import::GithubService',
             action: 'create',
@@ -129,7 +154,13 @@ RSpec.describe Import::GithubService do
         context 'when application size limit is defined' do
           it 'succeeds when the repository is smaller than the limit' do
             expect(subject.execute(access_params, :github)).to include(status: :success)
-            expect(settings).to have_received(:write).with(nil)
+            expect(settings)
+              .to have_received(:write)
+              .with(
+                optional_stages: nil,
+                additional_access_tokens: access_params[:additional_access_tokens],
+                timeout_strategy: timeout_strategy
+              )
             expect_snowplow_event(
               category: 'Import::GithubService',
               action: 'create',
@@ -152,14 +183,51 @@ RSpec.describe Import::GithubService do
           {
             single_endpoint_issue_events_import: true,
             single_endpoint_notes_import: 'false',
-            attachments_import: false
+            attachments_import: false,
+            collaborators_import: true
           }
         end
 
         it 'saves optional stages choice to import_data' do
           subject.execute(access_params, :github)
 
-          expect(settings).to have_received(:write).with(optional_stages)
+          expect(settings)
+            .to have_received(:write)
+            .with(
+              optional_stages: optional_stages,
+              additional_access_tokens: access_params[:additional_access_tokens],
+              timeout_strategy: timeout_strategy
+            )
+        end
+      end
+
+      context 'when timeout strategy param is present' do
+        let(:timeout_strategy) { 'pessimistic' }
+
+        it 'saves timeout strategy to import_data' do
+          subject.execute(access_params, :github)
+
+          expect(settings)
+            .to have_received(:write)
+            .with(
+              optional_stages: optional_stages,
+              additional_access_tokens: access_params[:additional_access_tokens],
+              timeout_strategy: timeout_strategy
+            )
+        end
+      end
+
+      context 'when additional access tokens are present' do
+        it 'saves additional access tokens to import_data' do
+          subject.execute(access_params, :github)
+
+          expect(settings)
+            .to have_received(:write)
+            .with(
+              optional_stages: optional_stages,
+              additional_access_tokens: %w[foo bar],
+              timeout_strategy: timeout_strategy
+            )
         end
       end
     end
@@ -267,7 +335,7 @@ RSpec.describe Import::GithubService do
     {
       status: :error,
       http_status: :unprocessable_entity,
-      message: '"repository" size (101 Bytes) is larger than the limit of 100 Bytes.'
+      message: '"repository" size (101 B) is larger than the limit of 100 B.'
     }
   end
 
@@ -291,7 +359,7 @@ RSpec.describe Import::GithubService do
     {
       status: :error,
       http_status: :unprocessable_entity,
-      message: 'This namespace has already been taken. Choose a different one.'
+      message: 'You are not allowed to import projects in this namespace.'
     }
   end
 end

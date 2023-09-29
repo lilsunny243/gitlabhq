@@ -2,7 +2,12 @@
 import { GlDropdownItem } from '@gitlab/ui';
 import { TYPENAME_MILESTONE } from '~/graphql_shared/constants';
 import { convertToGraphQLId, getIdFromGraphQLId } from '~/graphql_shared/utils';
-import { IssuableType, TYPE_ISSUE, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
+import {
+  TYPE_ISSUE,
+  TYPE_MERGE_REQUEST,
+  WORKSPACE_GROUP,
+  WORKSPACE_PROJECT,
+} from '~/issues/constants';
 import { __ } from '~/locale';
 import { IssuableAttributeType } from '../../constants';
 import SidebarDropdown from '../sidebar_dropdown.vue';
@@ -37,7 +42,7 @@ export default {
       type: String,
       required: true,
       validator(value) {
-        return [TYPE_ISSUE, IssuableType.MergeRequest].includes(value);
+        return [TYPE_ISSUE, TYPE_MERGE_REQUEST].includes(value);
       },
     },
     inputName: {
@@ -105,7 +110,7 @@ export default {
       :issuable-attribute="$options.issuableAttribute"
       :issuable-type="issuableType"
       :workspace-type="workspaceType"
-      data-qa-selector="issuable_milestone_dropdown"
+      data-testid="issuable-milestone-dropdown"
       @change="handleChange"
     >
       <template #footer>

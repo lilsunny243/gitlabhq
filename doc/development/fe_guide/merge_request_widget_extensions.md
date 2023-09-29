@@ -261,8 +261,10 @@ important not to alter the status code and headers.
 
 If `fetchCollapsedData()` or `fetchFullData()` methods throw an error:
 
-- The loading state of the extension is updated to `LOADING_STATES.collapsedError`
-  and `LOADING_STATES.expandedError` respectively.
+- The loading state of the extension is updated to `LOADING_STATES.collapsedError` if
+  `fetchCollapsedData()` method throws an error.
+- The loading state of the extension is updated to `LOADING_STATES.expandedError` if
+  `fetchFullData()` method throws an error.
 - The extensions header displays an error icon and updates the text to be either:
   - The text defined in `$options.i18n.error`.
   - "Failed to load" if `$options.i18n.error` is not defined.
@@ -329,7 +331,6 @@ To generate these known events for a single widget:
      1. `product_section` = `dev`
      1. `product_stage` = `create`
      1. `product_group` = `code_review`
-     1. `product_category` = `code_review`
      1. `introduced_by_url` = `'[your MR]'`
      1. `options.events` = (the event in the command from above that generated this file, like `i_code_review_merge_request_widget_test_reports_count_view`)
          - This value is how the telemetry events are linked to "metrics" so this is probably one of the more important values.
@@ -350,11 +351,7 @@ To generate these known events for a single widget:
    ```
 
 1. Repeat step 6, but change the `data_source` to `redis_hll`.
-1. Add each of the HLL metrics to `lib/gitlab/usage_data_counters/known_events/code_review_events.yml`:
-    1. `name` = (the event)
-    1. `redis_slot` = `code_review`
-    1. `category` = `code_review`
-    1. `aggregation` = `weekly`
+
 1. Add each event (those listed in the command in step 7, replacing `test_reports`
    with the appropriate name slug) to the aggregate files:
     1. `config/metrics/counts_7d/{timestamp}_code_review_category_monthly_active_users.yml`

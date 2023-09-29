@@ -1,6 +1,6 @@
 <script>
 import {
-  GlDropdown,
+  GlDisclosureDropdown,
   GlTooltipDirective,
   GlIcon,
   GlLink,
@@ -20,12 +20,10 @@ import eventHub from '../event_hub';
 import ActionsComponent from './environment_actions.vue';
 import DeleteComponent from './environment_delete.vue';
 import ExternalUrlComponent from './environment_external_url.vue';
-import MonitoringButtonComponent from './environment_monitoring.vue';
 import PinComponent from './environment_pin.vue';
 import RollbackComponent from './environment_rollback.vue';
 import StopComponent from './environment_stop.vue';
 import TerminalButtonComponent from './environment_terminal_button.vue';
-
 /**
  * Environment Item Component
  *
@@ -37,12 +35,11 @@ export default {
     ActionsComponent,
     CommitComponent,
     ExternalUrlComponent,
-    GlDropdown,
+    GlDisclosureDropdown,
     GlBadge,
     GlIcon,
     GlLink,
     GlSprintf,
-    MonitoringButtonComponent,
     PinComponent,
     DeleteComponent,
     RollbackComponent,
@@ -528,10 +525,6 @@ export default {
       return this.model.environment_path || '';
     },
 
-    monitoringUrl() {
-      return this.model.metrics_path || '';
-    },
-
     terminalPath() {
       return this.model?.terminal_path ?? '';
     },
@@ -544,7 +537,6 @@ export default {
       return (
         this.actions.length > 0 ||
         this.externalURL ||
-        this.monitoringUrl ||
         this.canStopEnvironment ||
         this.canDeleteEnvironment ||
         this.canRetry
@@ -566,11 +558,7 @@ export default {
     },
     hasExtraActions() {
       return Boolean(
-        this.canRetry ||
-          this.canShowAutoStopDate ||
-          this.monitoringUrl ||
-          this.terminalPath ||
-          this.canDeleteEnvironment,
+        this.canRetry || this.canShowAutoStopDate || this.terminalPath || this.canDeleteEnvironment,
       );
     },
   },
@@ -831,13 +819,13 @@ export default {
           data-track-label="environment_stop"
         />
 
-        <gl-dropdown
-          v-if="hasExtraActions"
-          icon="ellipsis_v"
+        <gl-disclosure-dropdown
           text-sr-only
-          :text="__('More actions')"
-          category="secondary"
           no-caret
+          icon="ellipsis_v"
+          category="secondary"
+          placement="right"
+          :toggle-text="__('More actions')"
         >
           <rollback-component
             v-if="canRetry"
@@ -855,13 +843,6 @@ export default {
             data-track-label="environment_pin"
           />
 
-          <monitoring-button-component
-            v-if="monitoringUrl"
-            :monitoring-url="monitoringUrl"
-            data-track-action="click_button"
-            data-track-label="environment_monitoring"
-          />
-
           <terminal-button-component
             v-if="terminalPath"
             :terminal-path="terminalPath"
@@ -875,7 +856,7 @@ export default {
             data-track-action="click_button"
             data-track-label="environment_delete"
           />
-        </gl-dropdown>
+        </gl-disclosure-dropdown>
       </div>
     </div>
   </div>

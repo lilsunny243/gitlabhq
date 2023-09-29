@@ -30,7 +30,7 @@ module API
       end
 
       def assign_file_vars!
-        authorize! :read_code, user_project
+        authorize_read_code!
 
         @commit = user_project.commit(params[:ref])
         not_found!('Commit') unless @commit
@@ -49,7 +49,14 @@ module API
       end
 
       def content_sha
-        cache_client.fetch("blob_content_sha256:#{user_project.full_path}:#{@blob.id}") do
+        cache_client.fetch(
+          "blob_content_sha256:#{user_project.full_path}:#{@blob.id}",
+          nil,
+          {
+            cache_identifier: 'API::Files#content_sha',
+            backing_resource: :gitaly
+          }
+        ) do
           @blob.load_all_data!
 
           Digest::SHA256.hexdigest(@blob.data)
@@ -57,15 +64,9 @@ module API
       end
 
       def cache_client
-        if Feature.enabled?(:cache_client_with_metrics, user_project)
-          Gitlab::Cache::Client.build_with_metadata(
-            cache_identifier: "#{self.class}#content_sha",
-            feature_category: :source_code_management,
-            backing_resource: :gitaly
-          )
-        else
-          Rails.cache
-        end
+        @cache_client ||= Gitlab::Cache::Client.new(
+          Gitlab::Cache::Metrics.new(Gitlab::Cache::Metadata.new(feature_category: :source_code_management))
+        )
       end
 
       def fetch_blame_range(blame_params)

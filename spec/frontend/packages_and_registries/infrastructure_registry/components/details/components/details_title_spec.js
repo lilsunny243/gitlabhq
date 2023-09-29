@@ -1,5 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import component from '~/packages_and_registries/infrastructure_registry/details/components/details_title.vue';
 import TitleArea from '~/vue_shared/components/registry/title_area.vue';
@@ -39,10 +40,6 @@ describe('PackageTitle', () => {
   const pipelineProject = () => wrapper.find('[data-testid="pipeline-project"]');
   const packageRef = () => wrapper.find('[data-testid="package-ref"]');
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('module title', () => {
     it('is correctly bound', async () => {
       await createComponent();
@@ -55,7 +52,7 @@ describe('PackageTitle', () => {
     it('correctly calculates the size', async () => {
       await createComponent();
 
-      expect(packageSize().props('text')).toBe('300 bytes');
+      expect(packageSize().props('text')).toBe('300 B');
     });
   });
 

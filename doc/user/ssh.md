@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Use SSH keys to communicate with GitLab **(FREE)**
+# Use SSH keys to communicate with GitLab **(FREE ALL)**
 
 Git is a distributed version control system, which means you can work locally,
 then share or *push* your changes to a server. In this case, the server you push to is GitLab.
@@ -20,11 +20,9 @@ SSH uses two keys, a public key and a private key.
 - The public key can be distributed.
 - The private key should be protected.
 
-When you need to copy or upload your SSH public key, make sure you do not accidentally copy or upload your private key instead.
+It is not possible to reveal confidential data by uploading your public key. When you need to copy or upload your SSH public key, make sure you do not accidentally copy or upload your private key instead.
 
-You cannot expose data by uploading your public key. When you need to copy or upload your SSH public key, make sure you do not accidentally copy or upload your private key instead.  
-
-You can use your private key to [sign commits](project/repository/ssh_signed_commits/index.md),
+You can use your private key to [sign commits](project/repository/signed_commits/ssh.md),
 which makes your use of GitLab and your data even more secure.
 This signature then can be verified by anyone using your public key.
 
@@ -76,11 +74,16 @@ must have [OpenSSH 8.2](https://www.openssh.com/releasenotes.html#8.2) or later 
 
 ### RSA SSH keys
 
+> Maximum RSA key length [changed](https://gitlab.com/groups/gitlab-org/-/epics/11186) in GitLab 16.3.
+
 Available documentation suggests ED25519 is more secure than RSA.
 
-If you use an RSA key, the US National Institute of Science and Technology in
+If you use an RSA key, the US National Institute of Standards and Technology in
 [Publication 800-57 Part 3 (PDF)](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57Pt3r1.pdf)
-recommends a key size of at least 2048 bits. The default key size depends on your version of `ssh-keygen`.
+recommends a key size of at least 2048 bits. Due to limitations in Go,
+RSA keys [cannot exceed 8192 bits](#tls-server-sent-certificate-containing-rsa-key-larger-than-8192-bits).
+
+The default key size depends on your version of `ssh-keygen`.
 Review the `man` page for your installed `ssh-keygen` command for details.
 
 ## See if you have an existing SSH key pair
@@ -208,7 +211,7 @@ the following command:
 ssh-keygen -o -t rsa -b 4096 -C "<comment>"
 ```
 
-## Generate an SSH key pair for a FIDO/U2F hardware security key
+## Generate an SSH key pair for a FIDO2 hardware security key
 
 To generate ED25519_SK or ECDSA_SK SSH keys, you must use OpenSSH 8.2 or later:
 
@@ -279,8 +282,8 @@ You can use [1Password](https://1password.com/) and the [1Password browser exten
 - Use an existing SSH in your 1Password vault to authenticate with GitLab.
 
 1. Sign in to GitLab.
-1. On the top bar, in the upper-right corner, select your avatar.
-1. Select **Preferences**.
+1. On the left sidebar, select your avatar.
+1. Select **Edit profile**.
 1. On the left sidebar, select **SSH Keys**.
 1. Select **Key**, and you should see the 1Password helper appear.
 1. Select the 1Password icon and unlock 1Password.
@@ -291,7 +294,7 @@ You can use [1Password](https://1password.com/) and the [1Password browser exten
 1. Optional. Update **Expiration date** to modify the default expiration date.
 1. Select **Add key**.
 
-For more information about using 1Password with SSH keys, see the [1Password documentation](https://developer.1password.com/docs/ssh/get-started).
+For more information about using 1Password with SSH keys, see the [1Password documentation](https://developer.1password.com/docs/ssh/get-started/).
 
 ## Add an SSH key to your GitLab account
 
@@ -324,9 +327,10 @@ To use SSH with GitLab, copy your public key to your GitLab account:
    Replace `id_ed25519.pub` with your filename. For example, use `id_rsa.pub` for RSA.
 
 1. Sign in to GitLab.
-1. On the top bar, in the upper-right corner, select your avatar.
-1. Select **Preferences**.
+1. On the left sidebar, select your avatar.
+1. Select **Edit profile**.
 1. On the left sidebar, select **SSH Keys**.
+1. Select **Add new key**.
 1. In the **Key** box, paste the contents of your public key.
    If you manually copied the key, make sure you copy the entire key,
    which starts with `ssh-rsa`, `ssh-dss`, `ecdsa-sha2-nistp256`, `ecdsa-sha2-nistp384`, `ecdsa-sha2-nistp521`,
@@ -338,7 +342,7 @@ To use SSH with GitLab, copy your public key to your GitLab account:
    In:
    - GitLab 13.12 and earlier, the expiration date is informational only. It doesn't prevent
      you from using the key. Administrators can view expiration dates and use them for
-     guidance when [deleting keys](admin_area/credentials_inventory.md#delete-a-users-ssh-key).
+     guidance when [deleting keys](../administration/credentials_inventory.md#delete-a-users-ssh-key).
    - GitLab checks all SSH keys at 02:00 AM UTC every day. It emails an expiration notice for all SSH keys that expire on the current date. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322637) in GitLab 13.11.)
    - GitLab checks all SSH keys at 01:00 AM UTC every day. It emails an expiration notice for all SSH keys that are scheduled to expire seven days from now. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322637) in GitLab 13.11.)
 1. Select **Add key**.
@@ -397,8 +401,8 @@ on `ssh` command options, see the `man` pages for both `ssh` and `ssh_config`.
 ## View your account's SSH keys
 
 1. Sign in to GitLab.
-1. On the top bar, in the upper-right corner, select your avatar.
-1. Select **Preferences**.
+1. On the left sidebar, select your avatar.
+1. Select **Edit profile**.
 1. On the left sidebar, select **SSH Keys**.
 
 Your existing SSH keys are listed at the bottom of the page. The information includes:
@@ -524,6 +528,17 @@ are **explicitly not supported** and may stop working at any time.
 
 ## Troubleshooting
 
+### TLS: server sent certificate containing RSA key larger than 8192 bits
+
+In GitLab 16.3 and later, Go limits RSA keys to a maximum of 8192 bits.
+To check the length of a key:
+
+```shell
+openssl rsa -in <your-key-file> -text -noout | grep "Key:"
+```
+
+Replace any key longer than 8192 bits with a shorter key.
+
 ### Password prompt with `git clone`
 
 When you run `git clone`, you may be prompted for a password, like `git@gitlab.example.com's password:`.
@@ -548,7 +563,7 @@ If you receive this error, restart your terminal and try the command again.
 
 ### `Key enrollment failed: invalid format` error
 
-You may receive the following error when [generating an SSH key pair for a FIDO/U2F hardware security key](#generate-an-ssh-key-pair-for-a-fidou2f-hardware-security-key):
+You may receive the following error when [generating an SSH key pair for a FIDO2 hardware security key](#generate-an-ssh-key-pair-for-a-fido2-hardware-security-key):
 
 ```shell
 Key enrollment failed: invalid format
@@ -557,7 +572,7 @@ Key enrollment failed: invalid format
 You can troubleshoot this by trying the following:
 
 - Run the `ssh-keygen` command using `sudo`.
-- Verify your IDO/U2F hardware security key supports
+- Verify your FIDO2 hardware security key supports
   the key type provided.
 - Verify the version of OpenSSH is 8.2 or greater by
   running `ssh -V`.

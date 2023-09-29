@@ -2,11 +2,11 @@ import MockAdapter from 'axios-mock-adapter';
 import axios from '~/lib/utils/axios_utils';
 import { loadCommits, isRequested, resetRequestedCommits } from '~/repository/commits_service';
 import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { I18N_COMMIT_DATA_FETCH_ERROR } from '~/repository/constants';
 import { refWithSpecialCharMock } from './mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('commits service', () => {
   let mock;
@@ -25,8 +25,13 @@ describe('commits service', () => {
     resetRequestedCommits();
   });
 
-  const requestCommits = (offset, project = 'my-project', path = '', ref = 'main') =>
-    loadCommits(project, path, ref, offset);
+  const requestCommits = (
+    offset,
+    project = 'my-project',
+    path = '',
+    ref = 'main',
+    refType = 'heads',
+  ) => loadCommits(project, path, ref, offset, refType);
 
   it('calls axios get', async () => {
     const offset = 10;
@@ -37,7 +42,9 @@ describe('commits service', () => {
 
     await requestCommits(offset, project, path, ref);
 
-    expect(axios.get).toHaveBeenCalledWith(testUrl, { params: { format: 'json', offset } });
+    expect(axios.get).toHaveBeenCalledWith(testUrl, {
+      params: { format: 'json', offset, ref_type: 'heads' },
+    });
   });
 
   it('encodes the path and ref', async () => {

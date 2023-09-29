@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Stage::ImportIssueEventsWorker do
+RSpec.describe Gitlab::GithubImport::Stage::ImportIssueEventsWorker, feature_category: :importers do
   subject(:worker) { described_class.new }
 
   let(:project) { create(:project) }
@@ -11,7 +11,7 @@ RSpec.describe Gitlab::GithubImport::Stage::ImportIssueEventsWorker do
   let(:stage_enabled) { true }
 
   before do
-    settings.write({ single_endpoint_issue_events_import: stage_enabled })
+    settings.write({ optional_stages: { single_endpoint_issue_events_import: stage_enabled } })
   end
 
   describe '#import' do

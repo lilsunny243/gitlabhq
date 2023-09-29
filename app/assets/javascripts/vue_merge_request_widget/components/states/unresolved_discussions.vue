@@ -30,7 +30,12 @@ export default {
 </script>
 
 <template>
-  <state-container :mr="mr" status="failed">
+  <state-container
+    status="failed"
+    is-collapsible
+    :collapsed="mr.mergeDetailsCollapsed"
+    @toggle="() => mr.toggleMergeDetails()"
+  >
     <span class="gl-ml-3 gl-w-100 gl-flex-grow-1 gl-md-mr-3 gl-ml-0! gl-text-body!">
       <bold-text :message="$options.message" />
     </span>
@@ -43,17 +48,7 @@ export default {
         category="primary"
         @click="jumpToFirstUnresolvedDiscussion"
       >
-        {{ s__('mrWidget|Jump to first unresolved thread') }}
-      </gl-button>
-      <gl-button
-        v-if="mr.createIssueToResolveDiscussionsPath"
-        :href="mr.createIssueToResolveDiscussionsPath"
-        class="js-create-issue gl-align-self-start gl-vertical-align-top"
-        size="small"
-        variant="confirm"
-        category="secondary"
-      >
-        {{ s__('mrWidget|Create issue to resolve all threads') }}
+        {{ s__('mrWidget|Go to first unresolved thread') }}
       </gl-button>
     </template>
   </state-container>

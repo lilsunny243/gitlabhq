@@ -5,6 +5,10 @@ module Gitlab
     class Auditor
       attr_reader :scope, :name
 
+      PERMITTED_TARGET_CLASSES = [
+        ::Operations::FeatureFlag
+      ].freeze
+
       # Record audit events
       #
       # @param [Hash] context
@@ -72,13 +76,11 @@ module Gitlab
         @authentication_event = @context.fetch(:authentication_event, false)
         @authentication_provider = @context[:authentication_provider]
 
-        # TODO: Remove this code once we close https://gitlab.com/gitlab-org/gitlab/-/issues/367870
-        return unless @is_audit_event_yaml_defined
+        return if @is_audit_event_yaml_defined
 
-        # rubocop:disable Gitlab/RailsLogger
-        Rails.logger.warn('WARNING: Logging audit events without an event type definition will be deprecated soon.')
-        Rails.logger.warn('See https://docs.gitlab.com/ee/development/audit_event_guide/#event-type-definitions')
-        # rubocop:enable Gitlab/RailsLogger
+        raise StandardError, "Audit event type YML file is not defined for #{@name}. Please read " \
+                             "https://docs.gitlab.com/ee/development/audit_event_guide/" \
+                             "#how-to-instrument-new-audit-events for adding a new audit event"
       end
 
       def single_audit
@@ -113,7 +115,11 @@ module Gitlab
       end
 
       def audit_enabled?
-        authentication_event?
+        authentication_event? || permitted_target?
+      end
+
+      def permitted_target?
+        @target.class.in? PERMITTED_TARGET_CLASSES
       end
 
       def authentication_event?

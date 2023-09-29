@@ -8,9 +8,15 @@ module Gitlab
       # Each host in the load balancer uses the same credentials as the primary
       # database.
       class LoadBalancer
+        ANY_CAUGHT_UP  = :any
+        ALL_CAUGHT_UP  = :all
+        NONE_CAUGHT_UP = :none
+
         CACHE_KEY = :gitlab_load_balancer_host
 
         REPLICA_SUFFIX = '_replica'
+
+        attr_accessor :service_discovery
 
         attr_reader :host_list, :configuration
 
@@ -45,6 +51,8 @@ module Gitlab
         # If no secondaries were available this method will use the primary
         # instead.
         def read(&block)
+          service_discovery&.log_refresh_thread_interruption
+
           conflict_retried = 0
 
           while host
@@ -103,6 +111,8 @@ module Gitlab
 
         # Yields a connection that can be used for both reads and writes.
         def read_write
+          service_discovery&.log_refresh_thread_interruption
+
           connection = nil
           transaction_open = nil
 
@@ -172,16 +182,32 @@ module Gitlab
           raise 'Failed to determine the write location of the primary database'
         end
 
-        # Returns true if there was at least one host that has caught up with the given transaction.
+        # Finds any up to date replica for the given LSN location and stores an up to date replica in the
+        # SafeRequestStore to be used later for read-only queries. It returns a symbol to indicate if :any, :all or
+        # :none were found to be caught up.
         def select_up_to_date_host(location)
           all_hosts = @host_list.hosts.shuffle
-          host = all_hosts.find { |host| host.caught_up?(location) }
+          first_caught_up_host = nil
 
-          return false unless host
+          # We must loop through all of them so that we know if all are caught up. Some callers only care about finding
+          # one caught up host and storing it in request_cache. But Sticking needs to know if ALL_CAUGHT_UP so that it
+          # can clear the LSN position from Redis and not ask again in future.
+          results = all_hosts.map do |host|
+            caught_up = host.caught_up?(location)
+            first_caught_up_host ||= host if caught_up
+            caught_up
+          end
 
-          request_cache[CACHE_KEY] = host
+          ActiveSupport::Notifications.instrument(
+            'caught_up_replica_pick.load_balancing',
+            { result: first_caught_up_host.present? }
+          )
 
-          true
+          return NONE_CAUGHT_UP unless first_caught_up_host
+
+          request_cache[CACHE_KEY] = first_caught_up_host
+
+          results.all? ? ALL_CAUGHT_UP : ANY_CAUGHT_UP
         end
 
         # Yields a block, retrying it upon error using an exponential backoff.
@@ -285,7 +311,7 @@ module Gitlab
         def pool
           ActiveRecord::Base.connection_handler.retrieve_connection_pool(
             @configuration.connection_specification_name,
-            role: ActiveRecord::Base.writing_role,
+            role: ActiveRecord.writing_role,
             shard: ActiveRecord::Base.default_shard
           ) || raise(::ActiveRecord::ConnectionNotEstablished)
         end

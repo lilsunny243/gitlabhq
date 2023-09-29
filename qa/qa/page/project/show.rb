@@ -7,9 +7,11 @@ module QA
         include Layout::Flash
         include Page::Component::ClonePanel
         include Page::Component::Breadcrumbs
-        include Page::Project::SubMenus::Settings
         include Page::File::Shared::CommitMessage
-        prepend Mobile::Page::Project::Show if Runtime::Env.mobile_layout?
+        include Page::Component::Dropdown
+        # We need to check phone_layout? instead of mobile_layout? here
+        # since tablets have the regular top navigation bar
+        prepend Mobile::Page::Project::Show if Runtime::Env.phone_layout?
 
         view 'app/assets/javascripts/repository/components/preview/index.vue' do
           element :blob_viewer_content
@@ -24,11 +26,7 @@ module QA
         end
 
         view 'app/views/layouts/header/_new_dropdown.html.haml' do
-          element :new_menu_toggle
-        end
-
-        view 'app/helpers/nav/new_dropdown_helper.rb' do
-          element :new_issue_link
+          element 'new-menu-toggle'
         end
 
         view 'app/views/projects/_last_push.html.haml' do
@@ -51,8 +49,8 @@ module QA
           element :forked_from_link
         end
 
-        view 'app/views/projects/buttons/_fork.html.haml' do
-          element :fork_button
+        view 'app/assets/javascripts/forks/components/forks_button.vue' do
+          element 'fork-button'
         end
 
         view 'app/views/projects/empty.html.haml' do
@@ -64,21 +62,16 @@ module QA
           element :new_file_menu_item
         end
 
-        view 'app/assets/javascripts/vue_shared/components/web_ide_link.vue' do
-          element :web_ide_button
-        end
-
-        view 'app/views/shared/_ref_switcher.html.haml' do
-          element :branches_dropdown
-          element :branches_dropdown_content
-        end
-
         view 'app/views/projects/blob/viewers/_loading.html.haml' do
           element :spinner_placeholder
         end
 
         view 'app/views/projects/buttons/_download.html.haml' do
           element :download_source_code_button
+        end
+
+        view 'app/views/projects/tree/_tree_header.html.haml' do
+          element :ref_dropdown_container
         end
 
         def wait_for_viewers_to_load
@@ -100,7 +93,7 @@ module QA
         # Change back to regular click_element when vscode_web_ide FF is removed
         # Rollout issue: https://gitlab.com/gitlab-org/gitlab/-/issues/371084
         def fork_project
-          fork_button = find_element(:fork_button)
+          fork_button = find_element('fork-button')
           click_by_javascript(fork_button)
         end
 
@@ -120,11 +113,6 @@ module QA
           within_element(:file_tree_table) do
             click_on commit_msg
           end
-        end
-
-        def go_to_new_issue
-          click_element(:new_menu_toggle)
-          click_element(:new_issue_link)
         end
 
         def has_create_merge_request_button?
@@ -162,15 +150,19 @@ module QA
         end
 
         def open_web_ide!
-          click_element(:web_ide_button)
+          click_element(:action_dropdown)
+          click_element(:webide_menu_item)
+          page.driver.browser.switch_to.window(page.driver.browser.window_handles.last)
         end
 
         def open_web_ide_via_shortcut
           page.driver.send_keys('.')
+          page.driver.browser.switch_to.window(page.driver.browser.window_handles.last)
         end
 
         def has_edit_fork_button?
-          has_element?(:web_ide_button, text: 'Edit fork in Web IDE')
+          click_element(:action_dropdown)
+          has_element?(:webide_menu_item, text: 'Edit fork in Web IDE')
         end
 
         def project_name
@@ -182,10 +174,9 @@ module QA
         end
 
         def switch_to_branch(branch_name)
-          find_element(:branches_dropdown).click
-
-          within_element(:branches_dropdown_content) do
-            click_on branch_name
+          within_element(:ref_dropdown_container) do
+            expand_select_list
+            select_item(branch_name)
           end
         end
 

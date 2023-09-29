@@ -19,6 +19,7 @@ module Issuable
   include Awardable
   include Taskable
   include Importable
+  include Transitionable
   include Editable
   include AfterCommitQueue
   include Sortable
@@ -27,12 +28,13 @@ module Issuable
   include ClosedAtFilterable
   include VersionedDescription
   include SortableTitle
+  include Exportable
 
   TITLE_LENGTH_MAX = 255
   TITLE_HTML_LENGTH_MAX = 800
   DESCRIPTION_LENGTH_MAX = 1.megabyte
   DESCRIPTION_HTML_LENGTH_MAX = 5.megabytes
-  SEARCHABLE_FIELDS = %w(title description).freeze
+  SEARCHABLE_FIELDS = %w[title description].freeze
   MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS = 200
 
   STATE_ID_MAP = {
@@ -84,11 +86,11 @@ module Issuable
     has_one :metrics, inverse_of: model_name.singular.to_sym, autosave: true
 
     delegate :name,
-             :email,
-             :public_email,
-             to: :author,
-             allow_nil: true,
-             prefix: true
+      :email,
+      :public_email,
+      to: :author,
+      allow_nil: true,
+      prefix: true
 
     validates :author, presence: true
     validates :title, presence: true, length: { maximum: TITLE_LENGTH_MAX }
@@ -174,6 +176,10 @@ module Issuable
       end
     end
 
+    def issuable_type
+      self.class.name.underscore
+    end
+
     # We want to use optimistic lock for cases when only title or description are involved
     # http://api.rubyonrails.org/classes/ActiveRecord/Locking/Optimistic.html
     def locking_enabled?
@@ -197,15 +203,15 @@ module Issuable
     end
 
     def supports_severity?
-      incident?
+      incident_type_issue?
     end
 
     def supports_escalation?
-      incident?
+      incident_type_issue?
     end
 
-    def incident?
-      is_a?(Issue) && super
+    def incident_type_issue?
+      is_a?(Issue) && work_item_type&.incident?
     end
 
     def supports_issue_type?
@@ -220,10 +226,22 @@ module Issuable
       false
     end
 
+    def supports_lock_on_merge?
+      false
+    end
+
     def severity
       return IssuableSeverity::DEFAULT unless supports_severity?
 
       issuable_severity&.severity || IssuableSeverity::DEFAULT
+    end
+
+    def exportable_restricted_associations
+      super + [:notes]
+    end
+
+    def importing_or_transitioning?
+      importing? || transitioning?
     end
 
     private
@@ -345,8 +363,7 @@ module Issuable
 
       order_milestone_due_asc
         .order_labels_priority(excluded_labels: excluded_labels, extra_select_columns: [milestones_due_date])
-        .reorder(milestones_due_date_with_direction.nulls_last,
-                 highest_priority_arel_with_direction.nulls_last)
+        .reorder(milestones_due_date_with_direction.nulls_last, highest_priority_arel_with_direction.nulls_last)
     end
 
     def order_labels_priority(direction = 'ASC', excluded_labels: [], extra_select_columns: [], with_cte: false)
@@ -400,14 +417,14 @@ module Issuable
       sort = sort.to_s
       grouping_columns = [arel_table[:id]]
 
-      if %w(milestone_due_desc milestone_due_asc milestone).include?(sort)
+      if %w[milestone_due_desc milestone_due_asc milestone].include?(sort)
         milestone_table = Milestone.arel_table
         grouping_columns << milestone_table[:id]
         grouping_columns << milestone_table[:due_date]
-      elsif %w(merged_at_desc merged_at_asc merged_at).include?(sort)
+      elsif %w[merged_at_desc merged_at_asc merged_at].include?(sort)
         grouping_columns << MergeRequest::Metrics.arel_table[:id]
         grouping_columns << MergeRequest::Metrics.arel_table[:merged_at]
-      elsif %w(closed_at_desc closed_at_asc closed_at).include?(sort)
+      elsif %w[closed_at_desc closed_at_asc closed_at].include?(sort)
         grouping_columns << MergeRequest::Metrics.arel_table[:id]
         grouping_columns << MergeRequest::Metrics.arel_table[:latest_closed_at]
       end
@@ -620,8 +637,10 @@ module Issuable
   end
 
   def updated_tasks
-    Taskable.get_updated_tasks(old_content: previous_changes['description'].first,
-                               new_content: description)
+    Taskable.get_updated_tasks(
+      old_content: previous_changes['description'].first,
+      new_content: description
+    )
   end
 
   ##
@@ -640,10 +659,6 @@ module Issuable
     false
   end
 
-  def ensure_metrics
-    self.metrics || create_metrics
-  end
-
   ##
   # Overridden in MergeRequest
   #
@@ -653,6 +668,7 @@ module Issuable
 
   def read_ability_for(participable_source)
     return super if participable_source == self
+    return super if participable_source.is_a?(Note) && participable_source.system?
 
     name =  participable_source.try(:issuable_ability_name) || :read_issuable_participables
 

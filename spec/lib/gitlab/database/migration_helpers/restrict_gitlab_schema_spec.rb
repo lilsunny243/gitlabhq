@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe Gitlab::Database::MigrationHelpers::RestrictGitlabSchema, query_analyzers: false,
-  stub_feature_flags: false, feature_category: :pods do
+  stub_feature_flags: false, use_clean_rails_redis_caching: true, feature_category: :cell do
   let(:schema_class) { Class.new(Gitlab::Database::Migration[1.0]).include(described_class) }
 
   # We keep only the GitlabSchemasValidateConnection analyzer running
@@ -78,13 +78,13 @@ RSpec.describe Gitlab::Database::MigrationHelpers::RestrictGitlabSchema, query_a
             }
           }
         },
-        "does add column to ci_builds in gitlab_main and gitlab_ci" => {
+        "does add column to p_ci_builds in gitlab_main and gitlab_ci" => {
           migration: ->(klass) do
             def change
-              add_column :ci_builds, :__test_column, :integer
+              add_column :p_ci_builds, :__test_column, :integer
             end
           end,
-          query_matcher: /ALTER TABLE "ci_builds" ADD "__test_column" integer/,
+          query_matcher: /ALTER TABLE "p_ci_builds" ADD "__test_column" integer/,
           expected: {
             no_gitlab_schema: {
               main: :success,
@@ -506,7 +506,7 @@ RSpec.describe Gitlab::Database::MigrationHelpers::RestrictGitlabSchema, query_a
             def down; end
           end,
           query_matcher: /FROM ci_builds/,
-          setup: -> (_) { skip_if_multiple_databases_not_setup },
+          setup: -> (_) { skip_if_shared_database(:ci) },
           expected: {
             no_gitlab_schema: {
               main: :cross_schema_error,

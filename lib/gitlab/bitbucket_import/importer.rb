@@ -10,10 +10,13 @@ module Gitlab
 
       attr_reader :project, :client, :errors, :users
 
+      ALREADY_IMPORTED_CACHE_KEY = 'bitbucket_cloud-importer/already-imported/%{project}/%{collection}'
+
       def initialize(project)
         @project = project
         @client = Bitbucket::Client.new(project.import_data.credentials)
         @formatter = Gitlab::ImportFormatter.new
+        @ref_converter = Gitlab::BitbucketImport::RefConverter.new(project)
         @labels = {}
         @errors = []
         @users = {}
@@ -29,7 +32,39 @@ module Gitlab
         true
       end
 
+      def create_labels
+        LABELS.each do |label_params|
+          label = ::Labels::FindOrCreateService.new(nil, project, label_params).execute(skip_authorization: true)
+          if label.valid?
+            @labels[label_params[:title]] = label
+          else
+            raise "Failed to create label \"#{label_params[:title]}\" for project \"#{project.full_name}\""
+          end
+        end
+      end
+
+      def import_pull_request_comments(pull_request, merge_request)
+        comments = client.pull_request_comments(repo, pull_request.iid)
+
+        inline_comments, pr_comments = comments.partition(&:inline?)
+
+        import_inline_comments(inline_comments, pull_request, merge_request)
+        import_standalone_pr_comments(pr_comments, merge_request)
+      end
+
       private
+
+      def already_imported?(collection, iid)
+        Gitlab::Cache::Import::Caching.set_includes?(cache_key(collection), iid)
+      end
+
+      def mark_as_imported(collection, iid)
+        Gitlab::Cache::Import::Caching.set_add(cache_key(collection), iid)
+      end
+
+      def cache_key(collection)
+        format(ALREADY_IMPORTED_CACHE_KEY, project: project.id, collection: collection)
+      end
 
       def handle_errors
         return unless errors.any?
@@ -72,7 +107,7 @@ module Gitlab
 
         return unless last_bitbucket_issue
 
-        Issue.track_project_iid!(project, last_bitbucket_issue.iid)
+        Issue.track_namespace_iid!(project.project_namespace, last_bitbucket_issue.iid)
       end
 
       def repo
@@ -97,6 +132,8 @@ module Gitlab
         issue_type_id = ::WorkItems::Type.default_issue_type.id
 
         client.issues(repo).each_with_index do |issue, index|
+          next if already_imported?(:issues, issue.iid)
+
           # If a user creates an issue while the import is in progress, this can lead to an import failure.
           # The workaround is to allocate IIDs before starting the importer.
           allocate_issues_internal_id!(project, client) if index == 0
@@ -127,6 +164,8 @@ module Gitlab
           updated_at: issue.updated_at
         )
 
+        mark_as_imported(:issues, issue.iid)
+
         metrics.issues_counter.increment
 
         gitlab_issue.labels << @labels[label_name]
@@ -148,7 +187,7 @@ module Gitlab
 
           note = ''
           note += @formatter.author_line(comment.author) unless find_user_id(comment.author)
-          note += comment.note
+          note += @ref_converter.convert_note(comment.note.to_s)
 
           begin
             gitlab_issue.notes.create!(
@@ -164,21 +203,12 @@ module Gitlab
         end
       end
 
-      def create_labels
-        LABELS.each do |label_params|
-          label = ::Labels::FindOrCreateService.new(nil, project, label_params).execute(skip_authorization: true)
-          if label.valid?
-            @labels[label_params[:title]] = label
-          else
-            raise "Failed to create label \"#{label_params[:title]}\" for project \"#{project.full_name}\""
-          end
-        end
-      end
-
       def import_pull_requests
         pull_requests = client.pull_requests(repo)
 
         pull_requests.each do |pull_request|
+          next if already_imported?(:pull_requests, pull_request.iid)
+
           import_pull_request(pull_request)
         end
       end
@@ -190,7 +220,11 @@ module Gitlab
 
         source_branch_sha = pull_request.source_branch_sha
         target_branch_sha = pull_request.target_branch_sha
-        source_branch_sha = project.repository.commit(source_branch_sha)&.sha || source_branch_sha
+
+        source_sha_from_commit_sha = project.repository.commit(source_branch_sha)&.sha
+        source_sha_from_merge_sha = project.repository.commit(pull_request.merge_commit_sha)&.sha
+
+        source_branch_sha = source_sha_from_commit_sha || source_sha_from_merge_sha || source_branch_sha
         target_branch_sha = project.repository.commit(target_branch_sha)&.sha || target_branch_sha
 
         merge_request = project.merge_requests.create!(
@@ -209,20 +243,13 @@ module Gitlab
           updated_at: pull_request.updated_at
         )
 
+        mark_as_imported(:pull_requests, pull_request.iid)
+
         metrics.merge_requests_counter.increment
 
         import_pull_request_comments(pull_request, merge_request) if merge_request.persisted?
       rescue StandardError => e
         store_pull_request_error(pull_request, e)
-      end
-
-      def import_pull_request_comments(pull_request, merge_request)
-        comments = client.pull_request_comments(repo, pull_request.iid)
-
-        inline_comments, pr_comments = comments.partition(&:inline?)
-
-        import_inline_comments(inline_comments, pull_request, merge_request)
-        import_standalone_pr_comments(pr_comments, merge_request)
       end
 
       def import_inline_comments(inline_comments, pull_request, merge_request)
@@ -293,8 +320,7 @@ module Gitlab
 
       def comment_note(comment)
         author = @formatter.author_line(comment.author) unless find_user_id(comment.author)
-
-        author.to_s + comment.note.to_s
+        author.to_s + @ref_converter.convert_note(comment.note.to_s)
       end
 
       def log_base_data

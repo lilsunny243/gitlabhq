@@ -5,11 +5,11 @@ description: Count of projects with alerts created in given time period
 product_section: ops
 product_stage: monitor
 product_group: monitor
-product_category: alert_management
 value_type: number
 status: active
 time_frame: all
 data_source: database
+instrumentation_class: CountProjectsWithAlertsCreatedMetric
 distribution:
 - ce
 - ee

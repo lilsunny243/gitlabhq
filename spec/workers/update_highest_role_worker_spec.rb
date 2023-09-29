@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UpdateHighestRoleWorker, :clean_gitlab_redis_shared_state do
+RSpec.describe UpdateHighestRoleWorker, :clean_gitlab_redis_shared_state, feature_category: :seat_cost_management do
   include ExclusiveLeaseHelpers
 
   let(:worker) { described_class.new }
@@ -18,7 +18,7 @@ RSpec.describe UpdateHighestRoleWorker, :clean_gitlab_redis_shared_state do
       let(:active_attributes) do
         {
           state: 'active',
-          user_type: nil
+          user_type: :human
         }
       end
 

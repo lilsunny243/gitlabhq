@@ -4,7 +4,7 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Gemfile guidelines
+# Gemfile development guidelines
 
 When adding a new entry to `Gemfile`, or upgrading an existing dependency pay
 attention to the following rules.
@@ -28,6 +28,13 @@ You can opt-in to this verification locally by setting the
 
 ```shell
 export BUNDLER_CHECKSUM_VERIFICATION_OPT_IN=1
+bundle install
+```
+
+Setting it to `false` can also disable it:
+
+```shell
+export BUNDLER_CHECKSUM_VERIFICATION_OPT_IN=false
 bundle install
 ```
 
@@ -60,8 +67,21 @@ This means that new dependencies should, at a minimum, meet the following criter
 - There are no issues open that we know may impact the availability or performance of GitLab.
 - The project is tested using some form of test automation. The test suite must be passing
   using the Ruby version currently used by GitLab.
+- CI builds for all supported platforms must succeed using the new dependency. For more information, see
+  how to [build a package for testing](build_test_package.md#building-a-package-for-testing).
 - If the project uses a C extension, consider requesting an additional review from a C or MRI
   domain expert. C extensions can greatly impact GitLab stability and performance.
+
+## Gems that require a domain expert approval
+
+Changes to the following gems require a domain expert review and approval by a backend team member of the group.
+
+For gems not listed in this table, it's still recommended but not required that you find a domain expert to review changes.
+
+| Gem | Requires approval by |
+| ------ | ------ |
+| `doorkeeper` | [Manage:Authentication and Authorization](https://about.gitlab.com/handbook/product/categories/#authentication-and-authorization-group) |
+| `doorkeeper-openid_connect` | [Manage:Authentication and Authorization](https://about.gitlab.com/handbook/product/categories/#authentication-and-authorization-group)  |
 
 ## Request an Appsec review
 
@@ -92,63 +112,14 @@ ourselves, or because we think it would benefit the wider community.
 Extracting code to a gem also means that we can be sure that the gem
 does not contain any hidden dependencies on our application code.
 
-In general, we want to think carefully before doing this as there are
-also disadvantages:
-
-1. Gems - even those maintained by GitLab - do not necessarily go
-   through the same [code review process](code_review.md) as the main
-   Rails application.
-1. Extracting the code into a separate project means that we need a
-   minimum of two merge requests to change functionality: one in the gem
-   to make the functional change, and one in the Rails app to bump the
-   version.
-1. Our needs for our own usage of the gem may not align with the wider
-   community's needs. In general, if we are not using the latest version
-   of our own gem, that might be a warning sign.
-
-In the case where we do want to extract some library code we've written
-to a gem, go through these steps:
-
-1. Start with the code in the Rails application. Here it's fine to have
-   the code in `lib/` and loaded automatically. We can skip this step if
-   the step below makes more sense initially.
-1. Before extracting to its own project, move the gem to `vendor/gems` and
-   load it in the `Gemfile` using the `path` option. This gives us a gem
-   that can be published to RubyGems.org, with its own test suite and
-   isolated set of dependencies, that is still in our main code tree and
-   goes through the standard code review process.
-   - For an example, see the [merge request !57805](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/57805).
-1. Once the gem is stable - we have been using it in production for a
-   while with few, if any, changes - extract to its own project under
-   the [`gitlab-org/ruby/gems` namespace](https://gitlab.com/gitlab-org/ruby/gems/).
-
-   - To create this project:
-       1. Follow the [instructions for new projects](https://about.gitlab.com/handbook/engineering/gitlab-repositories/#creating-a-new-project).
-       1. Follow the instructions for setting up a [CI/CD configuration](https://about.gitlab.com/handbook/engineering/gitlab-repositories/#cicd-configuration).
-       1. Follow the instructions for [publishing a project](https://about.gitlab.com/handbook/engineering/gitlab-repositories/#publishing-a-project).
-   - See [issue #325463](https://gitlab.com/gitlab-org/gitlab/-/issues/325463)
-     for an example.
-   - In some cases we may want to move a gem to its own namespace. Some
-     examples might be that it will naturally have more than one project
-     (say, something that has plugins as separate libraries), or that we
-     expect non-GitLab-team-members to be maintainers on this project as
-     well as GitLab team members.
-
-     The latter situation (maintainers from outside GitLab) could also
-     apply if someone who currently works at GitLab wants to maintain
-     the gem beyond their time working at GitLab.
-
-When publishing a gem to RubyGems.org, also note the section on
-[gem owners](https://about.gitlab.com/handbook/developer-onboarding/#ruby-gems)
-in the handbook.
+Read more about [Gems development guidelines](gems.md).
 
 ## Upgrade Rails
 
 When upgrading the Rails gem and its dependencies, you also should update the following:
 
+- The [`activerecord_version` in the vendored `attr_encrypted` gemspec](https://gitlab.com/gitlab-org/gitlab/-/blob/master/vendor/gems/attr_encrypted/attr_encrypted.gemspec).
 - The [`Gemfile` in the `qa` directory](https://gitlab.com/gitlab-org/gitlab/-/blob/master/qa/Gemfile).
-- The [`Gemfile` in Gitaly Ruby](https://gitlab.com/gitlab-org/gitaly/-/blob/master/ruby/Gemfile),
-  to ensure that we ship only one version of these gems.
 
 You should also update npm packages that follow the current version of Rails:
 

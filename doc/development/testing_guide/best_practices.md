@@ -50,6 +50,32 @@ bundle exec guard
 
 When using spring and guard together, use `SPRING=1 bundle exec guard` instead to make use of spring.
 
+### General guidelines
+
+- Use a single, top-level `RSpec.describe ClassName` block.
+- Use `.method` to describe class methods and `#method` to describe instance
+  methods.
+- Use `context` to test branching logic (`RSpec/AvoidConditionalStatements` Rubocop Cop - [MR](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/117152)).
+- Try to match the ordering of tests to the ordering in the class.
+- Try to follow the [Four-Phase Test](https://thoughtbot.com/blog/four-phase-test) pattern, using newlines
+  to separate phases.
+- Use `Gitlab.config.gitlab.host` rather than hard coding `'localhost'`.
+- Don't assert against the absolute value of a sequence-generated attribute (see
+  [Gotchas](../gotchas.md#do-not-assert-against-the-absolute-value-of-a-sequence-generated-attribute)).
+- Avoid using `expect_any_instance_of` or `allow_any_instance_of` (see
+  [Gotchas](../gotchas.md#avoid-using-expect_any_instance_of-or-allow_any_instance_of-in-rspec)).
+- Don't supply the `:each` argument to hooks because it's the default.
+- On `before` and `after` hooks, prefer it scoped to `:context` over `:all`.
+- When using `evaluate_script("$('.js-foo').testSomething()")` (or `execute_script`) which acts on a given element,
+  use a Capybara matcher beforehand (such as `find('.js-foo')`) to ensure the element actually exists.
+- Use `focus: true` to isolate parts of the specs you want to run.
+- Use [`:aggregate_failures`](https://rspec.info/features/3-12/rspec-core/expectation-framework-integration/aggregating-failures/) when there is more than one expectation in a test.
+- For [empty test description blocks](https://github.com/rubocop-hq/rspec-style-guide#it-and-specify), use `specify` rather than `it do` if the test is self-explanatory.
+- Use `non_existing_record_id`/`non_existing_record_iid`/`non_existing_record_access_level`
+  when you need an ID/IID/access level that doesn't actually exist. Using 123, 1234,
+  or even 999 is brittle as these IDs could actually exist in the database in the
+  context of a CI run.
+
 ### Eager loading the application code
 
 By default, the application code:
@@ -132,8 +158,43 @@ We should reduce test dependencies, and avoiding
 capabilities also reduces the amount of set-up needed.
 
 `:js` is particularly important to avoid. This must only be used if the feature
-test requires JavaScript reactivity in the browser. Using a headless
+test requires JavaScript reactivity in the browser (for example, clicking a Vue.js component). Using a headless
 browser is much slower than parsing the HTML response from the app.
+
+#### Profiling: see where your test spend its time
+
+[`rspec-stackprof`](https://github.com/dkhroad/rspec-stackprof) can be used to generate a flame graph that shows you where you test spend its time.
+
+The gem generates a JSON report that we can upload to <https://www.speedscope.app> for an interactive visualization.
+
+##### Installation
+
+`stackprof` gem is [already installed with GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/695fcee0c5541b4ead0a90eb9b8bf0b69bee796c/Gemfile#L487), and we also have a script available that generates the JSON report (`bin/rspec-stackprof`).
+
+```shell
+# Optional: install the `speedscope` package to easily upload the JSON report to https://www.speedscope.app
+npm install -g speedscope
+```
+
+##### Generate the JSON report
+
+```shell
+bin/rspec-stackprof --speedscope=true <your_slow_spec>
+# There will be the name of the report displayed when the script ends.
+
+# Upload the JSON report to speedscope.app
+speedscope tmp/<your-json-report>.json
+```
+
+##### How to interpret the flamegraph
+
+Below are some useful tips to interpret and navigate the flamegraph:
+
+- There are [several views available](https://github.com/jlfwong/speedscope#views) for the flamegraph. `Left Heavy` is particularly useful when there are a lot of function calls (for example, feature specs).
+- You can zoom in or out! See [the navigation documentation](https://github.com/jlfwong/speedscope#navigation)
+- If you are working on a slow feature test, search for `Capybara::DSL#` in the search to see the capybara actions that are made, and how long they take!
+
+See [#414929](https://gitlab.com/gitlab-org/gitlab/-/issues/414929#note_1425239887) or [#375004](https://gitlab.com/gitlab-org/gitlab/-/issues/375004#note_1109867718) for some analysis examples.
 
 #### Optimize factory usage
 
@@ -240,9 +301,21 @@ There are various ways to create objects and store them in variables in your tes
 - `let` lazily creates the object. It isn't created until the object is called. `let` is generally inefficient as it creates a new object for every example. `let` is fine for simple values. However, more efficient variants of `let` are best when dealing with database models such as factories.
 - `let_it_be_with_refind` works similar to `let_it_be_with_reload`, but the [former calls `ActiveRecord::Base#find`](https://github.com/test-prof/test-prof/blob/936b29f87b36f88a134e064aa6d8ade143ae7a13/lib/test_prof/ext/active_record_refind.rb#L15) instead of `ActiveRecord::Base#reload`. `reload` is usually faster than `refind`.
 - `let_it_be_with_reload` creates an object one time for all examples in the same context, but after each example, the database changes are rolled back, and `object.reload` will be called to restore the object to its original state. This means you can make changes to the object before or during an example. However, there are cases where [state leaks across other models](https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#state-leakage-detection) can occur. In these cases, `let` may be an easier option, especially if only a few examples exist.
-- `let_it_be` creates an immutable object one time for all of the examples in the same context. This is a great alternative to `let` and `let!` for objects that do not need to change from one example to another. Using `let_it_be` can dramatically speed up tests that create database models. See <https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#let-it-be> for more details and examples.
+- `let_it_be` creates an object one time for all of the examples in the same context. This is a great alternative to `let` and `let!` for objects that do not need to change from one example to another. Using `let_it_be` can dramatically speed up tests that create database models. See <https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#let-it-be> for more details and examples.
 
-`let_it_be` is the most optimized option since it instantiates an object once and does not change it. If you find yourself needing `let` instead of `let_it_be`, try `let_it_be_with_reload`.
+Pro-tip: When writing tests, it is best to consider the objects inside a `let_it_be` as **immutable**, as there are some important caveats when modifying objects inside a `let_it_be` declaration ([1](https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#database-is-rolled-back-to-a-pristine-state-but-the-objects-are-not), [2](https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#modifiers)). To make your `let_it_be` objects immutable, consider using `freeze: true`:
+
+```shell
+# Before
+let_it_be(:namespace) { create_default(:namespace) }
+
+# After
+let_it_be(:namespace, freeze: true) { create_default(:namespace) }
+```
+
+See <https://github.com/test-prof/test-prof/blob/master/docs/recipes/let_it_be.md#state-leakage-detection> for more information on `let_it_be` freezing.
+
+`let_it_be` is the most optimized option since it instantiates an object once and shares its instance across examples. If you find yourself needing `let` instead of `let_it_be`, try `let_it_be_with_reload`.
 
 ```ruby
 # Old
@@ -313,7 +386,57 @@ NOTE:
 `stub_method` does not support method existence and method arity checks.
 
 WARNING:
-`stub_method` is supposed to be used in factories only. It's strongly discouraged to be used elsewhere. Please consider using [RSpec's mocks](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/basics) if available.
+`stub_method` is supposed to be used in factories only. It's strongly discouraged to be used elsewhere. Please consider using [RSpec mocks](https://rspec.info/features/3-12/rspec-mocks/) if available.
+
+#### Stubbing member access level
+
+To stub [member access level](../../user/permissions.md#roles) for factory stubs like `Project` or `Group` use
+[`stub_member_access_level`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/support/stub_member_access_level.rb):
+
+```ruby
+let(:project) { build_stubbed(:project) }
+let(:maintainer) { build_stubbed(:user) }
+let(:policy) { ProjectPolicy.new(maintainer, project) }
+
+it 'allows admin_project ability' do
+  stub_member_access_level(project, maintainer: maintainer)
+
+  expect(policy).to be_allowed(:admin_project)
+end
+```
+
+NOTE:
+Refrain from using this stub helper if the test code relies on persisting
+`project_authorizations` or `Member` records. Use `Project#add_member` or `Group#add_member` instead.
+
+#### Additional profiling metrics
+
+We can use the `rspec_profiling` gem to diagnose, for instance, the number of SQL queries we're making when running a test.
+
+This could be caused by some application side SQL queries **triggered by a test that could mock parts that are not under test** (for example, [!123810](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/123810)).
+
+[See the instructions in the performance docs](../performance.md#rspec-profiling).
+
+#### Troubleshoot slow feature test
+
+A slow feature test can generally be optimized the same way as any other test. However, there are some specific techniques that can make the troubleshooting session more fruitful.
+
+##### See what the feature test is doing in the UI
+
+```shell
+# Before
+bin/rspec ./spec/features/admin/admin_settings_spec.rb:992
+
+# After
+WEBDRIVER_HEADLESS=0 bin/rspec ./spec/features/admin/admin_settings_spec.rb:992
+```
+
+See [Run `:js` spec in a visible browser](#run-js-spec-in-a-visible-browser) for more info.
+
+##### Search for `Capybara::DSL#` when using profiling
+
+<!-- TODO: Add the search keywords -->
+When using [`stackprof` flamegraphs](#profiling-see-where-your-test-spend-its-time), search for `Capybara::DSL#` in the search to see the capybara actions that are made, and how long they take!
 
 #### Identify slow tests
 
@@ -365,11 +488,14 @@ We collect information about tests duration in [`rspec_profiling_stats`](https:/
 
 With [issue](https://gitlab.com/gitlab-org/gitlab/-/issues/375983) we defined thresholds for tests duration that can act a guide.
 
-For tests that are not meeting the thresholds it is recommended to create issues and improve the tests duration.
+For tests that are not meeting the thresholds, we create [issues](https://gitlab.com/gitlab-org/gitlab/-/issues/?sort=created_date&state=opened&label_name%5B%5D=rspec%3Aslow%20test&first_page_size=100) automatically in order to improve them.
 
-| Date | Feature tests | Controllers and Requests tests | Other |
-| --- | --- | --- | --- |
-| 2023-02-15 | 67.42 seconds | 44.66 seconds | 76.86 seconds |
+For tests that are slow for a legitimate reason and to skip issue creation, add `allowed_to_be_slow: true`.
+
+| Date | Feature tests | Controllers and Requests tests | Unit | Other | Method |
+| :-: | :-: | :-: | :-: | :-: | :-: |
+| 2023-02-15 | 67.42 seconds | 44.66 seconds | - | 76.86 seconds | Top slow test eliminating the maximum |
+| 2023-06-15 | 50.13 seconds | 19.20 seconds | 27.12 | 45.40 seconds | Avg for top 100 slow tests|
 
 #### Avoid repeating expensive actions
 
@@ -415,31 +541,11 @@ performance gains.
 When combining tests, consider using `:aggregate_failures`, so that the full
 results are available, and not just the first failure.
 
-### General guidelines
+#### In case you're stuck
 
-- Use a single, top-level `RSpec.describe ClassName` block.
-- Use `.method` to describe class methods and `#method` to describe instance
-  methods.
-- Use `context` to test branching logic.
-- Try to match the ordering of tests to the ordering in the class.
-- Try to follow the [Four-Phase Test](https://thoughtbot.com/blog/four-phase-test) pattern, using newlines
-  to separate phases.
-- Use `Gitlab.config.gitlab.host` rather than hard coding `'localhost'`
-- Don't assert against the absolute value of a sequence-generated attribute (see
-  [Gotchas](../gotchas.md#do-not-assert-against-the-absolute-value-of-a-sequence-generated-attribute)).
-- Avoid using `expect_any_instance_of` or `allow_any_instance_of` (see
-  [Gotchas](../gotchas.md#avoid-using-expect_any_instance_of-or-allow_any_instance_of-in-rspec)).
-- Don't supply the `:each` argument to hooks because it's the default.
-- On `before` and `after` hooks, prefer it scoped to `:context` over `:all`
-- When using `evaluate_script("$('.js-foo').testSomething()")` (or `execute_script`) which acts on a given element,
-  use a Capybara matcher beforehand (such as `find('.js-foo')`) to ensure the element actually exists.
-- Use `focus: true` to isolate parts of the specs you want to run.
-- Use [`:aggregate_failures`](https://relishapp.com/rspec/rspec-core/docs/expectation-framework-integration/aggregating-failures) when there is more than one expectation in a test.
-- For [empty test description blocks](https://github.com/rubocop-hq/rspec-style-guide#it-and-specify), use `specify` rather than `it do` if the test is self-explanatory.
-- Use `non_existing_record_id`/`non_existing_record_iid`/`non_existing_record_access_level`
-  when you need an ID/IID/access level that doesn't actually exists. Using 123, 1234,
-  or even 999 is brittle as these IDs could actually exist in the database in the
-  context of a CI run.
+We have a `backend_testing_performance` [domain expertise](https://about.gitlab.com/handbook/engineering/workflow/code-review/#domain-experts) to list people that could help refactor slow backend specs.
+
+To find people that could help, search for `backend testing performance` on the [Engineering Projects page](https://about.gitlab.com/handbook/engineering/projects/), or look directly in [the `www-gitlab-org` project](https://gitlab.com/search?group_id=6543&nav_source=navbar&project_id=7764&repository_ref=master&scope=blobs&search=backend_testing_performance+path%3Adata%2Fteam_members%2F*&search_code=true).
 
 ### Feature category metadata
 
@@ -450,6 +556,10 @@ You must [set feature category metadata for each RSpec example](../feature_categ
 You can use `if: Gitlab.ee?` or `unless: Gitlab.ee?` on context/spec blocks to execute tests depending on whether running with `FOSS_ONLY=1`.
 
 Example: [SchemaValidator reads a different path depending on the license](https://gitlab.com/gitlab-org/gitlab/-/blob/7cdcf9819cfa02c701d6fa9f18c1e7a8972884ed/spec/lib/gitlab/ci/parsers/security/validators/schema_validator_spec.rb#L571)
+
+### Tests depending on SaaS
+
+You can use the `:saas` RSpec metadata tag helper on context/spec blocks to test code that only runs on GitLab.com. This helper sets `Gitlab.config.gitlab['url']` to `Gitlab::Saas.com_url`.
 
 ### Coverage
 
@@ -507,13 +617,15 @@ If needed, you can scope interactions within a specific area of the page by usin
 As you will likely be scoping to an element such as a `div`, which typically does not have a label,
 you may use a `data-testid` selector in this case.
 
+You can use the `be_axe_clean` matcher to run [axe automated accessibility testing](../fe_guide/accessibility.md#automated-accessibility-testing-with-axe) in feature tests.
+
 ##### Externalized contents
 
-Test expectations against externalized contents should call the same
+For RSpec tests, expectations against externalized contents should call the same
 externalizing method to match the translation. For example, you should use the `_`
-method in Ruby and `__` method in JavaScript.
+method in Ruby.
 
-See [Internationalization for GitLab - Test files](../i18n/externalization.md#test-files) for details.
+See [Internationalization for GitLab - Test files (RSpec)](../i18n/externalization.md#test-files-rspec) for details.
 
 ##### Actions
 
@@ -798,6 +910,10 @@ so we need to set some guidelines for their use going forward:
 
 ### Common test setup
 
+NOTE:
+`let_it_be` and `before_all` do not work with DatabaseCleaner's deletion strategy. This includes migration specs, Rake task specs, and specs that have the `:delete` RSpec metadata tag.
+For more information, see [issue 420379](https://gitlab.com/gitlab-org/gitlab/-/issues/420379).
+
 In some cases, there is no need to recreate the same object for tests
 again for each example. For example, a project and a guest of that project
 are needed to test issues on the same project, so one project and user are enough for the entire file.
@@ -865,8 +981,6 @@ it 'is overdue' do
   travel_to(3.days.from_now) do
     expect(issue).to be_overdue
   end
-
-  travel_back # Returns the current time back to its original state
 end
 ```
 
@@ -892,7 +1006,7 @@ describe 'specs which require time to be frozen to a specific date and/or time',
 end
 ```
 
-[Under the hood](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/support/time_travel.rb), these helpers use the `around(:each)` hook and the block syntax of the
+[Under the hood](https://gitlab.com/gitlab-org/gitlab/-/blob/master/gems/gitlab-rspec/lib/gitlab/rspec/configurations/time_travel.rb), these helpers use the `around(:each)` hook and the block syntax of the
 [`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/classes/ActiveSupport/Testing/TimeHelpers.html)
 methods:
 
@@ -905,6 +1019,71 @@ around(:each) do |example|
   travel_to(date_or_time) { example.run }
 end
 ```
+
+Remember that any objects created before the examples run (such as objects created via `let_it_be`) will be outside spec scope.
+If the time for everything needs to be frozen, `before :all` can be used to encapsulate the setup as well.
+
+```ruby
+before :all do
+  freeze_time
+end
+
+after :all do
+  unfreeze_time
+end
+```
+
+#### Timestamp truncation
+
+Active Record timestamps are [set by the Rails’ `ActiveRecord::Timestamp`](https://github.com/rails/rails/blob/1eb5cc13a2ed8922b47df4ae47faf5f23faf3d35/activerecord/lib/active_record/timestamp.rb#L105)
+module [using `Time.now`](https://github.com/rails/rails/blob/1eb5cc13a2ed8922b47df4ae47faf5f23faf3d35/activerecord/lib/active_record/timestamp.rb#L78).
+Time precision is [OS-dependent](https://ruby-doc.org/core-2.6.3/Time.html#method-c-new),
+and as the docs state, may include fractional seconds.
+
+When Rails models are saved to the database,
+any timestamps they have are stored using a type in PostgreSQL called `timestamp without time zone`,
+which has microsecond resolution—i.e., six digits after the decimal.
+So if `1577987974.6472975` is sent to PostgreSQL,
+it truncates the last digit of the fractional part and instead saves `1577987974.647297`.
+
+The results of this can be a simple test like:
+
+```ruby
+let_it_be(:contact) { create(:contact) }
+
+data = Gitlab::HookData::IssueBuilder.new(issue).build
+
+expect(data).to include('customer_relations_contacts' => [contact.hook_attrs])
+```
+
+Failing with an error along the lines of:
+
+```shell
+expected {
+"assignee_id" => nil, "...1 +0000 } to include {"customer_relations_contacts" => [{:created_at => "2023-08-04T13:30:20Z", :first_name => "Sidney Jones3" }]}
+
+Diff:
+       @@ -1,35 +1,69 @@
+       -"customer_relations_contacts" => [{:created_at=>"2023-08-04T13:30:20Z", :first_name=>"Sidney Jones3" }],
+       +"customer_relations_contacts" => [{"created_at"=>2023-08-04 13:30:20.245964000 +0000, "first_name"=>"Sidney Jones3" }],
+```
+
+The fix is to ensure we `.reload` the object from the database to get the timestamp with correct precision:
+
+```ruby
+let_it_be(:contact) { create(:contact) }
+
+data = Gitlab::HookData::IssueBuilder.new(issue).build
+
+expect(data).to include('customer_relations_contacts' => [contact.reload.hook_attrs])
+```
+
+This explanation was taken from [a blog post](https://www.toptal.com/ruby-on-rails/timestamp-truncation-rails-activerecord-tale)
+by Maciek Rząsa.
+
+You can see a [merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/126530#note_1500580985)
+where this problem arose and the [backend pairing session](https://www.youtube.com/watch?v=nMCjEeuYFDA)
+where it was discussed.
 
 ### Feature flags in tests
 
@@ -1015,7 +1194,7 @@ a single test triggers the rate limit, the `:disable_rate_limit` can be used ins
 #### Stubbing File methods
 
 In the situations where you need to
-[stub](https://relishapp.com/rspec/rspec-mocks/v/3-9/docs/basics/allowing-messages)
+[stub](https://rspec.info/features/3-12/rspec-mocks/basics/allowing-messages/)
 methods such as `File.read`, make sure to:
 
 1. Stub `File.read` for only the file path you are interested in.
@@ -1047,7 +1226,7 @@ specs, so created repositories accumulate in this directory over the
 lifetime of the process. Deleting them is expensive, but this could lead to
 pollution unless carefully managed.
 
-To avoid this, [hashed storage](../../administration/repository_storage_types.md)
+To avoid this, [hashed storage](../../administration/repository_storage_paths.md)
 is enabled in the test suite. This means that repositories are given a unique
 path that depends on their project's ID. Because the project IDs are not reset
 between specs, each spec gets its own repository on disk,
@@ -1115,8 +1294,17 @@ variables example can be used, but avoid this if at all possible.
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/61171) in GitLab 14.0.
 
 Specs that require Elasticsearch must be marked with the `:elastic` trait. This
-creates and deletes indices between examples to ensure a clean index, so that there is no room
-for polluting the tests with nonessential data.
+creates and deletes indices before and after all examples.
+
+The `:elastic_delete_by_query` trait was added to reduce runtime for pipelines by creating and deleting indices at the
+start and end of each context only. The [Elasticsearch delete by query API](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html)
+is used to delete data in all indices between examples to ensure a clean index.
+
+The `:elastic_clean` trait creates and deletes indices between examples to ensure a clean index. This way, tests are not
+polluted with non-essential data. If using the `:elastic` or `:elastic_delete_by_query` trait
+is causing issues, use `:elastic_clean` instead. `:elastic_clean` is significantly slower than the other traits
+and should be used sparingly.
+
 Most tests for Elasticsearch logic relate to:
 
 - Creating data in PostgreSQL and waiting for it to be indexed in Elasticsearch.
@@ -1125,11 +1313,8 @@ Most tests for Elasticsearch logic relate to:
 
 There are some exceptions, such as checking for structural changes rather than individual records in an index.
 
-The `:elastic_delete_by_query` trait was added to reduce run time for pipelines by creating and deleting indices
-at the start and end of each context only. The [Elasticsearch DeleteByQuery API](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html)
-is used to delete data in all indices in between examples to ensure a clean index.
-
-Note that Elasticsearch indexing uses [`Gitlab::Redis::SharedState`](../../../ee/development/redis.md#gitlabrediscachesharedstatequeues).
+NOTE:
+Elasticsearch indexing uses [`Gitlab::Redis::SharedState`](../../../ee/development/redis.md#gitlabrediscachesharedstatequeues).
 Therefore, the Elasticsearch traits dynamically use the `:clean_gitlab_redis_shared_state` trait.
 You do not need to add `:clean_gitlab_redis_shared_state` manually.
 
@@ -1191,10 +1376,16 @@ When you want to ensure that no event got called, you can use `expect_no_snowplo
     it 'does not track any snowplow events' do
       get :show
 
-      expect_no_snowplow_event
+      expect_no_snowplow_event(category: described_class.name, action: 'some_action')
     end
   end
 ```
+
+Even though `category` and `action` can be omitted, you should at least
+specify a `category` to avoid flaky tests. For example,
+`Users::ActivityService` may track a Snowplow event after an API
+request, and `expect_no_snowplow_event` will fail if that happens to run
+when no arguments are specified.
 
 #### Test Snowplow context against the schema
 
@@ -1254,6 +1445,19 @@ describe "#==" do
 end
 ```
 
+If, after creating a table-based test, you see an error that looks like this:
+
+```ruby
+NoMethodError:
+  undefined method `to_params'
+
+  param_sets = extracted.is_a?(Array) ? extracted : extracted.to_params
+                                                                       ^^^^^^^^^^
+  Did you mean?  to_param
+```
+
+That indicates that you need to include the line `using RSpec::Parameterized::TableSyntax` in the spec file.
+
 <!-- vale gitlab.Spelling = NO -->
 
 WARNING:
@@ -1279,14 +1483,40 @@ they apply to multiple type of specs.
 #### `be_like_time`
 
 Time returned from a database can differ in precision from time objects
-in Ruby, so we need flexible tolerances when comparing in specs. We can
-use `be_like_time` to compare that times are within one second of each
-other.
+in Ruby, so we need flexible tolerances when comparing in specs.
+
+The PostgreSQL time and timestamp types
+have [the resolution of 1 microsecond](https://www.postgresql.org/docs/current/datatype-datetime.html).
+However, the precision of Ruby `Time` can vary [depending on the OS.](https://blog.paulswartz.net/post/142749676062/ruby-time-precision-os-x-vs-linux)
+
+Consider the following snippet:
+
+```ruby
+project = create(:project)
+
+expect(project.created_at).to eq(Project.find(project.id).created_at)
+```
+
+On Linux, `Time` can have the maximum precision of 9 and
+`project.created_at` has a value (like `2023-04-28 05:53:30.808033064`) with the same precision.
+However, the actual value `created_at` (like `2023-04-28 05:53:30.808033`) stored to and loaded from the database
+doesn't have the same precision, and the match would fail.
+On macOS X, the precision of `Time` matches that of the PostgreSQL timestamp type
+ and the match could succeed.
+
+To avoid the issue, we can use `be_like_time` or `be_within` to compare
+that times are within one second of each other.
 
 Example:
 
 ```ruby
 expect(metrics.merged_at).to be_like_time(time)
+```
+
+Example for `be_within`:
+
+```ruby
+expect(violation.reload.merged_at).to be_within(0.00001.seconds).of(merge_request.merged_at)
 ```
 
 #### `have_gitlab_http_status`
@@ -1406,19 +1636,17 @@ under `spec/support/helpers/`. Helpers can be placed in a subfolder if they appl
 to a certain type of specs only (such as features or requests) but shouldn't be
 if they apply to multiple type of specs.
 
-Helpers should follow the Rails naming / namespacing convention. For instance
-`spec/support/helpers/cycle_analytics_helpers.rb` should define:
+Helpers should follow the Rails naming / namespacing convention, where
+`spec/support/helpers/` is the root. For instance
+`spec/support/helpers/features/iteration_helpers.rb` should define:
 
 ```ruby
-module Spec
-  module Support
-    module Helpers
-      module CycleAnalyticsHelpers
-        def create_commit_referencing_issue(issue, branch_name: random_git_name)
-          project.repository.add_branch(user, branch_name, 'main')
-          create_commit("Commit for ##{issue.iid}", issue.project, user, branch_name)
-        end
-      end
+# frozen_string_literal: true
+
+module Features
+  module IterationHelpers
+    def iteration_period(iteration)
+      "#{iteration.start_date.to_fs(:medium)} - #{iteration.due_date.to_fs(:medium)}"
     end
   end
 end
@@ -1428,8 +1656,14 @@ Helpers should not change the RSpec configuration. For instance, the helpers mod
 described above should not include:
 
 ```ruby
+# bad
 RSpec.configure do |config|
-  config.include Spec::Support::Helpers::CycleAnalyticsHelpers
+  config.include Features::IterationHelpers
+end
+
+# good, include in specific spec
+RSpec.describe 'Issue Sidebar', feature_category: :team_planning do
+  include Features::IterationHelpers
 end
 ```
 

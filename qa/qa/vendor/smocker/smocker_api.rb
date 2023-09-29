@@ -44,7 +44,7 @@ module QA
         #
         # @param wait [Integer] wait duration for smocker readiness
         def wait_for_ready(wait: 10)
-          Support::Waiter.wait_until(max_duration: wait, reload_page: false, raise_on_failure: true) do
+          Support::Waiter.wait_until(max_duration: wait, sleep_interval: 1, log: false) do
             ready?
           end
         end
@@ -111,6 +111,25 @@ module QA
           body.map do |entry|
             HistoryResponse.new(entry)
           end
+        end
+
+        # Fetch session verify response
+        #
+        # @param [String] session_name
+        # @return [VerifyResponse]
+        def verify(session_name = nil)
+          payload = { session: session_name ? get_session_id(session_name) : nil }
+          response = post("#{admin_url}/sessions/verify", payload)
+
+          VerifyResponse.new(parse_body(response))
+        end
+
+        # Returns a stringfied version of the Smocker history
+        #
+        # @param session_name [String] the session name for the mock
+        # @return [String] stringified event payloads
+        def stringified_history(session_name = nil)
+          history(session_name).map(&:payload).join("\n")
         end
 
         private

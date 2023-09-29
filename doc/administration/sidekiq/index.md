@@ -9,7 +9,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 You can configure an external Sidekiq instance by using the Sidekiq that's bundled in the GitLab package. Sidekiq requires connection to the Redis,
 PostgreSQL, and Gitaly instances.
 
-## Configure TCP access for PostgreSQL, Gitaly, and Redis
+## Configure TCP access for PostgreSQL, Gitaly, and Redis on the GitLab instance
 
 By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. To change this:
 
@@ -32,11 +32,19 @@ By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. T
 
    ## Gitaly
 
-   # Make Gitaly accept connections on all network interfaces
-   gitaly['listen_addr'] = "0.0.0.0:8075"
-   ## Set up the Gitaly token as a form of authentication since you are accessing Gitaly over the network
-   ## https://docs.gitlab.com/ee/administration/gitaly/configure_gitaly.html#about-the-gitaly-token
-   gitaly['auth_token'] = 'abc123secret'
+   gitaly['configuration'] = {
+      # ...
+      #
+      # Make Gitaly accept connections on all network interfaces
+      listen_addr: '0.0.0.0:8075',
+      auth: {
+         ## Set up the Gitaly token as a form of authentication since you are accessing Gitaly over the network
+         ## https://docs.gitlab.com/ee/administration/gitaly/configure_gitaly.html#about-the-gitaly-token
+         token: 'abc123secret',
+      },
+   }
+
+   gitaly['auth_token'] = ''
    praefect['configuration'][:auth][:token] = 'abc123secret'
    gitlab_rails['gitaly_token'] = 'abc123secret'
 
@@ -48,7 +56,6 @@ By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. T
    redis['password'] = 'redis-password-goes-here'
    gitlab_rails['redis_password'] = 'redis-password-goes-here'
 
-   gitlab_rails['auto_migrate'] = false
    ```
 
 1. Run `reconfigure`:
@@ -63,18 +70,6 @@ By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. T
    sudo gitlab-ctl restart postgresql
    ```
 
-1. After the restart, set `auto_migrate` to `true` or comment to use the default settings:
-
-   ```ruby
-   gitlab_rails['auto_migrate'] = true
-   ```
-
-1. Run `reconfigure` again:
-
-   ```shell
-   sudo gitlab-ctl reconfigure
-   ```
-
 ## Set up Sidekiq instance
 
 1. SSH into the Sidekiq server.
@@ -87,7 +82,7 @@ By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. T
    telnet <GitLab host> 6379 # Redis
    ```
 
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab package
+1. [Download and install](https://about.gitlab.com/install/) the Linux package
    using steps 1 and 2. **Do not complete any other steps.**
 
 1. Copy the `/etc/gitlab/gitlab.rb` file from the GitLab instance and add the following settings. Make sure
@@ -170,7 +165,7 @@ Updates to example must be made at:
 
    # Replace <database_host> and <database_password>
    gitlab_rails['db_host'] = '<database_host>'
-   gitlab_rails['db_port'] = '5432'
+   gitlab_rails['db_port'] = 5432
    gitlab_rails['db_password'] = '<database_password>'
    ## Prevent database migrations from running on upgrade automatically
    gitlab_rails['auto_migrate'] = false
@@ -232,7 +227,6 @@ node than Sidekiq, follow the steps below.
 1. Edit `/etc/gitlab/gitlab.rb`, and configure the registry URL:
 
    ```ruby
-   registry_external_url 'https://registry.example.com'
    gitlab_rails['registry_api_url'] = "https://registry.example.com"
    ```
 
@@ -257,7 +251,7 @@ To configure the metrics server:
    ```ruby
    sidekiq['metrics_enabled'] = true
    sidekiq['listen_address'] = "localhost"
-   sidekiq['listen_port'] = "8082"
+   sidekiq['listen_port'] = 8082
 
    # Optionally log all the metrics server logs to log/sidekiq_exporter.log
    sidekiq['exporter_log_enabled'] = true
@@ -283,7 +277,7 @@ To serve metrics via HTTPS instead of HTTP, enable TLS in the exporter settings:
    sidekiq['exporter_tls_key_path'] = "/path/to/private-key.pem"
    ```
 
-1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation)
    for the changes to take effect.
 
 When TLS is enabled, the same `port` and `address` are used as described above.
@@ -299,7 +293,7 @@ To make health checks available from `localhost:8092`:
    ```ruby
    sidekiq['health_checks_enabled'] = true
    sidekiq['health_checks_listen_address'] = "localhost"
-   sidekiq['health_checks_listen_port'] = "8092"
+   sidekiq['health_checks_listen_port'] = 8092
    ```
 
 1. Reconfigure GitLab:
@@ -325,7 +319,7 @@ To enable LDAP with the synchronization worker for Sidekiq:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
-    ```ruby
+   ```ruby
    gitlab_rails['ldap_enabled'] = true
    gitlab_rails['prevent_ldap_sign_in'] = false
    gitlab_rails['ldap_servers'] = {
@@ -388,7 +382,7 @@ blocking all jobs on that worker from proceeding. If Rugged calls performed by S
 background task processing.
 
 By default, Rugged is used when Git repository data is stored on local storage or on an NFS mount.
-[Using Rugged is recommended when using NFS](../nfs.md#improving-nfs-performance-with-gitlab), but if
+Using Rugged is recommended when using NFS, but if
 you are using local storage, disabling Rugged can improve Sidekiq performance:
 
 ```shell

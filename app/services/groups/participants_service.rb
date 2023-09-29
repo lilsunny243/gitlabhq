@@ -2,6 +2,7 @@
 
 module Groups
   class ParticipantsService < Groups::BaseService
+    include Gitlab::Utils::StrongMemoize
     include Users::ParticipableService
 
     def execute(noteable)
@@ -12,20 +13,23 @@ module Groups
         participants_in_noteable +
         all_members +
         groups +
-        group_members
+        group_hierarchy_users
 
       render_participants_as_hash(participants.uniq)
     end
 
+    private
+
     def all_members
-      count = group_members.count
-      [{ username: "all", name: "All Group Members", count: count }]
+      return [] if group.nil? || Feature.enabled?(:disable_all_mention)
+
+      [{ username: "all", name: "All Group Members", count: group.users_count }]
     end
 
-    def group_members
+    def group_hierarchy_users
       return [] unless group
 
-      @group_members ||= sorted(group.direct_and_indirect_users)
+      sorted(Autocomplete::GroupUsersFinder.new(group: group).execute)
     end
   end
 end

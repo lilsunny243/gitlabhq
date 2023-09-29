@@ -3,32 +3,67 @@ import Vue from 'vue';
 import { GlCollapse, GlIcon } from '@gitlab/ui';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { mountExtended, extendedWrapper } from 'helpers/vue_test_utils_helper';
+import waitForPromises from 'helpers/wait_for_promises';
 import { stubTransition } from 'helpers/stub_transition';
 import { formatDate, getTimeago } from '~/lib/utils/datetime_utility';
 import { __, s__, sprintf } from '~/locale';
 import EnvironmentItem from '~/environments/components/new_environment_item.vue';
+import EnvironmentActions from '~/environments/components/environment_actions.vue';
 import Deployment from '~/environments/components/deployment.vue';
 import DeployBoardWrapper from '~/environments/components/deploy_board_wrapper.vue';
-import { resolvedEnvironment, rolloutStatus } from './graphql/mock_data';
+import KubernetesOverview from '~/environments/components/kubernetes_overview.vue';
+import getEnvironmentClusterAgent from '~/environments/graphql/queries/environment_cluster_agent.query.graphql';
+import {
+  resolvedEnvironment,
+  rolloutStatus,
+  agent,
+  fluxResourcePathMock,
+} from './graphql/mock_data';
+import { mockKasTunnelUrl } from './mock_data';
 
 Vue.use(VueApollo);
 
 describe('~/environments/components/new_environment_item.vue', () => {
   let wrapper;
+  let queryResponseHandler;
 
-  const createApolloProvider = () => {
-    return createMockApollo();
+  const projectPath = '/1';
+
+  const createApolloProvider = (clusterAgent = null) => {
+    const response = {
+      data: {
+        project: {
+          id: '1',
+          environment: {
+            id: '1',
+            kubernetesNamespace: 'default',
+            fluxResourcePath: fluxResourcePathMock,
+            clusterAgent,
+          },
+        },
+      },
+    };
+    queryResponseHandler = jest.fn().mockResolvedValue(response);
+    return createMockApollo([[getEnvironmentClusterAgent, queryResponseHandler]]);
   };
 
-  const createWrapper = ({ propsData = {}, apolloProvider } = {}) =>
+  const createWrapper = ({ propsData = {}, provideData = {}, apolloProvider } = {}) =>
     mountExtended(EnvironmentItem, {
       apolloProvider,
       propsData: { environment: resolvedEnvironment, ...propsData },
-      provide: { helpPagePath: '/help', projectId: '1', projectPath: '/1' },
+      provide: {
+        helpPagePath: '/help',
+        projectId: '1',
+        projectPath,
+        kasTunnelUrl: mockKasTunnelUrl,
+        ...provideData,
+      },
       stubs: { transition: stubTransition() },
     });
 
   const findDeployment = () => wrapper.findComponent(Deployment);
+  const findActions = () => wrapper.findComponent(EnvironmentActions);
+  const findKubernetesOverview = () => wrapper.findComponent(KubernetesOverview);
 
   const expandCollapsedSection = async () => {
     const button = wrapper.findByRole('button', { name: __('Expand') });
@@ -36,10 +71,6 @@ describe('~/environments/components/new_environment_item.vue', () => {
 
     return button;
   };
-
-  afterEach(() => {
-    wrapper?.destroy();
-  });
 
   it('displays the name when not in a folder', () => {
     wrapper = createWrapper({ apolloProvider: createApolloProvider() });
@@ -126,9 +157,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
     it('shows a dropdown if there are actions to perform', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-      const actions = wrapper.findByRole('button', { name: __('Deploy to...') });
-
-      expect(actions.exists()).toBe(true);
+      expect(findActions().exists()).toBe(true);
     });
 
     it('does not show a dropdown if there are no actions to perform', () => {
@@ -142,22 +171,20 @@ describe('~/environments/components/new_environment_item.vue', () => {
         },
       });
 
-      const actions = wrapper.findByRole('button', { name: __('Deploy to...') });
-
-      expect(actions.exists()).toBe(false);
+      expect(findActions().exists()).toBe(false);
     });
 
     it('passes all the actions down to the action component', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-      const action = wrapper.findByRole('menuitem', { name: 'deploy-staging' });
-
-      expect(action.exists()).toBe(true);
+      expect(findActions().props('actions')).toMatchObject(
+        resolvedEnvironment.lastDeployment.manualActions,
+      );
     });
   });
 
   describe('stop', () => {
-    it('shows a buton to stop the environment if the environment is available', () => {
+    it('shows a button to stop the environment if the environment is available', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
       const stop = wrapper.findByRole('button', { name: s__('Environments|Stop environment') });
@@ -165,7 +192,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
       expect(stop.exists()).toBe(true);
     });
 
-    it('does not show a buton to stop the environment if the environment is stopped', () => {
+    it('does not show a button to stop the environment if the environment is stopped', () => {
       wrapper = createWrapper({
         propsData: { environment: { ...resolvedEnvironment, canStop: false } },
         apolloProvider: createApolloProvider(),
@@ -181,7 +208,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
     it('shows the option to rollback/re-deploy if available', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-      const rollback = wrapper.findByRole('menuitem', {
+      const rollback = wrapper.findByRole('button', {
         name: s__('Environments|Re-deploy to environment'),
       });
 
@@ -194,7 +221,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
         apolloProvider: createApolloProvider(),
       });
 
-      const rollback = wrapper.findByRole('menuitem', {
+      const rollback = wrapper.findByRole('button', {
         name: s__('Environments|Re-deploy to environment'),
       });
 
@@ -220,7 +247,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
       });
 
       it('shows the option to pin the environment if there is an autostop date', () => {
-        const pin = wrapper.findByRole('menuitem', { name: __('Prevent auto-stopping') });
+        const pin = wrapper.findByRole('button', { name: __('Prevent auto-stopping') });
 
         expect(pin.exists()).toBe(true);
       });
@@ -240,7 +267,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
       it('does not show the option to pin the environment if there is no autostop date', () => {
         wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-        const pin = wrapper.findByRole('menuitem', { name: __('Prevent auto-stopping') });
+        const pin = wrapper.findByRole('button', { name: __('Prevent auto-stopping') });
 
         expect(pin.exists()).toBe(false);
       });
@@ -275,7 +302,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
       it('does not show the option to pin the environment if there is no autostop date', () => {
         wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-        const pin = wrapper.findByRole('menuitem', { name: __('Prevent auto-stopping') });
+        const pin = wrapper.findByRole('button', { name: __('Prevent auto-stopping') });
 
         expect(pin.exists()).toBe(false);
       });
@@ -292,26 +319,6 @@ describe('~/environments/components/new_environment_item.vue', () => {
     });
   });
 
-  describe('monitoring', () => {
-    it('shows the link to monitoring if metrics are set up', () => {
-      wrapper = createWrapper({
-        propsData: { environment: { ...resolvedEnvironment, metricsPath: '/metrics' } },
-        apolloProvider: createApolloProvider(),
-      });
-
-      const rollback = wrapper.findByRole('menuitem', { name: __('Monitoring') });
-
-      expect(rollback.exists()).toBe(true);
-    });
-
-    it('does not show the link to monitoring if metrics are not set up', () => {
-      wrapper = createWrapper({ apolloProvider: createApolloProvider() });
-
-      const rollback = wrapper.findByRole('menuitem', { name: __('Monitoring') });
-
-      expect(rollback.exists()).toBe(false);
-    });
-  });
   describe('terminal', () => {
     it('shows the link to the terminal if set up', () => {
       wrapper = createWrapper({
@@ -319,17 +326,17 @@ describe('~/environments/components/new_environment_item.vue', () => {
         apolloProvider: createApolloProvider(),
       });
 
-      const rollback = wrapper.findByRole('menuitem', { name: __('Terminal') });
+      const terminal = wrapper.findByRole('link', { name: __('Terminal') });
 
-      expect(rollback.exists()).toBe(true);
+      expect(terminal.exists()).toBe(true);
     });
 
     it('does not show the link to the terminal if not set up', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-      const rollback = wrapper.findByRole('menuitem', { name: __('Terminal') });
+      const terminal = wrapper.findByRole('link', { name: __('Terminal') });
 
-      expect(rollback.exists()).toBe(false);
+      expect(terminal.exists()).toBe(false);
     });
   });
 
@@ -342,21 +349,21 @@ describe('~/environments/components/new_environment_item.vue', () => {
         apolloProvider: createApolloProvider(),
       });
 
-      const rollback = wrapper.findByRole('menuitem', {
+      const deleteTrigger = wrapper.findByRole('button', {
         name: s__('Environments|Delete environment'),
       });
 
-      expect(rollback.exists()).toBe(true);
+      expect(deleteTrigger.exists()).toBe(true);
     });
 
     it('does not show the button to delete the environment if not possible', () => {
       wrapper = createWrapper({ apolloProvider: createApolloProvider() });
 
-      const rollback = wrapper.findByRole('menuitem', {
+      const deleteTrigger = wrapper.findByRole('button', {
         name: s__('Environments|Delete environment'),
       });
 
-      expect(rollback.exists()).toBe(false);
+      expect(deleteTrigger.exists()).toBe(false);
     });
   });
 
@@ -384,6 +391,7 @@ describe('~/environments/components/new_environment_item.vue', () => {
       const button = await expandCollapsedSection();
 
       expect(button.attributes('aria-label')).toBe(__('Collapse'));
+      expect(button.props('category')).toBe('secondary');
       expect(collapse.attributes('visible')).toBe('visible');
       expect(icon.props('name')).toBe('chevron-lg-down');
       expect(environmentName.classes('gl-font-weight-bold')).toBe(true);
@@ -513,6 +521,66 @@ describe('~/environments/components/new_environment_item.vue', () => {
 
       const deployBoard = wrapper.findComponent(DeployBoardWrapper);
       expect(deployBoard.exists()).toBe(false);
+    });
+  });
+
+  describe('kubernetes overview', () => {
+    it('should request agent data when the environment is visible', async () => {
+      wrapper = createWrapper({
+        propsData: { environment: resolvedEnvironment },
+        apolloProvider: createApolloProvider(agent),
+      });
+
+      await expandCollapsedSection();
+
+      expect(queryResponseHandler).toHaveBeenCalledWith({
+        environmentName: resolvedEnvironment.name,
+        projectFullPath: projectPath,
+      });
+    });
+
+    it('should render if the environment has an agent associated', async () => {
+      wrapper = createWrapper({
+        propsData: { environment: resolvedEnvironment },
+        apolloProvider: createApolloProvider(agent),
+      });
+
+      await expandCollapsedSection();
+      await waitForPromises();
+
+      expect(findKubernetesOverview().props()).toMatchObject({
+        clusterAgent: agent,
+        environmentName: resolvedEnvironment.name,
+      });
+    });
+
+    it('should render with the namespace if the environment has an agent associated', async () => {
+      wrapper = createWrapper({
+        propsData: { environment: resolvedEnvironment },
+        apolloProvider: createApolloProvider(agent),
+      });
+
+      await expandCollapsedSection();
+      await waitForPromises();
+
+      expect(findKubernetesOverview().props()).toEqual({
+        clusterAgent: agent,
+        environmentName: resolvedEnvironment.name,
+        namespace: 'default',
+        fluxResourcePath: fluxResourcePathMock,
+      });
+    });
+
+    it('should not render if the environment has no agent object', async () => {
+      wrapper = createWrapper({
+        propsData: { environment: resolvedEnvironment },
+        apolloProvider: createApolloProvider(),
+      });
+
+      await expandCollapsedSection();
+      await waitForPromises();
+
+      expect(findKubernetesOverview().exists()).toBe(false);
     });
   });
 });

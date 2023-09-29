@@ -25,7 +25,7 @@ RSpec.describe JSONWebToken::HMACToken do
   end
 
   describe '.decode' do
-    let(:leeway) { described_class::IAT_LEEWAY }
+    let(:leeway) { described_class::LEEWAY }
     let(:decoded_token) { described_class.decode(encoded_token, secret, leeway: leeway) }
 
     context 'with an invalid token' do
@@ -50,8 +50,8 @@ RSpec.describe JSONWebToken::HMACToken do
       context 'that was generated using a different secret' do
         let(:encoded_token) { described_class.new('some other secret').encoded }
 
-        it "raises exception saying 'Signature verification raised" do
-          expect { decoded_token }.to raise_error(JWT::VerificationError, 'Signature verification raised')
+        it "raises exception saying 'Signature verification failed" do
+          expect { decoded_token }.to raise_error(JWT::VerificationError, 'Signature verification failed')
         end
       end
 

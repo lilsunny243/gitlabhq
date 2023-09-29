@@ -14,13 +14,11 @@ import AccessDropdown, { i18n } from '~/projects/settings/components/access_drop
 import { ACCESS_LEVELS, LEVEL_TYPES } from '~/projects/settings/constants';
 
 jest.mock('~/projects/settings/api/access_dropdown_api', () => ({
-  getGroups: jest.fn().mockResolvedValue({
-    data: [
-      { id: 4, name: 'group4' },
-      { id: 5, name: 'group5' },
-      { id: 6, name: 'group6' },
-    ],
-  }),
+  getGroups: jest.fn().mockResolvedValue([
+    { id: 4, name: 'group4' },
+    { id: 5, name: 'group5' },
+    { id: 6, name: 'group6' },
+  ]),
   getUsers: jest.fn().mockResolvedValue({
     data: [
       { id: 7, name: 'user7' },
@@ -50,6 +48,7 @@ jest.mock('~/projects/settings/api/access_dropdown_api', () => ({
 
 describe('Access Level Dropdown', () => {
   let wrapper;
+  const defaultToggleClass = 'gl-text-gray-500!';
   const mockAccessLevelsData = [
     {
       id: 1,
@@ -62,6 +61,10 @@ describe('Access Level Dropdown', () => {
     {
       id: 3,
       text: 'role3',
+    },
+    {
+      id: 0,
+      text: 'No one',
     },
   ];
 
@@ -89,18 +92,18 @@ describe('Access Level Dropdown', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   const findDropdown = () => wrapper.findComponent(GlDropdown);
   const findDropdownToggleLabel = () => findDropdown().props('text');
   const findAllDropdownItems = () => findDropdown().findAllComponents(GlDropdownItem);
   const findAllDropdownHeaders = () => findDropdown().findAllComponents(GlDropdownSectionHeader);
   const findSearchBox = () => wrapper.findComponent(GlSearchBoxByType);
+  const findDeployKeyDropdownItem = () => wrapper.findByTestId('deploy_key-dropdown-item');
 
   const findDropdownItemWithText = (items, text) =>
     items.filter((item) => item.text().includes(text)).at(0);
+
+  const findSelected = (type) =>
+    wrapper.findAllByTestId(`${type}-dropdown-item`).filter((w) => w.props('isChecked'));
 
   describe('data request', () => {
     it('should make an api call for users, groups && deployKeys when user has a license', () => {
@@ -140,8 +143,23 @@ describe('Access Level Dropdown', () => {
     });
 
     it('renders dropdown item for each access level type', () => {
-      expect(findAllDropdownItems()).toHaveLength(12);
+      expect(findAllDropdownItems()).toHaveLength(13);
     });
+
+    it.each`
+      accessLevel             | shouldRenderDeployKeyItems
+      ${ACCESS_LEVELS.PUSH}   | ${true}
+      ${ACCESS_LEVELS.CREATE} | ${true}
+      ${ACCESS_LEVELS.MERGE}  | ${false}
+    `(
+      'conditionally renders deploy keys based on access levels',
+      async ({ accessLevel, shouldRenderDeployKeyItems }) => {
+        createComponent({ accessLevel });
+        await waitForPromises();
+
+        expect(findDeployKeyDropdownItem().exists()).toBe(shouldRenderDeployKeyItems);
+      },
+    );
   });
 
   describe('toggleLabel', () => {
@@ -162,26 +180,26 @@ describe('Access Level Dropdown', () => {
       const customLabel = 'Set the access level';
       createComponent({ label: customLabel });
       expect(findDropdownToggleLabel()).toBe(customLabel);
-      expect(findDropdown().props('toggleClass')).toBe('gl-text-gray-500!');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(true);
     });
 
     it('when no items selected, displays a default fallback label and has default CSS class', () => {
-      expect(findDropdownToggleLabel()).toBe(i18n.selectUsers);
-      expect(findDropdown().props('toggleClass')).toBe('gl-text-gray-500!');
+      expect(findDropdownToggleLabel()).toBe(i18n.defaultLabel);
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(true);
     });
 
-    it('displays a number of selected items for each group level', async () => {
+    it('displays selected items for each group level', async () => {
       dropdownItems.wrappers.forEach((item) => {
         item.trigger('click');
       });
       await nextTick();
-      expect(findDropdownToggleLabel()).toBe('3 roles, 3 users, 3 deploy keys, 3 groups');
+      expect(findDropdownToggleLabel()).toBe('No role, 3 users, 3 deploy keys, 3 groups');
     });
 
     it('with only role selected displays the role name and has no class applied', async () => {
       await findItemByNameAndClick('role1');
       expect(findDropdownToggleLabel()).toBe('role1');
-      expect(findDropdown().props('toggleClass')).toBe('');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(false);
     });
 
     it('with only groups selected displays the number of selected groups', async () => {
@@ -189,14 +207,14 @@ describe('Access Level Dropdown', () => {
       await findItemByNameAndClick('group5');
       await findItemByNameAndClick('group6');
       expect(findDropdownToggleLabel()).toBe('3 groups');
-      expect(findDropdown().props('toggleClass')).toBe('');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(false);
     });
 
     it('with only users selected displays the number of selected users', async () => {
       await findItemByNameAndClick('user7');
       await findItemByNameAndClick('user8');
       expect(findDropdownToggleLabel()).toBe('2 users');
-      expect(findDropdown().props('toggleClass')).toBe('');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(false);
     });
 
     it('with users and groups selected displays the number of selected users & groups', async () => {
@@ -205,7 +223,7 @@ describe('Access Level Dropdown', () => {
       await findItemByNameAndClick('user7');
       await findItemByNameAndClick('user9');
       expect(findDropdownToggleLabel()).toBe('2 users, 2 groups');
-      expect(findDropdown().props('toggleClass')).toBe('');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(false);
     });
 
     it('with users and deploy keys selected displays the number of selected users & keys', async () => {
@@ -213,7 +231,7 @@ describe('Access Level Dropdown', () => {
       await findItemByNameAndClick('key10');
       await findItemByNameAndClick('key11');
       expect(findDropdownToggleLabel()).toBe('1 user, 2 deploy keys');
-      expect(findDropdown().props('toggleClass')).toBe('');
+      expect(findDropdown().props('toggleClass')[defaultToggleClass]).toBe(false);
     });
   });
 
@@ -293,9 +311,6 @@ describe('Access Level Dropdown', () => {
       { id: 122, type: 'deploy_key', deploy_key_id: 12 },
     ];
 
-    const findSelected = (type) =>
-      wrapper.findAllByTestId(`${type}-dropdown-item`).filter((w) => w.props('isChecked'));
-
     beforeEach(async () => {
       createComponent({ preselectedItems });
       await waitForPromises();
@@ -327,6 +342,34 @@ describe('Access Level Dropdown', () => {
     });
   });
 
+  describe('handling two-way data binding', () => {
+    it('emits a formatted update on selection', async () => {
+      createComponent();
+      await waitForPromises();
+      const dropdownItems = findAllDropdownItems();
+      // select new item from each group
+      findDropdownItemWithText(dropdownItems, 'role1').trigger('click');
+      findDropdownItemWithText(dropdownItems, 'group4').trigger('click');
+      findDropdownItemWithText(dropdownItems, 'user7').trigger('click');
+      findDropdownItemWithText(dropdownItems, 'key10').trigger('click');
+
+      await wrapper.setProps({ items: [{ user_id: 7 }] });
+
+      const selectedUsers = findSelected(LEVEL_TYPES.USER);
+      expect(selectedUsers).toHaveLength(1);
+      expect(selectedUsers.at(0).text()).toBe('user7');
+
+      const selectedRoles = findSelected(LEVEL_TYPES.ROLE);
+      expect(selectedRoles).toHaveLength(0);
+
+      const selectedGroups = findSelected(LEVEL_TYPES.GROUP);
+      expect(selectedGroups).toHaveLength(0);
+
+      const selectedDeployKeys = findSelected(LEVEL_TYPES.DEPLOY_KEY);
+      expect(selectedDeployKeys).toHaveLength(0);
+    });
+  });
+
   describe('on dropdown open', () => {
     beforeEach(() => {
       createComponent();
@@ -351,6 +394,22 @@ describe('Access Level Dropdown', () => {
 
       findDropdown().vm.$emit('hidden');
       expect(wrapper.emitted('hidden')[0][0]).toStrictEqual([{ access_level: 2 }]);
+    });
+  });
+
+  describe('when no license and accessLevel is MERGE', () => {
+    beforeEach(async () => {
+      createComponent({ hasLicense: false, accessLevel: ACCESS_LEVELS.MERGE });
+      await waitForPromises();
+    });
+
+    it('dropdown is single-select', () => {
+      const dropdownItems = findAllDropdownItems();
+
+      findDropdownItemWithText(dropdownItems, mockAccessLevelsData[0].text).trigger('click');
+      findDropdownItemWithText(dropdownItems, mockAccessLevelsData[1].text).trigger('click');
+
+      expect(wrapper.emitted('select')[1]).toHaveLength(1);
     });
   });
 });

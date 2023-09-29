@@ -16,8 +16,6 @@ class MergeWorker # rubocop:disable Scalability/IdempotentWorker
   deduplicate :until_executed, including_scheduled: true
 
   def perform(merge_request_id, current_user_id, params)
-    params = params.with_indifferent_access
-
     begin
       current_user = User.find(current_user_id)
       merge_request = MergeRequest.find(merge_request_id)
@@ -25,7 +23,12 @@ class MergeWorker # rubocop:disable Scalability/IdempotentWorker
       return
     end
 
+    params = params.with_indifferent_access
+    params[:check_mergeability_retry_lease] = true unless params.has_key?(:check_mergeability_retry_lease)
+
     MergeRequests::MergeService.new(project: merge_request.target_project, current_user: current_user, params: params)
       .execute(merge_request)
   end
 end
+
+MergeWorker.prepend_mod

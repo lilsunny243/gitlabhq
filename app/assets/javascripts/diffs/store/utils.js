@@ -19,6 +19,8 @@ import {
 } from '../constants';
 import { prepareRawDiffFile } from '../utils/diff_file';
 
+const SHA1 = /\b([a-f0-9]{40})\b/;
+
 export const isAdded = (line) => ['new', 'new-nonewline'].includes(line.type);
 export const isRemoved = (line) => ['old', 'old-nonewline'].includes(line.type);
 export const isUnchanged = (line) => !line.type;
@@ -138,6 +140,7 @@ export function getFormData(params) {
     linePosition,
     positionType,
     lineRange,
+    showWhitespace,
   } = params;
 
   const position = JSON.stringify({
@@ -154,6 +157,7 @@ export function getFormData(params) {
     width: params.width,
     height: params.height,
     line_range: lineRange,
+    ignore_whitespace_change: !showWhitespace,
   });
 
   const postData = {
@@ -303,7 +307,6 @@ function mergeTwoFiles(target, source) {
     ...target,
     [INLINE_DIFF_LINES_KEY]: missingInline ? source[INLINE_DIFF_LINES_KEY] : originalInline,
     parallel_diff_lines: null,
-    renderIt: source.renderIt,
     collapsed: source.collapsed,
   };
 }
@@ -384,7 +387,6 @@ function prepareDiffFileLines(file) {
 
 function finalizeDiffFile(file) {
   Object.assign(file, {
-    renderIt: true,
     isShowingFullFile: false,
     isLoadingFullFile: false,
     discussions: [],
@@ -484,9 +486,8 @@ export const getDiffMode = (diffFile) => {
   const diffModeKey = Object.keys(diffModes).find((key) => diffFile[`${key}_file`]);
   return (
     diffModes[diffModeKey] ||
-    (diffFile.viewer &&
-      diffFile.viewer.name === diffViewerModes.mode_changed &&
-      diffViewerModes.mode_changed) ||
+    (diffFile.viewer?.name === diffViewerModes.mode_changed && diffViewerModes.mode_changed) ||
+    (diffFile.viewer?.name === diffViewerModes.no_preview && diffViewerModes.no_preview) ||
     diffModes.replaced
   );
 };
@@ -556,3 +557,45 @@ export const allDiscussionWrappersExpanded = (diff) => {
 
   return discussionsExpanded;
 };
+
+export function isUrlHashNoteLink(urlHash = '') {
+  const id = urlHash.replace(/^#/, '');
+
+  return id.startsWith('note');
+}
+
+export function isUrlHashFileHeader(urlHash = '') {
+  const id = urlHash.replace(/^#/, '');
+
+  return id.startsWith('diff-content');
+}
+
+export function parseUrlHashAsFileHash(urlHash = '', currentDiffFileId = '') {
+  const isNoteLink = isUrlHashNoteLink(urlHash);
+  let id = urlHash.replace(/^#/, '');
+
+  if (isNoteLink && currentDiffFileId) {
+    id = currentDiffFileId;
+  } else if (isUrlHashFileHeader(urlHash)) {
+    id = id.replace('diff-content-', '');
+  } else if (!SHA1.test(id) || isNoteLink) {
+    id = null;
+  }
+
+  return id;
+}
+
+export function markTreeEntriesLoaded({ priorEntries, loadedFiles }) {
+  const newEntries = { ...priorEntries };
+
+  loadedFiles.forEach((newFile) => {
+    const entry = newEntries[newFile.new_path];
+
+    if (entry) {
+      entry.diffLoaded = true;
+      entry.diffLoading = false;
+    }
+  });
+
+  return newEntries;
+}

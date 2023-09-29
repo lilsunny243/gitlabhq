@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Commits API **(FREE)**
+# Commits API **(FREE ALL)**
 
 This API operates on [repository commits](https://git-scm.com/book/en/v2/Git-Basics-Recording-Changes-to-the-Repository). Read more about [GitLab-specific information](../user/project/repository/index.md#commit-changes-to-a-repository) for commits.
 
@@ -20,6 +20,8 @@ information:
 
 ## List repository commits
 
+> Commits by author [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/114417) in GitLab 15.10.
+
 Get a list of repository commits in a project.
 
 ```plaintext
@@ -33,6 +35,7 @@ GET /projects/:id/repository/commits
 | `since` | string | no | Only commits after or on this date are returned in ISO 8601 format `YYYY-MM-DDTHH:MM:SSZ` |
 | `until` | string | no | Only commits before or on this date are returned in ISO 8601 format `YYYY-MM-DDTHH:MM:SSZ` |
 | `path` | string | no | The file path |
+| `author` | string | no | Search commits by commit author.|
 | `all` | boolean | no | Retrieve every commit from the repository |
 | `with_stats` | boolean | no | Stats about each commit are added to the response |
 | `first_parent` | boolean | no | Follow only the first parent commit upon seeing a merge commit |
@@ -117,7 +120,7 @@ POST /projects/:id/repository/commits
 ```shell
 PAYLOAD=$(cat << 'JSON'
 {
-  "branch": "master",
+  "branch": "main",
   "commit_message": "some commit message",
   "actions": [
     {
@@ -185,9 +188,9 @@ GitLab supports [form encoding](rest/index.md#encoding-api-parameters-of-array-a
 
 ```shell
 curl --request POST \
-     --form "branch=master" \
+     --form "branch=main" \
      --form "commit_message=some commit message" \
-     --form "start_branch=master" \
+     --form "start_branch=main" \
      --form "actions[][action]=create" \
      --form "actions[][file_path]=foo/bar" \
      --form "actions[][content]=</path/to/local.file" \
@@ -224,7 +227,7 @@ Parameters:
 | `stats` | boolean | no | Include commit stats. Default is true |
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/master"
+curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/main"
 ```
 
 Example response:
@@ -247,7 +250,7 @@ Example response:
   ],
   "last_pipeline" : {
     "id": 8,
-    "ref": "master",
+    "ref": "main",
     "sha": "2dc6aa325a317eda67812f05600bdf0fcdc70ab0",
     "status": "created"
   },
@@ -314,7 +317,7 @@ Parameters:
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
-     --form "branch=master" "https://gitlab.example.com/api/v4/projects/5/repository/commits/master/cherry_pick"
+     --form "branch=main" "https://gitlab.example.com/api/v4/projects/5/repository/commits/main/cherry_pick"
 ```
 
 Example response:
@@ -385,7 +388,7 @@ Parameters:
 | `dry_run` | boolean        | no       | Does not commit any changes. Default is false. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231032) in GitLab 13.3 |
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" --form "branch=master" \
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" --form "branch=main" \
      "https://gitlab.example.com/api/v4/projects/5/repository/commits/a738f717824ff53aebad8b090c1b79a14f2bd9e8/revert"
 ```
 
@@ -449,9 +452,10 @@ Parameters:
 | --------- | ---- | -------- | ----------- |
 | `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user
 | `sha` | string | yes | The commit hash or name of a repository branch or tag |
+| `unidiff` | boolean | no | Present diffs in the [unified diff](https://www.gnu.org/software/diffutils/manual/html_node/Detailed-Unified.html) format. Default is false. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/130610) in GitLab 16.5. |
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/master/diff"
+curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/main/diff"
 ```
 
 Example response:
@@ -459,7 +463,7 @@ Example response:
 ```json
 [
   {
-    "diff": "--- a/doc/update/5.4-to-6.0.md\n+++ b/doc/update/5.4-to-6.0.md\n@@ -71,6 +71,8 @@\n sudo -u git -H bundle exec rake migrate_keys RAILS_ENV=production\n sudo -u git -H bundle exec rake migrate_inline_notes RAILS_ENV=production\n \n+sudo -u git -H bundle exec rake gitlab:assets:compile RAILS_ENV=production\n+\n ```\n \n ### 6. Update config files",
+    "diff": "@@ -71,6 +71,8 @@\n sudo -u git -H bundle exec rake migrate_keys RAILS_ENV=production\n sudo -u git -H bundle exec rake migrate_inline_notes RAILS_ENV=production\n \n+sudo -u git -H bundle exec rake gitlab:assets:compile RAILS_ENV=production\n+\n ```\n \n ### 6. Update config files",
     "new_path": "doc/update/5.4-to-6.0.md",
     "old_path": "doc/update/5.4-to-6.0.md",
     "a_mode": null,
@@ -487,7 +491,7 @@ Parameters:
 | `sha` | string | yes | The commit hash or name of a repository branch or tag |
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/master/comments"
+curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/commits/main/comments"
 ```
 
 Example response:
@@ -676,7 +680,7 @@ Example response:
       "target_url" : "https://gitlab.example.com/janedoe/gitlab-foss/builds/91",
       "finished_at" : null,
       "id" : 91,
-      "ref" : "master"
+      "ref" : "main"
    },
    {
       "started_at" : null,
@@ -687,7 +691,7 @@ Example response:
       "target_url" : "https://gitlab.example.com/janedoe/gitlab-foss/builds/90",
       "id" : 90,
       "finished_at" : null,
-      "ref" : "master",
+      "ref" : "main",
       "sha" : "18f3e63d05582537db6d183d9d557be09e1f90c8",
       "author" : {
          "id" : 28,
@@ -786,7 +790,7 @@ Example response:
       "state":"opened",
       "created_at":"2018-03-26T17:26:30.916Z",
       "updated_at":"2018-03-26T17:26:30.916Z",
-      "target_branch":"master",
+      "target_branch":"main",
       "source_branch":"test-branch",
       "upvotes":0,
       "downvotes":0,
@@ -827,7 +831,7 @@ Example response:
 
 ## Get GPG signature of a commit
 
-Get the [GPG signature from a commit](../user/project/repository/gpg_signed_commits/index.md),
+Get the [GPG signature from a commit](../user/project/repository/signed_commits/gpg.md),
 if it is signed. For unsigned commits, it results in a 404 response.
 
 ```plaintext

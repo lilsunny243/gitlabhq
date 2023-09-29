@@ -6,8 +6,8 @@ RSpec.describe 'Task Lists', :js, feature_category: :team_planning do
   include Warden::Test::Helpers
 
   let_it_be(:project) { create(:project, :public, :repository) }
-  let_it_be(:user)    { create(:user) }
-  let_it_be(:user2)   { create(:user) }
+  let_it_be(:user)    { create(:user, :no_super_sidebar) }
+  let_it_be(:user2)   { create(:user, :no_super_sidebar) }
 
   let(:markdown) do
     <<-MARKDOWN.strip_heredoc
@@ -137,8 +137,7 @@ RSpec.describe 'Task Lists', :js, feature_category: :team_planning do
 
     describe 'multiple tasks' do
       let!(:note) do
-        create(:note, note: markdown, noteable: issue,
-                      project: project, author: user)
+        create(:note, note: markdown, noteable: issue, project: project, author: user)
       end
 
       it 'renders for note body' do
@@ -171,8 +170,7 @@ RSpec.describe 'Task Lists', :js, feature_category: :team_planning do
 
     describe 'single incomplete task' do
       let!(:note) do
-        create(:note, note: single_incomplete_markdown, noteable: issue,
-                      project: project, author: user)
+        create(:note, note: single_incomplete_markdown, noteable: issue, project: project, author: user)
       end
 
       it 'renders for note body' do
@@ -186,8 +184,7 @@ RSpec.describe 'Task Lists', :js, feature_category: :team_planning do
 
     describe 'single complete task' do
       let!(:note) do
-        create(:note, note: single_complete_markdown, noteable: issue,
-                      project: project, author: user)
+        create(:note, note: single_complete_markdown, noteable: issue, project: project, author: user)
       end
 
       it 'renders for note body' do

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers do
+RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers, feature_category: :database do
   let(:migration_class) do
     Class.new(ActiveRecord::Migration[6.1])
       .include(described_class)
@@ -70,39 +70,54 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
       end
     end
 
-    it 'creates the database record for the migration' do
-      expect(Gitlab::Database::PgClass).to receive(:for_table).with(:projects).and_return(pgclass_info)
+    context "when the migration doesn't exist already" do
+      before do
+        allow(Gitlab::Database::PgClass).to receive(:for_table).with(:projects).and_return(pgclass_info)
+      end
 
-      expect do
+      subject(:enqueue_batched_background_migration) do
         migration.queue_batched_background_migration(
           job_class.name,
           :projects,
           :id,
           job_interval: 5.minutes,
+          queued_migration_version: format("%.14d", 123),
           batch_min_value: 5,
           batch_max_value: 1000,
           batch_class_name: 'MyBatchClass',
           batch_size: 100,
           max_batch_size: 10000,
           sub_batch_size: 10,
-          gitlab_schema: :gitlab_ci)
-      end.to change { Gitlab::Database::BackgroundMigration::BatchedMigration.count }.by(1)
+          gitlab_schema: :gitlab_ci
+        )
+      end
 
-      expect(Gitlab::Database::BackgroundMigration::BatchedMigration.last).to have_attributes(
-        job_class_name: 'MyJobClass',
-        table_name: 'projects',
-        column_name: 'id',
-        interval: 300,
-        min_value: 5,
-        max_value: 1000,
-        batch_class_name: 'MyBatchClass',
-        batch_size: 100,
-        max_batch_size: 10000,
-        sub_batch_size: 10,
-        job_arguments: %w[],
-        status_name: :active,
-        total_tuple_count: pgclass_info.cardinality_estimate,
-        gitlab_schema: 'gitlab_ci')
+      it 'enqueues exactly one batched migration' do
+        expect { enqueue_batched_background_migration }
+          .to change { Gitlab::Database::BackgroundMigration::BatchedMigration.count }.by(1)
+      end
+
+      it 'creates the database record for the migration' do
+        batched_background_migration = enqueue_batched_background_migration
+
+        expect(batched_background_migration.reload).to have_attributes(
+          job_class_name: 'MyJobClass',
+          table_name: 'projects',
+          column_name: 'id',
+          interval: 300,
+          min_value: 5,
+          max_value: 1000,
+          batch_class_name: 'MyBatchClass',
+          batch_size: 100,
+          max_batch_size: 10000,
+          sub_batch_size: 10,
+          job_arguments: %w[],
+          status_name: :active,
+          total_tuple_count: pgclass_info.cardinality_estimate,
+          gitlab_schema: 'gitlab_ci',
+          queued_migration_version: format("%.14d", 123)
+        )
+      end
     end
 
     context 'when the job interval is lower than the minimum' do
@@ -428,21 +443,24 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
 
   describe '#ensure_batched_background_migration_is_finished' do
     let(:job_class_name) { 'CopyColumnUsingBackgroundMigrationJob' }
-    let(:table) { :events }
+    let(:table_name) { 'events' }
     let(:column_name) { :id }
     let(:job_arguments) { [["id"], ["id_convert_to_bigint"], nil] }
+    let(:gitlab_schema) { Gitlab::Database::GitlabSchema.table_schema!(table_name) }
 
     let(:configuration) do
       {
         job_class_name: job_class_name,
-        table_name: table,
+        table_name: table_name,
         column_name: column_name,
         job_arguments: job_arguments
       }
     end
 
     let(:migration_attributes) do
-      configuration.merge(gitlab_schema: Gitlab::Database.gitlab_schemas_for_connection(migration.connection).first)
+      configuration.merge(
+        gitlab_schema: gitlab_schema
+      )
     end
 
     before do
@@ -457,7 +475,7 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
       create(:batched_background_migration, :active, migration_attributes)
 
       allow_next_instance_of(Gitlab::Database::BackgroundMigration::BatchedMigrationRunner) do |runner|
-        allow(runner).to receive(:finalize).with(job_class_name, table, column_name, job_arguments).and_return(false)
+        allow(runner).to receive(:finalize).with(job_class_name, table_name, column_name, job_arguments).and_return(false)
       end
 
       expect { ensure_batched_background_migration_is_finished }
@@ -470,7 +488,7 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
             "\n\n" \
             "For more information, check the documentation" \
             "\n\n" \
-            "\thttps://docs.gitlab.com/ee/user/admin_area/monitoring/background_migrations.html#database-migrations-failing-because-of-batched-background-migration-not-finished"
+            "\thttps://docs.gitlab.com/ee/update/background_migrations.html#database-migrations-failing-because-of-batched-background-migration-not-finished"
     end
 
     it 'does not raise error when migration exists and is marked as finished' do
@@ -482,16 +500,46 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
         .not_to raise_error
     end
 
-    it 'logs a warning when migration does not exist' do
-      expect(Gitlab::Database::QueryAnalyzers::RestrictAllowedSchemas).to receive(:require_dml_mode!)
+    context 'when specified migration does not exist' do
+      let(:lab_key) { 'DBLAB_ENVIRONMENT' }
 
-      create(:batched_background_migration, :active, migration_attributes.merge(gitlab_schema: :gitlab_something_else))
+      context 'when DBLAB_ENVIRONMENT is not set' do
+        it 'logs a warning' do
+          stub_env(lab_key, nil)
+          expect(Gitlab::Database::QueryAnalyzers::RestrictAllowedSchemas).to receive(:require_dml_mode!)
 
-      expect(Gitlab::AppLogger).to receive(:warn)
-        .with("Could not find batched background migration for the given configuration: #{configuration}")
+          create(:batched_background_migration, :active, migration_attributes.merge(gitlab_schema: :gitlab_something_else))
 
-      expect { ensure_batched_background_migration_is_finished }
-        .not_to raise_error
+          expect(Gitlab::AppLogger).to receive(:warn)
+            .with("Could not find batched background migration for the given configuration: #{configuration}")
+
+          expect { ensure_batched_background_migration_is_finished }
+            .not_to raise_error
+        end
+      end
+
+      context 'when DBLAB_ENVIRONMENT is set' do
+        it 'raises an error' do
+          stub_env(lab_key, 'foo')
+          expect(Gitlab::Database::QueryAnalyzers::RestrictAllowedSchemas).to receive(:require_dml_mode!)
+
+          create(:batched_background_migration, :active, migration_attributes.merge(gitlab_schema: :gitlab_something_else))
+
+          expect { ensure_batched_background_migration_is_finished }
+            .to raise_error(Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers::NonExistentMigrationError)
+        end
+      end
+    end
+
+    context 'when within transaction' do
+      before do
+        allow(migration).to receive(:transaction_open?).and_return(true)
+      end
+
+      it 'does raise an exception' do
+        expect { ensure_batched_background_migration_is_finished }
+          .to raise_error /`ensure_batched_background_migration_is_finished` cannot be run inside a transaction./
+      end
     end
 
     it 'finalizes the migration' do
@@ -500,7 +548,7 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
       migration = create(:batched_background_migration, :active, configuration)
 
       allow_next_instance_of(Gitlab::Database::BackgroundMigration::BatchedMigrationRunner) do |runner|
-        expect(runner).to receive(:finalize).with(job_class_name, table, column_name, job_arguments).and_return(migration.finish!)
+        expect(runner).to receive(:finalize).with(job_class_name, table_name, column_name, job_arguments).and_return(migration.finish!)
       end
 
       ensure_batched_background_migration_is_finished
@@ -513,7 +561,7 @@ RSpec.describe Gitlab::Database::Migrations::BatchedBackgroundMigrationHelpers d
         create(:batched_background_migration, :active, configuration)
 
         allow_next_instance_of(Gitlab::Database::BackgroundMigration::BatchedMigrationRunner) do |runner|
-          expect(runner).not_to receive(:finalize).with(job_class_name, table, column_name, job_arguments)
+          expect(runner).not_to receive(:finalize).with(job_class_name, table_name, column_name, job_arguments)
         end
 
         expect { migration.ensure_batched_background_migration_is_finished(**configuration.merge(finalize: false)) }.to raise_error(RuntimeError)

@@ -198,22 +198,22 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
 
     let_it_be(:agent_authorizations_without_env) do
       [
-        create(:agent_group_authorization, agent: create(:cluster_agent, project: other_project), group: group),
-        create(:agent_project_authorization, agent: create(:cluster_agent, project: project), project: project),
-        Clusters::Agents::ImplicitAuthorization.new(agent: create(:cluster_agent, project: project))
+        create(:agent_ci_access_group_authorization, agent: create(:cluster_agent, project: other_project), group: group),
+        create(:agent_ci_access_project_authorization, agent: create(:cluster_agent, project: project), project: project),
+        Clusters::Agents::Authorizations::CiAccess::ImplicitAuthorization.new(agent: create(:cluster_agent, project: project))
       ]
     end
 
     let_it_be(:agent_authorizations_with_review_and_production_env) do
       [
         create(
-          :agent_group_authorization,
+          :agent_ci_access_group_authorization,
           agent: create(:cluster_agent, project: other_project),
           group: group,
           environments: ['production', 'review/*']
         ),
         create(
-          :agent_project_authorization,
+          :agent_ci_access_project_authorization,
           agent: create(:cluster_agent, project: project),
           project: project,
           environments: ['production', 'review/*']
@@ -224,13 +224,13 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
     let_it_be(:agent_authorizations_with_staging_env) do
       [
         create(
-          :agent_group_authorization,
+          :agent_ci_access_group_authorization,
           agent: create(:cluster_agent, project: other_project),
           group: group,
           environments: ['staging']
         ),
         create(
-          :agent_project_authorization,
+          :agent_ci_access_project_authorization,
           agent: create(:cluster_agent, project: project),
           project: project,
           environments: ['staging']
@@ -238,7 +238,7 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
       ]
     end
 
-    before(:all) do
+    before_all do
       project.update!(group: group)
     end
 
@@ -463,6 +463,14 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
 
         it { expect(response).to have_gitlab_http_status(:bad_request) }
       end
+
+      it_behaves_like 'an endpoint with keyset pagination' do
+        let_it_be(:another_build) { create(:ci_build, :success, :tags, project: project, pipeline: pipeline) }
+
+        let(:first_record) { project.builds.last }
+        let(:second_record) { project.builds.first }
+        let(:api_call) { api("/projects/#{project.id}/jobs", user) }
+      end
     end
 
     context 'unauthorized user' do
@@ -546,40 +554,18 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
   describe 'GET /projects/:id/jobs rate limited' do
     let(:query) { {} }
 
-    context 'with the ci_enforce_rate_limits_jobs_api feature flag on' do
-      before do
-        stub_feature_flags(ci_enforce_rate_limits_jobs_api: true)
-
-        allow_next_instance_of(Gitlab::ApplicationRateLimiter::BaseStrategy) do |strategy|
-          threshold = Gitlab::ApplicationRateLimiter.rate_limits[:jobs_index][:threshold]
-          allow(strategy).to receive(:increment).and_return(threshold + 1)
-        end
-
-        get api("/projects/#{project.id}/jobs", api_user), params: query
+    before do
+      allow_next_instance_of(Gitlab::ApplicationRateLimiter::BaseStrategy) do |strategy|
+        threshold = Gitlab::ApplicationRateLimiter.rate_limits[:jobs_index][:threshold]
+        allow(strategy).to receive(:increment).and_return(threshold + 1)
       end
 
-      it 'enforces rate limits for the endpoint' do
-        expect(response).to have_gitlab_http_status :too_many_requests
-        expect(json_response['message']['error']).to eq('This endpoint has been requested too many times. Try again later.')
-      end
+      get api("/projects/#{project.id}/jobs", api_user), params: query
     end
 
-    context 'with the ci_enforce_rate_limits_jobs_api feature flag off' do
-      before do
-        stub_feature_flags(ci_enforce_rate_limits_jobs_api: false)
-
-        allow_next_instance_of(Gitlab::ApplicationRateLimiter::BaseStrategy) do |strategy|
-          threshold = Gitlab::ApplicationRateLimiter.rate_limits[:jobs_index][:threshold]
-          allow(strategy).to receive(:increment).and_return(threshold + 1)
-        end
-
-        get api("/projects/#{project.id}/jobs", api_user), params: query
-      end
-
-      it 'makes a successful request' do
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(response).to include_limited_pagination_headers
-      end
+    it 'enforces rate limits for the endpoint' do
+      expect(response).to have_gitlab_http_status :too_many_requests
+      expect(json_response['message']['error']).to eq('This endpoint has been requested too many times. Try again later.')
     end
   end
 
@@ -750,11 +736,7 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
       end
     end
 
-    context 'when ci_debug_trace is set to true' do
-      before_all do
-        create(:ci_instance_variable, key: 'CI_DEBUG_TRACE', value: true)
-      end
-
+    shared_examples_for "additional access criteria" do
       where(:public_builds, :user_project_role, :expected_status) do
         true         | 'developer'     | :ok
         true         | 'guest'         | :forbidden
@@ -776,30 +758,28 @@ RSpec.describe API::Ci::Jobs, feature_category: :continuous_integration do
       end
     end
 
+    describe 'when metadata debug_trace_enabled is set to true' do
+      before do
+        job.metadata.update!(debug_trace_enabled: true)
+      end
+
+      it_behaves_like "additional access criteria"
+    end
+
+    context 'when ci_debug_trace is set to true' do
+      before_all do
+        create(:ci_instance_variable, key: 'CI_DEBUG_TRACE', value: true)
+      end
+
+      it_behaves_like "additional access criteria"
+    end
+
     context 'when ci_debug_services is set to true' do
       before_all do
         create(:ci_instance_variable, key: 'CI_DEBUG_SERVICES', value: true)
       end
 
-      where(:public_builds, :user_project_role, :expected_status) do
-        true         | 'developer'     | :ok
-        true         | 'guest'         | :forbidden
-        false        | 'developer'     | :ok
-        false        | 'guest'         | :forbidden
-      end
-
-      with_them do
-        before do
-          project.update!(public_builds: public_builds)
-          project.add_role(user, user_project_role)
-
-          get api("/projects/#{project.id}/jobs/#{job.id}/trace", api_user)
-        end
-
-        it 'renders successfully to authorized users' do
-          expect(response).to have_gitlab_http_status(expected_status)
-        end
-      end
+      it_behaves_like "additional access criteria"
     end
   end
 

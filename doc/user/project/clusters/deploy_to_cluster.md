@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Deploy to a Kubernetes cluster with cluster certificates (DEPRECATED) **(FREE)**
+# Deploy to a Kubernetes cluster with cluster certificates (deprecated) **(FREE ALL)**
 
 > [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 
@@ -78,7 +78,7 @@ You can customize the deployment namespace in a few ways:
 - For **non-managed** clusters, the auto-generated namespace is set in the `KUBECONFIG`,
   but the user is responsible for ensuring its existence. You can fully customize
   this value using
-  [`environment:kubernetes:namespace`](../../../ci/environments/index.md#configure-kubernetes-deployments-deprecated)
+  [`environment:kubernetes:namespace`](../../../ci/environments/configure_kubernetes_deployments.md)
   in `.gitlab-ci.yml`.
 
 When you customize the namespace, existing environments remain linked to their current

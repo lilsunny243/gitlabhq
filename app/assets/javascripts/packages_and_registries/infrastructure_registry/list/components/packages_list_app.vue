@@ -1,7 +1,8 @@
 <script>
 import { GlEmptyState, GlLink, GlSprintf } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
-import { createAlert, VARIANT_INFO } from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/alert';
 import { historyReplaceState } from '~/lib/utils/common_utils';
 import { s__ } from '~/locale';
 import { SHOW_DELETE_SUCCESS_ALERT } from '~/packages_and_registries/shared/constants';
@@ -81,7 +82,6 @@ export default {
       const urlParams = new URLSearchParams(window.location.search);
       const showAlert = urlParams.get(SHOW_DELETE_SUCCESS_ALERT);
       if (showAlert) {
-        // to be refactored to use gl-alert
         createAlert({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, variant: VARIANT_INFO });
         const cleanUrl = window.location.href.split('?')[0];
         historyReplaceState(cleanUrl);

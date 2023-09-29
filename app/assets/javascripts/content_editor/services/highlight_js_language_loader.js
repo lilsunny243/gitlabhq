@@ -47,6 +47,10 @@ export default {
   'clojure-repl': () =>
     import(/* webpackChunkName: 'hl-clojure-repl' */ 'highlight.js/lib/languages/clojure-repl'),
   clojure: () => import(/* webpackChunkName: 'hl-clojure' */ 'highlight.js/lib/languages/clojure'),
+  codeowners: () =>
+    import(
+      /* webpackChunkName: 'hl-codeowners' */ '~/vue_shared/components/source_viewer/languages/codeowners'
+    ),
   cmake: () => import(/* webpackChunkName: 'hl-cmake' */ 'highlight.js/lib/languages/cmake'),
   coffeescript: () =>
     import(/* webpackChunkName: 'hl-coffeescript' */ 'highlight.js/lib/languages/coffeescript'),
@@ -218,6 +222,10 @@ export default {
   step21: () => import(/* webpackChunkName: 'hl-step21' */ 'highlight.js/lib/languages/step21'),
   stylus: () => import(/* webpackChunkName: 'hl-stylus' */ 'highlight.js/lib/languages/stylus'),
   subunit: () => import(/* webpackChunkName: 'hl-subunit' */ 'highlight.js/lib/languages/subunit'),
+  svelte: () =>
+    import(
+      /* webpackChunkName: 'hl-svelte' */ '~/vue_shared/components/source_viewer/languages/svelte'
+    ),
   swift: () => import(/* webpackChunkName: 'hl-swift' */ 'highlight.js/lib/languages/swift'),
   taggerscript: () =>
     import(/* webpackChunkName: 'hl-taggerscript' */ 'highlight.js/lib/languages/taggerscript'),

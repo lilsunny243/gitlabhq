@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe DraftNotes::CreateService do
+RSpec.describe DraftNotes::CreateService, feature_category: :code_review_workflow do
   let(:merge_request) { create(:merge_request) }
   let(:project) { merge_request.target_project }
   let(:user) { merge_request.author }
@@ -106,6 +106,20 @@ RSpec.describe DraftNotes::CreateService do
 
         create_draft(note: 'This is a test', line_code: '123')
       end
+    end
+  end
+
+  context 'when the draft note is invalid' do
+    before do
+      allow_next_instance_of(DraftNote) do |draft|
+        allow(draft).to receive(:valid?).and_return(false)
+      end
+    end
+
+    it 'does not create the note' do
+      draft_note = create_draft(note: 'invalid note')
+
+      expect(draft_note).not_to be_persisted
     end
   end
 end

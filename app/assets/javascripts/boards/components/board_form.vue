@@ -1,11 +1,15 @@
 <script>
 import { GlModal, GlAlert } from '@gitlab/ui';
-import { mapActions, mapState } from 'vuex';
+// eslint-disable-next-line no-restricted-imports
+import { mapActions } from 'vuex';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { visitUrl, updateHistory, getParameterByName } from '~/lib/utils/url_utility';
 import { __, s__ } from '~/locale';
+import eventHub from '~/boards/eventhub';
 import { formType } from '../constants';
 
+import { setError } from '../graphql/cache_updates';
+import errorQuery from '../graphql/client/error.query.graphql';
 import createBoardMutation from '../graphql/board_create.mutation.graphql';
 import destroyBoardMutation from '../graphql/board_destroy.mutation.graphql';
 import updateBoardMutation from '../graphql/board_update.mutation.graphql';
@@ -91,8 +95,13 @@ export default {
       isLoading: false,
     };
   },
+  apollo: {
+    error: {
+      query: errorQuery,
+      update: (data) => data.boardsAppError,
+    },
+  },
   computed: {
-    ...mapState(['error']),
     isNewForm() {
       return this.currentPage === formType.new;
     },
@@ -127,14 +136,12 @@ export default {
     primaryProps() {
       return {
         text: this.buttonText,
-        attributes: [
-          {
-            variant: this.buttonKind,
-            disabled: this.submitDisabled,
-            loading: this.isLoading,
-            'data-qa-selector': 'save_changes_button',
-          },
-        ],
+        attributes: {
+          variant: this.buttonKind,
+          disabled: this.submitDisabled,
+          loading: this.isLoading,
+          'data-qa-selector': 'save_changes_button',
+        },
       };
     },
     cancelProps() {
@@ -177,7 +184,11 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['setError', 'unsetError', 'setBoard']),
+    ...mapActions(['setBoard']),
+    setError,
+    isFocusMode() {
+      return Boolean(document.querySelector('.content-wrapper > .js-focus-mode-board.is-focused'));
+    },
     cancel() {
       this.$emit('cancel');
     },
@@ -208,8 +219,8 @@ export default {
         try {
           await this.deleteBoard();
           visitUrl(this.boardBaseUrl);
-        } catch {
-          this.setError({ message: this.$options.i18n.deleteErrorMessage });
+        } catch (error) {
+          setError({ error, message: this.$options.i18n.deleteErrorMessage });
         } finally {
           this.isLoading = false;
         }
@@ -217,18 +228,24 @@ export default {
         try {
           const board = await this.createOrUpdateBoard();
           if (this.isApolloBoard) {
-            this.$emit('addBoard', board);
+            if (this.board.id) {
+              eventHub.$emit('updateBoard', board);
+            } else {
+              this.$emit('addBoard', board);
+            }
           } else {
             this.setBoard(board);
           }
           this.cancel();
 
-          const param = getParameterByName('group_by')
-            ? `?group_by=${getParameterByName('group_by')}`
-            : '';
-          updateHistory({ url: `${this.boardBaseUrl}/${getIdFromGraphQLId(board.id)}${param}` });
-        } catch {
-          this.setError({ message: this.$options.i18n.saveErrorMessage });
+          if (!this.isApolloBoard) {
+            const param = getParameterByName('group_by')
+              ? `?group_by=${getParameterByName('group_by')}`
+              : '';
+            updateHistory({ url: `${this.boardBaseUrl}/${getIdFromGraphQLId(board.id)}${param}` });
+          }
+        } catch (error) {
+          setError({ error, message: this.$options.i18n.saveErrorMessage });
         } finally {
           this.isLoading = false;
         }
@@ -275,6 +292,7 @@ export default {
     modal-class="board-config-modal"
     content-class="gl-absolute gl-top-7"
     visible
+    :static="isFocusMode()"
     :hide-footer="readonly"
     :title="title"
     :action-primary="primaryProps"
@@ -285,11 +303,11 @@ export default {
     @hide.prevent
   >
     <gl-alert
-      v-if="!isApolloBoard && error"
+      v-if="error"
       class="gl-mb-3"
       variant="danger"
       :dismissible="true"
-      @dismiss="unsetError"
+      @dismiss="() => setError({ message: null, captureError: false })"
     >
       {{ error }}
     </gl-alert>

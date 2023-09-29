@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Paging and notifications **(FREE)**
+# Paging and notifications **(FREE ALL)**
 
 When there is a new alert or incident, it is important for a responder to be notified
 immediately so they can triage and respond to the problem. Responders can receive
@@ -26,8 +26,8 @@ Email notifications are available in projects for triggered alerts. Project
 members with the **Owner** or **Maintainer** roles have the option to receive
 a single email notification for new alerts.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Monitor**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Monitor**.
 1. Expand **Alerts**.
 1. On the **Alert settings** tab, select the
    **Send a single email notification to Owners and Maintainers for new alerts** checkbox.
@@ -35,7 +35,7 @@ a single email notification for new alerts.
 
 [Update the alert's status](alerts.md#change-an-alerts-status) to manage email notifications for an alert.
 
-## Paging **(PREMIUM)**
+## Paging **(PREMIUM ALL)**
 
 In projects that have an [escalation policy](escalation_policies.md) configured, on-call responders
 can be automatically paged about critical problems through email.

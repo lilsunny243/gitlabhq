@@ -1,4 +1,7 @@
-const endpointRE = /^(\/?(.+?)\/(.+?)\/-\/merge_requests\/(\d+)).*$/i;
+import { ZERO_CHANGES_ALT_DISPLAY } from '../constants';
+
+const endpointRE = /^(\/?(.+\/)+(.+)\/-\/merge_requests\/(\d+)).*$/i;
+const SHA1RE = /([a-f0-9]{40})/g;
 
 function getVersionInfo({ endpoint } = {}) {
   const dummyRoot = 'https://gitlab.com';
@@ -13,9 +16,20 @@ function getVersionInfo({ endpoint } = {}) {
   };
 }
 
+export function updateChangesTabCount({
+  count,
+  badge = document.querySelector('.js-diffs-tab .gl-badge'),
+} = {}) {
+  if (badge) {
+    // The purpose of this function is to assign to this parameter
+    /* eslint-disable-next-line no-param-reassign */
+    badge.textContent = count || ZERO_CHANGES_ALT_DISPLAY;
+  }
+}
+
 export function getDerivedMergeRequestInformation({ endpoint } = {}) {
   let mrPath;
-  let userOrGroup;
+  let namespace;
   let project;
   let id;
   let diffId;
@@ -23,16 +37,24 @@ export function getDerivedMergeRequestInformation({ endpoint } = {}) {
   const matches = endpointRE.exec(endpoint);
 
   if (matches) {
-    [, mrPath, userOrGroup, project, id] = matches;
+    [, mrPath, namespace, project, id] = matches;
     ({ diffId, startSha } = getVersionInfo({ endpoint }));
+
+    namespace = namespace.replace(/\/$/, '');
   }
 
   return {
     mrPath,
-    userOrGroup,
+    namespace,
     project,
     id,
     diffId,
     startSha,
   };
+}
+
+export function extractFileHash({ input = '' } = {}) {
+  const matches = input.match(SHA1RE);
+
+  return matches?.[0];
 }

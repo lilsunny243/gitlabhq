@@ -5,6 +5,7 @@ require 'mkmf'
 module QA
   module Service
     class KubernetesCluster
+      include Support::API
       include Service::Shellout
 
       attr_reader :api_url, :ca_certificate, :token, :rbac, :provider
@@ -23,6 +24,15 @@ module QA
         self
       end
 
+      def connect!
+        validate_dependencies
+
+        @provider.validate_dependencies
+        @provider.connect
+
+        self
+      end
+
       def remove!
         @provider.teardown
       end
@@ -35,8 +45,24 @@ module QA
         cluster_name
       end
 
-      def install_kubernetes_agent(agent_token)
-        @provider.install_kubernetes_agent(agent_token)
+      def install_kubernetes_agent(agent_token, agent_name)
+        @provider.install_kubernetes_agent(agent_token: agent_token, kas_address: fetch_kas_address,
+          agent_name: agent_name)
+      end
+
+      def uninstall_kubernetes_agent(agent_name)
+        @provider.uninstall_kubernetes_agent(agent_name: agent_name)
+      end
+
+      def setup_workspaces_in_cluster
+        @provider.install_ngnix_ingress
+        @provider.install_gitlab_workspaces_proxy
+      end
+
+      def update_dns_with_load_balancer_ip
+        load_balancer_ip = shell("kubectl -n ingress-nginx get svc ingress-nginx-controller \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}'")
+        @provider.update_dns(load_balancer_ip)
       end
 
       def create_secret(secret, secret_name)
@@ -71,6 +97,17 @@ module QA
 
       def fetch_api_url
         `kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'`
+      end
+
+      def fetch_kas_address
+        api_client = Runtime::API::Client.new(:gitlab)
+
+        Support::Retrier.retry_until do
+          response = get(Runtime::API::Request.new(api_client, '/metadata').url)
+          body = parse_body(response)
+
+          body.dig(:kas, :externalUrl) || raise("Failed to fetch KAS address from #{body}")
+        end
       end
 
       def fetch_credentials

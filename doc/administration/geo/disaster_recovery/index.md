@@ -67,7 +67,7 @@ must disable the **primary** site.
   - Physically disconnect a machine.
 
   If you plan to [update the primary domain DNS record](#step-4-optional-updating-the-primary-domain-dns-record),
-  you may wish to lower the TTL now to speed up propagation.
+  you may wish to maintain a low TTL to ensure fast propagation of DNS changes.
 
 ### Step 3. Promoting a **secondary** site
 
@@ -79,11 +79,7 @@ This issue has been fixed in GitLab 13.4 and later.
 
 Note the following when promoting a secondary:
 
-- If replication was paused on the secondary site (for example as a part of
-  upgrading, while you were running a version of GitLab earlier than 13.4), you
-  _must_ [enable the site by using the database](../replication/troubleshooting.md#message-activerecordrecordinvalid-validation-failed-enabled-geo-primary-node-cannot-be-disabled)
-  before proceeding. If the secondary site
-  [has been paused](../../geo/index.md#pausing-and-resuming-replication), the promotion
+- If the secondary site [has been paused](../../geo/index.md#pausing-and-resuming-replication), the promotion
   performs a point-in-time recovery to the last known state.
   Data that was created on the primary while the secondary was paused is lost.
 - A new **secondary** should not be added at this time. If you want to add a new
@@ -92,9 +88,6 @@ Note the following when promoting a secondary:
 - If you encounter an `ActiveRecord::RecordInvalid: Validation failed: Name has already been taken`
   error message during this process, for more information, see this
   [troubleshooting advice](../replication/troubleshooting.md#fixing-errors-during-a-failover-or-when-promoting-a-secondary-to-a-primary-site).
-- If you run into errors when using `--force` or `--skip-preflight-checks` before 13.5 during this process,
-  for more information, see this
-  [troubleshooting advice](../replication/troubleshooting.md#errors-when-using---skip-preflight-checks-or---force).
 
 #### Promoting a **secondary** site running on a single node running GitLab 14.5 and later
 
@@ -225,8 +218,6 @@ do this manually.
    sudo gitlab-ctl promote-db
    ```
 
-   In GitLab 12.8 and earlier, see [Message: `sudo: gitlab-pg-ctl: command not found`](../replication/troubleshooting.md#message-sudo-gitlab-pg-ctl-command-not-found).
-
 1. Edit `/etc/gitlab/gitlab.rb` on every node in the **secondary** site to
    reflect its new status as **primary** by removing any of the following
    lines that might be present:
@@ -236,7 +227,7 @@ do this manually.
    roles ['geo_secondary_role']
    ```
 
-   After making these changes, [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+   After making these changes, [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
    on each machine so the changes take effect.
 
 1. Promote the **secondary** to **primary**. SSH into a single application
@@ -444,7 +435,7 @@ required:
    roles ['geo_secondary_role']
    ```
 
-   After making these changes [Reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+   After making these changes [Reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
    on each node so the changes take effect.
 
 1. Promote the **secondary** to **primary**. SSH into a single secondary application
@@ -542,19 +533,19 @@ Geo on the new **primary** site.
 
 To bring a new **secondary** site online, follow the [Geo setup instructions](../index.md#setup-instructions).
 
-### Step 6. (Optional) Removing the secondary's tracking database
+### Step 6. Removing the former secondary's tracking database
 
 Every **secondary** has a special tracking database that is used to save the status of the synchronization of all the items from the **primary**.
 Because the **secondary** is already promoted, that data in the tracking database is no longer required.
 
-The data can be removed with the following command:
+You can remove the data with the following command:
 
 ```shell
 sudo rm -rf /var/opt/gitlab/geo-postgresql
 ```
 
 If you have any `geo_secondary[]` configuration options enabled in your `gitlab.rb`
-file, these can be safely commented out or removed, and then [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+file, comment them out or remove them, and then [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
 for the changes to take effect.
 
 ## Promoting secondary Geo replica in multi-secondary configurations
@@ -681,7 +672,8 @@ Data that was created on the primary while the secondary was paused is lost.
 
 If you are running GitLab 14.5 and later:
 
-1. For each node outside of the **secondary** Kubernetes cluster using Omnibus such as PostgreSQL or Gitaly, SSH into the node and run one of the following commands:
+1. For each node (such as PostgreSQL or Gitaly) outside of the **secondary** Kubernetes cluster using the Linux
+   package, SSH into the node and run one of the following commands:
 
    - To promote the **secondary** site node external to the Kubernetes cluster to primary:
 
@@ -707,6 +699,13 @@ If you are running GitLab 14.5 and later:
    kubectl --namespace gitlab exec -ti gitlab-geo-toolbox-XXX -- gitlab-rake geo:set_secondary_as_primary
    ```
 
+   Environment variables can be provided to modify the behavior of the task. The
+   available variables are:
+
+   | Name | Default value | Description |
+   | ---- | ------------- | ------- |
+   | `ENABLE_SILENT_MODE` | `false`  | If `true`, enables [Silent Mode](../../silent_mode/index.md) before promotion (GitLab 16.4 and later) |
+
 If you are running GitLab 14.4 and earlier:
 
 1. SSH in to the database node in the **secondary** site and trigger PostgreSQL to
@@ -731,7 +730,7 @@ If you are running GitLab 14.4 and earlier:
    roles ['geo_secondary_role']
    ```
 
-   After making these changes, [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure) on the database node.
+   After making these changes, [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation) on the database node.
 
 1. Find the task runner pod:
 

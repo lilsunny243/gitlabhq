@@ -25,6 +25,8 @@ FactoryBot.define do
   factory :datadog_integration, class: 'Integrations::Datadog' do
     project
     active { true }
+    datadog_site { 'datadoghq.com' }
+    datadog_tags { 'key:value' }
     api_key { 'secret' }
   end
 
@@ -34,12 +36,32 @@ FactoryBot.define do
     active { true }
     push_events { true }
     tag_push_events { true }
-    properties do
-      {
-        recipients: 'test@example.com',
-        disable_diffs: true,
-        send_from_committer_email: true
-      }
+    recipients { 'foo@bar.com' }
+    disable_diffs { true }
+    send_from_committer_email { true }
+    branches_to_be_notified { nil }
+  end
+
+  factory :gitlab_slack_application_integration, class: 'Integrations::GitlabSlackApplication' do
+    project
+    active { true }
+    type { 'Integrations::GitlabSlackApplication' }
+    slack_integration { association :slack_integration, integration: instance }
+
+    transient do
+      all_channels { true }
+    end
+
+    after(:build) do |integration, evaluator|
+      next unless evaluator.all_channels
+
+      integration.event_channel_names.each do |name|
+        integration.send("#{name}=".to_sym, "##{name}")
+      end
+    end
+
+    trait :all_features_supported do
+      slack_integration { association :slack_integration, :all_features_supported, integration: instance }
     end
   end
 
@@ -47,30 +69,34 @@ FactoryBot.define do
     project
     type { 'Integrations::Packagist' }
     active { true }
-    properties do
-      {
-        username: 'username',
-        token: 'test',
-        server: 'https://packagist.example.com'
-      }
-    end
+    username { 'username' }
+    token { 'secrettoken' }
+    server { 'https://packagist.example.comp' }
   end
 
   factory :prometheus_integration, class: 'Integrations::Prometheus' do
     project
     active { true }
-    properties do
-      {
-        api_url: 'https://prometheus.example.com/',
-        manual_configuration: true
-      }
-    end
+    api_url { 'https://prometheus.example.com/' }
+    manual_configuration { true }
+    google_iap_audience_client_id { 'IAP_CLIENT_ID.apps.googleusercontent.com' }
+    google_iap_service_account_json { '{ type: "service_account", project_id: "123" }' }
+  end
+
+  factory :bamboo_integration, class: 'Integrations::Bamboo' do
+    project
+    active { true }
+    bamboo_url { 'https://bamboo.example.com' }
+    build_key { 'foo' }
+    username { 'mic' }
+    password { 'password' }
   end
 
   factory :drone_ci_integration, class: 'Integrations::DroneCi' do
     project
     active { true }
-    drone_url { 'https://bamboo.example.com' }
+    drone_url { 'https://drone.example.com' }
+    enable_ssl_verification { false }
     token { 'test' }
   end
 
@@ -78,16 +104,19 @@ FactoryBot.define do
     project
     active { true }
     type { 'Integrations::Jira' }
+    url { 'https://jira.example.com' }
+    api_url { '' }
+    username { 'jira_username' }
+    password { 'jira_password' }
+    jira_auth_type { 0 }
 
     transient do
       create_data { true }
-      url { 'https://jira.example.com' }
-      api_url { '' }
-      username { 'jira_username' }
-      password { 'jira_password' }
       jira_issue_transition_automatic { false }
       jira_issue_transition_id { '56-1' }
       issues_enabled { false }
+      jira_issue_prefix { '' }
+      jira_issue_regex { '' }
       project_key { nil }
       vulnerabilities_enabled { false }
       vulnerabilities_issuetype { nil }
@@ -95,11 +124,16 @@ FactoryBot.define do
     end
 
     after(:build) do |integration, evaluator|
+      integration.instance_variable_set(:@old_data_fields, nil)
+
       if evaluator.create_data
         integration.jira_tracker_data = build(:jira_tracker_data,
           integration: integration, url: evaluator.url, api_url: evaluator.api_url,
+          jira_auth_type: evaluator.jira_auth_type,
           jira_issue_transition_automatic: evaluator.jira_issue_transition_automatic,
           jira_issue_transition_id: evaluator.jira_issue_transition_id,
+          jira_issue_prefix: evaluator.jira_issue_prefix,
+          jira_issue_regex: evaluator.jira_issue_regex,
           username: evaluator.username, password: evaluator.password, issues_enabled: evaluator.issues_enabled,
           project_key: evaluator.project_key, vulnerabilities_enabled: evaluator.vulnerabilities_enabled,
           vulnerabilities_issuetype: evaluator.vulnerabilities_issuetype, deployment_type: evaluator.deployment_type
@@ -161,7 +195,8 @@ FactoryBot.define do
   factory :youtrack_integration, class: 'Integrations::Youtrack' do
     project
     active { true }
-    issue_tracker
+    project_url { 'http://issuetracker.example.com' }
+    issues_url { 'http://issues.example.com/issues/:id' }
   end
 
   factory :ewm_integration, class: 'Integrations::Ewm' do
@@ -170,12 +205,20 @@ FactoryBot.define do
     issue_tracker
   end
 
+  factory :clickup_integration, class: 'Integrations::Clickup' do
+    project
+    active { true }
+    project_url { 'http://issuetracker.example.com' }
+    issues_url { 'http://issues.example.com/issues/:id' }
+  end
+
   trait :issue_tracker do
+    project_url { 'http://issuetracker.example.com' }
+    issues_url { 'http://issues.example.com/issues/:id' }
+    new_issue_url { 'http://new-issue.example.com' }
+
     transient do
       create_data { true }
-      project_url { 'http://issuetracker.example.com' }
-      issues_url { 'http://issues.example.com/issues/:id' }
-      new_issue_url { 'http://new-issue.example.com' }
     end
 
     after(:build) do |integration, evaluator|
@@ -199,20 +242,147 @@ FactoryBot.define do
     url { 'https://mysite.atlassian.net' }
     username { 'jira_user' }
     password { 'my-secret-password' }
+    jira_auth_type { 0 }
   end
 
   trait :chat_notification do
     sequence(:webhook) { |n| "https://example.com/webhook/#{n}" }
+    push_events { false }
+    issues_events { false }
+    confidential_issues_events { false }
+    merge_requests_events { false }
+    note_events { false }
+    confidential_note_events { false }
+    tag_push_events { false }
+    pipeline_events { false }
+    wiki_page_events { false }
   end
 
   trait :inactive do
     active { false }
   end
 
+  factory :discord_integration, class: 'Integrations::Discord' do
+    chat_notification
+    project
+    active { true }
+    type { 'Integrations::Discord' }
+  end
+
   factory :mattermost_integration, class: 'Integrations::Mattermost' do
     chat_notification
     project
     type { 'Integrations::Mattermost' }
+    labels_to_be_notified_behavior { 'match_any' }
+    active { true }
+  end
+
+  factory :microsoft_teams_integration, class: 'Integrations::MicrosoftTeams' do
+    chat_notification
+    project
+    type { 'Integrations::MicrosoftTeams' }
+    active { true }
+  end
+
+  factory :asana_integration, class: 'Integrations::Asana' do
+    project
+    api_key { 'secrettoken' }
+    active { true }
+  end
+
+  factory :assembla_integration, class: 'Integrations::Assembla' do
+    project
+    token { 'secrettoken' }
+    active { true }
+  end
+
+  factory :buildkite_integration, class: 'Integrations::Buildkite' do
+    project
+    token { 'secrettoken' }
+    project_url { 'http://example.com' }
+    active { true }
+  end
+
+  factory :campfire_integration, class: 'Integrations::Campfire' do
+    project
+    active { true }
+    room { '1234' }
+    token { 'test' }
+  end
+
+  factory :hangouts_chat_integration, class: 'Integrations::HangoutsChat' do
+    chat_notification
+    project
+    type { 'Integrations::HangoutsChat' }
+    active { true }
+  end
+
+  factory :irker_integration, class: 'Integrations::Irker' do
+    project
+    recipients { 'irc://irc.network.net:666/#channel' }
+    server_port { 1234 }
+    type { 'Integrations::Irker' }
+    active { true }
+  end
+
+  factory :mattermost_slash_commands_integration, class: 'Integrations::MattermostSlashCommands' do
+    project
+    token { 'secrettoken' }
+    active { true }
+  end
+
+  factory :mock_ci_integration, class: 'Integrations::MockCi' do
+    project
+    mock_service_url { 'http://example.com' }
+    type { 'Integrations::MockCi' }
+    active { true }
+  end
+
+  factory :mock_monitoring_integration, class: 'Integrations::MockMonitoring' do
+    project
+    type { 'Integrations::MockMonitoring' }
+    active { true }
+  end
+
+  factory :pumble_integration, class: 'Integrations::Pumble' do
+    project
+    chat_notification
+    type { 'Integrations::Pumble' }
+    active { true }
+  end
+
+  factory :pushover_integration, class: 'Integrations::Pushover' do
+    project
+    type { 'Integrations::Pushover' }
+    api_key { 'secrettoken' }
+    user_key { 'secretkey' }
+    priority { "0" }
+    active { true }
+    device { nil }
+    sound { nil }
+  end
+
+  factory :teamcity_integration, class: 'Integrations::Teamcity' do
+    project
+    teamcity_url { 'http://example.com' }
+    username { 'username' }
+    password { 'secrettoken' }
+    build_type { '123' }
+    type { 'Integrations::Teamcity' }
+    active { true }
+  end
+
+  factory :unify_circuit_integration, class: 'Integrations::UnifyCircuit' do
+    project
+    chat_notification
+    type { 'Integrations::UnifyCircuit' }
+    active { true }
+  end
+
+  factory :webex_teams_integration, class: 'Integrations::WebexTeams' do
+    project
+    chat_notification
+    type { 'Integrations::WebexTeams' }
     active { true }
   end
 
@@ -227,6 +397,7 @@ FactoryBot.define do
   factory :slack_slash_commands_integration, class: 'Integrations::SlackSlashCommands' do
     project
     active { true }
+    token { 'secrettoken' }
     type { 'Integrations::SlackSlashCommands' }
   end
 
@@ -263,6 +434,7 @@ FactoryBot.define do
     app_store_key_id { 'ABC1' }
     app_store_private_key_file_name { 'auth_key.p8' }
     app_store_private_key { File.read('spec/fixtures/auth_key.p8') }
+    app_store_protected_refs { true }
   end
 
   factory :google_play_integration, class: 'Integrations::GooglePlay' do
@@ -270,8 +442,28 @@ FactoryBot.define do
     active { true }
     type { 'Integrations::GooglePlay' }
 
+    package_name { 'com.gitlab.foo.bar' }
     service_account_key_file_name { 'service_account.json' }
     service_account_key { File.read('spec/fixtures/service_account.json') }
+    google_play_protected_refs { true }
+  end
+
+  factory :squash_tm_integration, class: 'Integrations::SquashTm' do
+    project
+    active { true }
+    type { 'Integrations::SquashTm' }
+
+    url { 'https://url-to-squash.com' }
+    token { 'squash_tm_token' }
+  end
+
+  factory :telegram_integration, class: 'Integrations::Telegram' do
+    project
+    type { 'Integrations::Telegram' }
+    active { true }
+
+    token { '123456:ABC-DEF1234' }
+    room { '@channel' }
   end
 
   # this is for testing storing values inside properties, which is deprecated and will be removed in

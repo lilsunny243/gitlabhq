@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'File blob', :js, feature_category: :projects do
+RSpec.describe 'File blob', :js, feature_category: :groups_and_projects do
   include MobileHelpers
 
   let(:project) { create(:project, :public, :repository) }
@@ -195,10 +195,11 @@ RSpec.describe 'File blob', :js, feature_category: :projects do
         end
       end
 
-      it 'successfully changes ref when the ref name matches the project name' do
-        project.repository.create_branch(project.name)
+      # Regression test for https://gitlab.com/gitlab-org/gitlab/-/issues/330947
+      it 'successfully changes ref when the ref name matches the project path' do
+        project.repository.create_branch(project.path)
 
-        visit_blob('files/js/application.js', ref: project.name)
+        visit_blob('files/js/application.js', ref: project.path)
         switch_ref_to('master')
 
         aggregate_failures do
@@ -578,53 +579,6 @@ RSpec.describe 'File blob', :js, feature_category: :projects do
       end
     end
 
-    describe '.gitlab/dashboards/custom-dashboard.yml' do
-      before do
-        project.add_maintainer(project.creator)
-
-        Files::CreateService.new(
-          project,
-          project.creator,
-          start_branch: 'master',
-          branch_name: 'master',
-          commit_message: "Add .gitlab/dashboards/custom-dashboard.yml",
-          file_path: '.gitlab/dashboards/custom-dashboard.yml',
-          file_content: file_content
-        ).execute
-
-        visit_blob('.gitlab/dashboards/custom-dashboard.yml')
-      end
-
-      context 'valid dashboard file' do
-        let(:file_content) { File.read(Rails.root.join('config/prometheus/common_metrics.yml')) }
-
-        it 'displays an auxiliary viewer' do
-          aggregate_failures do
-            # shows that dashboard yaml is valid
-            expect(page).to have_content('Metrics Dashboard YAML definition is valid.')
-
-            # shows a learn more link
-            expect(page).to have_link('Learn more')
-          end
-        end
-      end
-
-      context 'invalid dashboard file' do
-        let(:file_content) { "dashboard: 'invalid'" }
-
-        it 'displays an auxiliary viewer' do
-          aggregate_failures do
-            # shows that dashboard yaml is invalid
-            expect(page).to have_content('Metrics Dashboard YAML definition is invalid:')
-            expect(page).to have_content("panel_groups: should be an array of panel_groups objects")
-
-            # shows a learn more link
-            expect(page).to have_link('Learn more')
-          end
-        end
-      end
-    end
-
     context 'LICENSE' do
       before do
         visit_blob('LICENSE')
@@ -989,7 +943,7 @@ RSpec.describe 'File blob', :js, feature_category: :projects do
       page.within('.commit-actions') do
         expect(page).to have_css('.ci-status-icon')
         expect(page).to have_css('.ci-status-icon-running')
-        expect(page).to have_css('.js-ci-status-icon-running')
+        expect(page).to have_selector('[data-testid="status_running-icon"]')
       end
     end
   end

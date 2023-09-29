@@ -38,7 +38,7 @@ module MembersHelper
 
   def leave_confirmation_message(member_source)
     "Are you sure you want to leave the " \
-    "\"#{member_source.human_name}\" #{member_source.class.to_s.humanize(capitalize: false)}?"
+    "\"#{member_source.human_name}\" #{member_source.model_name.to_s.humanize(capitalize: false)}?"
   end
 
   def filter_group_project_member_path(options = {})
@@ -52,14 +52,6 @@ module MembersHelper
     else
       project_project_member_path(member.source, member)
     end
-  end
-
-  def localized_tasks_to_be_done_choices
-    {
-      code: s_('TasksToBeDone|Create/import code into a project (repository)'),
-      ci: s_('TasksToBeDone|Set up CI/CD pipelines to build, test, deploy, and monitor code'),
-      issues: s_('TasksToBeDone|Create/import issues (tickets) to collaborate on ideas and plan work')
-    }.freeze
   end
 
   private

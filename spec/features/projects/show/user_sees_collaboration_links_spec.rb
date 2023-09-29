@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :projects do
+RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be(:project) { create(:project, :repository, :public) }
-  let_it_be(:user) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
 
   before do
     sign_in(user)
@@ -43,15 +43,16 @@ RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :
 
         aggregate_failures 'dropdown links above the repo tree' do
           expect(page).to have_link('New file')
-          expect(page).to have_link('Upload file')
-          expect(page).to have_link('New directory')
+          expect(page).to have_button('Upload file')
+          expect(page).to have_button('New directory')
           expect(page).to have_link('New branch')
           expect(page).to have_link('New tag')
         end
       end
 
       # The Web IDE
-      expect(page).to have_link('Web IDE')
+      click_button 'Edit'
+      expect(page).to have_button('Web IDE')
     end
 
     it 'hides the links when the project is archived' do
@@ -73,7 +74,7 @@ RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :
 
       expect(page).not_to have_selector('[data-testid="add-to-tree"]')
 
-      expect(page).not_to have_link('Web IDE')
+      expect(page).not_to have_button('Edit')
     end
   end
 
@@ -95,7 +96,7 @@ RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :
       end
 
       it "updates Web IDE link" do
-        expect(page.has_link?('Web IDE')).to be(expect_ide_link)
+        expect(page.has_button?('Edit')).to be(expect_ide_link)
       end
     end
   end

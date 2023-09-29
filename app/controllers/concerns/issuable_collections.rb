@@ -20,26 +20,10 @@ module IssuableCollections
     set_pagination
 
     return if redirect_out_of_range(@issuables, @total_pages)
-
-    if params[:label_name].present? && @project
-      labels_params = { project_id: @project.id, title: params[:label_name] }
-      @labels = LabelsFinder.new(current_user, labels_params).execute
-    end
-
-    @users = []
-    if params[:assignee_id].present?
-      assignee = User.find_by_id(params[:assignee_id])
-      @users.push(assignee) if assignee
-    end
-
-    if params[:author_id].present?
-      author = User.find_by_id(params[:author_id])
-      @users.push(author) if author
-    end
   end
 
   def set_pagination
-    row_count = finder.row_count
+    row_count = request.format.atom? ? -1 : finder.row_count
 
     @issuables          = @issuables.page(params[:page])
     @issuables          = per_page_for_relative_position if params[:sort] == 'relative_position'
@@ -141,7 +125,7 @@ module IssuableCollections
     common_attributes = [:author, :assignees, :labels, :milestone]
     @preload_for_collection ||= case collection_type
                                 when 'Issue'
-                                  common_attributes + [:project, project: :namespace]
+                                  common_attributes + [:work_item_type, :project, project: :namespace]
                                 when 'MergeRequest'
                                   common_attributes + [
                                     :target_project, :latest_merge_request_diff, :approvals, :approved_by_users, :reviewers,

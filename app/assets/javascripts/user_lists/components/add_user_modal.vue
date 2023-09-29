@@ -19,11 +19,11 @@ export default {
   modalOptions: {
     actionPrimary: {
       text: s__('UserLists|Add'),
-      attributes: [{ 'data-testid': 'confirm-add-user-ids', variant: 'confirm' }],
+      attributes: { 'data-testid': 'confirm-add-user-ids', variant: 'confirm' },
     },
     actionCancel: {
       text: s__('UserLists|Cancel'),
-      attributes: [{ 'data-testid': 'cancel-add-user-ids' }],
+      attributes: { 'data-testid': 'cancel-add-user-ids' },
     },
     modalId: ADD_USER_MODAL_ID,
     static: true,
@@ -55,7 +55,6 @@ export default {
   <gl-modal
     v-bind="$options.modalOptions"
     :visible="visible"
-    data-testid="add-users-modal"
     @primary="submitUsers"
     @canceled="clearInput"
   >

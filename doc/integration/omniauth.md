@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -35,6 +35,7 @@ GitLab supports the following OmniAuth providers.
 | [OpenID Connect](../administration/auth/oidc.md)                    | `openid_connect`           |
 | [Salesforce](salesforce.md)                                         | `salesforce`               |
 | [SAML](saml.md)                                                     | `saml`                     |
+| [Shibboleth](shibboleth.md)                                         | `shibboleth`               |
 | [Twitter](twitter.md)                                               | `twitter`                  |
 
 ## Configure common settings
@@ -46,7 +47,7 @@ Linux package, Docker, and self-compiled | Helm chart | Description | Default va
 ----------------------------|------------|-------------|-----------
 `allow_single_sign_on`     | `allowSingleSignOn` | List of providers that automatically create a GitLab account. The provider names are available in the **OmniAuth provider name** column in the [supported providers table](#supported-providers). | `false`, which means that signing in using your OmniAuth provider account without a pre-existing GitLab account is not allowed. You must create a GitLab account first, and then connect it to your OmniAuth provider account through your profile settings.
 `auto_link_ldap_user`      | `autoLinkLdapUser` | Creates an LDAP identity in GitLab for users that are created through an OmniAuth provider. You can enable this setting if you have [LDAP integration](../administration/auth/ldap/index.md) enabled. Requires the `uid` of the user to be the same in both LDAP and the OmniAuth provider. | `false`
-`block_auto_created_users` | `blockAutoCreatedUsers` | Blocks users that are automatically created from signing in until they are approved by an administrator. | `true`. If you set the value to `false`, make sure you define providers that you can control, like SAML or Google. Otherwise, any user on the internet can sign in to GitLab without an administrator's approval.
+`block_auto_created_users` | `blockAutoCreatedUsers` | Places automatically-created users in a [Pending approval](../administration/moderate_users.md#users-pending-approval) state (unable to sign in) until they are approved by an administrator. | `true`. If you set the value to `false`, make sure you define providers that you can control, like SAML or Google. Otherwise, any user on the internet can sign in to GitLab without an administrator's approval.
 
 ### Configure initial settings
 
@@ -176,50 +177,54 @@ choosing the first that exists:
 You can create GitLab configuration on a per-provider basis, which is supplied to the [provider](#supported-providers) using `args`. If you set the `gitlab_username_claim`
 variable in `args` for a provider, you can select another claim to use for the GitLab username. The chosen claim must be unique to avoid collisions.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_providers'] = [
+:::TabTitle Linux package (Omnibus)
 
-    # The generic pattern for configuring a provider with name PROVIDER_NAME
+```ruby
+gitlab_rails['omniauth_providers'] = [
 
-    gitlab_rails['omniauth_providers'] = {
-      name: "PROVIDER_NAME"
-      ...
-      args: { gitlab_username_claim: 'sub' } # For users signing in with the provider you configure, the GitLab username will be set to the "sub" received from the provider
-    },
+  # The generic pattern for configuring a provider with name PROVIDER_NAME
 
-    # Here are examples using GitHub and Kerberos
-
-    gitlab_rails['omniauth_providers'] = {
-      name: "github"
-      ...
-      args: { gitlab_username_claim: 'name' } # For users signing in with GitHub, the GitLab username will be set to the "name" received from GitHub
-    },
-    {
-      name: "kerberos"
-      ...
-      args: { gitlab_username_claim: 'uid' } # For users signing in with Kerberos, the GitLab username will be set to the "uid" received from Kerberos
-    },
-  ]
-  ```
-
-- **For installations from source**
-
-  ```yaml
-  - { name: 'PROVIDER_NAME',
+  gitlab_rails['omniauth_providers'] = {
+    name: "PROVIDER_NAME"
     ...
-    args: { gitlab_username_claim: 'sub' }
-  }
-  - { name: 'github',
+    args: { gitlab_username_claim: 'sub' } # For users signing in with the provider you configure, the GitLab username will be set to the "sub" received from the provider
+  },
+
+  # Here are examples using GitHub and Kerberos
+
+  gitlab_rails['omniauth_providers'] = {
+    name: "github"
     ...
-    args: { gitlab_username_claim: 'name' }
-  }
-  - { name: 'kerberos',
+    args: { gitlab_username_claim: 'name' } # For users signing in with GitHub, the GitLab username will be set to the "name" received from GitHub
+  },
+  {
+    name: "kerberos"
     ...
-    args: { gitlab_username_claim: 'uid' }
-  }
-  ```
+    args: { gitlab_username_claim: 'uid' } # For users signing in with Kerberos, the GitLab username will be set to the "uid" received from Kerberos
+  },
+]
+```
+
+:::TabTitle Self-compiled (source)
+
+```yaml
+- { name: 'PROVIDER_NAME',
+  ...
+  args: { gitlab_username_claim: 'sub' }
+}
+- { name: 'github',
+  ...
+  args: { gitlab_username_claim: 'name' }
+}
+- { name: 'kerberos',
+  ...
+  args: { gitlab_username_claim: 'uid' }
+}
+```
+
+::EndTabs
 
 ### Passwords for users created via OmniAuth
 
@@ -234,7 +239,7 @@ created, you can activate an OmniAuth provider. For example, if you originally s
 provider like Twitter.
 
 1. Sign in to GitLab with your GitLab credentials, LDAP, or another OmniAuth provider.
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Account**.
 1. In the **Connected Accounts** section, select the OmniAuth provider, such as Twitter.
@@ -252,8 +257,9 @@ By default, sign-in is enabled for all the OAuth providers configured in `config
 
 To enable or disable an OmniAuth provider:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Settings**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. On the left sidebar, select **Settings > General**.
 1. Expand **Sign-in restrictions**.
 1. In the **Enabled OAuth authentication sources** section, select or clear the checkbox for each provider you want to enable or disable.
 
@@ -263,20 +269,24 @@ OmniAuth is enabled by default. However, OmniAuth only works
 if providers are configured and [enabled](#enable-or-disable-sign-in-with-an-omniauth-provider-without-disabling-import-sources).
 
 If OmniAuth providers are causing problems even when individually disabled, you
-can disable the entire OmniAuth subsystem by modifying the configuration file:
+can disable the entire OmniAuth subsystem by modifying the configuration file.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_enabled'] = false
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_enabled'] = false
+```
 
-  ```yaml
-  omniauth:
-    enabled: false
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  enabled: false
+```
+
+::EndTabs
 
 ## Link existing users to OmniAuth users
 
@@ -287,18 +297,22 @@ You can automatically link OmniAuth users with existing GitLab users if their em
 The following example enables automatic linking
 for the OpenID Connect provider and the Twitter OAuth provider.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_auto_link_user'] = ["openid_connect", "twitter"]
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_auto_link_user'] = ["openid_connect", "twitter"]
+```
 
-  ```yaml
-  omniauth:
-    auto_link_user: ["openid_connect", "twitter"]
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  auto_link_user: ["openid_connect", "twitter"]
+```
+
+::EndTabs
 
 This method of enabling automatic linking works for all providers
 [except SAML](https://gitlab.com/gitlab-org/gitlab/-/issues/338293).
@@ -307,7 +321,7 @@ To enable automatic linking for SAML, see the [SAML setup instructions](saml.md#
 ## Create an external providers list
 
 You can define a list of external OmniAuth providers.
-Users who create accounts or sign in to GitLab through the listed providers do not get access to [internal projects](../user/public_access.md#internal-projects-and-groups).
+Users who create accounts or sign in to GitLab through the listed providers do not get access to [internal projects](../user/public_access.md#internal-projects-and-groups) and are marked as [external users](../administration/external_users.md).
 
 To define the external providers list, use the full name of the provider,
 for example, `google_oauth2` for Google. For provider names, see the
@@ -318,23 +332,27 @@ If you remove an OmniAuth provider from the external providers list,
 you must manually update the users that use this sign-in method so their
 accounts are upgraded to full internal accounts.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_external_providers'] = ['twitter', 'google_oauth2']
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_external_providers'] = ['twitter', 'google_oauth2']
+```
 
-  ```yaml
-  omniauth:
-    external_providers: ['twitter', 'google_oauth2']
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  external_providers: ['twitter', 'google_oauth2']
+```
+
+::EndTabs
 
 ## Use a custom OmniAuth provider
 
 NOTE:
-The following information only applies to installations from source.
+The following information only applies to self-compiled installations.
 
 If you have to integrate with an authentication solution other than the [OmniAuth](https://github.com/omniauth/omniauth) providers included with GitLab,
 you can use a custom OmniAuth provider.
@@ -379,25 +397,33 @@ but we'd like to at least help those with specific needs.
 
 ## Keep OmniAuth user profiles up to date
 
-You can enable profile syncing from selected OmniAuth providers. You can sync
-all or specific user information.
+You can enable profile syncing from selected OmniAuth providers.
+You can sync any combination of the following user attributes:
+
+- `name`
+- `email`
+- `location`
 
 When authenticating using LDAP, the user's name and email are always synced.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_sync_profile_from_provider'] = ['twitter', 'google_oauth2']
-  gitlab_rails['omniauth_sync_profile_attributes'] = ['name', 'email', 'location']
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_sync_profile_from_provider'] = ['twitter', 'google_oauth2']
+gitlab_rails['omniauth_sync_profile_attributes'] = ['name', 'email', 'location']
+```
 
-  ```yaml
-  omniauth:
-    sync_profile_from_provider: ['twitter', 'google_oauth2']
-    sync_profile_attributes: ['email', 'location']
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  sync_profile_from_provider: ['twitter', 'google_oauth2']
+  sync_profile_attributes: ['email', 'location']
+```
+
+::EndTabs
 
 ## Bypass two-factor authentication
 
@@ -418,18 +444,22 @@ This option should be configured only for providers that already have 2FA. The d
 
 This configuration doesn't apply to SAML.
 
-- **For Omnibus package**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_allow_bypass_two_factor'] = ['twitter', 'google_oauth2']
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_allow_bypass_two_factor'] = ['twitter', 'google_oauth2']
+```
 
-  ```yaml
-  omniauth:
-    allow_bypass_two_factor: ['twitter', 'google_oauth2']
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  allow_bypass_two_factor: ['twitter', 'google_oauth2']
+```
+
+::EndTabs
 
 ## Sign in with a provider automatically
 
@@ -440,18 +470,22 @@ authentication. This removes the need to select the provider before signing in.
 For example, to enable automatic sign-in for the
 [Azure v2 integration](azure.md):
 
-- **For Omnibus package**
+::Tabs
 
-  ```ruby
-  gitlab_rails['omniauth_auto_sign_in_with_provider'] = 'azure_activedirectory_v2'
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```ruby
+gitlab_rails['omniauth_auto_sign_in_with_provider'] = 'azure_activedirectory_v2'
+```
 
-  ```yaml
-  omniauth:
-    auto_sign_in_with_provider: azure_activedirectory_v2
-  ```
+:::TabTitle Self-compiled (source)
+
+```yaml
+omniauth:
+  auto_sign_in_with_provider: azure_activedirectory_v2
+```
+
+::EndTabs
 
 Keep in mind that every sign-in attempt is redirected to the OmniAuth
 provider, so you can't sign in using local credentials. Ensure at least

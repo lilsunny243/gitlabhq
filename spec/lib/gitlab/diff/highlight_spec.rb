@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Diff::Highlight do
+RSpec.describe Gitlab::Diff::Highlight, feature_category: :source_code_management do
   include RepoHelpers
 
   let_it_be(:project) { create(:project, :repository) }
@@ -15,7 +15,6 @@ RSpec.describe Gitlab::Diff::Highlight do
     let(:code) { '<h2 onmouseover="alert(2)">Test</h2>' }
 
     before do
-      allow(Gitlab::Diff::InlineDiff).to receive(:for_lines).and_return([])
       allow_any_instance_of(Gitlab::Diff::Line).to receive(:text).and_return(code)
     end
 
@@ -39,19 +38,19 @@ RSpec.describe Gitlab::Diff::Highlight do
       end
 
       it 'highlights and marks unchanged lines' do
-        code = %Q{ <span id="LC7" class="line" lang="ruby">  <span class="k">def</span> <span class="nf">popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kp">nil</span><span class="p">)</span></span>\n}
+        code = %{ <span id="LC7" class="line" lang="ruby">  <span class="k">def</span> <span class="nf">popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kp">nil</span><span class="p">)</span></span>\n}
 
         expect(subject[2].rich_text).to eq(code)
       end
 
       it 'highlights and marks removed lines' do
-        code = %Q{-<span id="LC9" class="line" lang="ruby">      <span class="k">raise</span> <span class="s2">"System commands must be given as an array of strings"</span></span>\n}
+        code = %{-<span id="LC9" class="line" lang="ruby">      <span class="k">raise</span> <span class="s2">"System commands must be given as an array of strings"</span></span>\n}
 
         expect(subject[4].rich_text).to eq(code)
       end
 
       it 'highlights and marks added lines' do
-        code = %Q{+<span id="LC9" class="line" lang="ruby">      <span class="k">raise</span> <span class="no"><span class="idiff left addition">RuntimeError</span></span><span class="p"><span class="idiff addition">,</span></span><span class="idiff right addition"> </span><span class="s2">"System commands must be given as an array of strings"</span></span>\n}
+        code = %{+<span id="LC9" class="line" lang="ruby">      <span class="k">raise</span> <span class="no"><span class="idiff left addition">RuntimeError</span></span><span class="p"><span class="idiff addition">,</span></span><span class="idiff right addition"> </span><span class="s2">"System commands must be given as an array of strings"</span></span>\n}
 
         expect(subject[5].rich_text).to eq(code)
       end
@@ -121,18 +120,6 @@ RSpec.describe Gitlab::Diff::Highlight do
         end
       end
 
-      context 'when `use_marker_ranges` feature flag is disabled' do
-        it 'returns the same result' do
-          with_feature_flag = described_class.new(diff_file, repository: project.repository).highlight
-
-          stub_feature_flags(use_marker_ranges: false)
-
-          without_feature_flag = described_class.new(diff_file, repository: project.repository).highlight
-
-          expect(with_feature_flag.map(&:rich_text)).to eq(without_feature_flag.map(&:rich_text))
-        end
-      end
-
       context 'when no inline diffs' do
         it_behaves_like 'without inline diffs'
       end
@@ -148,7 +135,7 @@ RSpec.describe Gitlab::Diff::Highlight do
       it 'blobs are highlighted as plain text without loading all data' do
         expect(diff_file.blob).not_to receive(:load_all_data!)
 
-        expect(subject[2].rich_text).to eq(%Q{ <span id="LC7" class="line" lang="">  def popen(cmd, path=nil)</span>\n})
+        expect(subject[2].rich_text).to eq(%{ <span id="LC7" class="line" lang="">  def popen(cmd, path=nil)</span>\n})
         expect(subject[2].rich_text).to be_html_safe
       end
     end

@@ -50,8 +50,8 @@ module Gitlab
         consume_find_all_branches_response(response)
       end
 
-      def default_branch_name
-        request = Gitaly::FindDefaultBranchNameRequest.new(repository: @gitaly_repo)
+      def default_branch_name(head_only: false)
+        request = Gitaly::FindDefaultBranchNameRequest.new(repository: @gitaly_repo, head_only: head_only)
         response = gitaly_client_call(@storage, :ref_service, :find_default_branch_name, request, timeout: GitalyClient.fast_timeout)
         Gitlab::Git.branch_name(response.name)
       end
@@ -113,11 +113,42 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :tag_not_found
           raise Gitlab::Git::UnknownRef, "tag does not exist: #{tag_name}"
         else
           # When this is not a know structured error we simply re-raise the exception.
+          raise e
+        end
+      end
+
+      def update_refs(ref_list:)
+        request = Enumerator.new do |y|
+          ref_list.each_slice(100) do |refs|
+            updates = refs.map do |ref_pair|
+              Gitaly::UpdateReferencesRequest::Update.new(
+                old_object_id: ref_pair[:old_sha],
+                new_object_id: ref_pair[:new_sha],
+                reference: encode_binary(ref_pair[:reference])
+              )
+            end
+
+            y.yield Gitaly::UpdateReferencesRequest.new(repository: @gitaly_repo, updates: updates)
+          end
+        end
+
+        gitaly_client_call(@repository.storage, :ref_service, :update_references, request, timeout: GitalyClient.long_timeout)
+      rescue GRPC::BadStatus => e
+        detailed_error = GitalyClient.decode_detailed_error(e)
+
+        case detailed_error.try(:error)
+        when :invalid_format
+          raise Gitlab::Git::InvalidRefFormatError, "references have an invalid format: #{detailed_error.invalid_format.refs.join(",")}"
+        when :references_locked
+          raise Gitlab::Git::ReferencesLockedError
+        when :reference_state_mismatch
+          raise Gitlab::Git::ReferenceStateMismatchError
+        else
           raise e
         end
       end
@@ -135,7 +166,7 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :invalid_format
           raise Gitlab::Git::InvalidRefFormatError, "references have an invalid format: #{detailed_error.invalid_format.refs.join(",")}"
         when :references_locked
@@ -239,7 +270,7 @@ module Gitlab
         sort_by = 'name' if sort_by == 'name_asc'
 
         enum_value = Gitaly::FindLocalBranchesRequest::SortBy.resolve(sort_by.upcase.to_sym)
-        raise ArgumentError, "Invalid sort_by key `#{sort_by}`" unless enum_value
+        return Gitaly::FindLocalBranchesRequest::SortBy::NAME unless enum_value
 
         enum_value
       end

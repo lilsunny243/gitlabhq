@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merge request approval rules **(PREMIUM)**
+# Merge request approval rules **(PREMIUM ALL)**
 
 Approval rules define how many [approvals](index.md) a merge request must receive before it can
 be merged, and which users should do the approving. They can be used in conjunction
@@ -42,7 +42,7 @@ To add a merge request approval rule:
    - To apply the rule to a specific branch, select it from the list.
 1. Set the number of required approvals in **Approvals required**. A value of `0` makes
    [the rule optional](#configure-optional-approval-rules), and any number greater than `0`
-   creates a required rule.
+   creates a required rule. Maximum number of required approvals is `100`.
 1. To add users or groups as approvers, search for users or groups that are
    [eligible to approve](#eligible-approvers), and select **Add**. GitLab suggests approvers based on
    previous authors of the files changed by the merge request.
@@ -53,7 +53,7 @@ To add a merge request approval rule:
 
 1. Select **Add approval rule**.
 
-Users of GitLab Premium and higher tiers can create [additional approval rules](#add-multiple-approval-rules).
+Users of GitLab Premium and Ultimate tiers can create [additional approval rules](#add-multiple-approval-rules).
 
 Your configuration for approval rule overrides determines if the new rule is applied
 to existing merge requests:
@@ -89,26 +89,25 @@ To edit a merge request approval rule:
 
 ## Add multiple approval rules
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1979) in GitLab 11.10.
-
-In GitLab Premium and higher tiers, you can enforce multiple approval rules on a
+In GitLab Premium and Ultimate tiers, you can enforce multiple approval rules on a
 merge request, and multiple default approval rules for a project. If your tier
 supports multiple default rules:
 
 - When [adding](#add-an-approval-rule) or [editing](#edit-an-approval-rule) an approval rule
-  for a project, GitLab displays the **Add approval rule** button even after a rule is defined.
+  for a project, GitLab displays **Add approval rule**, even after a rule is defined.
 - When editing or overriding multiple approval rules
   [on a merge request](#edit-or-override-merge-request-approval-rules), GitLab
-  displays the **Add approval rule** button even after a rule is defined.
+  displays **Add approval rule**, even after a rule is defined.
 
 When an [eligible approver](#eligible-approvers) approves a merge request, it
 reduces the number of approvals left (the **Approvals** column) for all rules that the approver belongs to:
 
-![Approvals premium merge request widget](img/approvals_premium_mr_widget_v13_3.png)
+![Approvals premium merge request widget](img/approvals_premium_mr_widget_16_0.png)
+
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For an overview, see [Multiple Approvers](https://www.youtube.com/watch?v=8JQJ5821FrA).
 
 ## Eligible approvers
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/10294) in GitLab 13.3, when an eligible approver comments on a merge request, it appears in the **Commented by** column of the Approvals widget.
 
 To be eligible as an approver for a project, a user must be a member of one or
 more of these:
@@ -131,21 +130,26 @@ who commented on the merge request. It helps authors and reviewers identify who 
 contact with questions about the merge request's content.
 
 If the number of required approvals is greater than the number of assigned approvers,
-approvals from other users with Developer [permissions](../../../permissions.md) or higher
+approvals from other users with at least the Developer [role](../../../permissions.md)
 in the project counts toward meeting the required number of approvals, even if the
 users were not explicitly listed in the approval rules.
 
 ### Group approvers
 
-You can add a group of users as approvers, but those users count as approvers only if
-they have **direct membership** to the group. Inherited members do not count. Group approvers are
-restricted to only groups [with share access to the project](../../members/share_project_with_groups.md).
+You can add a group of users as approvers. All **direct members** of this group
+can approve the rule. **Inherited members** cannot approve the rule.
+
+Typically the group is a subgroup in your top-level namespace, unless you are
+collaborating with an external group. If you are collaborating with another group,
+you must [share access to the project](../../members/share_project_with_groups.md)
+before assigning the group as a group approver.
 
 A user's membership in an approvers group affects their individual ability to
 approve in these ways:
 
-- A user already part of a group approver who is later added as an individual approver
-  counts as one approver, and not two.
+- Inherited members are not considered approvers. Only direct members can approve merge requests.
+- A user from a group approver group who is later _also_ added as an individual approver
+  counts as one approver, not two.
 - Merge request authors do not count as eligible approvers on their own merge requests by default.
   To change this behavior, disable the
   [**Prevent author approval**](settings.md#prevent-approval-by-author)
@@ -154,11 +158,17 @@ approve in these ways:
   [**Prevent committers approval**](settings.md#prevent-approvals-by-users-who-add-commits)
   project setting.
 
+NOTE:
+Creating multiple top-level groups to manage groups of users is not necessary, and is
+discouraged because GitLab Free [is limited to 5 group members](https://about.gitlab.com/pricing/faq-efficient-free-tier/).
+Managing groups of users using subgroups in your top-level namespace enables you
+to use a single license.
+
 ### Code owners as eligible approvers
 
 > Moved to GitLab Premium in 13.9.
 
-If you add [code owners](../../code_owners.md) to your repository, the owners of files
+If you add [code owners](../../codeowners/index.md) to your repository, the owners of files
 become eligible approvers in the project. To enable this merge request approval rule:
 
 1. Go to your project and select **Settings > Merge requests**.
@@ -183,8 +193,8 @@ oversight on proposed work. To enable approval permissions for these users witho
 granting them push access:
 
 1. [Create a protected branch](../../protected_branches.md)
-1. [Create a new group](../../../group/manage.md#create-a-group).
-1. [Add the user to the group](../../../group/manage.md#add-users-to-a-group),
+1. [Create a new group](../../../group/index.md#create-a-group).
+1. [Add the user to the group](../../../group/index.md#add-users-to-a-group),
    and select the Reporter role for the user.
 1. [Share the project with your group](../../members/share_project_with_groups.md#share-a-project-with-a-group),
    based on the Reporter role.
@@ -192,7 +202,7 @@ granting them push access:
 1. In the **Merge request approvals** section, scroll to **Approval rules**, and either:
    - For a new rule, select **Add approval rule** and target the protected branch.
    - For an existing rule, select **Edit** and target the protected branch.
-1. [Add the group](../../../group/manage.md#create-a-group) to the permission list.
+1. [Add the group](../../../group/index.md#create-a-group) to the permission list.
 
    ![Update approval rule](img/update_approval_rule_v13_10.png)
 
@@ -213,6 +223,14 @@ on a merge request, you can either add or remove approvers:
 
 Administrators can change the [merge request approvals settings](settings.md#prevent-editing-approval-rules-in-merge-requests)
 to prevent users from overriding approval rules for merge requests.
+
+## Require multiple approvals for a rule
+
+To create an approval rule which requires more than one approval:
+
+- When you [create or edit a rule](#edit-an-approval-rule), set **Approvals required** to `2` or more.
+- Use the [Merge requests approvals API](../../../../api/merge_request_approvals.md#update-merge-request-level-rule)
+  to set the `approvals_required` attribute to `2` or more.
 
 ## Configure optional approval rules
 
@@ -241,6 +259,32 @@ approval rule for certain branches:
 1. To enable this configuration, read
    [Code Owner's approvals for protected branches](../../protected_branches.md#require-code-owner-approval-on-a-protected-branch).
 
+## Code coverage check approval
+
+You can require specific approvals in the case that a merge request would reduce code test
+coverage.
+
+For more information, see [Coverage check approval rule](../../../../ci/testing/code_coverage.md#coverage-check-approval-rule).
+
+## Security Approvals **(ULTIMATE ALL)**
+
+> - Security approvals moved to merge request approvals settings [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/357021) in GitLab 15.0.
+> - Bot comment for approvals [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/411656) in GitLab 16.2 [with a flag](../../../../administration/feature_flags.md) named `security_policy_approval_notification`. Enabled by default.
+> - Bot comment for approvals [generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/130827) in GitLab 16.3. Feature flag `security_policy_approval_notification` removed.
+
+You can use [scan result policies](../../../application_security/policies/scan-result-policies.md#scan-result-policy-editor) to define security approvals based on the status of vulnerabilities in the merge request and the default branch.
+Details for each security policy is shown in the Security Approvals section of your Merge Request configuration.
+
+The security approval rules are applied to all merge requests until the pipeline is complete. The application of the
+security approval rules prevents users from merging in code before the security scans run. After the pipeline is
+complete, the security approval rules are checked to determine if the security approvals are still required.
+In case the scanners in the pipeline identify an issue and security approvals are required, a bot comment is generated
+on the merge request to indicate which steps are needed to proceed.
+
+![Security Approvals](img/security_approvals_v15_0.png)
+
+These policies are both created and edited in the [security policy editor](../../../application_security/policies/index.md#policy-editor).
+
 ## Troubleshooting
 
 ### Approval rule name can't be blank
@@ -262,18 +306,3 @@ isn't recognized as a valid Code Owner for the project, nor does it display in t
 project's **Approvals** list. To fix this problem, add the approval group as a shared group
 high enough in the shared hierarchy so the project requiring review inherits this
 group of users.
-
-## Security Approvals **(ULTIMATE)**
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/357021) in GitLab 15.0.
-
-You can use [scan result policies](../../../application_security/policies/scan-result-policies.md#scan-result-policy-editor) to define security approvals based on the status of vulnerabilities in the merge request and the default branch.
-Details for each security policy is shown in the Security Approvals section of your Merge Request configuration.
-
-The security approval rules are applied to all merge requests until the pipeline is complete. The application of the
-security approval rules prevents users from merging in code before the security scans run. Once the pipeline is
-complete, the security approval rules are checked to determine if the security approvals are still required.
-
-![Security Approvals](img/security_approvals_v15_0.png)
-
-These policies are both created and edited in the [security policy editor](../../../application_security/policies/index.md#policy-editor).

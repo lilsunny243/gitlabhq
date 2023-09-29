@@ -15,7 +15,8 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
       load_balancer,
       nameserver: 'localhost',
       port: 8600,
-      record: 'foo'
+      record: 'foo',
+      disconnect_timeout: 1 # Short disconnect timeout to keep tests fast
     )
   end
 
@@ -58,14 +59,14 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
     end
   end
 
-  describe '#start' do
+  describe '#start', :freeze_time do
     before do
       allow(service)
         .to receive(:loop)
         .and_yield
     end
 
-    it 'starts service discovery in a new thread' do
+    it 'starts service discovery in a new thread with proper assignments' do
       expect(Thread).to receive(:new).ordered.and_call_original # Thread starts
 
       expect(service).to receive(:perform_service_discovery).ordered.and_return(5)
@@ -73,6 +74,9 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
       expect(service).to receive(:sleep).ordered.with(7) # Sleep runs after thread starts
 
       service.start.join
+
+      expect(service.refresh_thread_last_run).to eq(Time.current)
+      expect(service.refresh_thread).to be_present
     end
   end
 
@@ -90,7 +94,7 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
       end
     end
 
-    context 'with failures' do
+    context 'with StandardError' do
       before do
         allow(Gitlab::ErrorTracking).to receive(:track_exception)
         allow(service).to receive(:sleep)
@@ -189,6 +193,12 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
   end
 
   describe '#replace_hosts' do
+    before do
+      allow(service)
+              .to receive(:load_balancer)
+              .and_return(load_balancer)
+    end
+
     let(:address_foo) { described_class::Address.new('foo') }
     let(:address_bar) { described_class::Address.new('bar') }
 
@@ -199,19 +209,13 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
       )
     end
 
-    before do
-      allow(service)
-        .to receive(:load_balancer)
-        .and_return(load_balancer)
-    end
-
     it 'replaces the hosts of the load balancer' do
       service.replace_hosts([address_bar])
 
       expect(load_balancer.host_list.host_names_and_ports).to eq([['bar', nil]])
     end
 
-    it 'disconnects the old connections' do
+    it 'disconnects the old connections gracefully if possible' do
       host = load_balancer.host_list.hosts.first
 
       allow(service)
@@ -219,10 +223,38 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
         .and_return(2)
 
       expect(host)
-        .to receive(:disconnect!)
-        .with(timeout: 2)
+        .to receive(:try_disconnect).and_return(true)
+
+      expect(host).not_to receive(:force_disconnect!)
 
       service.replace_hosts([address_bar])
+    end
+
+    it 'disconnects the old connections forcefully if necessary' do
+      host = load_balancer.host_list.hosts.first
+
+      allow(service)
+        .to receive(:disconnect_timeout)
+              .and_return(2)
+
+      expect(host)
+        .to receive(:try_disconnect).and_return(false)
+
+      expect(host).to receive(:force_disconnect!)
+
+      service.replace_hosts([address_bar])
+    end
+
+    context 'without old hosts' do
+      before do
+        allow(load_balancer.host_list).to receive(:hosts).and_return([])
+      end
+
+      it 'does not log any load balancing event' do
+        expect(::Gitlab::Database::LoadBalancing::Logger).not_to receive(:info)
+
+        service.replace_hosts([address_foo, address_bar])
+      end
     end
   end
 
@@ -410,6 +442,123 @@ RSpec.describe Gitlab::Database::LoadBalancing::ServiceDiscovery, feature_catego
           expect(service_resolver).not_to eq(resolver)
         end
       end
+    end
+  end
+
+  describe '#log_refresh_thread_interruption' do
+    before do
+      service.refresh_thread = refresh_thread
+      service.refresh_thread_last_run = last_run_timestamp
+    end
+
+    let(:refresh_thread) { nil }
+    let(:last_run_timestamp) { nil }
+
+    subject { service.log_refresh_thread_interruption }
+
+    context 'without refresh thread timestamp' do
+      it 'does not log any interruption' do
+        expect(service.refresh_thread_last_run).to be_nil
+
+        expect(Gitlab::Database::LoadBalancing::Logger).not_to receive(:error)
+
+        subject
+      end
+    end
+
+    context 'with refresh thread timestamp' do
+      let(:last_run_timestamp) { Time.current }
+
+      it 'does not log if last run time plus delta is in future' do
+        expect(Gitlab::Database::LoadBalancing::Logger).not_to receive(:error)
+
+        subject
+      end
+
+      context 'with way past last run timestamp' do
+        let(:refresh_thread) { instance_double(Thread, status: :run, backtrace: %w[backtrace foo]) }
+        let(:last_run_timestamp) { 20.minutes.before + described_class::DISCOVERY_THREAD_REFRESH_DELTA.minutes }
+
+        it 'does not log if the interruption is already logged' do
+          service.refresh_thread_interruption_logged = true
+
+          expect(Gitlab::Database::LoadBalancing::Logger).not_to receive(:error)
+
+          subject
+        end
+
+        it 'logs the error if the interruption was not logged before' do
+          expect(service.refresh_thread_interruption_logged).not_to be_present
+
+          expect(Gitlab::Database::LoadBalancing::Logger).to receive(:error).with(
+            event: :service_discovery_refresh_thread_interrupt,
+            refresh_thread_last_run: last_run_timestamp,
+            thread_status: refresh_thread.status.to_s,
+            thread_backtrace: 'backtrace\nfoo'
+          )
+
+          subject
+
+          expect(service.refresh_thread_interruption_logged).to be_truthy
+        end
+      end
+    end
+  end
+
+  context 'with service discovery connected to a real load balancer' do
+    let(:database_address) do
+      host, port = ApplicationRecord.connection_pool.db_config.configuration_hash.fetch(:host, :port)
+      described_class::Address.new(host, port)
+    end
+
+    before do
+      # set up the load balancer to point to the test postgres instance with three seperate conections
+      allow(service).to receive(:addresses_from_dns)
+                          .and_return([Gitlab::Database::LoadBalancing::Resolver::FAR_FUTURE_TTL,
+                            [database_address, database_address, database_address]])
+                          .once
+
+      service.perform_service_discovery
+    end
+
+    it 'configures service discovery with three replicas' do
+      expect(service.load_balancer.host_list.hosts.count).to eq(3)
+    end
+
+    it 'swaps the hosts out gracefully when not contended' do
+      expect(service.load_balancer.host_list.hosts.count).to eq(3)
+
+      host = service.load_balancer.host_list.next
+
+      # Check out and use a connection from a host so that there is something to clean up
+      host.pool.with_connection do |connection|
+        expect { connection.execute('select 1') }.not_to raise_error
+      end
+
+      allow(service).to receive(:addresses_from_dns).and_return([Gitlab::Database::LoadBalancing::Resolver::FAR_FUTURE_TTL, []])
+
+      service.load_balancer.host_list.hosts.each do |h|
+        # Expect that the host gets gracefully disconnected
+        expect(h).not_to receive(:force_disconnect!)
+      end
+
+      expect { service.perform_service_discovery }.to change { host.pool.stat[:connections] }.from(1).to(0)
+    end
+
+    it 'swaps the hosts out forcefully when contended' do
+      host = service.load_balancer.host_list.next
+
+      # Check out a connection and leave it checked out (simulate a web request)
+      connection = host.pool.checkout
+      connection.execute('select 1')
+
+      # Expect that the connection is forcefully checked in
+      expect(host).to receive(:force_disconnect!).and_call_original
+      expect(connection).to receive(:steal!).and_call_original
+
+      allow(service).to receive(:addresses_from_dns).and_return([Gitlab::Database::LoadBalancing::Resolver::FAR_FUTURE_TTL, []])
+
+      service.perform_service_discovery
     end
   end
 end

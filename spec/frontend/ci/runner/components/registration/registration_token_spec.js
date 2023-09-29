@@ -3,48 +3,59 @@ import Vue from 'vue';
 import { mountExtended, shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import RegistrationToken from '~/ci/runner/components/registration/registration_token.vue';
 import InputCopyToggleVisibility from '~/vue_shared/components/form/input_copy_toggle_visibility.vue';
-
-const mockToken = '01234567890';
-const mockMasked = '***********';
+import { mockRegistrationToken } from '../../mock_data';
 
 describe('RegistrationToken', () => {
   let wrapper;
-  let showToast;
+  const showToastMock = jest.fn();
 
   Vue.use(GlToast);
 
   const findInputCopyToggleVisibility = () => wrapper.findComponent(InputCopyToggleVisibility);
 
-  const createComponent = ({ props = {}, mountFn = shallowMountExtended } = {}) => {
+  const createComponent = ({ props = {}, mountFn = shallowMountExtended, ...options } = {}) => {
     wrapper = mountFn(RegistrationToken, {
       propsData: {
-        value: mockToken,
+        value: mockRegistrationToken,
         inputId: 'token-value',
         ...props,
       },
+      ...options,
+      mocks: {
+        $toast: {
+          show: showToastMock,
+        },
+      },
     });
-
-    showToast = wrapper.vm.$toast ? jest.spyOn(wrapper.vm.$toast, 'show') : null;
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('Displays value and copy button', () => {
     createComponent();
 
-    expect(findInputCopyToggleVisibility().props('value')).toBe(mockToken);
+    expect(findInputCopyToggleVisibility().props('value')).toBe(mockRegistrationToken);
     expect(findInputCopyToggleVisibility().props('copyButtonTitle')).toBe(
       'Copy registration token',
     );
   });
 
-  // Component integration test to ensure secure masking
-  it('Displays masked value by default', () => {
-    createComponent({ mountFn: mountExtended });
+  it('Renders readonly input', () => {
+    createComponent();
 
-    expect(wrapper.find('input').element.value).toBe(mockMasked);
+    expect(findInputCopyToggleVisibility().props('readonly')).toBe(true);
+  });
+
+  // Component integration test to ensure secure masking
+  it('Displays masked value as password input by default', () => {
+    const mockToken = '0123456789';
+
+    createComponent({
+      props: {
+        value: mockToken,
+      },
+      mountFn: mountExtended,
+    });
+
+    expect(wrapper.find('input').element.type).toBe('password');
   });
 
   describe('When the copy to clipboard button is clicked', () => {
@@ -55,8 +66,31 @@ describe('RegistrationToken', () => {
     it('shows a copied message', () => {
       findInputCopyToggleVisibility().vm.$emit('copy');
 
-      expect(showToast).toHaveBeenCalledTimes(1);
-      expect(showToast).toHaveBeenCalledWith('Registration token copied!');
+      expect(showToastMock).toHaveBeenCalledTimes(1);
+      expect(showToastMock).toHaveBeenCalledWith('Registration token copied!');
+    });
+
+    it('emits a copy event', () => {
+      findInputCopyToggleVisibility().vm.$emit('copy');
+
+      expect(wrapper.emitted('copy')).toHaveLength(1);
+    });
+  });
+
+  describe('When slots are used', () => {
+    const slotName = 'label-description';
+    const slotContent = 'Label Description';
+
+    beforeEach(() => {
+      createComponent({
+        slots: {
+          [slotName]: slotContent,
+        },
+      });
+    });
+
+    it('passes slots to the input component', () => {
+      expect(findInputCopyToggleVisibility().text()).toBe(slotContent);
     });
   });
 });

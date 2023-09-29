@@ -29,11 +29,16 @@ docker run -d --name kroki -p 8080:8000 yuzutech/kroki
 
 The **Kroki URL** is the hostname of the server running the container.
 
-The [`yuzutech/kroki`](https://hub.docker.com/r/yuzutech/kroki) image contains the following diagrams libraries out-of-the-box:
+The [`yuzutech/kroki`](https://hub.docker.com/r/yuzutech/kroki) Docker image contains several diagram
+libraries out of the box. For a complete list, see the
+[`asciidoctor-kroki` README](https://github.com/ggrossetie/asciidoctor-kroki/blob/master/README.md#supported-diagram-types).
+Supported libraries include:
 
 <!-- vale gitlab.Spelling = NO -->
 
-- [Bytefield](https://bytefield-svg.deepsymmetry.org/)
+- [Bytefield](https://bytefield-svg.deepsymmetry.org/bytefield-svg/intro.html)
+- [D2](https://d2lang.com/tour/intro/)
+- [DBML](https://dbml.dbdiagram.io/home/)
 - [Ditaa](https://ditaa.sourceforge.net)
 - [Erd](https://github.com/BurntSushi/erd)
 - [GraphViz](https://www.graphviz.org/)
@@ -56,7 +61,8 @@ read the [Kroki installation](https://docs.kroki.io/kroki/setup/install/#_images
 You need to enable Kroki integration from Settings under Admin Area.
 To do that, sign in with an administrator account and follow these steps:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. Go to **Settings > General**.
 1. Expand the **Kroki** section.
 1. Select **Enable Kroki** checkbox.

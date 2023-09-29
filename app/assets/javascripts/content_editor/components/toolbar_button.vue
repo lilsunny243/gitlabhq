@@ -47,7 +47,12 @@ export default {
     size: {
       type: String,
       required: false,
-      default: 'medium',
+      default: 'small',
+    },
+    showActiveState: {
+      type: Boolean,
+      required: false,
+      default: true,
     },
   },
   data() {
@@ -78,10 +83,11 @@ export default {
       :variant="variant"
       :category="category"
       :size="size"
-      :class="{ active: isActive }"
+      :class="{ 'gl-bg-gray-100!': showActiveState && isActive }"
       :aria-label="label"
       :title="label"
       :icon="iconName"
+      class="gl-mr-3"
       @click="execute"
     />
   </editor-state-observer>

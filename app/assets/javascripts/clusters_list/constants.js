@@ -1,7 +1,7 @@
 import { __, s__, sprintf } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
 
-export const MAX_LIST_COUNT = 25;
+export const MAX_LIST_COUNT = 20;
 export const INSTALL_AGENT_MODAL_ID = 'install-agent';
 export const ACTIVE_CONNECTION_TIME = 480000;
 export const NAME_MAX_LENGTH = 50;
@@ -86,6 +86,8 @@ export const I18N_AGENT_TABLE = {
   viewDocsText: s__('ClusterAgents|How to update an agent?'),
   defaultConfigText: s__('ClusterAgents|Default configuration'),
   defaultConfigTooltip: s__('ClusterAgents|What is default configuration?'),
+  sharedBadgeText: s__('ClusterAgents|shared'),
+  externalConfigText: s__('ClusterAgents|External project'),
 };
 
 export const I18N_AGENT_TOKEN = {
@@ -129,6 +131,10 @@ export const I18N_AGENT_MODAL = {
   learnMoreLink: s__('ClusterAgents|How do I register an agent?'),
   registrationErrorTitle: s__('ClusterAgents|Failed to register an agent'),
   unknownError: s__('ClusterAgents|An unknown error occurred. Please try again.'),
+  maxAgentsSupport: s__('ClusterAgents|We only support 100 agents on the UI.'),
+  useTerraformText: s__(
+    'ClusterAgents|To manage more agents, %{linkStart}use Terraform%{linkEnd}.',
+  ),
 };
 
 export const KAS_DISABLED_ERROR = 'Gitlab::Kas::Client::ConfigurationError';

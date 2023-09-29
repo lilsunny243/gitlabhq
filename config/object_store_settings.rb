@@ -2,25 +2,25 @@
 
 # Set default values for object_store settings
 class ObjectStoreSettings
-  SUPPORTED_TYPES = %w(artifacts external_diffs lfs uploads packages dependency_proxy terraform_state pages secure_files).freeze
-  ALLOWED_OBJECT_STORE_OVERRIDES = %w(bucket enabled proxy_download cdn).freeze
+  SUPPORTED_TYPES = %w[artifacts external_diffs lfs uploads packages dependency_proxy terraform_state pages].freeze
+  ALLOWED_OBJECT_STORE_OVERRIDES = %w[bucket enabled proxy_download cdn].freeze
 
   # To ensure the one Workhorse credential matches the Rails config, we
   # enforce consolidated settings on those accelerated
   # endpoints. Technically dependency_proxy and terraform_state fall
   # into this category, but they will likely be handled by Workhorse in
   # the future.
-  WORKHORSE_ACCELERATED_TYPES = SUPPORTED_TYPES - %w(pages)
+  WORKHORSE_ACCELERATED_TYPES = SUPPORTED_TYPES - %w[pages]
 
   # pages may be enabled but use legacy disk storage
   # we don't need to raise an error in that case
-  ALLOWED_INCOMPLETE_TYPES = %w(pages).freeze
+  ALLOWED_INCOMPLETE_TYPES = %w[pages].freeze
 
   attr_accessor :settings
 
   # Legacy parser
   def self.legacy_parse(object_store, object_store_type)
-    object_store ||= Settingslogic.new({})
+    object_store ||= GitlabSettings::Options.build({})
     object_store['enabled'] = false if object_store['enabled'].nil?
     object_store['remote_directory'], object_store['bucket_prefix'] = split_bucket_prefix(
       object_store['remote_directory']
@@ -31,8 +31,6 @@ class ObjectStoreSettings
     object_store['proxy_download'] = false if object_store['proxy_download'].nil?
     object_store['storage_options'] ||= {}
 
-    # Convert upload connection settings to use string keys, to make Fog happy
-    object_store['connection']&.deep_stringify_keys!
     object_store
   end
 
@@ -131,8 +129,7 @@ class ObjectStoreSettings
 
     main_config = settings['object_store']
     common_config = main_config.slice('enabled', 'connection', 'proxy_download', 'storage_options')
-    # Convert connection settings to use string keys, to make Fog happy
-    common_config['connection']&.deep_stringify_keys!
+
     # These are no longer configurable if common config is used
     common_config['direct_upload'] = true
     common_config['storage_options'] ||= {}
@@ -162,7 +159,7 @@ class ObjectStoreSettings
       )
       target_config['consolidated_settings'] = true
       section['object_store'] = target_config
-      # Settingslogic internally stores data as a Hash, but it also
+      # GitlabSettings::Options internally stores data as a Hash, but it also
       # creates a Settings object for every key. To avoid confusion, we should
       # update both so that Settings.artifacts and Settings['artifacts'] return
       # the same result.
@@ -178,23 +175,11 @@ class ObjectStoreSettings
   # 1. The common settings are defined
   # 2. The legacy settings are not defined
   def use_consolidated_settings?
-    # to_h is needed because we define `default` as a Gitaly storage name
-    # in stub_storage_settings. This causes Settingslogic to redefine Hash#default,
-    # which causes Hash#dig to fail when the key doesn't exist: https://gitlab.com/gitlab-org/gitlab/-/issues/286873
-    settings_h = settings.to_h
-    return false unless settings_h.dig('object_store', 'enabled')
-    return false unless settings_h.dig('object_store', 'connection').present?
+    return false unless settings.dig('object_store', 'enabled')
+    return false unless settings.dig('object_store', 'connection').present?
 
     WORKHORSE_ACCELERATED_TYPES.each do |store|
-      # to_h is needed because we define `default` as a Gitaly storage name
-      # in stub_storage_settings. This causes Settingslogic to redefine Hash#default,
-      # which causes Hash#dig to fail when the key doesn't exist: https://gitlab.com/gitlab-org/gitlab/-/issues/286873
-      #
-      # (byebug) section.dig
-      # *** ArgumentError Exception: wrong number of arguments (given 0, expected 1+)
-      # (byebug) section.dig('object_store')
-      # *** ArgumentError Exception: wrong number of arguments (given 1, expected 0)
-      section = settings.try(store)&.to_h
+      section = settings.try(store)
 
       next unless section
 

@@ -51,6 +51,7 @@ RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
     it { expect(subject.head_commit_sha).to eq('b83d6e391c22777fca1ed3012fce84f633d7fed0') }
     it { expect(subject.base_commit_sha).to eq('ae73cb07c9eeaf35924a10f713b364d32b2dd34f') }
     it { expect(subject.start_commit_sha).to eq('0b4bc9a49b562e85de7cc9e834518ea6828729b9') }
+    it { expect(subject.patch_id_sha).to eq('1e05e04d4c2a6414d9d4ab38208511a3bbe715f2') }
 
     context 'when diff_type is merge_head' do
       let_it_be(:merge_request) { create(:merge_request) }
@@ -385,8 +386,12 @@ RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
 
         expect(Compare)
           .to receive(:new)
-          .with(instance_of(Gitlab::Git::Compare), merge_request.target_project,
-                base_sha: diff.base_commit_sha, straight: false)
+          .with(
+            instance_of(Gitlab::Git::Compare),
+            merge_request.target_project,
+            base_sha: diff.base_commit_sha,
+            straight: false
+          )
           .and_call_original
 
         diff.diffs
@@ -695,6 +700,39 @@ RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
 
             diffs
           end
+        end
+      end
+    end
+
+    describe "#set_patch_id_sha" do
+      let(:mr_diff) { create(:merge_request).merge_request_diff }
+
+      it "sets the patch_id_sha attribute" do
+        expect(mr_diff.set_patch_id_sha).not_to be_nil
+      end
+
+      context "when base_commit_sha is nil" do
+        it "records patch_id_sha as nil" do
+          expect(mr_diff).to receive(:base_commit_sha).and_return(nil)
+
+          expect(mr_diff.set_patch_id_sha).to be_nil
+        end
+      end
+
+      context "when head_commit_sha is nil" do
+        it "records patch_id_sha as nil" do
+          expect(mr_diff).to receive(:head_commit_sha).and_return(nil)
+
+          expect(mr_diff.set_patch_id_sha).to be_nil
+        end
+      end
+
+      context "when head_commit_sha and base_commit_sha match" do
+        it "records patch_id_sha as nil" do
+          expect(mr_diff).to receive(:base_commit_sha).at_least(:once).and_return("abc123")
+          expect(mr_diff).to receive(:head_commit_sha).at_least(:once).and_return("abc123")
+
+          expect(mr_diff.set_patch_id_sha).to be_nil
         end
       end
     end
@@ -1178,14 +1216,14 @@ RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
   end
 
   describe '.latest_diff_for_merge_requests' do
-    let_it_be(:merge_request_1) { create(:merge_request_without_merge_request_diff) }
+    let_it_be(:merge_request_1) { create(:merge_request, :skip_diff_creation) }
     let_it_be(:merge_request_1_diff_1) { create(:merge_request_diff, merge_request: merge_request_1, created_at: 3.days.ago) }
     let_it_be(:merge_request_1_diff_2) { create(:merge_request_diff, merge_request: merge_request_1, created_at: 1.day.ago) }
 
-    let_it_be(:merge_request_2) { create(:merge_request_without_merge_request_diff) }
+    let_it_be(:merge_request_2) { create(:merge_request, :skip_diff_creation) }
     let_it_be(:merge_request_2_diff_1) { create(:merge_request_diff, merge_request: merge_request_2, created_at: 3.days.ago) }
 
-    let_it_be(:merge_request_3) { create(:merge_request_without_merge_request_diff) }
+    let_it_be(:merge_request_3) { create(:merge_request, :skip_diff_creation) }
 
     subject { described_class.latest_diff_for_merge_requests([merge_request_1, merge_request_2]) }
 
@@ -1274,7 +1312,7 @@ RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
         it 'raises' do
           allow(diff).to receive(:external_diff_cache_dir).and_return(File.join(cache_dir, '..'))
 
-          expect { diff.remove_cached_external_diff }.to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+          expect { diff.remove_cached_external_diff }.to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
         end
       end
 

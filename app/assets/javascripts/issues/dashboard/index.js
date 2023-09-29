@@ -1,10 +1,10 @@
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
-import createDefaultClient from '~/lib/graphql';
+import { gqlClient } from '~/issues/list/graphql';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import IssuesDashboardApp from './components/issues_dashboard_app.vue';
 
-export function mountIssuesDashboardApp() {
+export async function mountIssuesDashboardApp() {
   const el = document.querySelector('.js-issues-dashboard');
 
   if (!el) {
@@ -15,6 +15,7 @@ export function mountIssuesDashboardApp() {
 
   const {
     autocompleteAwardEmojisPath,
+    autocompleteUsersPath,
     calendarPath,
     dashboardLabelsPath,
     dashboardMilestonesPath,
@@ -34,10 +35,11 @@ export function mountIssuesDashboardApp() {
     el,
     name: 'IssuesDashboardRoot',
     apolloProvider: new VueApollo({
-      defaultClient: createDefaultClient(),
+      defaultClient: await gqlClient(),
     }),
     provide: {
       autocompleteAwardEmojisPath,
+      autocompleteUsersPath,
       calendarPath,
       dashboardLabelsPath,
       dashboardMilestonesPath,

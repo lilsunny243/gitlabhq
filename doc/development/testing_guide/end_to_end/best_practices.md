@@ -16,9 +16,9 @@ In case custom inflection logic is needed, custom inflectors are added in the [q
 
 ## Link a test to its test case
 
-Every test should have a corresponding test case in the [GitLab project Test Cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) as well as a results issue in the [Quality Test Cases project](https://gitlab.com/gitlab-org/quality/testcases/-/issues).
+Every test should have a corresponding test case in the [GitLab project test cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) as well as a results issue in the [Quality Test Cases project](https://gitlab.com/gitlab-org/quality/testcases/-/issues).
 If a test case issue does not yet exist, any GitLab team member can create a new test case in
-the [Test Cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) GitLab project
+the **[CI/CD > Test cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases)** page of the GitLab project
 with a placeholder title. After the test case URL is linked to a test in the code, when the test is
 run in a pipeline that has reporting enabled, the `report-results` script automatically updates the
 test case and the results issue.
@@ -99,6 +99,43 @@ end
 
 We recommend creating four associated test cases, two for each shared example.
 
+## Test naming
+
+Test names should form a readable sentence defining the purpose of the test. Our [testing guide](index.md) extends the [Thoughtbot testing style guide](https://github.com/thoughtbot/guides/tree/master/testing-rspec). This page clarifies the guidelines, along with input from [https://www.betterspecs.org/](https://www.betterspecs.org/) and [the RSpec naming guide](https://rspec.rubystyle.guide/#naming.)
+
+### Recommended approach
+
+The following block generates a test named `Plan wiki content creation in a project adds a home page`
+
+``` ruby
+# `RSpec.describe` is the DevOps Stage being covered
+RSpec.describe 'Plan', product_group: :knowledge do
+  # `describe` is the feature being tested
+  describe 'wiki content creation' do
+    # `context` provides the condition being covered
+    context 'in a project'
+      # `it` defines the expected result of the test
+      it 'adds a home page'
+      ...
+      end
+    ...
+    end
+  ...
+  end
+end
+```
+
+1. Every `describe`, `context`, and `it` blocks should have a short description attached
+1. Keep descriptions as concise as possible.
+    1. Long descriptions or multiple conditionals could be a sign it should be split up (additional `context` blocks).
+    1. The [Documentation Style Guide](../../documentation/styleguide/index.md) gives recommendations on how to write concisely and with [active voice](../../documentation/styleguide/word_list.md#active-voice).
+1. The outermost `Rspec.describe` block should be [the DevOps stage name](https://about.gitlab.com/handbook/product/categories/#devops-stages)
+1. Inside the `Rspec.describe` block is a `describe` block with the name of the feature being tested
+1. Optional `context` blocks define what the conditions being tested are
+    1. `context` blocks descriptions should begin with `when`, `with`, `without`, `for`, `and`, `on`, `in`, `as`, or `if` to match the [rubocop rule](https://www.rubydoc.info/gems/rubocop-rspec/RuboCop/Cop/RSpec/ContextWording)
+1. The `it` block describes the pass/fail criteria for the test
+    1. In `shared_examples` with a single example a `specify` block can be used instead of a named `it` block
+
 ## Prefer API over UI
 
 The end-to-end testing framework has the ability to fabricate its resources on a case-by-case basis.
@@ -132,18 +169,14 @@ Page::Main::Menu.perform do |menu|
 end
 
 #=> Good
-issue = Resource::Issue.fabricate_via_api! do |issue|
-  issue.name = 'issue-name'
-end
+issue = create(:issue, name: 'issue-name')
 
 Project::Issues::Index.perform do |index|
   expect(index).to have_issue(issue)
 end
 
 #=> Bad
-issue = Resource::Issue.fabricate_via_api! do |issue|
-  issue.name = 'issue-name'
-end
+issue = create(:issue, name: 'issue-name')
 
 Project::Issues::Index.perform do |index|
   expect(index).to have_issue(issue)
@@ -334,7 +367,7 @@ If the _only_ action in the test that requires administrator access is to toggle
 
 In line with [using the API](#prefer-api-over-ui), use a `Commit` resource whenever possible.
 
-`ProjectPush` uses raw shell commands via the Git Command Line Interface (CLI) whereas the `Commit` resource makes an HTTP request.
+`ProjectPush` uses raw shell commands from the Git command-line interface (CLI), and the `Commit` resource makes an HTTP request.
 
 ```ruby
 # Using a commit resource
@@ -413,7 +446,7 @@ except(page).to have_no_text('hidden')
 ```
 
 Unfortunately, that's not automatically the case for the predicate methods that we add to our
-[page objects](page_objects.md). We need to [create our own negatable matchers](https://relishapp.com/rspec/rspec-expectations/v/3-9/docs/custom-matchers/define-a-custom-matcher#matcher-with-separate-logic-for-expect().to-and-expect().not-to).
+[page objects](page_objects.md). We need to [create our own negatable matchers](https://rspec.info/features/3-12/rspec-expectations/custom-matchers/define-matcher/).
 
 The initial example uses the `have_job` matcher which is derived from the
 [`has_job?` predicate method of the `Page::Project::Pipeline::Show` page object](https://gitlab.com/gitlab-org/gitlab/-/blob/87864b3047c23b4308f59c27a3757045944af447/qa/qa/page/project/pipeline/show.rb#L53).

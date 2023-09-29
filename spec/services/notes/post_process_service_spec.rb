@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Notes::PostProcessService do
+RSpec.describe Notes::PostProcessService, feature_category: :team_planning do
   let(:project) { create(:project) }
   let(:issue) { create(:issue, project: project) }
   let(:user) { create(:user) }
@@ -22,6 +22,9 @@ RSpec.describe Notes::PostProcessService do
     it do
       expect(project).to receive(:execute_hooks)
       expect(project).to receive(:execute_integrations)
+      expect_next_instance_of(Integrations::GroupMentionService) do |group_mention_service|
+        expect(group_mention_service).to receive(:execute)
+      end
 
       described_class.new(@note).execute
     end

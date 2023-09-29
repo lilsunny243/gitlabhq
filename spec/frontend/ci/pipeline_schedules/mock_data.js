@@ -1,4 +1,5 @@
 // Fixture located at spec/frontend/fixtures/pipeline_schedules.rb
+import mockGetSinglePipelineScheduleGraphQLResponse from 'test_fixtures/graphql/pipeline_schedules/get_pipeline_schedules.query.graphql.single.json';
 import mockGetPipelineSchedulesGraphQLResponse from 'test_fixtures/graphql/pipeline_schedules/get_pipeline_schedules.query.graphql.json';
 import mockGetPipelineSchedulesAsGuestGraphQLResponse from 'test_fixtures/graphql/pipeline_schedules/get_pipeline_schedules.query.graphql.as_guest.json';
 import mockGetPipelineSchedulesTakeOwnershipGraphQLResponse from 'test_fixtures/graphql/pipeline_schedules/get_pipeline_schedules.query.graphql.take_ownership.json';
@@ -30,15 +31,35 @@ const {
 
 export const mockPipelineScheduleNodes = nodes;
 export const mockPipelineScheduleCurrentUser = currentUser;
-
 export const mockPipelineScheduleAsGuestNodes = guestNodes;
-
 export const mockTakeOwnershipNodes = takeOwnershipNodes;
+export const mockSinglePipelineScheduleNode = mockGetSinglePipelineScheduleGraphQLResponse;
+
+export const mockSinglePipelineScheduleNodeNoVars = {
+  data: {
+    currentUser: mockGetPipelineSchedulesGraphQLResponse.data.currentUser,
+    project: {
+      id: mockGetPipelineSchedulesGraphQLResponse.data.project.id,
+      pipelineSchedules: {
+        count: 1,
+        nodes: [mockGetPipelineSchedulesGraphQLResponse.data.project.pipelineSchedules.nodes[1]],
+      },
+    },
+  },
+};
+
 export const emptyPipelineSchedulesResponse = {
   data: {
+    currentUser: {
+      id: 'gid://gitlab/User/1',
+      username: 'root',
+    },
     project: {
       id: 'gid://gitlab/Project/1',
-      pipelineSchedules: { nodes: [], count: 0 },
+      pipelineSchedules: {
+        count: 0,
+        nodes: [],
+      },
     },
   },
 };
@@ -75,6 +96,26 @@ export const takeOwnershipMutationResponse = {
       },
       errors: [],
       __typename: 'PipelineScheduleTakeOwnershipPayload',
+    },
+  },
+};
+
+export const createScheduleMutationResponse = {
+  data: {
+    pipelineScheduleCreate: {
+      clientMutationId: null,
+      errors: [],
+      __typename: 'PipelineScheduleCreatePayload',
+    },
+  },
+};
+
+export const updateScheduleMutationResponse = {
+  data: {
+    pipelineScheduleUpdate: {
+      clientMutationId: null,
+      errors: [],
+      __typename: 'PipelineScheduleUpdatePayload',
     },
   },
 };

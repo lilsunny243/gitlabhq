@@ -4,7 +4,7 @@
 
 # Taken from Jekyll
 # https://github.com/jekyll/jekyll/blob/3.5-stable/lib/jekyll/document.rb#L13
-YAML_FRONT_MATTER_REGEXP = /\A(---\s*\n.*?\n?)^((---|\.\.\.)\s*$\n?)/m.freeze
+YAML_FRONT_MATTER_REGEXP = /\A(---\s*\n.*?\n?)^((---|\.\.\.)\s*$\n?)/m
 READ_LIMIT_BYTES = 1024
 
 require 'yaml'
@@ -22,7 +22,7 @@ def extract_front_matter(path)
 end
 
 class BlueprintFrontMatter
-  STATUSES = %w[proposed accepted ongoing implemented rejected]
+  STATUSES = %w[proposed accepted ongoing implemented postponed rejected]
 
   attr_reader :errors
 
@@ -32,6 +32,8 @@ class BlueprintFrontMatter
   end
 
   def validate
+    return if @metadata['redirect_to']
+
     validate_status
     validate_authors
     validate_creation_date

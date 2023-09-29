@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Projects::Menus::CiCdMenu do
+RSpec.describe Sidebars::Projects::Menus::CiCdMenu, feature_category: :navigation do
   let(:project) { build(:project) }
   let(:user) { project.first_owner }
   let(:can_view_pipeline_editor) { true }
@@ -50,20 +50,8 @@ RSpec.describe Sidebars::Projects::Menus::CiCdMenu do
     describe 'Artifacts' do
       let(:item_id) { :artifacts }
 
-      context 'when feature flag :artifacts_management_page is disabled' do
-        it 'does not include artifacts menu item' do
-          stub_feature_flags(artifacts_management_page: false)
-
-          is_expected.to be_nil
-        end
-      end
-
-      context 'when feature flag :artifacts_management_page is enabled' do
-        it 'includes artifacts menu item' do
-          stub_feature_flags(artifacts_management_page: true)
-
-          is_expected.not_to be_nil
-        end
+      it 'includes artifacts menu item' do
+        is_expected.not_to be_nil
       end
     end
   end

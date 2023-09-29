@@ -24,6 +24,7 @@ module Gitlab
           return if group_relation_without_group?
           return find_diff_commit_user if diff_commit_user?
           return find_diff_commit if diff_commit?
+          return find_work_item_type if work_item_type?
 
           super
         end
@@ -60,7 +61,7 @@ module Gitlab
 
         def prepare_attributes
           attributes.dup.tap do |atts|
-            atts.delete('group') unless epic? || iteration?
+            atts.delete('group') unless group_level_object?
 
             if label?
               atts['type'] = 'ProjectLabel' # Always create project labels
@@ -142,8 +143,8 @@ module Gitlab
           klass == MergeRequestDiffCommit
         end
 
-        def iteration?
-          klass == Iteration
+        def work_item_type?
+          klass == ::WorkItems::Type
         end
 
         # If an existing group milestone used the IID
@@ -164,7 +165,23 @@ module Gitlab
         end
 
         def group_relation_without_group?
-          (epic? || iteration?) && group.nil?
+          group_level_object? && group.nil?
+        end
+
+        def group_level_object?
+          epic?
+        end
+
+        def find_work_item_type
+          base_type = @attributes['base_type']
+
+          find_with_cache([::WorkItems::Type, base_type]) do
+            if ::WorkItems::Type.base_types.key?(base_type)
+              ::WorkItems::Type.default_by_type(base_type)
+            else
+              ::WorkItems::Type.default_issue_type
+            end
+          end
         end
       end
     end

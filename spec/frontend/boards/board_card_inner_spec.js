@@ -2,6 +2,7 @@ import { GlLabel, GlLoadingIcon, GlTooltip } from '@gitlab/ui';
 import { range } from 'lodash';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import setWindowLocation from 'helpers/set_window_location_helper';
@@ -90,8 +91,10 @@ describe('Board card component', () => {
         rootPath: '/',
         scopedLabelsAvailable: false,
         isEpicBoard,
+        allowSubEpics: isEpicBoard,
         issuableType: TYPE_ISSUE,
         isGroupBoard,
+        isApolloBoard: false,
       },
     });
   };
@@ -110,10 +113,7 @@ describe('Board card component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     store = null;
-    jest.clearAllMocks();
   });
 
   it('renders issue title', () => {
@@ -170,7 +170,7 @@ describe('Board card component', () => {
   });
 
   describe('blocked', () => {
-    it('renders blocked icon if issue is blocked', async () => {
+    it('renders blocked icon if issue is blocked', () => {
       createWrapper({
         props: {
           item: {
@@ -235,7 +235,7 @@ describe('Board card component', () => {
 
       expect(tooltip).toBeDefined();
       expect(findHiddenIssueIcon().attributes('title')).toBe(
-        'This issue is hidden because its author has been banned',
+        'This issue is hidden because its author has been banned.',
       );
     });
   });
@@ -312,10 +312,6 @@ describe('Board card component', () => {
             },
           },
         });
-      });
-
-      afterEach(() => {
-        global.gon.default_avatar_url = null;
       });
 
       it('displays defaults avatar if users avatar is null', () => {
@@ -493,7 +489,7 @@ describe('Board card component', () => {
   });
 
   describe('loading', () => {
-    it('renders loading icon', async () => {
+    it('renders loading icon', () => {
       createWrapper({
         props: {
           item: {

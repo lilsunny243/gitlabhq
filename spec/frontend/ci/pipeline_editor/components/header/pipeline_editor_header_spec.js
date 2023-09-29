@@ -1,4 +1,5 @@
 import { shallowMount } from '@vue/test-utils';
+import { GlCard } from '@gitlab/ui';
 import PipelineEditorHeader from '~/ci/pipeline_editor/components/header/pipeline_editor_header.vue';
 import PipelineStatus from '~/ci/pipeline_editor/components/header/pipeline_status.vue';
 import ValidationSegment from '~/ci/pipeline_editor/components/header/validation_segment.vue';
@@ -20,16 +21,14 @@ describe('Pipeline editor header', () => {
         isNewCiConfigFile: false,
         ...props,
       },
+      stubs: {
+        GlCard,
+      },
     });
   };
 
   const findPipelineStatus = () => wrapper.findComponent(PipelineStatus);
   const findValidationSegment = () => wrapper.findComponent(ValidationSegment);
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('template', () => {
     it('hides the pipeline status for new projects without a CI file', () => {

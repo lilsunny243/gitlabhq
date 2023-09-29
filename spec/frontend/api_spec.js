@@ -10,27 +10,22 @@ import {
   HTTP_STATUS_OK,
 } from '~/lib/utils/http_status';
 
-jest.mock('~/flash');
-
 describe('Api', () => {
   const dummyApiVersion = 'v3000';
   const dummyUrlRoot = '/gitlab';
-  const dummyGon = {
-    api_version: dummyApiVersion,
-    relative_url_root: dummyUrlRoot,
-  };
-  let originalGon;
+
   let mock;
 
   beforeEach(() => {
     mock = new MockAdapter(axios);
-    originalGon = window.gon;
-    window.gon = { ...dummyGon };
+    window.gon = {
+      api_version: dummyApiVersion,
+      relative_url_root: dummyUrlRoot,
+    };
   });
 
   afterEach(() => {
     mock.restore();
-    window.gon = originalGon;
   });
 
   describe('buildUrl', () => {
@@ -1423,7 +1418,7 @@ describe('Api', () => {
 
     describe('when service data increment counter is called with feature flag disabled', () => {
       beforeEach(() => {
-        gon.features = { ...gon.features, usageDataApi: false };
+        gon.features = { usageDataApi: false };
       });
 
       it('returns null', () => {
@@ -1437,7 +1432,7 @@ describe('Api', () => {
 
     describe('when service data increment counter is called', () => {
       beforeEach(() => {
-        gon.features = { ...gon.features, usageDataApi: true };
+        gon.features = { usageDataApi: true };
       });
 
       it('resolves the Promise', () => {
@@ -1468,7 +1463,7 @@ describe('Api', () => {
 
       describe('when service data increment unique users is called with feature flag disabled', () => {
         beforeEach(() => {
-          gon.features = { ...gon.features, usageDataApi: false };
+          gon.features = { usageDataApi: false };
         });
 
         it('returns null and does not call the endpoint', () => {
@@ -1483,7 +1478,7 @@ describe('Api', () => {
 
       describe('when service data increment unique users is called', () => {
         beforeEach(() => {
-          gon.features = { ...gon.features, usageDataApi: true };
+          gon.features = { usageDataApi: true };
         });
 
         it('resolves the Promise', () => {
@@ -1500,7 +1495,7 @@ describe('Api', () => {
 
     describe('when user is not set and feature flag enabled', () => {
       beforeEach(() => {
-        gon.features = { ...gon.features, usageDataApi: true };
+        gon.features = { usageDataApi: true };
       });
 
       it('returns null and does not call the endpoint', () => {
@@ -1508,6 +1503,79 @@ describe('Api', () => {
 
         const result = Api.trackRedisHllUserEvent(event);
 
+        expect(result).toEqual(null);
+        expect(axios.post).toHaveBeenCalledTimes(0);
+      });
+    });
+  });
+
+  describe('trackInternalEvent', () => {
+    const expectedUrl = `${dummyUrlRoot}/api/${dummyApiVersion}/usage_data/track_event`;
+    const event = 'i_devops_adoption';
+
+    const defaultContext = {
+      data: {
+        project_id: 123,
+        namespace_id: 123,
+      },
+    };
+
+    const postData = {
+      event,
+      project_id: defaultContext.data.project_id,
+      namespace_id: defaultContext.data.namespace_id,
+    };
+
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+    describe('when user is set', () => {
+      beforeEach(() => {
+        window.gon.current_user_id = 1;
+        window.gl = { snowplowStandardContext: { ...defaultContext } };
+      });
+
+      describe('when internal event is called with feature flag disabled', () => {
+        beforeEach(() => {
+          gon.features = { usageDataApi: false };
+        });
+
+        it('returns null and does not call the endpoint', () => {
+          jest.spyOn(axios, 'post');
+          const result = Api.trackInternalEvent(event);
+          expect(result).toEqual(null);
+          expect(axios.post).toHaveBeenCalledTimes(0);
+        });
+      });
+
+      describe('when internal event is called with feature flag enabled', () => {
+        beforeEach(() => {
+          gon.features = { usageDataApi: true };
+        });
+
+        it('resolves the Promise', () => {
+          jest.spyOn(axios, 'post');
+          mock.onPost(expectedUrl, postData).replyOnce(HTTP_STATUS_OK, true);
+
+          return Api.trackInternalEvent(event).then(({ data }) => {
+            expect(data).toEqual(true);
+            expect(axios.post).toHaveBeenCalledWith(expectedUrl, postData, { headers });
+          });
+        });
+      });
+    });
+
+    describe('when user is not set and feature flag enabled', () => {
+      beforeEach(() => {
+        window.gon.current_user_id = '';
+        gon.features = { usageDataApi: true };
+        window.gl = { snowplowStandardContext: { ...defaultContext } };
+      });
+
+      it('returns null and does not call the endpoint', () => {
+        jest.spyOn(axios, 'post');
+        const result = Api.trackInternalEvent(event);
         expect(result).toEqual(null);
         expect(axios.post).toHaveBeenCalledTimes(0);
       });

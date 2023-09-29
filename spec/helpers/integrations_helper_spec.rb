@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe IntegrationsHelper do
+RSpec.describe IntegrationsHelper, feature_category: :integrations do
+  let_it_be_with_refind(:project) { create(:project) }
+
   shared_examples 'is defined for each integration event' do
     Integration.available_integration_names.each do |integration|
       events = Integration.integration_name_to_model(integration).new.configurable_events
@@ -84,13 +86,60 @@ RSpec.describe IntegrationsHelper do
       ]
     end
 
+    let(:slack_app_fields) do
+      [
+        :upgrade_slack_url,
+        :should_upgrade_slack
+      ]
+    end
+
     subject { helper.integration_form_data(integration) }
 
-    context 'with Slack integration' do
-      let(:integration) { build(:integrations_slack) }
+    context 'with a GitLab for Slack App integration' do
+      let(:integration) { build(:gitlab_slack_application_integration, project: project) }
+
+      let(:redirect_url) do
+        "http://test.host/#{project.full_path}/-/settings/slack/slack_auth"
+      end
+
+      before do
+        allow(helper).to receive(:slack_auth_project_settings_slack_url).and_return(redirect_url)
+      end
+
+      it { is_expected.to include(*fields, *slack_app_fields) }
+      it { is_expected.not_to include(*jira_fields) }
+
+      it 'includes app upgrade URL' do
+        stub_application_setting(slack_app_id: 'MOCK_APP_ID')
+
+        expect(subject[:upgrade_slack_url]).to start_with(
+          [
+            Projects::SlackApplicationInstallService::SLACK_AUTHORIZE_URL,
+            '?client_id=MOCK_APP_ID',
+            "&redirect_uri=#{CGI.escape(redirect_url)}"
+          ].join
+        )
+      end
+
+      it 'includes the flag to upgrade Slack app, set to true' do
+        expect(subject[:should_upgrade_slack]).to eq 'true'
+      end
+
+      context 'when the integration includes all necessary scopes' do
+        let(:integration) { create(:gitlab_slack_application_integration, :all_features_supported, project: project) }
+
+        it 'includes the flag to upgrade Slack app, set to false' do
+          expect(subject[:should_upgrade_slack]).to eq 'false'
+        end
+      end
+    end
+
+    context 'with Jenkins integration' do
+      let(:integration) { build(:jenkins_integration) }
 
       it { is_expected.to include(*fields) }
       it { is_expected.not_to include(*jira_fields) }
+      it { is_expected.not_to include(*slack_app_fields) }
 
       specify do
         expect(subject[:reset_path]).to eq(helper.scoped_reset_integration_path(integration))
@@ -101,10 +150,11 @@ RSpec.describe IntegrationsHelper do
       end
     end
 
-    context 'Jira service' do
+    context 'with Jira integration' do
       let(:integration) { build(:jira_integration) }
 
       it { is_expected.to include(*fields, *jira_fields) }
+      it { is_expected.not_to include(*slack_app_fields) }
     end
   end
 
@@ -120,6 +170,26 @@ RSpec.describe IntegrationsHelper do
     subject { helper.integration_overrides_data(integration) }
 
     it { is_expected.to include(*fields) }
+  end
+
+  describe '#serialize_integration' do
+    subject { helper.send(:serialize_integration, integration) }
+
+    let(:integration) { build(:jenkins_integration) }
+
+    it 'serializes the integration' do
+      is_expected.to match(a_hash_including(
+        id: nil,
+        active: true,
+        configured: false,
+        title: 'Jenkins',
+        description: _('Run CI/CD pipelines with Jenkins.'),
+        updated_at: nil,
+        edit_path: '/admin/application_settings/integrations/jenkins/edit',
+        name: 'jenkins',
+        icon: nil
+      ))
+    end
   end
 
   describe '#scoped_reset_integration_path' do
@@ -151,6 +221,66 @@ RSpec.describe IntegrationsHelper do
     end
   end
 
+  describe '#add_to_slack_link' do
+    let(:slack_link) { helper.add_to_slack_link(project, 'A12345') }
+    let(:query) { Rack::Utils.parse_query(URI.parse(slack_link).query) }
+
+    before do
+      allow(helper).to receive(:form_authenticity_token).and_return('a token')
+      allow(helper).to receive(:slack_auth_project_settings_slack_url).and_return('http://redirect')
+    end
+
+    it 'returns the endpoint URL with all needed params' do
+      expect(slack_link).to start_with(Projects::SlackApplicationInstallService::SLACK_AUTHORIZE_URL)
+      expect(slack_link).to include('&state=a+token')
+
+      expect(query).to include(
+        'scope' => 'commands,chat:write,chat:write.public',
+        'client_id' => 'A12345',
+        'redirect_uri' => 'http://redirect',
+        'state' => 'a token'
+      )
+    end
+  end
+
+  describe '#gitlab_slack_application_data' do
+    let_it_be(:projects) { create_list(:project, 3) }
+
+    def relation
+      Project.id_in(projects.pluck(:id)).inc_routes
+    end
+
+    before do
+      allow(helper).to receive(:current_user).and_return(build(:user))
+      allow(helper).to receive(:new_session_path).and_return('http://session-path')
+    end
+
+    it 'includes the required keys' do
+      additions = helper.gitlab_slack_application_data(relation)
+
+      expect(additions.keys).to include(
+        :projects,
+        :sign_in_path,
+        :is_signed_in,
+        :slack_link_path,
+        :gitlab_logo_path,
+        :slack_logo_path
+      )
+    end
+
+    it 'does not suffer from N+1 performance issues' do
+      baseline = ActiveRecord::QueryRecorder.new { helper.gitlab_slack_application_data(relation.limit(1)) }
+
+      expect do
+        helper.gitlab_slack_application_data(relation)
+      end.not_to exceed_query_limit(baseline)
+    end
+
+    it 'serializes nil projects without error' do
+      expect(helper.gitlab_slack_application_data(nil)).to include(projects: '[]')
+    end
+  end
+
   describe '#integration_issue_type' do
     using RSpec::Parameterized::TableSyntax
     let_it_be(:issue) { create(:issue) }
@@ -161,21 +291,23 @@ RSpec.describe IntegrationsHelper do
       "test_case"       | _('Test case')
       "requirement"     | _('Requirement')
       "task"            | _('Task')
+      "ticket"          | _('Service Desk Ticket')
     end
 
     with_them do
       before do
-        issue.update!(issue_type: issue_type)
+        issue.assign_attributes(work_item_type: WorkItems::Type.default_by_type(issue_type))
+        issue.save!(validate: false)
       end
 
       it "return the correct i18n issue type" do
-        expect(described_class.integration_issue_type(issue.issue_type)).to eq(expected_i18n_issue_type)
+        expect(described_class.integration_issue_type(issue.work_item_type.base_type)).to eq(expected_i18n_issue_type)
       end
     end
 
     it "only consider these enumeration values are valid" do
-      expected_valid_types = %w[issue incident test_case requirement task objective key_result]
-      expect(Issue.issue_types.keys).to contain_exactly(*expected_valid_types)
+      expected_valid_types = %w[issue incident test_case requirement task objective key_result epic ticket]
+      expect(WorkItems::Type.base_types.keys).to contain_exactly(*expected_valid_types)
     end
   end
 

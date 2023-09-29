@@ -6,7 +6,7 @@ import AxiosMockAdapter from 'axios-mock-adapter';
 import { kebabCase } from 'lodash';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import * as urlUtility from '~/lib/utils/url_utility';
 import ForkForm from '~/pages/projects/forks/new/components/fork_form.vue';
 import createMockApollo from 'helpers/mock_apollo_helper';
@@ -14,7 +14,7 @@ import searchQuery from '~/pages/projects/forks/new/queries/search_forkable_name
 import ProjectNamespace from '~/pages/projects/forks/new/components/project_namespace.vue';
 import { START_RULE, CONTAINS_RULE } from '~/projects/project_name_rules';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/lib/utils/csrf', () => ({ token: 'mock-csrf-token' }));
 
 describe('ForkForm component', () => {
@@ -111,7 +111,6 @@ describe('ForkForm component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     axiosMock.restore();
   });
 
@@ -119,6 +118,7 @@ describe('ForkForm component', () => {
   const findInternalRadio = () => wrapper.find('[data-testid="radio-internal"]');
   const findPublicRadio = () => wrapper.find('[data-testid="radio-public"]');
   const findForkNameInput = () => wrapper.find('[data-testid="fork-name-input"]');
+  const findGlFormRadioGroup = () => wrapper.findComponent(GlFormRadioGroup);
   const findForkUrlInput = () => wrapper.findComponent(ProjectNamespace);
   const findForkSlugInput = () => wrapper.find('[data-testid="fork-slug-input"]');
   const findForkDescriptionTextarea = () =>
@@ -236,7 +236,7 @@ describe('ForkForm component', () => {
       it('resets the visibility to max allowed below current level', async () => {
         createFullComponent({ projectVisibility: 'public' }, { namespaces });
 
-        expect(wrapper.vm.form.fields.visibility.value).toBe('public');
+        expect(findGlFormRadioGroup().vm.$attrs.checked).toBe('public');
 
         fillForm({
           name: 'one',
@@ -251,7 +251,7 @@ describe('ForkForm component', () => {
       it('does not reset the visibility when current level is allowed', async () => {
         createFullComponent({ projectVisibility: 'public' }, { namespaces });
 
-        expect(wrapper.vm.form.fields.visibility.value).toBe('public');
+        expect(findGlFormRadioGroup().vm.$attrs.checked).toBe('public');
 
         fillForm({
           name: 'two',
@@ -266,7 +266,7 @@ describe('ForkForm component', () => {
       it('does not reset the visibility when visibility cap is increased', async () => {
         createFullComponent({ projectVisibility: 'public' }, { namespaces });
 
-        expect(wrapper.vm.form.fields.visibility.value).toBe('public');
+        expect(findGlFormRadioGroup().vm.$attrs.checked).toBe('public');
 
         fillForm({
           name: 'three',
@@ -291,7 +291,7 @@ describe('ForkForm component', () => {
           { namespaces },
         );
 
-        wrapper.vm.form.fields.visibility.value = 'internal';
+        await findGlFormRadioGroup().vm.$emit('input', 'internal');
         fillForm({
           name: 'five',
           id: 5,
@@ -462,14 +462,15 @@ describe('ForkForm component', () => {
 
         await submitForm();
 
-        expect(urlUtility.redirectTo).not.toHaveBeenCalled();
+        expect(urlUtility.redirectTo).not.toHaveBeenCalled(); // eslint-disable-line import/no-deprecated
       });
 
       it('does not make POST request if no visibility is checked', async () => {
         jest.spyOn(axios, 'post');
 
         setupComponent();
-        wrapper.vm.form.fields.visibility.value = null;
+        await findGlFormRadioGroup().vm.$emit('input', null);
+
         await nextTick();
 
         await submitForm();
@@ -550,10 +551,10 @@ describe('ForkForm component', () => {
         setupComponent();
         await submitForm();
 
-        expect(urlUtility.redirectTo).toHaveBeenCalledWith(webUrl);
+        expect(urlUtility.redirectTo).toHaveBeenCalledWith(webUrl); // eslint-disable-line import/no-deprecated
       });
 
-      it('display flash when POST is unsuccessful', async () => {
+      it('displays an alert when POST is unsuccessful', async () => {
         const dummyError = 'Fork project failed';
 
         jest.spyOn(axios, 'post').mockRejectedValue(dummyError);
@@ -561,7 +562,7 @@ describe('ForkForm component', () => {
         setupComponent();
         await submitForm();
 
-        expect(urlUtility.redirectTo).not.toHaveBeenCalled();
+        expect(urlUtility.redirectTo).not.toHaveBeenCalled(); // eslint-disable-line import/no-deprecated
         expect(createAlert).toHaveBeenCalledWith({
           message: 'An error occurred while forking the project. Please try again.',
         });

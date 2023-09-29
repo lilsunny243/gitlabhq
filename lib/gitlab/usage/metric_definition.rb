@@ -4,7 +4,6 @@ module Gitlab
   module Usage
     class MetricDefinition
       METRIC_SCHEMA_PATH = Rails.root.join('config', 'metrics', 'schema.json')
-      SKIP_VALIDATION_STATUS = 'removed'
       AVAILABLE_STATUSES = %w[active broken].to_set.freeze
       VALID_SERVICE_PING_STATUSES = %w[active broken].to_set.freeze
 
@@ -20,6 +19,16 @@ module Gitlab
 
       def key
         key_path
+      end
+
+      def events
+        events_from_new_structure || events_from_old_structure || {}
+      end
+
+      def to_context
+        return unless %w[redis redis_hll].include?(data_source)
+
+        Gitlab::Tracking::ServicePingContext.new(data_source: data_source, event: events.each_key.first)
       end
 
       def to_h
@@ -44,7 +53,7 @@ module Gitlab
 
       def validate!
         unless skip_validation?
-          self.class.schemer.validate(attributes.stringify_keys).each do |error|
+          self.class.schemer.validate(attributes.deep_stringify_keys).each do |error|
             error_message = <<~ERROR_MSG
               Error type: #{error['type']}
               Data: #{error['data']}
@@ -94,12 +103,29 @@ module Gitlab
           all.select { |definition| definition.attributes[:instrumentation_class].present? && definition.available? }
         end
 
+        def context_for(key_path)
+          definitions[key_path]&.to_context
+        end
+
         def schemer
           @schemer ||= ::JSONSchemer.schema(Pathname.new(METRIC_SCHEMA_PATH))
         end
 
         def dump_metrics_yaml
           @metrics_yaml ||= definitions.values.map(&:to_h).map(&:deep_stringify_keys).to_yaml
+        end
+
+        def metric_definitions_changed?
+          return false unless Rails.env.development?
+
+          return false if @last_change_check && @last_change_check > 3.seconds.ago
+
+          @last_change_check = Time.current
+
+          last_change = Dir.glob(paths).map { |f| File.mtime(f) }.max
+          did_change = @last_metric_update != last_change
+          @last_metric_update = last_change
+          did_change
         end
 
         private
@@ -144,7 +170,21 @@ module Gitlab
       end
 
       def skip_validation?
-        !!attributes[:skip_validation] || @skip_validation || attributes[:status] == SKIP_VALIDATION_STATUS
+        !!attributes[:skip_validation] || @skip_validation
+      end
+
+      def events_from_new_structure
+        events = attributes[:events]
+        return unless events
+
+        events.to_h { |event| [event[:name], event[:unique]&.to_sym] }
+      end
+
+      def events_from_old_structure
+        options_events = attributes.dig(:options, :events)
+        return unless options_events
+
+        options_events.index_with { nil }
       end
     end
   end

@@ -21,7 +21,7 @@ module Gitlab
         @with_retries = with_retries
 
         @table_name_without_schema = ActiveRecord::ConnectionAdapters::PostgreSQL::Utils
-          .extract_schema_qualified_name(table_name)
+          .extract_schema_qualified_name(table_name.to_s)
           .identifier
       end
 
@@ -38,7 +38,7 @@ module Gitlab
       def lock_writes
         if table_locked_for_writes?
           logger&.info "Skipping lock_writes, because #{table_name} is already locked for writes"
-          return
+          return result_hash(action: 'skipped')
         end
 
         logger&.info "Database: '#{database_name}', Table: '#{table_name}': Lock Writes".color(:yellow)
@@ -50,15 +50,24 @@ module Gitlab
         SQL
 
         execute_sql_statement(sql_statement)
+
+        result_hash(action: dry_run ? 'needs_lock' : 'locked')
       end
 
       def unlock_writes
+        unless table_locked_for_writes?
+          logger&.info "Skipping unlock_writes, because #{table_name} is already unlocked for writes"
+          return result_hash(action: 'skipped')
+        end
+
         logger&.info "Database: '#{database_name}', Table: '#{table_name}': Allow Writes".color(:green)
         sql_statement = <<~SQL
           DROP TRIGGER IF EXISTS #{write_trigger_name} ON #{table_name};
         SQL
 
         execute_sql_statement(sql_statement)
+
+        result_hash(action: dry_run ? 'needs_unlock' : 'unlocked')
       end
 
       private
@@ -112,6 +121,10 @@ module Gitlab
 
       def write_trigger_name
         "gitlab_schema_write_trigger_for_#{table_name_without_schema}"
+      end
+
+      def result_hash(action:)
+        { action: action, database: database_name, table: table_name, dry_run: dry_run }
       end
     end
   end

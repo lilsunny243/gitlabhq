@@ -10,7 +10,7 @@ module Gitlab
 
             attr_reader :location, :params, :context, :errors
 
-            YAML_WHITELIST_EXTENSION = /.+\.(yml|yaml)$/i.freeze
+            YAML_WHITELIST_EXTENSION = /.+\.(yml|yaml)$/i
 
             def initialize(params, context)
               @params = params
@@ -61,18 +61,6 @@ module Gitlab
               [params, context.project&.full_path, context.sha].hash
             end
 
-            def load_and_validate_expanded_hash!
-              context.logger.instrument(:config_file_fetch_content_hash) do
-                content_hash # calling the method loads then memoizes the result
-              end
-
-              context.logger.instrument(:config_file_expand_content_includes) do
-                expanded_content_hash # calling the method expands then memoizes the result
-              end
-
-              validate_hash!
-            end
-
             # This method is overridden to load context into the memoized result
             # or to lazily load context via BatchLoader
             def preload_context
@@ -94,31 +82,51 @@ module Gitlab
             end
 
             def validate_context!
-              raise NotImplementedError, 'subclass must implement validate_context'
+              raise NotImplementedError, 'subclass must implement `validate_context!`'
             end
 
             def validate_content!
-              if content.blank?
-                errors.push("Included file `#{masked_location}` is empty or does not exist!")
+              errors.push("Included file `#{masked_location}` is empty or does not exist!") if content.blank?
+            end
+
+            def load_and_validate_expanded_hash!
+              return errors.push("`#{masked_location}`: #{content_result.error}") unless content_result.valid?
+
+              if content_result.interpolated? && context.user.present?
+                ::Gitlab::UsageDataCounters::HLLRedisCounter
+                  .track_event('ci_interpolation_users', values: context.user.id)
               end
+
+              context.logger.instrument(:config_file_expand_content_includes) do
+                expanded_content_hash # calling the method expands then memoizes the result
+              end
+
+              validate_hash!
             end
 
             protected
 
-            def expanded_content_hash
-              return unless content_hash
-
-              strong_memoize(:expanded_content_hash) do
-                expand_includes(content_hash)
-              end
+            def content_inputs
+              # TODO: remove support for `with` syntax in 16.1, see https://gitlab.com/gitlab-org/gitlab/-/issues/408369
+              # In the interim prefer `inputs` over `with` while allow either syntax.
+              params.to_h.slice(:inputs, :with).each_value.first
             end
 
-            def content_hash
-              strong_memoize(:content_hash) do
-                ::Gitlab::Ci::Config::Yaml.load!(content)
+            def content_result
+              context.logger.instrument(:config_file_fetch_content_hash) do
+                ::Gitlab::Ci::Config::Yaml::Loader.new(
+                  content, inputs: content_inputs, variables: context.variables
+                ).load
               end
-            rescue Gitlab::Config::Loader::FormatError
-              nil
+            end
+            strong_memoize_attr :content_result
+
+            def expanded_content_hash
+              return if content_result.content.blank?
+
+              strong_memoize(:expanded_content_hash) do
+                expand_includes(content_result.content)
+              end
             end
 
             def validate_hash!

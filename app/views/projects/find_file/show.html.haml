@@ -1,12 +1,12 @@
 - page_title _("Find File"), @ref
 - add_page_specific_style 'page_bundles/tree'
 
-.file-finder-holder.tree-holder.clearfix.js-file-finder{ 'data-file-find-url': "#{escape_javascript(project_files_path(@project, @ref, format: :json))}", 'data-find-tree-url': escape_javascript(project_tree_path(@project, @ref)), 'data-blob-url-template': escape_javascript(project_blob_path(@project, @ref)) }
-  .nav-block
-    .tree-ref-holder
+.file-finder-holder.tree-holder.clearfix.js-file-finder.gl-pt-4{ 'data-file-find-url': "#{escape_javascript(project_files_path(@project, @ref, format: :json))}", 'data-find-tree-url': escape_javascript(project_tree_path(@project, @ref)), 'data-blob-url-template': escape_javascript(project_blob_path(@project, @ref)) }
+  .nav-block.gl-xs-mr-0
+    .tree-ref-holder.gl-xs-mb-3.gl-xs-w-full.gl-max-w-26
       #js-blob-ref-switcher{ data: { project_id: @project.id, ref: @ref, namespace: "/-/find_file" } }
-    %ul.breadcrumb.repo-breadcrumb
-      %li.breadcrumb-item
+    %ul.breadcrumb.repo-breadcrumb.gl-flex-nowrap
+      %li.breadcrumb-item.gl-white-space-nowrap
         = link_to project_tree_path(@project, @ref) do
           = @project.path
       %li.file-finder.breadcrumb-item
@@ -17,8 +17,8 @@
       %table.table.files-slider{ class: "table_#{@hex_path} tree-table" }
         %tbody
         .col-12.empty-state.hidden
-          .svg-250.svg-content
-            = image_tag('illustrations/profile-page/personal-projects.svg', alt: 'No files svg', lazy: true)
+          .svg-150.svg-content
+            = image_tag('illustrations/empty-state/empty-search-md.svg', alt: 'No files svg', lazy: true)
           .text-center
             %h4
               = _('There are no matching files')

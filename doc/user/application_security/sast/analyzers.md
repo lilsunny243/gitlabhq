@@ -4,7 +4,7 @@ group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# SAST analyzers **(FREE)**
+# SAST analyzers **(FREE ALL)**
 
 > [Moved](https://gitlab.com/groups/gitlab-org/-/epics/2098) from GitLab Ultimate to GitLab Free in 13.3.
 
@@ -33,7 +33,6 @@ SAST supports the following official analyzers:
 - [`nodejs-scan`](https://gitlab.com/gitlab-org/security-products/analyzers/nodejs-scan) (NodeJsScan)
 - [`phpcs-security-audit`](https://gitlab.com/gitlab-org/security-products/analyzers/phpcs-security-audit) (PHP CS security-audit)
 - [`pmd-apex`](https://gitlab.com/gitlab-org/security-products/analyzers/pmd-apex) (PMD (Apex only))
-- [`security-code-scan`](https://gitlab.com/gitlab-org/security-products/analyzers/security-code-scan) (Security Code Scan (.NET))
 - [`semgrep`](https://gitlab.com/gitlab-org/security-products/analyzers/semgrep) (Semgrep)
 - [`sobelow`](https://gitlab.com/gitlab-org/security-products/analyzers/sobelow) (Sobelow (Elixir Phoenix))
 - [`spotbugs`](https://gitlab.com/gitlab-org/security-products/analyzers/spotbugs) (SpotBugs with the Find Sec Bugs plugin (Ant, Gradle and wrapper, Grails, Maven and wrapper, SBT))
@@ -43,6 +42,7 @@ SAST has used other analyzers in previous versions. These analyzers reached End 
 - [`bandit`](https://gitlab.com/gitlab-org/security-products/analyzers/bandit) (Bandit); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
 - [`eslint`](https://gitlab.com/gitlab-org/security-products/analyzers/eslint) (ESLint (JavaScript and React)); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
 - [`gosec`](https://gitlab.com/gitlab-org/security-products/analyzers/gosec) (Gosec); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
+- [`security-code-scan`](https://gitlab.com/gitlab-org/security-products/analyzers/security-code-scan) (Security Code Scan (.NET)); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/390416) in GitLab 16.0. Replaced by the `semgrep` analyzer with GitLab-managed rules.
 
 ## SAST analyzer features
 
@@ -64,7 +64,7 @@ content directly. Instead, it enhances the results with additional properties, i
 
 - CWEs.
 - Location tracking fields.
-- A means of identifying false positives or insignificant findings. **(ULTIMATE)**
+- A means of identifying false positives or insignificant findings. **(ULTIMATE ALL)**
 
 ## Transition to Semgrep-based scanning
 
@@ -77,7 +77,7 @@ Work to remove language-specific analyzers and replace them with the Semgrep-bas
 
 You can choose to disable the other analyzers early and use Semgrep-based scanning for supported languages before the default behavior changes. If you do so:
 
-- You enjoy significantly faster scanning, reduced CI minutes usage, and more customizable scanning rules.
+- You enjoy significantly faster scanning, reduced compute quota usage, and more customizable scanning rules.
 - However, vulnerabilities previously reported by language-specific analyzers are reported again under certain conditions, including if you've dismissed the vulnerabilities before. The system behavior depends on:
   - whether you've excluded the Semgrep-based analyzer from running in the past.
   - which analyzer first discovered the vulnerabilities shown in the project's [Vulnerability Report](../vulnerability_report/index.md).
@@ -141,7 +141,7 @@ To preview the upcoming changes to the CI/CD configuration in GitLab 15.3 or ear
         template: 'Jobs/SAST.latest.gitlab-ci.yaml'
       ```
 
-    - On a Self-Managed instance, download the template from GitLab.com:
+    - On a self-managed instance, download the template from GitLab.com:
 
       ```yaml
       include:
@@ -252,7 +252,7 @@ Each analyzer provides data about the vulnerabilities it detects. The following 
 data available from each analyzer. The values provided by these tools are heterogeneous so they are sometimes
 normalized into common values, for example, `severity` and `confidence`.
 
-| Property / tool                | Apex | Bandit<sup>1</sup> | Brakeman | ESLint security<sup>1</sup> | SpotBugs | Flawfinder | Gosec<sup>1</sup> | Kubesec Scanner | MobSF | NodeJsScan | PHP CS Security Audit | Security code Scan (.NET) | Semgrep | Sobelow |
+| Property / tool                | Apex | Bandit<sup>1</sup> | Brakeman | ESLint security<sup>1</sup> | SpotBugs | Flawfinder | Gosec<sup>1</sup> | Kubesec Scanner | MobSF | NodeJsScan | PHP CS Security Audit | Security code Scan (.NET)<sup>1</sup> | Semgrep | Sobelow |
 |--------------------------------|------|--------|----------|-----------------|----------|------------|-------|-----------------|-------|------------|-----------------------|---------------------------|---------|---------|
 | Affected item (for example, class or package) | ✓ | ✗ | ✓ | ✗               | ✓        | ✓          | ✗     | ✓               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
 | Confidence                     | ✗    | ✓                  | ✓        | ✗                           | ✓        | x          | ✓                 | ✓               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✓       |

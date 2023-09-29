@@ -1,5 +1,6 @@
 import { GlLoadingIcon } from '@gitlab/ui';
 import { mount, shallowMount } from '@vue/test-utils';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Vue, { nextTick } from 'vue';
 import axios from 'axios';
@@ -7,20 +8,18 @@ import MockAdapter from 'axios-mock-adapter';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
+import { createAlert } from '~/alert';
 import BlobContent from '~/blob/components/blob_content.vue';
 import BlobHeader from '~/blob/components/blob_header.vue';
 import BlobButtonGroup from '~/repository/components/blob_button_group.vue';
 import BlobContentViewer from '~/repository/components/blob_content_viewer.vue';
-import WebIdeLink from '~/vue_shared/components/web_ide_link.vue';
 import ForkSuggestion from '~/repository/components/fork_suggestion.vue';
 import { loadViewer } from '~/repository/components/blob_viewers';
 import DownloadViewer from '~/repository/components/blob_viewers/download_viewer.vue';
 import EmptyViewer from '~/repository/components/blob_viewers/empty_viewer.vue';
-import SourceViewer from '~/vue_shared/components/source_viewer/source_viewer_deprecated.vue';
+import SourceViewer from '~/vue_shared/components/source_viewer/source_viewer.vue';
 import blobInfoQuery from 'shared_queries/repository/blob_info.query.graphql';
 import projectInfoQuery from '~/repository/queries/project_info.query.graphql';
-import userInfoQuery from '~/repository/queries/user_info.query.graphql';
-import applicationInfoQuery from '~/repository/queries/application_info.query.graphql';
 import CodeIntelligence from '~/code_navigation/components/app.vue';
 import * as urlUtility from '~/lib/utils/url_utility';
 import { isLoggedIn, handleLocationHash } from '~/lib/utils/common_utils';
@@ -33,23 +32,23 @@ import {
   simpleViewerMock,
   richViewerMock,
   projectMock,
-  userInfoMock,
-  applicationInfoMock,
   userPermissionsMock,
   propsMock,
   refMock,
+  axiosMockResponse,
 } from '../mock_data';
 
 jest.mock('~/repository/components/blob_viewers');
 jest.mock('~/lib/utils/url_utility');
 jest.mock('~/lib/utils/common_utils');
 jest.mock('~/blob/line_highlighter');
+jest.mock('~/alert');
 
 let wrapper;
 let blobInfoMockResolver;
-let userInfoMockResolver;
 let projectInfoMockResolver;
-let applicationInfoMockResolver;
+
+Vue.use(Vuex);
 
 const mockAxios = new MockAdapter(axios);
 
@@ -60,6 +59,8 @@ const mockRouterPush = jest.fn();
 const mockRouter = {
   push: mockRouterPush,
 };
+
+const legacyViewerUrl = '/some_file.js?format=json&viewer=simple';
 
 const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute = {}) => {
   Vue.use(VueApollo);
@@ -73,20 +74,23 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
     createMergeRequestIn = userPermissionsMock.createMergeRequestIn,
     isBinary,
     inject = {},
-    highlightJs = true,
   } = mockData;
 
   const blobInfo = {
     ...projectMock,
     repository: {
+      __typename: 'Repository',
       empty,
-      blobs: { nodes: [blob] },
+      blobs: {
+        __typename: 'RepositoryBlobConnection',
+        nodes: [blob],
+      },
     },
   };
 
   const projectInfo = {
     __typename: 'Project',
-    id: '123',
+    id: projectMock.id,
     userPermissions: {
       pushCode,
       forkProject,
@@ -112,19 +116,9 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
     data: { isBinary, project: blobInfo },
   });
 
-  userInfoMockResolver = jest.fn().mockResolvedValue({
-    data: { ...userInfoMock },
-  });
-
-  applicationInfoMockResolver = jest.fn().mockResolvedValue({
-    data: { ...applicationInfoMock },
-  });
-
   const fakeApollo = createMockApollo([
     [blobInfoQuery, blobInfoMockResolver],
-    [userInfoQuery, userInfoMockResolver],
     [projectInfoQuery, projectInfoMockResolver],
-    [applicationInfoQuery, applicationInfoMockResolver],
   ]);
 
   wrapper = extendedWrapper(
@@ -142,15 +136,11 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
         originalBranch: 'default-ref',
         ...inject,
         glFeatures: {
-          highlightJs,
+          highlightJsWorker: false,
         },
       },
     }),
   );
-
-  // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-  // eslint-disable-next-line no-restricted-syntax
-  wrapper.setData({ project: blobInfo, isBinary });
 
   await waitForPromises();
 };
@@ -162,7 +152,6 @@ const execImmediately = (callback) => {
 describe('Blob content viewer component', () => {
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findBlobHeader = () => wrapper.findComponent(BlobHeader);
-  const findWebIdeLink = () => wrapper.findComponent(WebIdeLink);
   const findBlobContent = () => wrapper.findComponent(BlobContent);
   const findBlobButtonGroup = () => wrapper.findComponent(BlobButtonGroup);
   const findForkSuggestion = () => wrapper.findComponent(ForkSuggestion);
@@ -175,7 +164,6 @@ describe('Blob content viewer component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     mockAxios.reset();
   });
 
@@ -193,7 +181,20 @@ describe('Blob content viewer component', () => {
       expect(findBlobHeader().props('hasRenderError')).toEqual(false);
       expect(findBlobHeader().props('hideViewerSwitcher')).toEqual(true);
       expect(findBlobHeader().props('blob')).toEqual(simpleViewerMock);
+      expect(findBlobHeader().props('showForkSuggestion')).toEqual(false);
+      expect(findBlobHeader().props('projectPath')).toEqual(propsMock.projectPath);
+      expect(findBlobHeader().props('projectId')).toEqual(projectMock.id);
       expect(mockRouterPush).not.toHaveBeenCalled();
+    });
+
+    it('creates an alert when the BlobHeader component emits an error', async () => {
+      await createComponent();
+
+      findBlobHeader().vm.$emit('error');
+
+      expect(createAlert).toHaveBeenCalledWith({
+        message: 'An error occurred while loading the file. Please try again.',
+      });
     });
 
     it('copies blob text to clipboard', async () => {
@@ -217,18 +218,7 @@ describe('Blob content viewer component', () => {
     });
 
     describe('legacy viewers', () => {
-      const legacyViewerUrl = 'some_file.js?format=json&viewer=simple';
       const fileType = 'text';
-      const highlightJs = false;
-
-      it('loads a legacy viewer when a the fileType is text and the highlightJs feature is turned off', async () => {
-        await createComponent({
-          blob: { ...simpleViewerMock, fileType, highlightJs },
-        });
-
-        expect(mockAxios.history.get).toHaveLength(1);
-        expect(mockAxios.history.get[0].url).toBe(legacyViewerUrl);
-      });
 
       it('loads a legacy viewer when the source viewer emits an error', async () => {
         loadViewer.mockReturnValueOnce(SourceViewer);
@@ -251,25 +241,25 @@ describe('Blob content viewer component', () => {
         'loads the legacy viewer when a file type is identified as legacy',
         async (type) => {
           await createComponent({ blob: { ...simpleViewerMock, fileType: type, webPath: type } });
-          expect(mockAxios.history.get[0].url).toBe(`${type}?format=json&viewer=simple`);
+          expect(mockAxios.history.get[0].url).toBe(`/${type}?format=json&viewer=simple`);
         },
       );
 
       it('loads the LineHighlighter', async () => {
         mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
-        await createComponent({ blob: { ...simpleViewerMock, fileType, highlightJs } });
+        await createComponent({ blob: { ...simpleViewerMock, fileType } });
         expect(LineHighlighter).toHaveBeenCalled();
       });
 
       it('does not load the LineHighlighter for RichViewers', async () => {
         mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
-        await createComponent({ blob: { ...richViewerMock, fileType, highlightJs } });
+        await createComponent({ blob: { ...richViewerMock, fileType } });
         expect(LineHighlighter).not.toHaveBeenCalled();
       });
 
       it('scrolls to the hash', async () => {
         mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
-        await createComponent({ blob: { ...simpleViewerMock, fileType, highlightJs } });
+        await createComponent({ blob: { ...simpleViewerMock, fileType } });
         expect(handleLocationHash).toHaveBeenCalled();
       });
     });
@@ -344,7 +334,7 @@ describe('Blob content viewer component', () => {
       await createComponent({ blob: { ...richViewerMock, fileType: 'unknown' } });
 
       expect(mockAxios.history.get).toHaveLength(1);
-      expect(mockAxios.history.get[0].url).toEqual('some_file.js?format=json&viewer=rich');
+      expect(mockAxios.history.get[0].url).toEqual('/some_file.js?format=json&viewer=rich');
     });
   });
 
@@ -367,7 +357,7 @@ describe('Blob content viewer component', () => {
     });
 
     it('does not load a CodeIntelligence component when no viewers are loaded', async () => {
-      const url = 'some_file.js?format=json&viewer=rich';
+      const url = '/some_file.js?format=json&viewer=rich';
       mockAxios.onGet(url).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       await createComponent({ blob: { ...richViewerMock, fileType: 'unknown' } });
 
@@ -402,54 +392,16 @@ describe('Blob content viewer component', () => {
 
       await waitForPromises();
 
-      expect(loadViewer).toHaveBeenCalledWith(viewer, false);
+      expect(loadViewer).toHaveBeenCalledWith(viewer, false, false, 'javascript');
       expect(wrapper.findComponent(loadViewerReturnValue).exists()).toBe(true);
     });
   });
 
   describe('BlobHeader action slot', () => {
-    const { ideEditPath, editBlobPath } = simpleViewerMock;
-
-    it('renders WebIdeLink button in simple viewer', async () => {
-      await createComponent({ inject: { BlobContent: true, BlobReplace: true } }, mount);
-
-      expect(findWebIdeLink().props()).toMatchObject({
-        editUrl: editBlobPath,
-        webIdeUrl: ideEditPath,
-        showEditButton: true,
-        showGitpodButton: applicationInfoMock.gitpodEnabled,
-        gitpodEnabled: userInfoMock.currentUser.gitpodEnabled,
-        showPipelineEditorButton: true,
-        gitpodUrl: simpleViewerMock.gitpodBlobUrl,
-        pipelineEditorUrl: simpleViewerMock.pipelineEditorPath,
-        userPreferencesGitpodPath: userInfoMock.currentUser.preferencesGitpodPath,
-        userProfileEnableGitpodPath: userInfoMock.currentUser.profileEnableGitpodPath,
-      });
-    });
-
-    it('renders WebIdeLink button in rich viewer', async () => {
-      await createComponent({ blob: richViewerMock }, mount);
-
-      expect(findWebIdeLink().props()).toMatchObject({
-        editUrl: editBlobPath,
-        webIdeUrl: ideEditPath,
-        showEditButton: true,
-      });
-    });
-
-    it('renders WebIdeLink button for binary files', async () => {
-      await createComponent({ blob: richViewerMock, isBinary: true }, mount);
-
-      expect(findWebIdeLink().props()).toMatchObject({
-        editUrl: editBlobPath,
-        webIdeUrl: ideEditPath,
-        showEditButton: false,
-      });
-    });
-
     describe('blob header binary file', () => {
       it('passes the correct isBinary value when viewing a binary file', async () => {
-        await createComponent({ blob: richViewerMock, isBinary: true });
+        mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, axiosMockResponse);
+        await createComponent();
 
         expect(findBlobHeader().props('isBinary')).toBe(true);
       });
@@ -471,7 +423,6 @@ describe('Blob content viewer component', () => {
 
         expect(findBlobHeader().props('hideViewerSwitcher')).toBe(true);
         expect(findBlobHeader().props('isBinary')).toBe(true);
-        expect(findWebIdeLink().props('showEditButton')).toBe(false);
       });
     });
 
@@ -481,11 +432,6 @@ describe('Blob content viewer component', () => {
         userPermissions: { pushCode, downloadCode },
         repository: { empty },
       } = projectMock;
-
-      afterEach(() => {
-        delete gon.current_user_id;
-        delete gon.current_username;
-      });
 
       it('renders component', async () => {
         window.gon.current_user_id = 1;
@@ -516,20 +462,13 @@ describe('Blob content viewer component', () => {
   });
 
   describe('blob info query', () => {
-    it.each`
-      highlightJs | shouldFetchRawText
-      ${true}     | ${true}
-      ${false}    | ${false}
-    `(
-      'calls blob info query with shouldFetchRawText: $shouldFetchRawText when highlightJs (feature flag): $highlightJs',
-      async ({ highlightJs, shouldFetchRawText }) => {
-        await createComponent({ highlightJs });
+    it('calls blob info query with shouldFetchRawText: true', async () => {
+      await createComponent();
 
-        expect(blobInfoMockResolver).toHaveBeenCalledWith(
-          expect.objectContaining({ shouldFetchRawText }),
-        );
-      },
-    );
+      expect(blobInfoMockResolver).toHaveBeenCalledWith(
+        expect.objectContaining({ shouldFetchRawText: true }),
+      );
+    });
 
     it('is called with originalBranch value if the prop has a value', async () => {
       await createComponent({ inject: { originalBranch: 'some-branch' } });
@@ -556,13 +495,13 @@ describe('Blob content viewer component', () => {
     beforeEach(() => createComponent({}, mount));
 
     it('simple edit redirects to the simple editor', () => {
-      findWebIdeLink().vm.$emit('edit', 'simple');
-      expect(urlUtility.redirectTo).toHaveBeenCalledWith(simpleViewerMock.editBlobPath);
+      findBlobHeader().vm.$emit('edit', 'simple');
+      expect(urlUtility.redirectTo).toHaveBeenCalledWith(simpleViewerMock.editBlobPath); // eslint-disable-line import/no-deprecated
     });
 
     it('IDE edit redirects to the IDE editor', () => {
-      findWebIdeLink().vm.$emit('edit', 'ide');
-      expect(urlUtility.redirectTo).toHaveBeenCalledWith(simpleViewerMock.ideEditPath);
+      findBlobHeader().vm.$emit('edit', 'ide');
+      expect(urlUtility.redirectTo).toHaveBeenCalledWith(simpleViewerMock.ideEditPath); // eslint-disable-line import/no-deprecated
     });
 
     it.each`
@@ -590,7 +529,7 @@ describe('Blob content viewer component', () => {
           mount,
         );
 
-        findWebIdeLink().vm.$emit('edit', 'simple');
+        findBlobHeader().vm.$emit('edit', 'simple');
         await nextTick();
 
         expect(findForkSuggestion().exists()).toBe(showForkSuggestion);

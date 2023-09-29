@@ -2,10 +2,13 @@
 import { GlLink, GlIcon, GlSprintf } from '@gitlab/ui';
 import { __, sprintf } from '~/locale';
 
-const NoteableTypeText = {
+const noteableTypeText = {
   Issue: __('issue'),
   Epic: __('epic'),
   MergeRequest: __('merge request'),
+  Task: __('task'),
+  KeyResult: __('key result'),
+  Objective: __('objective'),
 };
 
 export default {
@@ -53,7 +56,7 @@ export default {
       return this.isConfidential && this.isLocked;
     },
     noteableTypeText() {
-      return NoteableTypeText[this.noteableType];
+      return noteableTypeText[this.noteableType];
     },
     confidentialContextText() {
       return sprintf(__('This is a confidential %{noteableTypeText}.'), {
@@ -69,7 +72,7 @@ export default {
 };
 </script>
 <template>
-  <div class="issuable-note-warning" data-testid="confidential-warning">
+  <div class="issuable-note-warning">
     <gl-icon v-if="!isLockedAndConfidential" :name="warningIcon" :size="16" class="icon inline" />
 
     <span v-if="isLockedAndConfidential" ref="lockedAndConfidential">

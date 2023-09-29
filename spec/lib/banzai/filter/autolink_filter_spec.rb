@@ -169,7 +169,7 @@ RSpec.describe Banzai::Filter::AutolinkFilter, feature_category: :team_planning 
 
     it 'removes one closing punctuation mark when the punctuation in the link is unbalanced' do
       complicated_link = "(#{link}(a'b[c'd]))'"
-      expected_complicated_link = %Q{(<a href="#{link}(a'b[c'd]))">#{link}(a'b[c'd]))</a>'}
+      expected_complicated_link = %{(<a href="#{link}(a'b[c'd]))">#{link}(a'b[c'd]))</a>'}
       actual = unescape(filter(complicated_link).to_html)
 
       expect(actual).to eq(Rinku.auto_link(complicated_link))
@@ -178,7 +178,7 @@ RSpec.describe Banzai::Filter::AutolinkFilter, feature_category: :team_planning 
 
     it 'does not double-encode HTML entities' do
       encoded_link = "#{link}?foo=bar&amp;baz=quux"
-      expected_encoded_link = %Q{<a href="#{encoded_link}">#{encoded_link}</a>}
+      expected_encoded_link = %{<a href="#{encoded_link}">#{encoded_link}</a>}
       actual = unescape(filter(encoded_link).to_html)
 
       expect(actual).to eq(Rinku.auto_link(encoded_link))
@@ -224,6 +224,22 @@ RSpec.describe Banzai::Filter::AutolinkFilter, feature_category: :team_planning 
         expect(doc.children.last.text).to include('<another>')
       end
     end
+  end
+
+  it 'protects against malicious backtracking' do
+    doc = "http://#{'&' * 1_000_000}x"
+
+    expect do
+      Timeout.timeout(30.seconds) { filter(doc) }
+    end.not_to raise_error
+  end
+
+  it 'does not timeout with excessively long scheme' do
+    doc = "#{'h' * 1_000_000}://example.com"
+
+    expect do
+      Timeout.timeout(30.seconds) { filter(doc) }
+    end.not_to raise_error
   end
 
   # Rinku does not escape these characters in HTML attributes, but content_tag

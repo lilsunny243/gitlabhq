@@ -1,7 +1,7 @@
 import { KeyMod, KeyCode, Emitter } from 'monaco-editor';
 import { debounce } from 'lodash';
 import { BLOB_PREVIEW_ERROR } from '~/blob_edit/constants';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { sanitize } from '~/lib/dompurify';
 import axios from '~/lib/utils/axios_utils';
 import syntaxHighlight from '~/syntax_highlight';
@@ -14,7 +14,6 @@ import {
   EXTENSION_MARKDOWN_PREVIEW_UPDATE_DELAY,
   EXTENSION_MARKDOWN_PREVIEW_LABEL,
   EXTENSION_MARKDOWN_HIDE_PREVIEW_LABEL,
-  EDITOR_TOOLBAR_RIGHT_GROUP,
 } from '../constants';
 
 const fetchPreview = (text, previewMarkdownPath) => {
@@ -37,8 +36,6 @@ const setupDomElement = ({ injectToEl = null } = {}) => {
   return previewEl;
 };
 
-let dimResize = false;
-
 export class EditorMarkdownPreviewExtension {
   static get extensionName() {
     return 'EditorMarkdownPreview';
@@ -53,7 +50,6 @@ export class EditorMarkdownPreviewExtension {
       },
       shown: false,
       modelChangeListener: undefined,
-      layoutChangeListener: undefined,
       path: setupOptions.previewMarkdownPath,
       actionShowPreviewCondition: instance.createContextKey('toggleLivePreview', true),
       eventEmitter: new Emitter(),
@@ -61,17 +57,18 @@ export class EditorMarkdownPreviewExtension {
     this.toolbarButtons = [];
 
     this.setupPreviewAction(instance);
-    if (instance.toolbar) {
-      this.setupToolbar(instance);
-    }
 
-    this.preview.layoutChangeListener = instance.onDidLayoutChange(() => {
-      if (instance.markdownPreview?.shown && !dimResize) {
-        const { width } = instance.getLayoutInfo();
-        const newWidth = width * EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH;
-        EditorMarkdownPreviewExtension.resizePreviewLayout(instance, newWidth);
+    const debouncedResizeHandler = debounce((entries) => {
+      for (const entry of entries) {
+        const { width: newInstanceWidth } = entry.contentRect;
+        if (instance.markdownPreview?.shown) {
+          const newWidth = newInstanceWidth * EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH;
+          EditorMarkdownPreviewExtension.resizePreviewLayout(instance, newWidth);
+        }
       }
-    });
+    }, 50);
+
+    this.resizeObserver = new ResizeObserver(debouncedResizeHandler);
 
     this.preview.eventEmitter.event(this.togglePreview.bind(this, instance));
   }
@@ -85,9 +82,7 @@ export class EditorMarkdownPreviewExtension {
   }
 
   cleanup(instance) {
-    if (this.preview.layoutChangeListener) {
-      this.preview.layoutChangeListener.dispose();
-    }
+    this.resizeObserver.disconnect();
     if (this.preview.modelChangeListener) {
       this.preview.modelChangeListener.dispose();
     }
@@ -102,37 +97,21 @@ export class EditorMarkdownPreviewExtension {
 
   static resizePreviewLayout(instance, width) {
     const { height } = instance.getLayoutInfo();
-    dimResize = true;
     instance.layout({ width, height });
-    window.requestAnimationFrame(() => {
-      dimResize = false;
-    });
-  }
-
-  setupToolbar(instance) {
-    this.toolbarButtons = [
-      {
-        id: EXTENSION_MARKDOWN_PREVIEW_ACTION_ID,
-        label: EXTENSION_MARKDOWN_PREVIEW_LABEL,
-        icon: 'live-preview',
-        selected: false,
-        group: EDITOR_TOOLBAR_RIGHT_GROUP,
-        category: 'primary',
-        selectedLabel: EXTENSION_MARKDOWN_HIDE_PREVIEW_LABEL,
-        onClick: () => instance.togglePreview(),
-        data: {
-          qaSelector: 'editor_toolbar_button',
-        },
-      },
-    ];
-    instance.toolbar.addItems(this.toolbarButtons);
   }
 
   togglePreviewLayout(instance) {
     const { width } = instance.getLayoutInfo();
-    const newWidth = this.preview.shown
-      ? width / EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH
-      : width * EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH;
+    let newWidth;
+    if (this.preview.shown) {
+      // This means the preview is to be closed at the next step
+      newWidth = width / EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH;
+      this.resizeObserver.disconnect();
+    } else {
+      // The preview is hidden, but is in the process to be opened
+      newWidth = width * EXTENSION_MARKDOWN_PREVIEW_PANEL_WIDTH;
+      this.resizeObserver.observe(instance.getContainerDomNode());
+    }
     EditorMarkdownPreviewExtension.resizePreviewLayout(instance, newWidth);
   }
 

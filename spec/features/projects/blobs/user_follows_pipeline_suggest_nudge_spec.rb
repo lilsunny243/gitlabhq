@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled', :js, feature_category: :projects do
+RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled', :js, feature_category: :groups_and_projects do
   include CookieHelper
 
   let(:project) { create(:project, :empty_repo) }
@@ -25,8 +25,6 @@ RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled
       end
 
       it 'displays suggest_gitlab_ci_yml popover' do
-        page.find(:css, '.gitlab-ci-yml-selector').click
-
         popover_selector = '.suggest-gitlab-ci-yml'
 
         expect(page).to have_css(popover_selector, visible: true)

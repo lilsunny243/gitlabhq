@@ -1,13 +1,15 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# ServiceNow **(FREE)**
+# ServiceNow **(FREE ALL)**
 
 ServiceNow offers several integrations to help centralize and automate your
 management of GitLab workflows.
+
+To simplify your stack and streamline your processes, you should use GitLab [deployment approvals](../../../ci/environments/deployment_approvals.md) whenever possible.
 
 ## GitLab spoke
 

@@ -1,42 +1,30 @@
-import { numberToHumanSize } from '~/lib/utils/number_utils';
-import { PROJECT_STORAGE_TYPES } from './constants';
-
-export const getStorageTypesFromProjectStatistics = (projectStatistics, helpLinks = {}) =>
-  PROJECT_STORAGE_TYPES.reduce((types, currentType) => {
-    const helpPathKey = currentType.id.replace(`Size`, ``);
-    const helpPath = helpLinks[helpPathKey];
+/**
+ * Populates an array of storage types with usage value and other details
+ *
+ * @param {Array} selectedStorageTypes selected storage types that will be populated
+ * @param {Object} projectStatistics object of storage values, with storage type as keys
+ * @param {Object} statisticsDetailsPaths object of storage detail paths, with storage type as keys
+ * @param {Object} helpLinks object of help paths, with storage type as keys
+ * @returns {Array}
+ */
+export const getStorageTypesFromProjectStatistics = (
+  selectedStorageTypes,
+  projectStatistics,
+  statisticsDetailsPaths = {},
+  helpLinks = {},
+) =>
+  selectedStorageTypes.reduce((types, currentType) => {
+    const helpPath = helpLinks[currentType.id];
+    const value = projectStatistics[`${currentType.id}Size`];
+    const detailsPath = statisticsDetailsPaths[currentType.id];
 
     return types.concat({
-      storageType: {
-        ...currentType,
-        helpPath,
-      },
-      value: projectStatistics[currentType.id],
+      ...currentType,
+      helpPath,
+      detailsPath,
+      value,
     });
   }, []);
-
-/**
- * This method parses the results from `getProjectStorageStatistics` call.
- *
- * @param {Object} data graphql result
- * @returns {Object}
- */
-export const parseGetProjectStorageResults = (data, helpLinks) => {
-  const projectStatistics = data?.project?.statistics;
-  if (!projectStatistics) {
-    return {};
-  }
-  const { storageSize } = projectStatistics;
-  const storageTypes = getStorageTypesFromProjectStatistics(projectStatistics, helpLinks);
-
-  return {
-    storage: {
-      totalUsage: numberToHumanSize(storageSize, 1),
-      storageTypes,
-    },
-    statistics: projectStatistics,
-  };
-};
 
 /**
  * Creates a sorting function to sort storage types by usage in the graph and in the table

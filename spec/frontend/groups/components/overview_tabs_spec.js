@@ -10,26 +10,29 @@ import SharedProjectsEmptyState from '~/groups/components/empty_states/shared_pr
 import ArchivedProjectsEmptyState from '~/groups/components/empty_states/archived_projects_empty_state.vue';
 import GroupsStore from '~/groups/store/groups_store';
 import GroupsService from '~/groups/service/groups_service';
+import ArchivedProjectsService from '~/groups/service/archived_projects_service';
 import { createRouter } from '~/groups/init_overview_tabs';
 import eventHub from '~/groups/event_hub';
 import {
   ACTIVE_TAB_SUBGROUPS_AND_PROJECTS,
   ACTIVE_TAB_SHARED,
   ACTIVE_TAB_ARCHIVED,
-  OVERVIEW_TABS_SORTING_ITEMS,
+  SORTING_ITEM_NAME,
+  SORTING_ITEM_UPDATED,
+  SORTING_ITEM_STARS,
 } from '~/groups/constants';
 import axios from '~/lib/utils/axios_utils';
 import waitForPromises from 'helpers/wait_for_promises';
 
 Vue.component('GroupFolder', GroupFolderComponent);
 const router = createRouter();
-const [SORTING_ITEM_NAME, , SORTING_ITEM_UPDATED] = OVERVIEW_TABS_SORTING_ITEMS;
 
 describe('OverviewTabs', () => {
   let wrapper;
   let axiosMock;
 
   const defaultProvide = {
+    groupId: '1',
     endpoints: {
       subgroups_and_projects: '/groups/foobar/-/children.json',
       shared: '/groups/foobar/-/shared_projects.json',
@@ -39,6 +42,7 @@ describe('OverviewTabs', () => {
     newProjectPath: 'projects/new',
     newSubgroupIllustration: '',
     newProjectIllustration: '',
+    emptyProjectsIllustration: '',
     emptySubgroupIllustration: '',
     canCreateSubgroups: false,
     canCreateProjects: false,
@@ -76,7 +80,6 @@ describe('OverviewTabs', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     axiosMock.restore();
   });
 
@@ -92,8 +95,10 @@ describe('OverviewTabs', () => {
     expect(tabPanel.findComponent(GroupsApp).props()).toMatchObject({
       action: ACTIVE_TAB_SUBGROUPS_AND_PROJECTS,
       store: new GroupsStore({ showSchemaMarkup: true }),
-      service: new GroupsService(defaultProvide.endpoints[ACTIVE_TAB_SUBGROUPS_AND_PROJECTS]),
-      hideProjects: false,
+      service: new GroupsService(
+        defaultProvide.endpoints[ACTIVE_TAB_SUBGROUPS_AND_PROJECTS],
+        defaultProvide.initialSort,
+      ),
     });
 
     await waitForPromises();
@@ -116,8 +121,10 @@ describe('OverviewTabs', () => {
     expect(tabPanel.findComponent(GroupsApp).props()).toMatchObject({
       action: ACTIVE_TAB_SHARED,
       store: new GroupsStore(),
-      service: new GroupsService(defaultProvide.endpoints[ACTIVE_TAB_SHARED]),
-      hideProjects: false,
+      service: new GroupsService(
+        defaultProvide.endpoints[ACTIVE_TAB_SHARED],
+        defaultProvide.initialSort,
+      ),
     });
 
     expect(tabPanel.vm.$attrs.lazy).toBe(false);
@@ -142,8 +149,7 @@ describe('OverviewTabs', () => {
     expect(tabPanel.findComponent(GroupsApp).props()).toMatchObject({
       action: ACTIVE_TAB_ARCHIVED,
       store: new GroupsStore(),
-      service: new GroupsService(defaultProvide.endpoints[ACTIVE_TAB_ARCHIVED]),
-      hideProjects: false,
+      service: new ArchivedProjectsService(defaultProvide.groupId, defaultProvide.initialSort),
     });
 
     expect(tabPanel.vm.$attrs.lazy).toBe(false);
@@ -222,7 +228,7 @@ describe('OverviewTabs', () => {
     it(`pushes expected route when ${tabToClick} tab is clicked`, async () => {
       await findTab(tabToClick).trigger('click');
 
-      expect(routerMock.push).toHaveBeenCalledWith(expectedRoute);
+      expect(routerMock.push).toHaveBeenCalledWith(expect.objectContaining(expectedRoute));
     });
   });
 
@@ -305,6 +311,52 @@ describe('OverviewTabs', () => {
       });
 
       sharedAssertions({ search: '', sort: SORTING_ITEM_UPDATED.asc });
+    });
+
+    describe('when tab is changed', () => {
+      describe('when selected sort is supported', () => {
+        beforeEach(async () => {
+          await createComponent({
+            route: {
+              name: ACTIVE_TAB_SUBGROUPS_AND_PROJECTS,
+              params: { group: 'foo/bar/baz' },
+              query: { sort: SORTING_ITEM_NAME.asc },
+            },
+          });
+        });
+
+        it('adds sort query string', async () => {
+          await findTab(OverviewTabs.i18n[ACTIVE_TAB_ARCHIVED]).trigger('click');
+
+          expect(routerMock.push).toHaveBeenCalledWith(
+            expect.objectContaining({
+              query: { sort: SORTING_ITEM_NAME.asc },
+            }),
+          );
+        });
+      });
+
+      describe('when selected sort is not supported', () => {
+        beforeEach(async () => {
+          await createComponent({
+            route: {
+              name: ACTIVE_TAB_SUBGROUPS_AND_PROJECTS,
+              params: { group: 'foo/bar/baz' },
+              query: { sort: SORTING_ITEM_STARS.asc },
+            },
+          });
+        });
+
+        it('defaults to sorting by name', async () => {
+          await findTab(OverviewTabs.i18n[ACTIVE_TAB_ARCHIVED]).trigger('click');
+
+          expect(routerMock.push).toHaveBeenCalledWith(
+            expect.objectContaining({
+              query: { sort: SORTING_ITEM_NAME.asc },
+            }),
+          );
+        });
+      });
     });
 
     describe('when sort direction is changed', () => {

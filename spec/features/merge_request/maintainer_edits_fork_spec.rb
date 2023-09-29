@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe 'a maintainer edits files on a source-branch of an MR from a fork', :js, :sidekiq_might_not_need_inline,
-feature_category: :code_review_workflow do
-  include Spec::Support::Helpers::Features::SourceEditorSpecHelpers
+  feature_category: :code_review_workflow do
+  include Features::SourceEditorSpecHelpers
   include ProjectForksHelper
   let(:user) { create(:user, username: 'the-maintainer') }
   let(:target_project) { create(:project, :public, :repository) }
@@ -12,13 +12,15 @@ feature_category: :code_review_workflow do
   let(:source_project) { fork_project(target_project, author, repository: true) }
 
   let(:merge_request) do
-    create(:merge_request,
-           source_project: source_project,
-           target_project: target_project,
-           source_branch: 'fix',
-           target_branch: 'master',
-           author: author,
-           allow_collaboration: true)
+    create(
+      :merge_request,
+      source_project: source_project,
+      target_project: target_project,
+      source_branch: 'fix',
+      target_branch: 'master',
+      author: author,
+      allow_collaboration: true
+    )
   end
 
   before do

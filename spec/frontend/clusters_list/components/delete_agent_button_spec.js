@@ -8,7 +8,8 @@ import deleteAgentMutation from '~/clusters_list/graphql/mutations/delete_agent.
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import DeleteAgentButton from '~/clusters_list/components/delete_agent_button.vue';
-import { MAX_LIST_COUNT, DELETE_AGENT_BUTTON } from '~/clusters_list/constants';
+import { DELETE_AGENT_BUTTON } from '~/clusters_list/constants';
+import { stubComponent } from 'helpers/stub_component';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import { getAgentResponse, mockDeleteResponse, mockErrorDeleteResponse } from '../mocks/apollo';
 
@@ -16,7 +17,6 @@ Vue.use(VueApollo);
 
 const projectPath = 'path/to/project';
 const defaultBranchName = 'default';
-const maxAgents = MAX_LIST_COUNT;
 const agent = {
   id: 'agent-id',
   name: 'agent-name',
@@ -33,7 +33,7 @@ describe('DeleteAgentButton', () => {
   const findDeleteBtn = () => wrapper.findComponent(GlButton);
   const findInput = () => wrapper.findComponent(GlFormInput);
   const findPrimaryAction = () => findModal().props('actionPrimary');
-  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[0][attr];
+  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[attr];
   const findDeleteAgentButtonTooltip = () => wrapper.findByTestId('delete-agent-button-tooltip');
   const getTooltipText = (el) => {
     const binding = getBinding(el, 'gl-tooltip');
@@ -53,8 +53,6 @@ describe('DeleteAgentButton', () => {
       variables: {
         projectPath,
         defaultBranchName,
-        first: maxAgents,
-        last: null,
       },
       data: getAgentResponse.data,
     });
@@ -71,7 +69,6 @@ describe('DeleteAgentButton', () => {
     };
     const propsData = {
       defaultBranchName,
-      maxAgents,
       agent,
     };
 
@@ -88,9 +85,14 @@ describe('DeleteAgentButton', () => {
       },
       propsData,
       mocks: { $toast: { show: toast } },
-      stubs: { GlModal },
+      stubs: {
+        GlModal: stubComponent(GlModal, {
+          methods: {
+            hide: jest.fn(),
+          },
+        }),
+      },
     });
-    wrapper.vm.$refs.modal.hide = jest.fn();
 
     writeQuery();
     await nextTick();
@@ -108,7 +110,6 @@ describe('DeleteAgentButton', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     apolloProvider = null;
     deleteResponse = null;
     toast = null;
@@ -141,7 +142,7 @@ describe('DeleteAgentButton', () => {
       });
 
       it('disables the button', () => {
-        expect(findDeleteBtn().attributes('disabled')).toBe('true');
+        expect(findDeleteBtn().attributes('disabled')).toBeDefined();
       });
 
       it('shows a disabled tooltip', () => {
@@ -231,7 +232,7 @@ describe('DeleteAgentButton', () => {
 
     it('reenables the button', async () => {
       expect(findPrimaryActionAttributes('loading')).toBe(true);
-      expect(findDeleteBtn().attributes('disabled')).toBe('true');
+      expect(findDeleteBtn().attributes('disabled')).toBeDefined();
 
       await findModal().vm.$emit('hide');
 

@@ -19,7 +19,7 @@
       #{time_ago_with_tooltip(@commit.committed_date)}
 
   #js-commit-comments-button{ data: { comments_count: @notes_count.to_i } }
-  = link_to _('Browse files'), project_tree_path(@project, @commit), class: "btn gl-button btn-default gl-mr-3 gl-xs-w-full gl-xs-mb-3"
+  = link_button_to _('Browse files'), project_tree_path(@project, @commit), class: 'gl-mr-3 gl-xs-w-full gl-xs-mb-3'
   #js-commit-options-dropdown{ data: commit_options_dropdown_data(@project, @commit) }
 
 .commit-box{ data: { project_path: project_path(@project) } }
@@ -29,15 +29,14 @@
     %pre.commit-description<
       = preserve(markdown_field(@commit, :description))
 
-.info-well.js-commit-box-info{ 'data-commit-path' => branches_project_commit_path(@project, @commit.id) }
+.info-well
   .well-segment
     .icon-container.commit-icon
       = custom_icon("icon_commit")
     %span.cgray= n_('parent', 'parents', @commit.parents.count)
     - @commit.parents.each do |parent|
       = link_to parent.short_id, project_commit_path(@project, parent), class: "commit-sha"
-    .commit-info.branches
-      = gl_loading_icon(inline: true, css_class: 'gl-vertical-align-middle')
+    #js-commit-branches-and-tags{ data: { full_path: @project.full_path, commit_sha: @commit.short_id } }
 
   .well-segment.merge-request-info
     .icon-container
@@ -46,11 +45,12 @@
       = gl_loading_icon(inline: true, css_class: 'gl-vertical-align-middle')
 
   - if can?(current_user, :read_pipeline, @last_pipeline)
+    - status = @last_pipeline.detailed_status(current_user)
     .well-segment.pipeline-info
       .js-commit-pipeline-status{ data: { full_path: @project.full_path, iid: @last_pipeline.iid, graphql_resource_etag: graphql_etag_pipeline_path(@last_pipeline) } }
       #{ _('Pipeline') }
       = link_to "##{@last_pipeline.id}", project_pipeline_path(@project, @last_pipeline.id)
-      = ci_label_for_status(@last_pipeline.status)
+      = status&.label
       - if @last_pipeline.stages_count.nonzero?
         #{ n_(s_('Pipeline|with stage'), s_('Pipeline|with stages'), @last_pipeline.stages_count) }
         .js-commit-pipeline-mini-graph{ data: { stages: @last_pipeline_stages.to_json.html_safe, full_path: @project.full_path, iid: @last_pipeline.iid, graphql_resource_etag: graphql_etag_pipeline_path(@last_pipeline) } }

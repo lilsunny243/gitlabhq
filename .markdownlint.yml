@@ -52,10 +52,12 @@ proper-names:
     "Geo",
     "Git LFS",
     "git-annex",
+    "git-credential-oauth",
     "git-sizer",
     "Git",
     "Gitaly",
     "GitHub",
+    "gitlab.vim",
     "GitLab Geo",
     "GitLab Monitor",
     "GitLab Operator",
@@ -97,12 +99,12 @@ proper-names:
     "minikube",
     "MinIO",
     "ModSecurity",
+    "Neovim",
     "NGINX Ingress",
     "NGINX",
     "OAuth",
     "OAuth 2",
     "OmniAuth",
-    "Omnibus GitLab",
     "OpenID",
     "OpenShift",
     "PgBouncer",
@@ -149,3 +151,4 @@ proper-names:
     "YouTrack"
   ]
   code_blocks: false
+  html_elements: false

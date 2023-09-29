@@ -17,13 +17,14 @@ module Integrations
       non_empty_password_title: -> { s_('BambooService|Enter new build key') },
       non_empty_password_help: -> { s_('BambooService|Leave blank to use your current build key.') },
       placeholder: -> { _('KEY') },
-      required: true
+      required: true,
+      is_secret: true
 
     field :username,
       help: -> { s_('BambooService|The user with API access to the Bamboo server.') }
 
     field :password,
-      type: 'password',
+      type: :password,
       non_empty_password_title: -> { s_('ProjectService|Enter new password') },
       non_empty_password_help: -> { s_('ProjectService|Leave blank to use your current password') }
 

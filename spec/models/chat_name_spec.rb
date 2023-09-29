@@ -7,7 +7,6 @@ RSpec.describe ChatName, feature_category: :integrations do
 
   subject { chat_name }
 
-  it { is_expected.to belong_to(:integration) }
   it { is_expected.to belong_to(:user) }
 
   it { is_expected.to validate_presence_of(:user) }
@@ -15,12 +14,6 @@ RSpec.describe ChatName, feature_category: :integrations do
   it { is_expected.to validate_presence_of(:chat_id) }
 
   it { is_expected.to validate_uniqueness_of(:chat_id).scoped_to(:team_id) }
-
-  it 'is not removed when the project is deleted' do
-    expect { subject.reload.integration.project.delete }.not_to change { ChatName.count }
-
-    expect(ChatName.where(id: subject.id)).to exist
-  end
 
   describe '#update_last_used_at', :clean_gitlab_redis_shared_state do
     it 'updates the last_used_at timestamp' do
@@ -39,6 +32,22 @@ RSpec.describe ChatName, feature_category: :integrations do
       subject.update_last_used_at
 
       expect(subject.last_used_at).to eq(time)
+    end
+
+    it 'updates last_used_at if it was not recently updated' do
+      allow_next_instance_of(Gitlab::ExclusiveLease) do |lease|
+        allow(lease).to receive(:try_obtain).and_return('successful_lease_guid')
+      end
+
+      subject.update_last_used_at
+
+      new_time = ChatName::LAST_USED_AT_INTERVAL.from_now + 5.minutes
+
+      travel_to(new_time) do
+        subject.update_last_used_at
+      end
+
+      expect(subject.last_used_at).to be_like_time(new_time)
     end
   end
 

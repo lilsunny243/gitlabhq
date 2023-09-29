@@ -6,7 +6,6 @@ description: A count of packages that have been downloaded from the package regi
 product_section: ops
 product_stage: package
 product_group: package
-product_category: package registry
 value_type: number
 status: active
 time_frame: all
@@ -15,6 +14,8 @@ instrumentation_class: RedisMetric
 options:
   prefix: package_events
   event: i_package_pull_package_by_guest
+events:
+  - name: package_pulled_by_guest
 distribution:
 - ee
 - ce

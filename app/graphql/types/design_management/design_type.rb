@@ -10,10 +10,15 @@ module Types
 
       alias_method :design, :object
 
-      implements(Types::Notes::NoteableInterface)
-      implements(Types::DesignManagement::DesignFields)
-      implements(Types::CurrentUserTodos)
-      implements(Types::TodoableInterface)
+      implements Types::Notes::NoteableInterface
+      implements Types::DesignManagement::DesignFields
+      implements Types::CurrentUserTodos
+      implements Types::TodoableInterface
+
+      field :description,
+            GraphQL::Types::String,
+            null: true,
+            description: 'Description of the design.'
 
       field :web_url,
             GraphQL::Types::String,
@@ -24,6 +29,8 @@ module Types
             Types::DesignManagement::VersionType.connection_type,
             resolver: Resolvers::DesignManagement::VersionsResolver,
             description: "All versions related to this design ordered newest first."
+
+      markdown_field :description_html, null: true
 
       # Returns a `DesignManagement::Version` for this query based on the
       # `atVersion` argument passed to a parent node if present, or otherwise

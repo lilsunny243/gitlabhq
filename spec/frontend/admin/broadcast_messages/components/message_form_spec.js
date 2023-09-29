@@ -1,21 +1,21 @@
 import { mount } from '@vue/test-utils';
 import { GlBroadcastMessage, GlForm } from '@gitlab/ui';
 import AxiosMockAdapter from 'axios-mock-adapter';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_BAD_REQUEST } from '~/lib/utils/http_status';
 import MessageForm from '~/admin/broadcast_messages/components/message_form.vue';
 import {
-  BROADCAST_MESSAGES_PATH,
   TYPE_BANNER,
   TYPE_NOTIFICATION,
   THEMES,
+  TARGET_OPTIONS,
 } from '~/admin/broadcast_messages/constants';
 import waitForPromises from 'helpers/wait_for_promises';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import { MOCK_TARGET_ACCESS_LEVELS } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('MessageForm', () => {
   let wrapper;
@@ -32,18 +32,26 @@ describe('MessageForm', () => {
     endsAt: new Date(),
   };
 
+  const messagesPath = '_messages_path_';
+
   const findPreview = () => extendedWrapper(wrapper.findComponent(GlBroadcastMessage));
   const findThemeSelect = () => wrapper.findComponent('[data-testid=theme-select]');
   const findDismissable = () => wrapper.findComponent('[data-testid=dismissable-checkbox]');
   const findTargetRoles = () => wrapper.findComponent('[data-testid=target-roles-checkboxes]');
   const findSubmitButton = () => wrapper.findComponent('[data-testid=submit-button]');
+  const findCancelButton = () => wrapper.findComponent('[data-testid=cancel-button]');
   const findForm = () => wrapper.findComponent(GlForm);
+  const findShowInCli = () => wrapper.findComponent('[data-testid=show-in-cli-checkbox]');
+  const findTargetSelect = () => wrapper.findComponent('[data-testid=target-select]');
+  const findTargetPath = () => wrapper.findComponent('[data-testid=target-path-input]');
+  const emitSubmitForm = () => findForm().vm.$emit('submit', { preventDefault: () => {} });
 
-  function createComponent({ broadcastMessage = {}, glFeatures = {} }) {
+  function createComponent({ broadcastMessage = {} } = {}) {
     wrapper = mount(MessageForm, {
       provide: {
-        glFeatures,
         targetAccessLevelOptions: MOCK_TARGET_ACCESS_LEVELS,
+        messagesPath,
+        previewPath: '_preview_path_',
       },
       propsData: {
         broadcastMessage: {
@@ -72,7 +80,7 @@ describe('MessageForm', () => {
 
     it('renders the placeholder text when the user message is blank', () => {
       createComponent({ broadcastMessage: { message: '  ' } });
-      expect(wrapper.text()).toContain(wrapper.vm.$options.i18n.messagePlaceholder);
+      expect(wrapper.text()).toContain(MessageForm.i18n.messagePlaceholder);
     });
   });
 
@@ -100,27 +108,67 @@ describe('MessageForm', () => {
     });
   });
 
-  describe('target roles checkboxes', () => {
-    it('renders when roleTargetedBroadcastMessages feature is enabled', () => {
-      createComponent({ glFeatures: { roleTargetedBroadcastMessages: true } });
-      expect(findTargetRoles().exists()).toBe(true);
+  describe('showInCli checkbox', () => {
+    it('renders for Banners', () => {
+      createComponent({ broadcastMessage: { broadcastType: TYPE_BANNER } });
+      expect(findShowInCli().exists()).toBe(true);
     });
 
-    it('does not render when roleTargetedBroadcastMessages feature is disabled', () => {
-      createComponent({ glFeatures: { roleTargetedBroadcastMessages: false } });
-      expect(findTargetRoles().exists()).toBe(false);
+    it('does not render for Notifications', () => {
+      createComponent({ broadcastMessage: { broadcastType: TYPE_NOTIFICATION } });
+      expect(findShowInCli().exists()).toBe(false);
+    });
+  });
+
+  describe('target select', () => {
+    it('renders the first option and hide target path and target roles when creating message', () => {
+      createComponent();
+      expect(findTargetSelect().element.value).toBe(TARGET_OPTIONS[0].value);
+      expect(findTargetRoles().isVisible()).toBe(false);
+      expect(findTargetPath().isVisible()).toBe(false);
+    });
+
+    it('triggers displaying target path and target roles when selecting different options', async () => {
+      createComponent();
+      const targetPath = findTargetPath();
+      const options = findTargetSelect().findAll('option');
+      await options.at(1).setSelected();
+      expect(targetPath.isVisible()).toBe(true);
+      expect(targetPath.text()).toContain(MessageForm.i18n.targetPathDescription);
+      expect(targetPath.text()).not.toContain(MessageForm.i18n.targetPathWithRolesReminder);
+      expect(findTargetRoles().isVisible()).toBe(false);
+
+      await options.at(2).setSelected();
+      expect(targetPath.isVisible()).toBe(true);
+      expect(targetPath.text()).toContain(MessageForm.i18n.targetPathDescription);
+      expect(targetPath.text()).toContain(MessageForm.i18n.targetPathWithRolesReminder);
+      expect(findTargetRoles().isVisible()).toBe(true);
+    });
+
+    it('renders the second option and hide target roles when editing message with path specified', () => {
+      createComponent({ broadcastMessage: { targetPath: '/welcome' } });
+      expect(findTargetSelect().element.value).toBe(TARGET_OPTIONS[1].value);
+      expect(findTargetRoles().isVisible()).toBe(false);
+      expect(findTargetPath().isVisible()).toBe(true);
+    });
+
+    it('renders the third option when editing message with path and roles specified', () => {
+      createComponent({ broadcastMessage: { targetPath: '/welcome', targetAccessLevels: [20] } });
+      expect(findTargetSelect().element.value).toBe(TARGET_OPTIONS[2].value);
+      expect(findTargetRoles().isVisible()).toBe(true);
+      expect(findTargetPath().isVisible()).toBe(true);
     });
   });
 
   describe('form submit button', () => {
     it('renders the "add" text when the message is not persisted', () => {
       createComponent({ broadcastMessage: { id: undefined } });
-      expect(wrapper.text()).toContain(wrapper.vm.$options.i18n.add);
+      expect(wrapper.text()).toContain(MessageForm.i18n.add);
     });
 
     it('renders the "update" text when the message is persisted', () => {
       createComponent({ broadcastMessage: { id: 100 } });
-      expect(wrapper.text()).toContain(wrapper.vm.$options.i18n.update);
+      expect(wrapper.text()).toContain(MessageForm.i18n.update);
     });
 
     it('is disabled when the user message is blank', () => {
@@ -131,6 +179,14 @@ describe('MessageForm', () => {
     it('is not disabled when the user message is present', () => {
       createComponent({ broadcastMessage: { message: 'alsdjfkldsj' } });
       expect(findSubmitButton().props().disabled).toBe(false);
+    });
+  });
+
+  describe('form cancel button', () => {
+    it('renders when the editing a message and has href back to message index page', () => {
+      createComponent({ broadcastMessage: { id: 100 } });
+      expect(wrapper.text()).toContain('Cancel');
+      expect(findCancelButton().attributes('href')).toBe(wrapper.vm.messagesPath);
     });
   });
 
@@ -146,56 +202,86 @@ describe('MessageForm', () => {
       ends_at: defaultProps.endsAt,
     };
 
-    it('sends a create request for a new message form', async () => {
-      createComponent({ broadcastMessage: { id: undefined } });
-      findForm().vm.$emit('submit', { preventDefault: () => {} });
-      await waitForPromises();
+    describe('when creating a new message', () => {
+      beforeEach(() => {
+        createComponent({ broadcastMessage: { id: undefined } });
+      });
 
-      expect(axiosMock.history.post).toHaveLength(1);
-      expect(axiosMock.history.post[0]).toMatchObject({
-        url: BROADCAST_MESSAGES_PATH,
-        data: JSON.stringify(defaultPayload),
+      it('sends a create request for a new message form', async () => {
+        emitSubmitForm();
+        await waitForPromises();
+
+        expect(axiosMock.history.post).toHaveLength(2);
+        expect(axiosMock.history.post[1]).toMatchObject({
+          url: messagesPath,
+          data: JSON.stringify(defaultPayload),
+        });
+      });
+
+      it('shows an error alert if the create request fails', async () => {
+        axiosMock.onPost(messagesPath).replyOnce(HTTP_STATUS_BAD_REQUEST);
+        emitSubmitForm();
+        await waitForPromises();
+
+        expect(createAlert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: MessageForm.i18n.addError,
+          }),
+        );
       });
     });
 
-    it('shows an error alert if the create request fails', async () => {
-      createComponent({ broadcastMessage: { id: undefined } });
-      axiosMock.onPost(BROADCAST_MESSAGES_PATH).replyOnce(HTTP_STATUS_BAD_REQUEST);
-      findForm().vm.$emit('submit', { preventDefault: () => {} });
-      await waitForPromises();
+    describe('when editing an existing message', () => {
+      const mockId = 1337;
 
-      expect(createAlert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: wrapper.vm.$options.i18n.addError,
-        }),
-      );
-    });
-
-    it('sends an update request for a persisted message form', async () => {
-      const id = 1337;
-      createComponent({ broadcastMessage: { id } });
-      findForm().vm.$emit('submit', { preventDefault: () => {} });
-      await waitForPromises();
-
-      expect(axiosMock.history.patch).toHaveLength(1);
-      expect(axiosMock.history.patch[0]).toMatchObject({
-        url: `${BROADCAST_MESSAGES_PATH}/${id}`,
-        data: JSON.stringify(defaultPayload),
+      beforeEach(() => {
+        createComponent({ broadcastMessage: { id: mockId } });
       });
-    });
 
-    it('shows an error alert if the update request fails', async () => {
-      const id = 1337;
-      createComponent({ broadcastMessage: { id } });
-      axiosMock.onPost(`${BROADCAST_MESSAGES_PATH}/${id}`).replyOnce(HTTP_STATUS_BAD_REQUEST);
-      findForm().vm.$emit('submit', { preventDefault: () => {} });
-      await waitForPromises();
+      it('sends an update request for a persisted message form', async () => {
+        emitSubmitForm();
+        await waitForPromises();
 
-      expect(createAlert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: wrapper.vm.$options.i18n.updateError,
-        }),
-      );
+        expect(axiosMock.history.patch).toHaveLength(1);
+        expect(axiosMock.history.patch[0]).toMatchObject({
+          url: `${messagesPath}/${mockId}`,
+          data: JSON.stringify(defaultPayload),
+        });
+      });
+
+      it('shows an error alert if the update request fails', async () => {
+        axiosMock.onPost(`${messagesPath}/${mockId}`).replyOnce(HTTP_STATUS_BAD_REQUEST);
+        emitSubmitForm();
+        await waitForPromises();
+
+        expect(createAlert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: MessageForm.i18n.updateError,
+          }),
+        );
+      });
+
+      it('does not submit if target roles is required, and later does submit when validation is corrected', async () => {
+        const options = findTargetSelect().findAll('option');
+        await options.at(2).setSelected();
+
+        emitSubmitForm();
+        await waitForPromises();
+
+        expect(axiosMock.history.patch).toHaveLength(0);
+        expect(wrapper.text()).toContain(MessageForm.i18n.targetRolesValidationMsg);
+
+        await findTargetRoles().find('input[type="checkbox"]').setChecked();
+
+        emitSubmitForm();
+        await waitForPromises();
+
+        expect(axiosMock.history.patch).toHaveLength(1);
+        expect(axiosMock.history.patch[0]).toMatchObject({
+          url: `${messagesPath}/${mockId}`,
+          data: JSON.stringify({ ...defaultPayload, target_access_levels: [10] }),
+        });
+      });
     });
   });
 });

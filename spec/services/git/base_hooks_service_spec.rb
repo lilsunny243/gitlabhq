@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Git::BaseHooksService do
+RSpec.describe Git::BaseHooksService, feature_category: :source_code_management do
   include RepoHelpers
 
   let_it_be(:user) { create(:user) }
@@ -102,9 +102,24 @@ RSpec.describe Git::BaseHooksService do
 
         it 'executes the services' do
           expect(subject).to receive(:push_data).at_least(:once).and_call_original
-          expect(project).to receive(:execute_integrations)
+          expect(project).to receive(:execute_integrations).with(kind_of(Hash), subject.hook_name, skip_ci: false)
 
           subject.execute
+        end
+
+        context 'with integrations.skip_ci push option' do
+          before do
+            params[:push_options] = {
+              integrations: { skip_ci: true }
+            }
+          end
+
+          it 'executes the services' do
+            expect(subject).to receive(:push_data).at_least(:once).and_call_original
+            expect(project).to receive(:execute_integrations).with(kind_of(Hash), subject.hook_name, skip_ci: true)
+
+            subject.execute
+          end
         end
       end
 
@@ -322,6 +337,30 @@ RSpec.describe Git::BaseHooksService do
 
           expect(subject.execute[:status]).to eq(:success)
         end
+      end
+    end
+  end
+
+  describe 'notifying KAS' do
+    let(:kas_enabled) { true }
+
+    before do
+      allow(Gitlab::Kas).to receive(:enabled?).and_return(kas_enabled)
+    end
+
+    it 'enqueues the notification worker' do
+      expect(Clusters::Agents::NotifyGitPushWorker).to receive(:perform_async).with(project.id).once
+
+      subject.execute
+    end
+
+    context 'when KAS is disabled' do
+      let(:kas_enabled) { false }
+
+      it do
+        expect(Clusters::Agents::NotifyGitPushWorker).not_to receive(:perform_async)
+
+        subject.execute
       end
     end
   end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Search, feature_category: :global_search do
+RSpec.describe API::Search, :clean_gitlab_redis_rate_limiting, feature_category: :global_search do
   let_it_be(:user) { create(:user) }
   let_it_be(:group) { create(:group) }
   let_it_be(:project, reload: true) { create(:project, :wiki_repo, :public, name: 'awesome project', group: group) }
@@ -10,8 +10,6 @@ RSpec.describe API::Search, feature_category: :global_search do
 
   before do
     allow(Gitlab::ApplicationRateLimiter).to receive(:threshold).and_return(0)
-    allow(Gitlab::ApplicationRateLimiter).to receive(:threshold).with(:search_rate_limit).and_return(1000)
-    allow(Gitlab::ApplicationRateLimiter).to receive(:threshold).with(:search_rate_limit_unauthenticated).and_return(1000)
   end
 
   shared_examples 'response is correct' do |schema:, size: 1|
@@ -141,7 +139,7 @@ RSpec.describe API::Search, feature_category: :global_search do
       end
     end
 
-    context 'when DB timeouts occur from global searches', :aggregate_errors do
+    context 'when DB timeouts occur from global searches', :aggregate_failures do
       %w(
         issues
         merge_requests
@@ -169,6 +167,23 @@ RSpec.describe API::Search, feature_category: :global_search do
     context 'when scope is missing' do
       it 'returns 400 error' do
         get api(endpoint, user), params: { search: 'awesome' }
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+      end
+    end
+
+    context 'when there is a search error' do
+      let(:results) { instance_double('Gitlab::SearchResults', failed?: true, error: 'failed to parse query') }
+
+      before do
+        allow_next_instance_of(SearchService) do |service|
+          allow(service).to receive(:search_objects).and_return([])
+          allow(service).to receive(:search_results).and_return(results)
+        end
+      end
+
+      it 'returns 400 error' do
+        get api(endpoint, user), params: { scope: 'issues', search: 'expected to fail' }
 
         expect(response).to have_gitlab_http_status(:bad_request)
       end
@@ -397,6 +412,22 @@ RSpec.describe API::Search, feature_category: :global_search do
         end
       end
 
+      context 'global snippet search is disabled' do
+        it 'returns forbidden response' do
+          stub_feature_flags(global_search_snippet_titles_tab: false)
+          get api(endpoint, user), params: { search: 'awesome', scope: 'snippet_titles' }
+          expect(response).to have_gitlab_http_status(:forbidden)
+        end
+      end
+
+      context 'global snippet search is enabled' do
+        it 'returns ok response' do
+          stub_feature_flags(global_search_snippet_titles_tab: true)
+          get api(endpoint, user), params: { search: 'awesome', scope: 'snippet_titles' }
+          expect(response).to have_gitlab_http_status(:ok)
+        end
+      end
+
       it 'increments the custom search sli error rate with error false if no error occurred' do
         expect(Gitlab::Metrics::GlobalSearchSlis).to receive(:record_error_rate).with(
           error: false,
@@ -440,6 +471,21 @@ RSpec.describe API::Search, feature_category: :global_search do
 
       def request
         get api(endpoint, current_user), params: { scope: 'users', search: 'foo@bar.com' }
+      end
+    end
+
+    context 'when request exceeds the rate limit', :freeze_time, :clean_gitlab_redis_rate_limiting do
+      before do
+        stub_application_setting(search_rate_limit: 1)
+      end
+
+      it 'allows user whose username is in the allowlist' do
+        stub_application_setting(search_rate_limit_allowlist: [user.username])
+
+        get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+        get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+
+        expect(response).to have_gitlab_http_status(:ok)
       end
     end
   end
@@ -627,6 +673,21 @@ RSpec.describe API::Search, feature_category: :global_search do
           get api(endpoint, current_user), params: { scope: 'users', search: 'foo@bar.com' }
         end
       end
+
+      context 'when request exceeds the rate limit', :freeze_time, :clean_gitlab_redis_rate_limiting do
+        before do
+          stub_application_setting(search_rate_limit: 1)
+        end
+
+        it 'allows user whose username is in the allowlist' do
+          stub_application_setting(search_rate_limit_allowlist: [user.username])
+
+          get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+          get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+
+          expect(response).to have_gitlab_http_status(:ok)
+        end
+      end
     end
   end
 
@@ -654,6 +715,16 @@ RSpec.describe API::Search, feature_category: :global_search do
         get api(endpoint, user), params: { search: 'awesome' }
 
         expect(response).to have_gitlab_http_status(:bad_request)
+      end
+    end
+
+    context 'when user does not have permissions for scope' do
+      it 'returns an empty array' do
+        project.project_feature.update!(issues_access_level: Gitlab::VisibilityLevel::PRIVATE)
+
+        get api(endpoint, user), params: { scope: 'issues', search: 'awesome' }
+
+        expect(json_response).to be_empty
       end
     end
 
@@ -830,7 +901,7 @@ RSpec.describe API::Search, feature_category: :global_search do
           get api(endpoint, user), params: { scope: 'wiki_blobs', search: 'awesome' }
         end
 
-        it_behaves_like 'response is correct', schema: 'public_api/v4/blobs'
+        it_behaves_like 'response is correct', schema: 'public_api/v4/wiki_blobs'
 
         it_behaves_like 'ping counters', scope: :wiki_blobs
 
@@ -1014,6 +1085,21 @@ RSpec.describe API::Search, feature_category: :global_search do
 
         def request
           get api(endpoint, current_user), params: { scope: 'users', search: 'foo@bar.com' }
+        end
+      end
+
+      context 'when request exceeds the rate limit', :freeze_time, :clean_gitlab_redis_rate_limiting do
+        before do
+          stub_application_setting(search_rate_limit: 1)
+        end
+
+        it 'allows user whose username is in the allowlist' do
+          stub_application_setting(search_rate_limit_allowlist: [user.username])
+
+          get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+          get api(endpoint, user), params: { scope: 'users', search: 'foo@bar.com' }
+
+          expect(response).to have_gitlab_http_status(:ok)
         end
       end
     end

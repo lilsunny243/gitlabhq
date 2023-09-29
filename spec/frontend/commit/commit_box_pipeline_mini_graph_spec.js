@@ -5,13 +5,14 @@ import { shallowMount } from '@vue/test-utils';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import CommitBoxPipelineMiniGraph from '~/projects/commit_box/info/components/commit_box_pipeline_mini_graph.vue';
-import PipelineMiniGraph from '~/pipelines/components/pipeline_mini_graph/pipeline_mini_graph.vue';
+import PipelineMiniGraph from '~/ci/pipeline_mini_graph/pipeline_mini_graph.vue';
+import LegacyPipelineMiniGraph from '~/ci/pipeline_mini_graph/legacy_pipeline_mini_graph.vue';
 import { COMMIT_BOX_POLL_INTERVAL } from '~/projects/commit_box/info/constants';
-import getLinkedPipelinesQuery from '~/projects/commit_box/info/graphql/queries/get_linked_pipelines.query.graphql';
-import getPipelineStagesQuery from '~/projects/commit_box/info/graphql/queries/get_pipeline_stages.query.graphql';
-import * as graphQlUtils from '~/pipelines/components/graph/utils';
+import getLinkedPipelinesQuery from '~/ci/pipeline_details/graphql/queries/get_linked_pipelines.query.graphql';
+import getPipelineStagesQuery from '~/ci/pipeline_mini_graph/graphql/queries/get_pipeline_stages.query.graphql';
+import * as sharedGraphQlUtils from '~/graphql_shared/utils';
 import {
   mockDownstreamQueryResponse,
   mockPipelineStagesQueryResponse,
@@ -20,7 +21,7 @@ import {
   mockUpstreamQueryResponse,
 } from './mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 Vue.use(VueApollo);
 
@@ -29,6 +30,7 @@ describe('Commit box pipeline mini graph', () => {
 
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findPipelineMiniGraph = () => wrapper.findComponent(PipelineMiniGraph);
+  const findLegacyPipelineMiniGraph = () => wrapper.findComponent(LegacyPipelineMiniGraph);
 
   const downstreamHandler = jest.fn().mockResolvedValue(mockDownstreamQueryResponse);
   const failedHandler = jest.fn().mockRejectedValue(new Error('GraphQL error'));
@@ -52,7 +54,7 @@ describe('Commit box pipeline mini graph', () => {
     return createMockApollo(requestHandlers);
   };
 
-  const createComponent = (handler) => {
+  const createComponent = ({ handler, ciGraphqlPipelineMiniGraph = false } = {}) => {
     wrapper = extendedWrapper(
       shallowMount(CommitBoxPipelineMiniGraph, {
         propsData: {
@@ -63,22 +65,21 @@ describe('Commit box pipeline mini graph', () => {
           iid,
           dataMethod: 'graphql',
           graphqlResourceEtag: '/api/graphql:pipelines/id/320',
+          glFeatures: {
+            ciGraphqlPipelineMiniGraph,
+          },
         },
         apolloProvider: createMockApolloProvider(handler),
       }),
     );
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('loading state', () => {
     it('should display loading state when loading', () => {
       createComponent();
 
       expect(findLoadingIcon().exists()).toBe(true);
-      expect(findPipelineMiniGraph().exists()).toBe(false);
+      expect(findLegacyPipelineMiniGraph().exists()).toBe(false);
     });
   });
 
@@ -87,13 +88,13 @@ describe('Commit box pipeline mini graph', () => {
       await createComponent();
     });
 
-    it('should not display loading state after the query is resolved', async () => {
+    it('should not display loading state after the query is resolved', () => {
       expect(findLoadingIcon().exists()).toBe(false);
-      expect(findPipelineMiniGraph().exists()).toBe(true);
+      expect(findLegacyPipelineMiniGraph().exists()).toBe(true);
     });
 
     it('should display the pipeline mini graph', () => {
-      expect(findPipelineMiniGraph().exists()).toBe(true);
+      expect(findLegacyPipelineMiniGraph().exists()).toBe(true);
     });
   });
 
@@ -126,7 +127,7 @@ describe('Commit box pipeline mini graph', () => {
 
       await waitForPromises();
 
-      expect(findPipelineMiniGraph().props('stages')).toEqual(expectedStages);
+      expect(findLegacyPipelineMiniGraph().props('stages')).toEqual(expectedStages);
     });
 
     it('should render a downstream pipeline only', async () => {
@@ -134,8 +135,8 @@ describe('Commit box pipeline mini graph', () => {
 
       await waitForPromises();
 
-      const downstreamPipelines = findPipelineMiniGraph().props('downstreamPipelines');
-      const upstreamPipeline = findPipelineMiniGraph().props('upstreamPipeline');
+      const downstreamPipelines = findLegacyPipelineMiniGraph().props('downstreamPipelines');
+      const upstreamPipeline = findLegacyPipelineMiniGraph().props('upstreamPipeline');
 
       expect(downstreamPipelines).toEqual(expect.any(Array));
       expect(upstreamPipeline).toEqual(null);
@@ -146,41 +147,41 @@ describe('Commit box pipeline mini graph', () => {
 
       await waitForPromises();
 
-      const downstreamPipelines = findPipelineMiniGraph().props('downstreamPipelines');
+      const downstreamPipelines = findLegacyPipelineMiniGraph().props('downstreamPipelines');
 
       expect(downstreamPipelines).toHaveLength(1);
     });
 
     it('should pass the pipeline path prop for the counter badge', async () => {
-      createComponent(downstreamHandler);
+      createComponent({ handler: downstreamHandler });
 
       await waitForPromises();
 
       const expectedPath = mockDownstreamQueryResponse.data.project.pipeline.path;
-      const pipelinePath = findPipelineMiniGraph().props('pipelinePath');
+      const pipelinePath = findLegacyPipelineMiniGraph().props('pipelinePath');
 
       expect(pipelinePath).toBe(expectedPath);
     });
 
     it('should render an upstream pipeline only', async () => {
-      createComponent(upstreamHandler);
+      createComponent({ handler: upstreamHandler });
 
       await waitForPromises();
 
-      const downstreamPipelines = findPipelineMiniGraph().props('downstreamPipelines');
-      const upstreamPipeline = findPipelineMiniGraph().props('upstreamPipeline');
+      const downstreamPipelines = findLegacyPipelineMiniGraph().props('downstreamPipelines');
+      const upstreamPipeline = findLegacyPipelineMiniGraph().props('upstreamPipeline');
 
       expect(upstreamPipeline).toEqual(samplePipeline);
       expect(downstreamPipelines).toHaveLength(0);
     });
 
     it('should render downstream and upstream pipelines', async () => {
-      createComponent(upstreamDownstreamHandler);
+      createComponent({ handler: upstreamDownstreamHandler });
 
       await waitForPromises();
 
-      const downstreamPipelines = findPipelineMiniGraph().props('downstreamPipelines');
-      const upstreamPipeline = findPipelineMiniGraph().props('upstreamPipeline');
+      const downstreamPipelines = findLegacyPipelineMiniGraph().props('downstreamPipelines');
+      const upstreamPipeline = findLegacyPipelineMiniGraph().props('upstreamPipeline');
 
       expect(upstreamPipeline).toEqual(samplePipeline);
       expect(downstreamPipelines).toEqual(
@@ -245,18 +246,45 @@ describe('Commit box pipeline mini graph', () => {
     });
 
     it('toggles query polling with visibility check', async () => {
-      jest.spyOn(graphQlUtils, 'toggleQueryPollingByVisibility');
+      jest.spyOn(sharedGraphQlUtils, 'toggleQueryPollingByVisibility');
 
       createComponent();
 
       await waitForPromises();
 
-      expect(graphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
+      expect(sharedGraphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
         wrapper.vm.$apollo.queries.pipelineStages,
       );
-      expect(graphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
+      expect(sharedGraphQlUtils.toggleQueryPollingByVisibility).toHaveBeenCalledWith(
         wrapper.vm.$apollo.queries.pipeline,
       );
+    });
+  });
+
+  describe('feature flag behavior', () => {
+    it.each`
+      state    | showLegacyPipelineMiniGraph | showPipelineMiniGraph
+      ${true}  | ${false}                    | ${true}
+      ${false} | ${true}                     | ${false}
+    `(
+      'renders the correct component when the feature flag is set to $state',
+      async ({ state, showLegacyPipelineMiniGraph, showPipelineMiniGraph }) => {
+        createComponent({ ciGraphqlPipelineMiniGraph: state });
+
+        await waitForPromises();
+
+        expect(findLegacyPipelineMiniGraph().exists()).toBe(showLegacyPipelineMiniGraph);
+        expect(findPipelineMiniGraph().exists()).toBe(showPipelineMiniGraph);
+      },
+    );
+
+    it('skips queries when the feature flag is enabled', async () => {
+      createComponent({ ciGraphqlPipelineMiniGraph: true });
+
+      await waitForPromises();
+
+      expect(stagesHandler).not.toHaveBeenCalled();
+      expect(downstreamHandler).not.toHaveBeenCalled();
     });
   });
 });

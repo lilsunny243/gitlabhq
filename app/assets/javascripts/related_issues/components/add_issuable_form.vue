@@ -115,7 +115,8 @@ export default {
     addRelatedErrorMessage() {
       if (this.itemAddFailureMessage) {
         return this.itemAddFailureMessage;
-      } else if (this.itemAddFailureType === itemAddFailureTypesMap.NOT_FOUND) {
+      }
+      if (this.itemAddFailureType === itemAddFailureTypesMap.NOT_FOUND) {
         return addRelatedIssueErrorMap[this.issuableType];
       }
       // Only other failure is MAX_NUMBER_OF_CHILD_EPICS at the moment
@@ -182,7 +183,7 @@ export default {
           :checked="linkedIssueType"
         />
       </gl-form-group>
-      <p class="bold">
+      <p class="bold gl-mb-2">
         {{ issuableInputText }}
       </p>
     </template>
@@ -218,7 +219,7 @@ export default {
         type="submit"
         size="small"
         class="gl-mr-2"
-        data-qa-selector="add_issue_button"
+        data-testid="add-issue-button"
       >
         {{ __('Add') }}
       </gl-button>

@@ -1,7 +1,9 @@
 subscription getStateSubscription($issuableId: IssuableID!) {
   mergeRequestMergeStatusUpdated(issuableId: $issuableId) {
     ... on MergeRequest {
+      id
       detailedMergeStatus
+      commitCount
     }
   }
 }

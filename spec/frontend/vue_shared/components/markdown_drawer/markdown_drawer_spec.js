@@ -4,6 +4,7 @@ import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import MarkdownDrawer, { cache } from '~/vue_shared/components/markdown_drawer/markdown_drawer.vue';
 import { getRenderedMarkdown } from '~/vue_shared/components/markdown_drawer/utils/fetch';
 import { contentTop } from '~/lib/utils/common_utils';
+import { DRAWER_Z_INDEX } from '~/lib/utils/constants';
 
 jest.mock('~/vue_shared/components/markdown_drawer/utils/fetch', () => ({
   getRenderedMarkdown: jest.fn().mockReturnValue({
@@ -36,8 +37,6 @@ describe('MarkdownDrawer', () => {
   };
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     Object.keys(cache).forEach((key) => delete cache[key]);
   });
 
@@ -56,6 +55,10 @@ describe('MarkdownDrawer', () => {
       expect(findDrawer().exists()).toBe(true);
       expect(findDrawerTitle().text()).toBe('test title test');
       expect(findDrawerBody().text()).toBe('test body');
+    });
+
+    it(`has proper z-index set for the drawer component`, () => {
+      expect(findDrawer().attributes('zindex')).toBe(DRAWER_Z_INDEX.toString());
     });
   });
 
@@ -158,7 +161,7 @@ describe('MarkdownDrawer', () => {
       renderGLFMSpy.mockClear();
     });
 
-    it('fetches the Markdown and caches it', async () => {
+    it('fetches the Markdown and caches it', () => {
       expect(getRenderedMarkdown).toHaveBeenCalledTimes(1);
       expect(Object.keys(cache)).toHaveLength(1);
     });
@@ -201,13 +204,13 @@ describe('MarkdownDrawer', () => {
     afterEach(() => {
       getRenderedMarkdown.mockClear();
     });
-    it('shows alert', () => {
+    it('shows an alert', () => {
       expect(findAlert().exists()).toBe(true);
     });
   });
 
   describe('While Markdown is fetching', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       getRenderedMarkdown.mockReturnValue(new Promise(() => {}));
 
       createComponent();
@@ -217,7 +220,7 @@ describe('MarkdownDrawer', () => {
       getRenderedMarkdown.mockClear();
     });
 
-    it('shows skeleton', async () => {
+    it('shows skeleton', () => {
       expect(findSkeleton().exists()).toBe(true);
     });
   });

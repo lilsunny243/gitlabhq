@@ -1,6 +1,7 @@
 import { GlIcon, GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 
 import DropdownButton from '~/sidebar/components/labels/labels_select_vue/dropdown_button.vue';
@@ -27,10 +28,6 @@ describe('DropdownButton', () => {
 
   beforeEach(() => {
     wrapper = createComponent();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   const findDropdownButton = () => wrapper.findComponent(GlButton);

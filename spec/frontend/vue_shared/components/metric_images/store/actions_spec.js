@@ -1,14 +1,15 @@
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import actionsFactory from '~/vue_shared/components/metric_images/store/actions';
 import * as types from '~/vue_shared/components/metric_images/store/mutation_types';
 import createStore from '~/vue_shared/components/metric_images/store';
 import testAction from 'helpers/vuex_action_helper';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { convertObjectPropsToCamelCase } from '~/lib/utils/common_utils';
 import { fileList, initialData } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 const service = {
   getMetricImages: jest.fn(),
   uploadMetricImage: jest.fn(),

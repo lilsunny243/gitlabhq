@@ -6,17 +6,27 @@ class CommitStatus < Ci::ApplicationRecord
   include Importable
   include AfterCommitQueue
   include Presentable
-  include EnumWithNil
   include BulkInsertableAssociations
   include TaggableQueries
 
-  self.table_name = 'ci_builds'
+  def self.switch_table_names
+    if Gitlab::Utils.to_boolean(ENV['USE_CI_BUILDS_ROUTING_TABLE'])
+      :p_ci_builds
+    else
+      :ci_builds
+    end
+  end
+
+  self.table_name = self.switch_table_names
+  self.sequence_name = :ci_builds_id_seq
+  self.primary_key = :id
+
   partitionable scope: :pipeline
 
   belongs_to :user
   belongs_to :project
-  belongs_to :pipeline, class_name: 'Ci::Pipeline', foreign_key: :commit_id
-  belongs_to :auto_canceled_by, class_name: 'Ci::Pipeline'
+  belongs_to :pipeline, class_name: 'Ci::Pipeline', foreign_key: :commit_id, inverse_of: :statuses
+  belongs_to :auto_canceled_by, class_name: 'Ci::Pipeline', inverse_of: :auto_canceled_jobs
   belongs_to :ci_stage, class_name: 'Ci::Stage', foreign_key: :stage_id
 
   has_many :needs, class_name: 'Ci::BuildNeed', foreign_key: :build_id, inverse_of: :build
@@ -26,13 +36,14 @@ class CommitStatus < Ci::ApplicationRecord
   enum scheduling_type: { stage: 0, dag: 1 }, _prefix: true
   # We use `Enums::Ci::CommitStatus.failure_reasons` here so that EE can more easily
   # extend this `Hash` with new values.
-  enum_with_nil failure_reason: Enums::Ci::CommitStatus.failure_reasons
+  enum failure_reason: Enums::Ci::CommitStatus.failure_reasons
 
   delegate :commit, to: :pipeline
   delegate :sha, :short_sha, :before_sha, to: :pipeline
 
   validates :pipeline, presence: true, unless: :importing?
   validates :name, presence: true, unless: :importing?
+  validates :stage, :ref, :target_url, :description, length: { maximum: 255 }
 
   alias_attribute :author, :user
   alias_attribute :pipeline_id, :commit_id
@@ -42,14 +53,6 @@ class CommitStatus < Ci::ApplicationRecord
   end
 
   scope :order_id_desc, -> { order(id: :desc) }
-
-  scope :exclude_ignored, -> do
-    # We want to ignore failed but allowed to fail jobs.
-    #
-    # TODO, we also skip ignored optional manual actions.
-    where("allow_failure = ? OR status IN (?)",
-      false, all_state_names - [:failed, :canceled, :manual])
-  end
 
   scope :latest, -> { where(retried: [false, nil]) }
   scope :retried, -> { where(retried: true) }
@@ -66,12 +69,13 @@ class CommitStatus < Ci::ApplicationRecord
   scope :by_name, -> (name) { where(name: name) }
   scope :in_pipelines, ->(pipelines) { where(pipeline: pipelines) }
   scope :with_pipeline, -> { joins(:pipeline) }
-  scope :updated_at_before, ->(date) { where('ci_builds.updated_at < ?', date) }
-  scope :created_at_before, ->(date) { where('ci_builds.created_at < ?', date) }
+  scope :updated_at_before, ->(date) { where("#{quoted_table_name}.updated_at < ?", date) }
+  scope :created_at_before, ->(date) { where("#{quoted_table_name}.created_at < ?", date) }
   scope :scheduled_at_before, ->(date) {
-    where('ci_builds.scheduled_at IS NOT NULL AND ci_builds.scheduled_at < ?', date)
+    where("#{quoted_table_name}.scheduled_at IS NOT NULL AND #{quoted_table_name}.scheduled_at < ?", date)
   }
   scope :with_when_executed, ->(when_executed) { where(when: when_executed) }
+  scope :with_type, ->(type) { where(type: type) }
 
   # The scope applies `pluck` to split the queries. Use with care.
   scope :for_project_paths, -> (paths) do
@@ -239,10 +243,6 @@ class CommitStatus < Ci::ApplicationRecord
     name.to_s.sub(regex, '').strip
   end
 
-  def failed_but_allowed?
-    allow_failure? && (failed? || canceled?)
-  end
-
   # Time spent running.
   def duration
     calculate_duration(started_at, finished_at)
@@ -297,7 +297,7 @@ class CommitStatus < Ci::ApplicationRecord
 
   def sortable_name
     name.to_s.split(/(\d+)/).map do |v|
-      v =~ /\d+/ ? v.to_i : v
+      /\d+/.match?(v) ? v.to_i : v
     end
   end
 
@@ -322,6 +322,16 @@ class CommitStatus < Ci::ApplicationRecord
 
   def stage_name
     ci_stage&.name
+  end
+
+  # For AiAction
+  def to_ability_name
+    'build'
+  end
+
+  # For AiAction
+  def resource_parent
+    project
   end
 
   private

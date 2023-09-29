@@ -1,6 +1,5 @@
 /* eslint-disable func-names, no-underscore-dangle, no-param-reassign, consistent-return */
 
-import $ from 'jquery';
 import { scrollToElement } from '~/lib/utils/common_utils';
 
 // LineHighlighter
@@ -52,14 +51,15 @@ const LineHighlighter = function (options = {}) {
 };
 
 LineHighlighter.prototype.bindEvents = function () {
-  const $fileHolder = $(this.options.fileHolderSelector);
-
-  $fileHolder.on('click', 'a[data-line-number]', this.clickHandler);
-  $fileHolder.on('highlight:line', this.highlightHash);
-  window.addEventListener('hashchange', (e) => this.highlightHash(e.target.location.hash));
+  const fileHolder = document.querySelector(this.options.fileHolderSelector);
+  if (fileHolder) {
+    fileHolder.addEventListener('click', this.clickHandler);
+    fileHolder.addEventListener('highlight:line', this.highlightHash);
+    window.addEventListener('hashchange', (e) => this.highlightHash(e.target.location.hash));
+  }
 };
 
-LineHighlighter.prototype.highlightHash = function (newHash) {
+LineHighlighter.prototype.highlightHash = function (newHash, scrollEnabled = true) {
   let range;
   if (newHash && typeof newHash === 'string') this._hash = newHash;
 
@@ -71,40 +71,49 @@ LineHighlighter.prototype.highlightHash = function (newHash) {
       this.highlightRange(range);
       const lineSelector = `#L${range[0]}`;
 
-      scrollToElement(lineSelector, {
-        // Scroll to the first highlighted line on initial load
-        // Add an offset of -100 for some context
-        offset: -100,
-        behavior: this.options.scrollBehavior,
-      });
+      if (scrollEnabled) {
+        scrollToElement(lineSelector, {
+          // Scroll to the first highlighted line on initial load
+          // Add an offset of -100 for some context
+          offset: -100,
+          behavior: this.options.scrollBehavior,
+        });
+      }
     }
   }
 };
 
 LineHighlighter.prototype.clickHandler = function (event) {
-  let range;
-  event.preventDefault();
-  this.clearHighlight();
-  const lineNumber = $(event.target).closest('a').data('lineNumber');
-  const current = this.hashToRange(this._hash);
-  if (!(current[0] && event.shiftKey)) {
-    // If there's no current selection, or there is but Shift wasn't held,
-    // treat this like a single-line selection.
-    this.setHash(lineNumber);
-    return this.highlightLine(lineNumber);
-  } else if (event.shiftKey) {
-    if (lineNumber < current[0]) {
-      range = [lineNumber, current[0]];
-    } else {
-      range = [current[0], lineNumber];
+  const isLine = event.target.matches('a[data-line-number]');
+  if (isLine) {
+    let range;
+    event.preventDefault();
+    this.clearHighlight();
+    const lineNumber = parseInt(event.target.dataset.lineNumber, 10);
+    const current = this.hashToRange(this._hash);
+    if (!(current[0] && event.shiftKey)) {
+      // If there's no current selection, or there is but Shift wasn't held,
+      // treat this like a single-line selection.
+      this.setHash(lineNumber);
+      return this.highlightLine(lineNumber);
     }
-    this.setHash(range[0], range[1]);
-    return this.highlightRange(range);
+    if (event.shiftKey) {
+      if (lineNumber < current[0]) {
+        range = [lineNumber, current[0]];
+      } else {
+        range = [current[0], lineNumber];
+      }
+      this.setHash(range[0], range[1]);
+      return this.highlightRange(range);
+    }
   }
 };
 
 LineHighlighter.prototype.clearHighlight = function () {
-  return $(`.${this.highlightLineClass}`).removeClass(this.highlightLineClass);
+  const highlightedLines = document.getElementsByClassName(this.highlightLineClass);
+  Array.from(highlightedLines).forEach(function (line) {
+    line.classList.remove(this.highlightLineClass);
+  }, this);
 };
 
 // Convert a URL hash String into line numbers
@@ -133,7 +142,10 @@ LineHighlighter.prototype.hashToRange = function (hash) {
 //
 // lineNumber - Line number to highlight
 LineHighlighter.prototype.highlightLine = function (lineNumber) {
-  return $(`#LC${lineNumber}`).addClass(this.highlightLineClass);
+  const lineElement = document.getElementById(`LC${lineNumber}`);
+  if (lineElement) {
+    lineElement.classList.add(this.highlightLineClass);
+  }
 };
 
 // Highlight all lines within a range

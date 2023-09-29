@@ -4,9 +4,10 @@ require 'spec_helper'
 
 RSpec.describe 'Merge request > User selects branches for new MR', :js, feature_category: :code_review_workflow do
   include ListboxHelpers
+  include CookieHelper
 
-  let(:project) { create(:project, :public, :repository) }
-  let(:user) { project.creator }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:project) { create(:project, :public, :repository, namespace: user.namespace) }
 
   def select_source_branch(branch_name)
     find('.js-source-branch', match: :first).click
@@ -15,8 +16,8 @@ RSpec.describe 'Merge request > User selects branches for new MR', :js, feature_
   end
 
   before do
-    project.add_maintainer(user)
     sign_in(user)
+    set_cookie('new-actions-popover-viewed', 'true')
   end
 
   it 'selects the source branch sha when a tag with the same name exists' do
@@ -142,9 +143,7 @@ RSpec.describe 'Merge request > User selects branches for new MR', :js, feature_
 
   context 'when a new merge request has a pipeline' do
     let!(:pipeline) do
-      create(:ci_pipeline, sha: project.commit('fix').id,
-                           ref: 'fix',
-                           project: project)
+      create(:ci_pipeline, sha: project.commit('fix').id, ref: 'fix', project: project)
     end
 
     it 'shows pipelines for a new merge request' do

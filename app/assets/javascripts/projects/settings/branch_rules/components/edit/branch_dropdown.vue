@@ -7,7 +7,7 @@ import {
   GlSprintf,
   GlLink,
 } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { s__, sprintf } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import branchesQuery from '../../queries/branches.query.graphql';
@@ -55,7 +55,7 @@ export default {
   },
   searchInputDelay: 250,
   wildcardsHelpPath: helpPagePath('user/project/protected_branches', {
-    anchor: 'configure-multiple-protected-branches-by-using-a-wildcard',
+    anchor: 'protect-multiple-branches-with-wildcard-rules',
   }),
   props: {
     projectPath: {

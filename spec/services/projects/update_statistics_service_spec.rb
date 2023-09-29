@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::UpdateStatisticsService do
+RSpec.describe Projects::UpdateStatisticsService, feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
 
   let(:service) { described_class.new(project, nil, statistics: statistics) }
@@ -23,13 +23,13 @@ RSpec.describe Projects::UpdateStatisticsService do
       let_it_be(:project) { create(:project) }
 
       where(:statistics, :method_caches) do
-        []                                                   | %i(size commit_count)
-        ['repository_size']                                  | [:size]
-        [:repository_size]                                   | [:size]
+        []                                                   | %i(size recent_objects_size commit_count)
+        ['repository_size']                                  | %i(size recent_objects_size)
+        [:repository_size]                                   | %i(size recent_objects_size)
         [:lfs_objects_size]                                  | nil
-        [:commit_count]                                      | [:commit_count] # rubocop:disable Lint/BinaryOperatorWithIdenticalOperands
-        [:repository_size, :commit_count]                    | %i(size commit_count)
-        [:repository_size, :commit_count, :lfs_objects_size] | %i(size commit_count)
+        [:commit_count]                                      | [:commit_count]
+        [:repository_size, :commit_count]                    | %i(size recent_objects_size commit_count)
+        [:repository_size, :commit_count, :lfs_objects_size] | %i(size recent_objects_size commit_count)
       end
 
       with_them do

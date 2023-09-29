@@ -1,11 +1,11 @@
 <script>
 import { escape } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { __ } from '~/locale';
 import Suggestions from '~/vue_shared/components/markdown/suggestions.vue';
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
-import autosave from '../mixins/autosave';
 import NoteAttachment from './note_attachment.vue';
 import NoteAwardsList from './note_awards_list.vue';
 import NoteEditedText from './note_edited_text.vue';
@@ -22,7 +22,6 @@ export default {
   directives: {
     SafeHtml,
   },
-  mixins: [autosave],
   props: {
     note: {
       type: Object,
@@ -96,21 +95,9 @@ export default {
   },
   mounted() {
     this.renderGFM();
-
-    if (this.isEditing) {
-      this.initAutoSave(this.note);
-    }
   },
   updated() {
     this.renderGFM();
-
-    if (this.isEditing) {
-      if (!this.autosave) {
-        this.initAutoSave(this.note);
-      } else {
-        this.setAutoSave();
-      }
-    }
   },
   methods: {
     ...mapActions([
@@ -188,6 +175,7 @@ export default {
       :note-id="note.id"
       :line="line"
       :note="note"
+      :diff-file="file"
       :save-button-title="saveButtonTitle"
       :help-page-path="helpPagePath"
       :discussion="discussion"

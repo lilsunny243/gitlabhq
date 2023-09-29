@@ -3,15 +3,14 @@ import { mount, shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import searchQuery from '~/pages/projects/forks/new/queries/search_forkable_namespaces.query.graphql';
 import ProjectNamespace from '~/pages/projects/forks/new/components/project_namespace.vue';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('ProjectNamespace component', () => {
   let wrapper;
-  let originalGon;
 
   const data = {
     project: {
@@ -85,14 +84,8 @@ describe('ProjectNamespace component', () => {
     findListBox().vm.$emit('shown');
   };
 
-  beforeAll(() => {
-    originalGon = window.gon;
-    window.gon = { gitlab_url: gitlabUrl };
-  });
-
-  afterAll(() => {
-    window.gon = originalGon;
-    wrapper.destroy();
+  beforeEach(() => {
+    gon.gitlab_url = gitlabUrl;
   });
 
   describe('Initial state', () => {
@@ -120,7 +113,7 @@ describe('ProjectNamespace component', () => {
     });
 
     it('displays fetched namespaces', () => {
-      const listItems = wrapper.findAll('li');
+      const listItems = wrapper.findAll('[role="option"]');
       expect(listItems).toHaveLength(2);
       expect(listItems.at(0).text()).toBe(data.project.forkTargets.nodes[0].fullPath);
       expect(listItems.at(1).text()).toBe(data.project.forkTargets.nodes[1].fullPath);
@@ -152,7 +145,7 @@ describe('ProjectNamespace component', () => {
       await nextTick();
     });
 
-    it('creates a flash message and captures the error', () => {
+    it('creates an alert and captures the error', () => {
       expect(createAlert).toHaveBeenCalledWith({
         message: 'Something went wrong while loading data. Please refresh the page to try again.',
         captureError: true,

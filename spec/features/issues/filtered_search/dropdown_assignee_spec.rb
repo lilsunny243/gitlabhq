@@ -92,7 +92,7 @@ RSpec.describe 'Dropdown assignee', :js, feature_category: :team_planning do
       sign_in(subgroup_user)
     end
 
-    it 'shows inherited, direct, and invited group members but not descendent members', :aggregate_failures do
+    it 'shows inherited, direct, and invited group members including descendent members', :aggregate_failures do
       visit issues_group_path(subgroup)
 
       select_tokens 'Assignee', '='
@@ -100,8 +100,8 @@ RSpec.describe 'Dropdown assignee', :js, feature_category: :team_planning do
       expect(page).to have_text group_user.name
       expect(page).to have_text subgroup_user.name
       expect(page).to have_text invited_to_group_group_user.name
-      expect(page).not_to have_text subsubgroup_user.name
-      expect(page).not_to have_text invited_to_project_group_user.name
+      expect(page).to have_text subsubgroup_user.name
+      expect(page).to have_text invited_to_project_group_user.name
 
       visit project_issues_path(subgroup_project)
 
@@ -110,8 +110,8 @@ RSpec.describe 'Dropdown assignee', :js, feature_category: :team_planning do
       expect(page).to have_text group_user.name
       expect(page).to have_text subgroup_user.name
       expect(page).to have_text invited_to_project_group_user.name
+      expect(page).to have_text invited_to_group_group_user.name
       expect(page).not_to have_text subsubgroup_user.name
-      expect(page).not_to have_text invited_to_group_group_user.name
     end
   end
 end

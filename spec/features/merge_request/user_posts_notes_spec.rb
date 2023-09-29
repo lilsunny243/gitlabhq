@@ -4,7 +4,6 @@ require 'spec_helper'
 
 RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_review_workflow do
   include NoteInteractionHelpers
-
   let_it_be(:project) { create(:project, :repository) }
 
   let(:user) { project.creator }
@@ -13,8 +12,7 @@ RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_
   end
 
   let!(:note) do
-    create(:note_on_merge_request, :with_attachment, noteable: merge_request,
-                                                     project: project)
+    create(:note_on_merge_request, :with_attachment, noteable: merge_request, project: project)
   end
 
   before do
@@ -47,8 +45,8 @@ RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_
       it 'has enable submit button, preview button and saves content to local storage' do
         page.within('.js-main-target-form') do
           page.within('[data-testid="comment-button"]') do
-            expect(page).to have_css('.split-content-button')
-            expect(page).not_to have_css('.split-content-button[disabled]')
+            expect(page).to have_css('.gl-button')
+            expect(page).not_to have_css('.disabled')
           end
           expect(page).to have_css('.js-md-preview-button', visible: true)
         end
@@ -62,7 +60,7 @@ RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_
     before do
       page.within('.js-main-target-form') do
         fill_in 'note[note]', with: 'This is awesome!'
-        find('.js-md-preview-button').click
+        click_button("Preview")
         click_button 'Comment'
       end
     end
@@ -87,7 +85,7 @@ RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_
       it 'shows a reply button' do
         reply_button = find('.js-reply-button', match: :first)
 
-        expect(reply_button).to have_selector('[data-testid="comment-icon"]')
+        expect(reply_button).to have_selector('[data-testid="reply-icon"]')
       end
 
       it 'shows reply placeholder when clicking reply button' do
@@ -131,16 +129,16 @@ RSpec.describe 'Merge request > User posts notes', :js, feature_category: :code_
 
   describe 'when previewing a note' do
     it 'shows the toolbar buttons when editing a note' do
-      page.within('.js-main-target-form') do
-        expect(page).to have_css('.md-header-toolbar')
+      page.within('.js-main-target-form .md-header-toolbar') do
+        expect(page).to have_css('button', count: 16)
       end
     end
 
     it 'hides the toolbar buttons when previewing a note' do
       wait_for_requests
-      find('.js-md-preview-button').click
-      page.within('.js-main-target-form') do
-        expect(page).not_to have_css('.md-header-toolbar')
+      click_button("Preview")
+      page.within('.js-main-target-form .md-header-toolbar') do
+        expect(page).to have_css('button', count: 1)
       end
     end
   end

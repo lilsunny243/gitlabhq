@@ -5,7 +5,6 @@ description: Users creating clusters with Prometheus enabled.
 product_section: ops
 product_stage: monitor
 product_group: monitor
-product_category: metrics
 value_type: number
 status: removed
 time_frame: all
@@ -19,3 +18,4 @@ tier:
 - ultimate
 milestone: "<13.9"
 milestone_removed: "14.4"
+removed_by_url:

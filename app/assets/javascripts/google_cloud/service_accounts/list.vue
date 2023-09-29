@@ -1,6 +1,7 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlAlert, GlButton, GlEmptyState, GlLink, GlSprintf, GlTable } from '@gitlab/ui';
-import { setUrlParams } from '~/lib/utils/url_utility';
+import { setUrlParams, DOCS_URL_IN_EE_DIR } from 'jh_else_ce/lib/utils/url_utility';
 import { __ } from '~/locale';
 
 const GOOGLE_CONSOLE_URL = 'https://console.cloud.google.com/iam-admin/serviceaccounts';
@@ -49,6 +50,7 @@ export default {
     },
   },
   GOOGLE_CONSOLE_URL,
+  secretsDocsLink: `${DOCS_URL_IN_EE_DIR}/ci/secrets/`,
 };
 </script>
 
@@ -61,6 +63,7 @@ export default {
       :primary-button-link="createUrl"
       :primary-button-text="$options.i18n.createServiceAccount"
       :svg-path="emptyIllustrationUrl"
+      :svg-height="150"
     />
 
     <div v-else>
@@ -86,7 +89,7 @@ export default {
       <gl-alert class="gl-mt-5" :dismissible="false" variant="tip">
         <gl-sprintf :message="$options.i18n.secretManagersDescription">
           <template #docLink="{ content }">
-            <gl-link href="https://docs.gitlab.com/ee/ci/secrets/">
+            <gl-link :href="$options.secretsDocsLink">
               {{ content }}
             </gl-link>
           </template>

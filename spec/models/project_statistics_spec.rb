@@ -25,6 +25,55 @@ RSpec.describe ProjectStatistics do
     end
   end
 
+  describe 'callbacks' do
+    context 'on after_commit' do
+      context 'when storage size components are updated' do
+        it 'updates the correct storage size for relevant attributes' do
+          statistics.update!(repository_size: 10)
+
+          expect(statistics.reload.storage_size).to eq(10)
+        end
+      end
+
+      context 'when storage size components are not updated' do
+        it 'does not affect the storage_size total' do
+          statistics.update!(pipeline_artifacts_size: 3, container_registry_size: 50)
+
+          expect(statistics.reload.storage_size).to eq(0)
+        end
+      end
+    end
+
+    describe 'with race conditions' do
+      before do
+        statistics.update!(storage_size: 14621247)
+      end
+
+      it 'handles concurrent updates correctly' do
+        # Concurrently update the statistics in two different processes
+        t1 = Thread.new do
+          stats_1 = ProjectStatistics.find(statistics.id)
+          stats_1.snippets_size = 530
+          stats_1.save!
+        end
+
+        t2 = Thread.new do
+          stats_2 = ProjectStatistics.find(statistics.id)
+          ProjectStatistics.update_counters(stats_2.id, packages_size: 1000)
+          stats_2.refresh_storage_size!
+        end
+
+        [t1, t2].each(&:join)
+
+        # Reload the statistics object
+        statistics.reload
+
+        # The final storage size should be correctly updated
+        expect(statistics.storage_size).to eq(1530) # Final value is correct (snippets_size + packages_size)
+      end
+    end
+  end
+
   describe 'statistics columns' do
     it "supports bigint values" do
       expect do
@@ -260,12 +309,13 @@ RSpec.describe ProjectStatistics do
 
   describe '#update_repository_size' do
     before do
-      allow(project.repository).to receive(:size).and_return(12)
+      allow(project.repository).to receive(:recent_objects_size).and_return(5)
+
       statistics.update_repository_size
     end
 
-    it "stores the size of the repository" do
-      expect(statistics.repository_size).to eq 12.megabytes
+    it 'stores the size of the repository' do
+      expect(statistics.repository_size).to eq 5.megabytes
     end
   end
 
@@ -353,64 +403,6 @@ RSpec.describe ProjectStatistics do
     end
   end
 
-  describe '#update_storage_size' do
-    it "sums the relevant storage counters" do
-      statistics.update!(
-        repository_size: 2,
-        wiki_size: 4,
-        lfs_objects_size: 3,
-        snippets_size: 2,
-        pipeline_artifacts_size: 3,
-        build_artifacts_size: 3,
-        packages_size: 6,
-        uploads_size: 5
-      )
-
-      statistics.reload
-
-      expect(statistics.storage_size).to eq 28
-    end
-
-    it 'excludes the container_registry_size' do
-      statistics.update!(
-        repository_size: 2,
-        uploads_size: 5,
-        container_registry_size: 10
-      )
-
-      statistics.reload
-
-      expect(statistics.storage_size).to eq 7
-    end
-
-    it 'works during wiki_size backfill' do
-      statistics.update!(
-        repository_size: 2,
-        wiki_size: nil,
-        lfs_objects_size: 3
-      )
-
-      statistics.reload
-
-      expect(statistics.storage_size).to eq 5
-    end
-
-    context 'when nullable columns are nil' do
-      it 'does not raise any error' do
-        expect do
-          statistics.update!(
-            repository_size: 2,
-            wiki_size: nil,
-            lfs_objects_size: 3,
-            snippets_size: nil
-          )
-        end.not_to raise_error
-
-        expect(statistics.storage_size).to eq 5
-      end
-    end
-  end
-
   describe '#refresh_storage_size!' do
     subject(:refresh_storage_size) { statistics.refresh_storage_size! }
 
@@ -428,7 +420,7 @@ RSpec.describe ProjectStatistics do
         storage_size: 0
       )
 
-      expect { refresh_storage_size }.to change { statistics.reload.storage_size }.from(0).to(28)
+      expect { refresh_storage_size }.to change { statistics.reload.storage_size }.from(0).to(25)
     end
 
     context 'when nullable columns are nil' do
@@ -436,6 +428,7 @@ RSpec.describe ProjectStatistics do
         statistics.update_columns(
           repository_size: 2,
           wiki_size: nil,
+          snippets_size: nil,
           storage_size: 0
         )
       end
@@ -464,10 +457,9 @@ RSpec.describe ProjectStatistics do
           .by(increment.amount)
       end
 
-      it 'increases also storage size by that amount' do
+      it 'does not increase the storage size by that amount' do
         expect { described_class.increment_statistic(project, stat, increment) }
-          .to change { statistics.reload.storage_size }
-          .by(increment.amount)
+          .not_to change { statistics.reload.storage_size }
       end
 
       it 'schedules a namespace aggregation worker' do
@@ -572,10 +564,9 @@ RSpec.describe ProjectStatistics do
                 .by(total_amount)
       end
 
-      it 'increases also storage size by that amount' do
+      it 'does not increase the storage size by that amount' do
         expect { described_class.bulk_increment_statistic(project, stat, increments) }
-          .to change { statistics.reload.storage_size }
-                .by(total_amount)
+          .not_to change { statistics.reload.storage_size }
       end
 
       it 'schedules a namespace aggregation worker' do
@@ -635,22 +626,6 @@ RSpec.describe ProjectStatistics do
       let(:stat) { :build_artifacts_size }
 
       it_behaves_like 'a statistic that increases storage_size asynchronously'
-
-      context 'when :project_statistics_bulk_increment flag is disabled' do
-        before do
-          stub_feature_flags(project_statistics_bulk_increment: false)
-        end
-
-        it 'calls increment_statistic on once with the sum of the increments' do
-          total_amount = increments.sum(&:amount)
-          expect(statistics)
-            .to receive(:increment_statistic).with(stat, have_attributes(amount: total_amount)).and_call_original
-
-          described_class.bulk_increment_statistic(project, stat, increments)
-        end
-
-        it_behaves_like 'a statistic that increases storage_size asynchronously'
-      end
     end
 
     context 'when adjusting :pipeline_artifacts_size' do

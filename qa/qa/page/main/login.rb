@@ -40,6 +40,10 @@ module QA
 
         view 'app/helpers/auth_helper.rb' do
           element :saml_login_button
+          element :github_login_button
+          element :oidc_login_button
+          element :gitlab_oauth_login_button
+          element :facebook_login_button
         end
 
         view 'app/views/layouts/devise.html.haml' do
@@ -106,7 +110,8 @@ module QA
         # Happens on clean GDK installations when seeded root admin password is expired
         #
         def set_up_new_password_if_required(user:, skip_page_validation:)
-          return unless has_content?('Set up new password')
+          Support::WaitForRequests.wait_for_requests
+          return unless has_content?('Set up new password', wait: 1)
 
           Profile::Password.perform do |new_password_page|
             password = user&.password || Runtime::User.password
@@ -124,8 +129,8 @@ module QA
           '/users/sign_in'
         end
 
-        def has_sign_in_tab?
-          has_element?(:sign_in_tab)
+        def has_sign_in_tab?(wait: Capybara.default_max_wait_time)
+          has_element?(:sign_in_tab, wait: wait)
         end
 
         def has_ldap_tab?
@@ -146,10 +151,6 @@ module QA
 
         def standard_tab?
           has_css?(".active", text: 'Standard')
-        end
-
-        def has_arkose_labs_token?
-          has_css?('[name="arkose_labs_token"][value]', visible: false)
         end
 
         def has_accept_all_cookies_button?
@@ -177,14 +178,33 @@ module QA
           click_element :standard_tab
         end
 
+        def sign_in_with_github
+          set_initial_password_if_present
+          click_element :github_login_button
+        end
+
+        def sign_in_with_facebook
+          set_initial_password_if_present
+          click_element :facebook_login_button
+        end
+
         def sign_in_with_saml
           set_initial_password_if_present
           click_element :saml_login_button
         end
 
+        def sign_in_with_gitlab_oidc
+          set_initial_password_if_present
+          click_element :oidc_login_button
+        end
+
+        def sign_in_with_gitlab_oauth
+          set_initial_password_if_present
+          click_element :gitlab_oauth_login_button
+        end
+
         def sign_out_and_sign_in_as(user:)
           Menu.perform(&:sign_out_if_signed_in)
-          has_sign_in_tab?
           sign_in_using_credentials(user: user)
         end
 
@@ -206,25 +226,18 @@ module QA
         def sign_in_using_gitlab_credentials(user:, skip_page_validation: false)
           wait_if_retry_later
 
-          switch_to_sign_in_tab if has_sign_in_tab?
+          switch_to_sign_in_tab if has_sign_in_tab?(wait: 0)
           switch_to_standard_tab if has_standard_tab?
 
           fill_in_credential(user)
 
-          if Runtime::Env.running_on_dot_com?
-            click_accept_all_cookies if has_accept_all_cookies_button?
-            # Arkose only appears in staging.gitlab.com, gitlab.com, etc...
-
-            # Wait until the ArkoseLabs challenge has initialized
-            Support::WaitForRequests.wait_for_requests
-            Support::Waiter.wait_until(max_duration: 5, reload_page: false, raise_on_failure: false) do
-              has_arkose_labs_token?
-            end
-          end
+          click_accept_all_cookies if Runtime::Env.running_on_dot_com? && has_accept_all_cookies_button?
 
           click_element :sign_in_button
 
           Support::WaitForRequests.wait_for_requests
+
+          wait_for_gitlab_to_respond
 
           # For debugging invalid login attempts
           has_notice?('Invalid login or password')
@@ -233,7 +246,10 @@ module QA
             terms.accept_terms if terms.visible?
           end
 
-          Page::Main::Menu.perform(&:enable_new_navigation) if Runtime::Env.super_sidebar_enabled?
+          Flow::UserOnboarding.onboard_user
+
+          wait_for_gitlab_to_respond
+
           Page::Main::Menu.validate_elements_present! unless skip_page_validation
         end
 

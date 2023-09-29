@@ -7,7 +7,7 @@ FactoryBot.define do
     project
 
     trait :url_variables do
-      url_variables { { 'abc' => 'supers3cret' } }
+      url_variables { { 'abc' => 'supers3cret', 'def' => 'foobar' } }
     end
 
     trait :token do
@@ -28,6 +28,7 @@ FactoryBot.define do
       deployment_events { true }
       feature_flag_events { true }
       releases_events { true }
+      emoji_events { true }
     end
 
     trait :with_push_branch_filter do
@@ -35,7 +36,7 @@ FactoryBot.define do
     end
 
     trait :permanently_disabled do
-      recent_failures { WebHook::FAILURE_THRESHOLD + 1 }
+      recent_failures { WebHooks::AutoDisabling::FAILURE_THRESHOLD + 1 }
     end
   end
 end

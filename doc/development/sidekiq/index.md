@@ -4,7 +4,7 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Sidekiq guides
+# Sidekiq development guidelines
 
 We use [Sidekiq](https://github.com/mperham/sidekiq) as our background
 job processor. These guides are for writing jobs that works well on
@@ -113,6 +113,41 @@ def perform(project_id)
   project.some_action # throws an exception
 end
 ```
+
+## Deferring Sidekiq workers
+
+Sidekiq workers are deferred by two ways,
+
+1. Manual: Feature flags can be used to explicitly defer a particular worker, more details can be found [here](../feature_flags/index.md#deferring-sidekiq-jobs).
+1. Automatic: Similar to the [throttling mechanism](../database/batched_background_migrations.md#throttling-batched-migrations) in batched migrations, database health indicators are used to defer a Sidekiq worker.
+
+   To use the automatic deferring mechanism, worker has to opt-in by calling `defer_on_database_health_signal` with `gitlab_schema`, `delay_by` (time to delay) and tables (which is used by autovacuum db indicator) as it's parameters.
+
+   **Example:**
+
+   ```ruby
+    module Chaos
+      class SleepWorker # rubocop:disable Scalability/IdempotentWorker
+        include ApplicationWorker
+
+        data_consistency :always
+
+        sidekiq_options retry: 3
+        include ChaosQueue
+
+        defer_on_database_health_signal :gitlab_main, [:users], 1.minute
+
+        def perform(duration_s)
+          Gitlab::Chaos.sleep(duration_s)
+        end
+      end
+    end
+   ```
+
+For deferred jobs, logs contain the following to indicate the source:
+
+- `job_status`: `deferred`
+- `job_deferred_by`: `feature_flag` or `database_health_check`
 
 ## Sidekiq Queues
 

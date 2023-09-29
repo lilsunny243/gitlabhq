@@ -3,7 +3,6 @@
 RSpec.shared_examples Integrations::BaseSlashCommands do
   describe "Associations" do
     it { is_expected.to respond_to :token }
-    it { is_expected.to have_many :chat_names }
   end
 
   describe 'default values' do
@@ -85,7 +84,7 @@ RSpec.shared_examples Integrations::BaseSlashCommands do
       end
 
       context 'when the user is authenticated' do
-        let!(:chat_name) { create(:chat_name, integration: subject) }
+        let!(:chat_name) { create(:chat_name) }
         let(:params) { { token: 'token', team_id: chat_name.team_id, user_id: chat_name.chat_id } }
 
         subject do
@@ -123,7 +122,7 @@ RSpec.shared_examples Integrations::BaseSlashCommands do
           end
 
           it_behaves_like 'blocks command execution' do
-            let(:error_message) { 'your account has been deactivated by your administrator' }
+            let(:error_message) { "your #{Gitlab.config.gitlab.url} account needs to be reactivated" }
           end
         end
       end

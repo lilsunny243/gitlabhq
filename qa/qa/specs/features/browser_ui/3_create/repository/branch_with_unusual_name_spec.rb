@@ -2,17 +2,9 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Branch with unusual name', product_group: :source_code, quarantine: {
-      issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/364565',
-      type: :bug
-    } do
+    describe 'Branch with unusual name', product_group: :source_code do
       let(:branch_name) { 'unUsually/named#br--anch' }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |resource|
-          resource.name = 'unusually-named-branch-project'
-          resource.initialize_with_readme = true
-        end
-      end
+      let(:project) { create(:project, :with_readme, name: 'unusually-named-branch-project') }
 
       before do
         Flow::Login.sign_in
@@ -33,14 +25,8 @@ module QA
           Page::Project::Show.perform do |show|
             show.switch_to_branch(branch_name)
 
-            # It takes a few seconds for console errors to appear
-            sleep 3
-
-            errors = page.driver.browser.logs.get(:browser)
-                         .select { |e| e.level == "SEVERE" }
-                         .to_a
-
-            raise("Console error(s):\n#{errors.join("\n\n")}") if errors.present?
+            # To prevent false positives: https://gitlab.com/gitlab-org/gitlab/-/issues/383863
+            expect(show).to have_no_content('An error occurred')
 
             show.click_file('test-folder')
 

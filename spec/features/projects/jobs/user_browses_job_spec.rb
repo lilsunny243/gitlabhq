@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User browses a job', :js, feature_category: :projects do
+RSpec.describe 'User browses a job', :js, feature_category: :groups_and_projects do
   include Spec::Support::Helpers::ModalHelpers
 
   let(:user) { create(:user) }
@@ -22,7 +22,7 @@ RSpec.describe 'User browses a job', :js, feature_category: :projects do
     visit(project_job_path(project, build))
     wait_for_requests
 
-    expect(page).to have_content("Job #{build.name}")
+    expect(page).to have_content(build.name)
     expect(page).to have_css('.job-log')
 
     # scroll to the top of the page first

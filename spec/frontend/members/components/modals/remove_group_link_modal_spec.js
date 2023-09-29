@@ -2,6 +2,7 @@ import { GlModal, GlForm } from '@gitlab/ui';
 import { within } from '@testing-library/dom';
 import { mount, createWrapper } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import RemoveGroupLinkModal from '~/members/components/modals/remove_group_link_modal.vue';
 import { REMOVE_GROUP_LINK_MODAL_ID, MEMBER_TYPES } from '~/members/constants';
@@ -51,11 +52,6 @@ describe('RemoveGroupLinkModal', () => {
   const findForm = () => findModal().findComponent(GlForm);
   const getByText = (text, options) =>
     createWrapper(within(findModal().element).getByText(text, options));
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('when modal is open', () => {
     beforeEach(async () => {

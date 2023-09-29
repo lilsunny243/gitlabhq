@@ -5,7 +5,7 @@ module Tooling
     module StableBranch
       VersionApiError = Class.new(StandardError)
 
-      STABLE_BRANCH_REGEX = %r{\A(?<version>\d+-\d+)-stable-ee\z}.freeze
+      STABLE_BRANCH_REGEX = %r{\A(?<version>\d+-\d+)-stable-ee\z}
       FAILING_PACKAGE_AND_TEST_STATUSES = %w[manual canceled].freeze
 
       # rubocop:disable Lint/MixedRegexpCaptureTypes
@@ -16,7 +16,7 @@ module Tooling
         (-(?<rc>rc(?<rc_number>\d*)))?
         (-\h+\.\h+)?
         (-ee|\.ee\.\d+)?\z
-      }x.freeze
+      }x
       # rubocop:enable Lint/MixedRegexpCaptureTypes
 
       MAINTENANCE_POLICY_URL = 'https://docs.gitlab.com/ee/policy/maintenance.html'
@@ -42,23 +42,23 @@ module Tooling
       MSG
 
       PIPELINE_EXPEDITE_ERROR_MESSAGE = <<~MSG
-      ~"pipeline:expedite" is not allowed on stable branches because it causes the `e2e:package-and-test` job to be skipped.
+      ~"pipeline:expedite" is not allowed on stable branches because it causes the `e2e:package-and-test-ee` job to be skipped.
       MSG
 
       NEEDS_PACKAGE_AND_TEST_MESSAGE = <<~MSG
-      The `e2e:package-and-test` job is not present or needs to be automatically triggered.
+      The `e2e:package-and-test-ee` job is not present, has been canceled, or needs to be automatically triggered.
       Please ensure the job is present in the latest pipeline, if necessary, retry the `danger-review` job.
-      Read the "QA e2e:package-and-test" section for more details.
+      Read the "QA e2e:package-and-test-ee" section for more details.
       MSG
 
       WARN_PACKAGE_AND_TEST_MESSAGE = <<~MSG
-      **The `e2e:package-and-test` job needs to succeed or have approval from a Software Engineer in Test.**
-      Read the "QA e2e:package-and-test" section for more details.
+      **The `e2e:package-and-test-ee` job needs to succeed or have approval from a Software Engineer in Test.**
+      Read the "QA e2e:package-and-test-ee" section for more details.
       MSG
 
       # rubocop:disable Style/SignalException
       def check!
-        return unless non_security_stable_branch?
+        return unless valid_stable_branch?
 
         fail FEATURE_ERROR_MESSAGE if has_feature_label?
         fail BUG_ERROR_MESSAGE unless bug_fixes_only?
@@ -69,32 +69,48 @@ module Tooling
 
         fail PIPELINE_EXPEDITE_ERROR_MESSAGE if has_pipeline_expedite_label?
 
-        status = package_and_test_status
+        status = package_and_test_bridge_and_pipeline_status
 
         if status.nil? || FAILING_PACKAGE_AND_TEST_STATUSES.include?(status) # rubocop:disable Style/GuardClause
           fail NEEDS_PACKAGE_AND_TEST_MESSAGE
         else
-          warn WARN_PACKAGE_AND_TEST_MESSAGE unless status == 'success'
+          warn WARN_PACKAGE_AND_TEST_MESSAGE
         end
       end
       # rubocop:enable Style/SignalException
 
-      def non_security_stable_branch?
+      def encourage_package_and_qa_execution?
+        valid_stable_branch? &&
+          !has_only_documentation_changes? &&
+          !has_flaky_failure_label?
+      end
+
+      def valid_stable_branch?
         !!stable_target_branch && !helper.security_mr?
       end
 
       private
 
-      def package_and_test_status
+      def package_and_test_bridge_and_pipeline_status
         mr_head_pipeline_id = gitlab.mr_json.dig('head_pipeline', 'id')
         return unless mr_head_pipeline_id
 
-        pipeline_bridges = gitlab.api.pipeline_bridges(helper.mr_target_project_id, mr_head_pipeline_id)
-        package_and_test_pipeline = pipeline_bridges&.find { |j| j['name'] == 'e2e:package-and-test' }
+        bridge = package_and_test_bridge(mr_head_pipeline_id)
 
-        return unless package_and_test_pipeline
+        return unless bridge
 
-        package_and_test_pipeline['status']
+        if bridge['status'] == 'created'
+          bridge['status']
+        else
+          bridge.fetch('downstream_pipeline')&.fetch('status')
+        end
+      end
+
+      def package_and_test_bridge(mr_head_pipeline_id)
+        gitlab
+          .api
+          .pipeline_bridges(helper.mr_target_project_id, mr_head_pipeline_id)
+          &.find { |bridge| bridge['name'].include?('package-and-test-ee') }
       end
 
       def stable_target_branch
@@ -130,26 +146,20 @@ module Tooling
       end
 
       def targeting_patchable_version?
-        raise VersionApiError if last_three_minor_versions.empty?
+        raise VersionApiError if current_stable_version.empty?
 
-        last_three_minor_versions.include?(targeted_version)
+        current_stable_version == targeted_version
       rescue VersionApiError
         warn FAILED_VERSION_REQUEST_MESSAGE
         true
       end
 
-      def last_three_minor_versions
-        return [] unless versions
+      def current_stable_version
+        return unless versions
 
         current_version = versions.first.match(VERSION_REGEX)
-        version_1 = previous_minor_version(current_version)
-        version_2 = previous_minor_version(version_1)
 
-        [
-          version_to_minor_string(current_version),
-          version_to_minor_string(version_1),
-          version_to_minor_string(version_2)
-        ]
+        version_to_minor_string(current_version)
       end
 
       def targeted_version
@@ -157,7 +167,7 @@ module Tooling
       end
 
       def versions(page = 1)
-        version_api_endpoint = "https://version.gitlab.com/api/v1/versions?per_page=50&page=#{page}"
+        version_api_endpoint = "https://version.gitlab.com/api/v1/versions?per_page=20&page=#{page}"
         response = HTTParty.get(version_api_endpoint) # rubocop:disable Gitlab/HTTParty
 
         raise VersionApiError unless response.success?
@@ -165,33 +175,6 @@ module Tooling
         version_list = response.parsed_response.map { |v| v['version'] } # rubocop:disable Rails/Pluck
 
         version_list.sort_by { |v| Gem::Version.new(v) }.reverse
-      end
-
-      def previous_minor_version(version)
-        previous_minor = version[:minor].to_i - 1
-
-        return "#{version[:major]}.#{previous_minor}".match(VERSION_REGEX) if previous_minor >= 0
-
-        fetch_last_minor_version_for_major(version[:major].to_i - 1)
-      end
-
-      def fetch_last_minor_version_for_major(major)
-        page = 1
-        last_minor_version = nil
-
-        while last_minor_version.nil?
-          last_minor_version = versions(page).find do |version|
-            version.split('.').first.to_i == major
-          end
-
-          break if page > 10
-
-          page += 1
-        end
-
-        raise VersionApiError if last_minor_version.nil?
-
-        last_minor_version.match(VERSION_REGEX)
       end
 
       def version_to_minor_string(version)

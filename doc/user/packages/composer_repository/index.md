@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Composer packages in the Package Registry **(FREE)**
+# Composer packages in the Package Registry **(FREE ALL BETA)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15886) in GitLab 13.2.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/221259) from GitLab Premium to GitLab Free in 13.3.
@@ -38,7 +38,7 @@ Prerequisites:
   the [Composer specification](https://getcomposer.org/doc/04-schema.md#version).
   If the version is not valid, for example, it has three dots (`1.0.0.0`), an
   error (`Validation failed: Version is invalid`) occurs when you publish.
-- A valid `composer.json` file.
+- A valid `composer.json` file at the project root directory.
 - The Packages feature is enabled in a GitLab repository.
 - The project ID, which is on the project's home page.
 - One of the following token types:
@@ -76,7 +76,7 @@ To publish the package with a deploy token:
   - `<tag>` is the Git tag name of the version you want to publish.
     To publish a branch, use `branch=<branch>` instead of `tag=<tag>`.
 
-You can view the published package by going to **Packages and registries > Package Registry** and
+You can view the published package by going to **Deploy > Package Registry** and
 selecting the **Composer** tab.
 
 ## Publish a Composer package by using CI/CD
@@ -99,13 +99,13 @@ You can publish a Composer package to the Package Registry as part of your CI/CD
 
 1. Run the pipeline.
 
-To view the published package, go to **Packages and registries > Package Registry** and select the **Composer** tab.
+To view the published package, go to **Deploy > Package Registry** and select the **Composer** tab.
 
 ### Use a CI/CD template
 
 A more detailed Composer CI/CD file is also available as a `.gitlab-ci.yml` template:
 
-1. On the left sidebar, select **Project information**.
+1. On the left sidebar, select **Project overview**.
 1. Above the file list, select **Set up CI/CD**. If this button is not available, select **CI/CD Configuration** and then **Edit**.
 1. From the **Apply a template** list, select **Composer**.
 
@@ -134,6 +134,7 @@ Prerequisites:
     with the scope set to, at minimum, `api`.
   - A [deploy token](../../project/deploy_tokens/index.md)
     with the scope set to `read_package_registry`, `write_package_registry`, or both.
+  - A [CI/CD Job token](../../../ci/jobs/ci_job_token.md)
 
 To install a package:
 
@@ -142,7 +143,7 @@ To install a package:
    - Connect to the Package Registry for your group:
 
    ```shell
-   composer config repositories.<group_id> composer https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/
+   composer config repositories.<group_id> composer https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/packages.json
    ```
 
    - Set the required package version:
@@ -159,7 +160,7 @@ To install a package:
      "repositories": {
        "<group_id>": {
          "type": "composer",
-         "url": "https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/"
+         "url": "https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/packages.json"
        },
        ...
      },
@@ -221,6 +222,26 @@ To install a package:
    }
    ```
 
+   Using a CI/CD job token:
+
+   ```shell
+   composer config gitlab-token.<DOMAIN-NAME> gitlab-ci-token ${CI_JOB_TOKEN}
+   ```
+
+   Result in the `auth.json` file:
+
+   ```json
+   {
+     ...
+     "gitlab-token": {
+       "<DOMAIN-NAME>": {
+         "username": "gitlab-ci-token",
+         "token": "<ci-job-token>",
+       ...
+     }
+   }
+   ```
+
    You can unset this with the command:
 
    ```shell
@@ -243,7 +264,7 @@ To install a package:
    {
      ...
      "repositories": [
-       { "type": "composer", "url": "https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/" }
+       { "type": "composer", "url": "https://gitlab.example.com/api/v4/group/<group_id>/-/packages/composer/packages.json" }
      ],
      "config": {
        ...
@@ -280,20 +301,54 @@ To install a package:
    composer req <package-name>:<package-version>
    ```
 
-   If successful, you should see output indicating that the package installed successfully.
-
-   You can also install from source (by pulling the Git repository directly) using the
-   `--prefer-source` option:
-
-   ```shell
-   composer update --prefer-source
-   ```
-
 WARNING:
 Never commit the `auth.json` file to your repository. To install packages from a CI/CD job,
 consider using the [`composer config`](https://getcomposer.org/doc/articles/handling-private-packages.md#satis) tool with your access token
 stored in a [GitLab CI/CD variable](../../../ci/variables/index.md) or in
 [HashiCorp Vault](../../../ci/secrets/index.md).
+
+### Install from source
+
+You can install from source by pulling the Git repository directly. To do so, either:
+
+- Use the `--prefer-source` option:
+
+  ```shell
+  composer update --prefer-source
+  ```
+
+- In the `composer.json`, use the [`preferred-install` field under the `config` key](https://getcomposer.org/doc/06-config.md#preferred-install):
+
+  ```json
+  {
+    ...
+    "config": {
+      "preferred-install": {
+        "<package name>": "source"
+      }
+    }
+    ...
+   }
+  ```
+
+#### SSH access
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/119739) in GitLab 16.4 [with a flag](../../../administration/feature_flags.md) named `composer_use_ssh_source_urls`. Disabled by default.
+> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/329246) GitLab 16.5.
+
+FLAG:
+On self-managed GitLab, by default this feature is available. To hide the feature per project, an administrator can
+[disable the feature flag](../../../administration/feature_flags.md) named `composer_use_ssh_source_urls`.
+On GitLab.com, this feature is available.
+
+When you install from source, the `composer` configures an
+access to the project's Git repository.
+Depending on the project visibility, the access type is different:
+
+- On public projects, the `https` Git URL is used. Make sure you can [clone the repository with HTTPS](../../../gitlab-basics/start-using-git.md#clone-with-https).
+- On internal or private projects, the `ssh` Git URL is used. Make sure you can [clone the repository with SSH](../../../gitlab-basics/start-using-git.md#clone-with-ssh).
+
+You can access the `ssh` Git URL from a CI/CD job using [SSH keys with GitLab CI/CD](../../../ci/ssh_keys/index.md).
 
 ### Working with Deploy Tokens
 
@@ -323,6 +378,14 @@ If you committed your `composer.lock`, you could do a `composer install` in CI w
 
 In GitLab 14.10 and later, authorization is required for the [downloading a package archive](../../../api/packages/composer.md#download-a-package-archive) endpoint.
 If you encounter a credentials prompt when you are using `composer install`, follow the instructions in the [install a composer package](#install-a-composer-package) section to create an `auth.json` file.
+
+### Publish fails with `The file composer.json was not found`
+
+You might see an error that says `The file composer.json was not found`.
+
+This issue occurs when [configuration requirements for publishing a package](#publish-a-composer-package-by-using-the-api) are not met.
+
+To resolve the error, commit a `composer.json` file to the project root directory.
 
 ## Supported CLI commands
 

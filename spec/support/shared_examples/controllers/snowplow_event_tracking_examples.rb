@@ -6,7 +6,7 @@
 # - category
 # - action
 # - namespace
-# Optionaly, the context can contain:
+# Optionally, the context can contain:
 # - project
 # - property
 # - user
@@ -57,7 +57,7 @@ RSpec.shared_examples 'Snowplow event tracking with Redis context' do |overrides
   it_behaves_like 'Snowplow event tracking', overrides: overrides do
     let(:context) do
       key_path = try(:label) || action
-      [Gitlab::Tracking::ServicePingContext.new(data_source: :redis, key_path: key_path).to_context.to_json]
+      [Gitlab::Usage::MetricDefinition.context_for(key_path).to_context.to_json]
     end
   end
 end

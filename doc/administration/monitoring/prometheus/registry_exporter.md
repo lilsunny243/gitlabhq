@@ -1,6 +1,6 @@
 ---
-stage: Monitor
-group: Respond
+stage: Package
+group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -16,7 +16,7 @@ To enable it:
    registry['debug_addr'] = "localhost:5001"  # localhost:5001/metrics
    ```
 
-1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
    for the changes to take effect.
 
 Prometheus automatically begins collecting performance data from

@@ -47,12 +47,12 @@ RSpec.describe 'Value Stream Analytics', :js, feature_category: :value_stream_ma
       end
 
       it 'displays metrics with relevant values' do
-        expect(metrics_values).to eq(['-'] * 4)
+        expect(metrics_values).to eq(['-'] * 3)
       end
 
       it 'shows active stage with empty message' do
         expect(page).to have_selector('.gl-path-active-item-indigo', text: 'Issue')
-        expect(page).to have_content("We don't have enough data to show this stage.")
+        expect(page).to have_content("There are 0 items to show in this stage, for these filters, within this time range.")
       end
     end
 
@@ -60,8 +60,8 @@ RSpec.describe 'Value Stream Analytics', :js, feature_category: :value_stream_ma
       # NOTE: in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/68595 travel back
       # 5 days in time before we create data for these specs, to mitigate some flakiness
       # So setting the date range to be the last 2 days should skip past the existing data
-      from = 2.days.ago.strftime("%Y-%m-%d")
-      to = 1.day.ago.strftime("%Y-%m-%d")
+      from = 2.days.ago.to_date.iso8601
+      to = 1.day.ago.to_date.iso8601
       max_items_per_page = 20
 
       around do |example|
@@ -98,7 +98,6 @@ RSpec.describe 'Value Stream Analytics', :js, feature_category: :value_stream_ma
         aggregate_failures 'with relevant values' do
           expect(metrics_tiles).to have_content('Commit')
           expect(metrics_tiles).to have_content('Deploy')
-          expect(metrics_tiles).to have_content('Deployment Frequency')
           expect(metrics_tiles).to have_content('New Issue')
         end
       end
@@ -132,11 +131,11 @@ RSpec.describe 'Value Stream Analytics', :js, feature_category: :value_stream_ma
       end
 
       it 'can filter the metrics by date' do
-        expect(metrics_values).to match_array(%w[21 2 1 0])
+        expect(metrics_values).to match_array(%w[21 2 1])
 
         set_daterange(from, to)
 
-        expect(metrics_values).to eq(['-'] * 4)
+        expect(metrics_values).to eq(['-'] * 3)
       end
 
       it 'can sort records', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/338332' do

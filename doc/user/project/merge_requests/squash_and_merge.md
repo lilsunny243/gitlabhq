@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Squash and merge **(FREE)**
+# Squash and merge **(FREE ALL)**
 
 As you work on a feature branch, you often create small, self-contained commits. These small commits
 help describe the process of building a feature, but can clutter your Git history after the feature
@@ -33,7 +33,14 @@ squash commits and merge commits.
 ## Set default squash options for a merge request
 
 Users with permission to create or edit a merge request can set the default squash options
-for a merge request. To do this:
+for a merge request.
+
+Prerequisites:
+
+- Your project must be [configured](#configure-squash-options-for-a-project) to allow or
+  encourage squashing.
+
+To do this:
 
 1. Go to the merge request and select **Edit**.
 1. Select or clear the **Squash commits when merge request is accepted** checkbox.
@@ -58,10 +65,14 @@ squash the commits as part of the merge process:
 > - [Enabled on GitLab.com and self-managed by default](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/39382) in GitLab 13.3.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/232536) in GitLab 13.8. Feature flag `squash_options` removed.
 
+Prerequisites:
+
+- You must have at least the Maintainer role for this project.
+
 To configure the default squashing behavior for all merge requests in your project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
 1. In the **Squash commits when merging** section, select your desired behavior:
    - **Do not allow**: Squashing is never performed, and the option is not displayed.
    - **Allow**: Squashing is allowed, but cleared by default.

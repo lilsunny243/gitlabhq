@@ -4,11 +4,12 @@ require 'spec_helper'
 
 RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
   include ActionView::Helpers::JavaScriptHelper
+  include ListboxHelpers
 
   let_it_be(:project)   { create(:project, :repository) }
-  let_it_be(:user)      { create(:user) }
-  let_it_be(:user2)     { create(:user) }
-  let_it_be(:guest)     { create(:user) }
+  let_it_be(:user)      { create(:user, :no_super_sidebar) }
+  let_it_be(:user2)     { create(:user, :no_super_sidebar) }
+  let_it_be(:guest)     { create(:user, :no_super_sidebar) }
   let_it_be(:milestone) { create(:milestone, project: project) }
   let_it_be(:label)     { create(:label, project: project) }
   let_it_be(:label2)    { create(:label, project: project) }
@@ -145,19 +146,18 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
       expect(find('input[name="issue[milestone_id]"]', visible: false).value).to match(milestone.id.to_s)
       expect(page).to have_button milestone.title
 
-      click_button 'Labels'
-      page.within '.dropdown-menu-labels' do
-        click_link label.title
-        click_link label2.title
+      click_button _('Select label')
+      wait_for_all_requests
+      page.within '[data-testid="sidebar-labels"]' do
+        click_button label.title
+        click_button label2.title
+        click_button _('Close')
+        wait_for_requests
+        page.within('[data-testid="embedded-labels-list"]') do
+          expect(page).to have_content(label.title)
+          expect(page).to have_content(label2.title)
+        end
       end
-
-      find('.js-issuable-form-dropdown.js-label-select').click
-
-      page.within '.js-label-select' do
-        expect(page).to have_content label.title
-      end
-      expect(page.all('input[name="issue[label_ids][]"]', visible: false)[1].value).to match(label.id.to_s)
-      expect(page.all('input[name="issue[label_ids][]"]', visible: false)[2].value).to match(label2.id.to_s)
 
       click_button 'Create issue'
 
@@ -183,39 +183,63 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
       end
     end
 
+    it 'correctly updates the dropdown toggle when removing a label' do
+      click_button _('Select label')
+
+      wait_for_all_requests
+
+      page.within '[data-testid="sidebar-labels"]' do
+        click_button label.title
+        click_button _('Close')
+
+        wait_for_requests
+
+        page.within('[data-testid="embedded-labels-list"]') do
+          expect(page).to have_content(label.title)
+        end
+
+        expect(page.find('.gl-dropdown-button-text')).to have_content(label.title)
+      end
+
+      click_button label.title, class: 'gl-dropdown-toggle'
+
+      wait_for_all_requests
+
+      page.within '[data-testid="sidebar-labels"]' do
+        click_button label.title, class: 'dropdown-item'
+        click_button _('Close')
+
+        wait_for_requests
+
+        expect(page).not_to have_selector('[data-testid="embedded-labels-list"]')
+        expect(page.find('.gl-dropdown-button-text')).to have_content(_('Select label'))
+      end
+    end
+
+    it 'clears label search input field when a label is selected', :js do
+      click_button _('Select label')
+
+      wait_for_all_requests
+
+      page.within '[data-testid="sidebar-labels"]' do
+        search_field = find('input[type="search"]')
+
+        search_field.native.send_keys(label.title)
+
+        expect(page).to have_css('.gl-search-box-by-type-clear')
+
+        click_button label.title, class: 'dropdown-item'
+
+        expect(page).not_to have_css('.gl-search-box-by-type-clear')
+        expect(search_field.value).to eq ''
+      end
+    end
+
     it 'displays an error message when submitting an invalid form' do
       click_button 'Create issue'
 
       page.within('[data-testid="issue-title-input-field"]') do
         expect(page).to have_text(_('This field is required.'))
-      end
-    end
-
-    it 'correctly updates the dropdown toggle when removing a label' do
-      click_button 'Labels'
-
-      page.within '.dropdown-menu-labels' do
-        click_link label.title
-      end
-
-      expect(find('.js-label-select')).to have_content(label.title)
-
-      page.within '.dropdown-menu-labels' do
-        click_link label.title
-      end
-
-      expect(find('.js-label-select')).to have_content('Labels')
-    end
-
-    it 'clears label search input field when a label is selected' do
-      click_button 'Labels'
-
-      page.within '.dropdown-menu-labels' do
-        search_field = find('input[type="search"]')
-
-        search_field.set(label2.title)
-        click_link label2.title
-        expect(search_field.value).to eq ''
       end
     end
 
@@ -248,19 +272,15 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
     describe 'displays issue type options in the dropdown' do
       shared_examples 'type option is visible' do |label:, identifier:|
         it "shows #{identifier} option", :aggregate_failures do
-          page.within('[data-testid="issue-type-select-dropdown"]') do
-            expect(page).to have_selector(%([data-testid="issue-type-#{identifier}-icon"]))
-            expect(page).to have_content(label)
-          end
+          wait_for_requests
+          expect_listbox_item(label)
         end
       end
 
       shared_examples 'type option is missing' do |label:, identifier:|
         it "does not show #{identifier} option", :aggregate_failures do
-          page.within('[data-testid="issue-type-select-dropdown"]') do
-            expect(page).not_to have_selector(%([data-testid="issue-type-#{identifier}-icon"]))
-            expect(page).not_to have_content(label)
-          end
+          wait_for_requests
+          expect_no_listbox_item(label)
         end
       end
 
@@ -439,16 +459,26 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
 
       expect(page).to have_button milestone.title
 
-      click_button 'Labels'
-      page.within '.dropdown-menu-labels' do
-        click_link label.title
-        click_link label2.title
+      click_button _('Select label')
+
+      wait_for_all_requests
+
+      page.within '[data-testid="sidebar-labels"]' do
+        click_button label.title
+        click_button label2.title
+        click_button _('Close')
+
+        wait_for_requests
+
+        page.within('[data-testid="embedded-labels-list"]') do
+          expect(page).to have_content(label.title)
+          expect(page).to have_content(label2.title)
+        end
       end
-      page.within '.js-label-select' do
-        expect(page).to have_content label.title
-      end
-      expect(page.all('input[name="issue[label_ids][]"]', visible: false)[1].value).to match(label.id.to_s)
-      expect(page.all('input[name="issue[label_ids][]"]', visible: false)[2].value).to match(label2.id.to_s)
+
+      expect(page.all('input[name="issue[label_ids][]"]', visible: false)
+        .map(&:value))
+        .to contain_exactly(label.id.to_s, label2.id.to_s)
 
       click_button 'Save changes'
 
@@ -476,15 +506,60 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
     end
   end
 
-  describe 'inline edit' do
+  describe 'editing an issue by hotkey' do
+    let_it_be(:issue2) { create(:issue, project: project) }
+
     before do
-      visit project_issue_path(project, issue)
+      visit project_issue_path(project, issue2)
     end
 
     it 'opens inline edit form with shortcut' do
       find('body').send_keys('e')
 
       expect(page).to have_selector('.detail-page-description form')
+    end
+
+    context 'when user has made no changes' do
+      it 'let user leave the page without warnings' do
+        expected_content = 'Issue created'
+        expect(page).to have_content(expected_content)
+
+        find('body').send_keys('e')
+
+        click_link 'Boards'
+
+        expect(page).not_to have_content(expected_content)
+      end
+    end
+
+    context 'when user has made changes' do
+      it 'shows a warning and can stay on page' do
+        content = 'new issue content'
+
+        find('body').send_keys('e')
+        fill_in 'issue-description', with: content
+
+        click_link 'Boards' do
+          page.driver.browser.switch_to.alert.dismiss
+        end
+
+        click_button 'Save changes'
+        wait_for_requests
+
+        expect(page).to have_content(content)
+      end
+
+      it 'shows a warning and can leave page' do
+        content = 'new issue content'
+        find('body').send_keys('e')
+        fill_in 'issue-description', with: content
+
+        click_link 'Boards' do
+          page.driver.browser.switch_to.alert.accept
+        end
+
+        expect(page).not_to have_content(content)
+      end
     end
   end
 
@@ -499,22 +574,30 @@ RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
       visit new_project_issue_path(sub_group_project)
     end
 
-    it 'creates project label from dropdown' do
-      click_button 'Labels'
+    context 'labels', :js do
+      it 'creates project label from dropdown', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/416585' do
+        find('[data-testid="labels-select-dropdown-contents"] button').click
 
-      click_link 'Create project label'
+        wait_for_all_requests
 
-      page.within '.dropdown-new-label' do
-        fill_in 'new_label_name', with: 'test label'
-        first('.suggest-colors-dropdown a').click
+        page.within '[data-testid="sidebar-labels"]' do
+          click_button _('Create project label')
 
-        click_button 'Create'
+          wait_for_requests
+        end
 
-        wait_for_requests
-      end
+        page.within '.js-labels-create' do
+          find('[data-testid="label-title-input"]').fill_in with: 'test label'
+          first('.suggest-colors-dropdown a').click
 
-      page.within '.dropdown-menu-labels' do
-        expect(page).to have_link 'test label'
+          click_button 'Create'
+
+          wait_for_all_requests
+        end
+
+        page.within '.js-labels-list' do
+          expect(page).to have_button 'test label'
+        end
       end
     end
   end

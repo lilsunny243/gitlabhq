@@ -214,7 +214,11 @@ RSpec.describe Resolvers::TimelogResolver, feature_category: :team_planning do
     let_it_be(:timelog3) { create(:merge_request_timelog, merge_request: merge_request, user: current_user) }
 
     it 'blah' do
-      expect(timelogs).to contain_exactly(timelog1, timelog3)
+      if user_found
+        expect(timelogs).to contain_exactly(timelog1, timelog3)
+      else
+        expect(timelogs).to be_empty
+      end
     end
   end
 
@@ -250,16 +254,28 @@ RSpec.describe Resolvers::TimelogResolver, feature_category: :team_planning do
     let(:object) { current_user }
     let(:extra_args) { {} }
     let(:args) { {} }
+    let(:user_found) { true }
 
     it_behaves_like 'with a user'
   end
 
   context 'with a user filter' do
     let(:object) { nil }
-    let(:extra_args) { { username: current_user.username } }
     let(:args) { {} }
 
-    it_behaves_like 'with a user'
+    context 'when the user has timelogs' do
+      let(:extra_args) { { username: current_user.username } }
+      let(:user_found) { true }
+
+      it_behaves_like 'with a user'
+    end
+
+    context 'when the user doest not have timelogs' do
+      let(:extra_args) { { username: 'not_existing_user' } }
+      let(:user_found) { false }
+
+      it_behaves_like 'with a user'
+    end
   end
 
   context 'when no object or arguments provided' do
@@ -275,17 +291,51 @@ RSpec.describe Resolvers::TimelogResolver, feature_category: :team_planning do
   end
 
   context 'when the sort argument is provided' do
-    let_it_be(:timelog_a) { create(:issue_timelog, time_spent: 7200, spent_at: 1.hour.ago, user: current_user) }
-    let_it_be(:timelog_b) { create(:issue_timelog, time_spent: 5400, spent_at: 2.hours.ago, user: current_user) }
-    let_it_be(:timelog_c) { create(:issue_timelog, time_spent: 1800, spent_at: 30.minutes.ago, user: current_user) }
-    let_it_be(:timelog_d) { create(:issue_timelog, time_spent: 3600, spent_at: 1.day.ago, user: current_user) }
+    let_it_be(:timelog_a) do
+      create(
+        :issue_timelog, time_spent: 7200, spent_at: 1.hour.ago,
+        created_at: 1.hour.ago, updated_at: 1.hour.ago, user: current_user
+      )
+    end
+
+    let_it_be(:timelog_b) do
+      create(
+        :issue_timelog, time_spent: 5400, spent_at: 2.hours.ago,
+        created_at: 2.hours.ago, updated_at: 2.hours.ago, user: current_user
+      )
+    end
+
+    let_it_be(:timelog_c) do
+      create(
+        :issue_timelog, time_spent: 1800, spent_at: 30.minutes.ago,
+        created_at: 30.minutes.ago, updated_at: 30.minutes.ago, user: current_user
+      )
+    end
+
+    let_it_be(:timelog_d) do
+      create(
+        :issue_timelog, time_spent: 3600, spent_at: 1.day.ago,
+        created_at: 1.day.ago, updated_at: 1.day.ago, user: current_user
+      )
+    end
 
     let(:object) { current_user }
-    let(:args) { { sort: 'TIME_SPENT_ASC' } }
     let(:extra_args) { {} }
 
-    it 'returns all the timelogs in the correct order' do
-      expect(timelogs.items).to eq([timelog_c, timelog_d, timelog_b, timelog_a])
+    context 'when sort argument comes from TimelogSortEnum' do
+      let(:args) { { sort: 'TIME_SPENT_ASC' } }
+
+      it 'returns all the timelogs in the correct order' do
+        expect(timelogs.items).to eq([timelog_c, timelog_d, timelog_b, timelog_a])
+      end
+    end
+
+    context 'when sort argument comes from SortEnum' do
+      let(:args) { { sort: 'CREATED_ASC' } }
+
+      it 'returns all the timelogs in the correct order' do
+        expect(timelogs.items).to eq([timelog_d, timelog_b, timelog_a, timelog_c])
+      end
     end
   end
 

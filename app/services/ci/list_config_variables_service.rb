@@ -28,9 +28,13 @@ module Ci
 
       return {} unless config.exists?
 
-      result = Gitlab::Ci::YamlProcessor.new(config.content, project: project,
-                                                             user: current_user,
-                                                             sha: sha).execute
+      result = Gitlab::Ci::YamlProcessor.new(
+        config.content,
+        project: project,
+        user: current_user,
+        sha: sha,
+        verify_project_sha: true
+      ).execute
 
       result.valid? ? result.root_variables_with_prefill_data : {}
     end

@@ -1,24 +1,16 @@
 import { produce } from 'immer';
 import { WIDGET_TYPE_NOTES } from '~/work_items/constants';
+import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
+import { findHierarchyWidgetChildren } from '~/work_items/utils';
 
 const isNotesWidget = (widget) => widget.type === WIDGET_TYPE_NOTES;
 
-const getNotesWidgetFromSourceData = (draftData, fetchByIid) => {
-  return fetchByIid
-    ? draftData.workspace.workItems.nodes[0].widgets.find(isNotesWidget)
-    : draftData.workItem.widgets.find(isNotesWidget);
-};
+const getNotesWidgetFromSourceData = (draftData) =>
+  draftData?.workspace?.workItems?.nodes[0]?.widgets.find(isNotesWidget);
 
-const updateNotesWidgetDataInDraftData = (draftData, notesWidget, fetchByIid) => {
-  const noteWidgetIndex = fetchByIid
-    ? draftData.workspace.workItems.nodes[0].widgets.findIndex(isNotesWidget)
-    : draftData.workItem.widgets.findIndex(isNotesWidget);
-
-  if (fetchByIid) {
-    draftData.workspace.workItems.nodes[0].widgets[noteWidgetIndex] = notesWidget;
-  } else {
-    draftData.workItem.widgets[noteWidgetIndex] = notesWidget;
-  }
+const updateNotesWidgetDataInDraftData = (draftData, notesWidget) => {
+  const noteWidgetIndex = draftData.workspace.workItems.nodes[0].widgets.findIndex(isNotesWidget);
+  draftData.workspace.workItems.nodes[0].widgets[noteWidgetIndex] = notesWidget;
 };
 
 /**
@@ -26,17 +18,15 @@ const updateNotesWidgetDataInDraftData = (draftData, notesWidget, fetchByIid) =>
  *
  * @param currentNotes
  * @param subscriptionData
- * @param fetchByIid
  */
-
-export const updateCacheAfterCreatingNote = (currentNotes, subscriptionData, fetchByIid) => {
+export const updateCacheAfterCreatingNote = (currentNotes, subscriptionData) => {
   if (!subscriptionData.data?.workItemNoteCreated) {
     return currentNotes;
   }
   const newNote = subscriptionData.data.workItemNoteCreated;
 
   return produce(currentNotes, (draftData) => {
-    const notesWidget = getNotesWidgetFromSourceData(draftData, fetchByIid);
+    const notesWidget = getNotesWidgetFromSourceData(draftData);
 
     if (!notesWidget.discussions) {
       return;
@@ -50,7 +40,7 @@ export const updateCacheAfterCreatingNote = (currentNotes, subscriptionData, fet
     }
 
     notesWidget.discussions.nodes.push(newNote.discussion);
-    updateNotesWidgetDataInDraftData(draftData, notesWidget, fetchByIid);
+    updateNotesWidgetDataInDraftData(draftData, notesWidget);
   });
 };
 
@@ -59,10 +49,8 @@ export const updateCacheAfterCreatingNote = (currentNotes, subscriptionData, fet
  *
  * @param currentNotes
  * @param subscriptionData
- * @param fetchByIid
  */
-
-export const updateCacheAfterDeletingNote = (currentNotes, subscriptionData, fetchByIid) => {
+export const updateCacheAfterDeletingNote = (currentNotes, subscriptionData) => {
   if (!subscriptionData.data?.workItemNoteDeleted) {
     return currentNotes;
   }
@@ -70,7 +58,7 @@ export const updateCacheAfterDeletingNote = (currentNotes, subscriptionData, fet
   const { id, discussionId, lastDiscussionNote } = deletedNote;
 
   return produce(currentNotes, (draftData) => {
-    const notesWidget = getNotesWidgetFromSourceData(draftData, fetchByIid);
+    const notesWidget = getNotesWidgetFromSourceData(draftData);
 
     if (!notesWidget.discussions) {
       return;
@@ -95,6 +83,80 @@ export const updateCacheAfterDeletingNote = (currentNotes, subscriptionData, fet
       notesWidget.discussions.nodes[discussionIndex] = deletedThreadDiscussion;
     }
 
-    updateNotesWidgetDataInDraftData(draftData, notesWidget, fetchByIid);
+    updateNotesWidgetDataInDraftData(draftData, notesWidget);
+  });
+};
+
+function updateNoteAwardEmojiCache(currentNotes, note, callback) {
+  if (!note.awardEmoji) {
+    return currentNotes;
+  }
+  const { awardEmoji } = note;
+
+  return produce(currentNotes, (draftData) => {
+    const notesWidget = getNotesWidgetFromSourceData(draftData);
+
+    if (!notesWidget.discussions) {
+      return;
+    }
+
+    notesWidget.discussions.nodes.forEach((discussion) => {
+      discussion.notes.nodes.forEach((n) => {
+        if (n.id === note.id) {
+          callback(n, awardEmoji);
+        }
+      });
+    });
+
+    updateNotesWidgetDataInDraftData(draftData, notesWidget);
+  });
+}
+
+export const updateCacheAfterAddingAwardEmojiToNote = (currentNotes, note) => {
+  return updateNoteAwardEmojiCache(currentNotes, note, (n, awardEmoji) => {
+    n.awardEmoji.nodes.push(awardEmoji);
+  });
+};
+
+export const updateCacheAfterRemovingAwardEmojiFromNote = (currentNotes, note) => {
+  return updateNoteAwardEmojiCache(currentNotes, note, (n, awardEmoji) => {
+    // eslint-disable-next-line no-param-reassign
+    n.awardEmoji.nodes = n.awardEmoji.nodes.filter((emoji) => {
+      return emoji.name !== awardEmoji.name || emoji.user.id !== awardEmoji.user.id;
+    });
+  });
+};
+
+export const addHierarchyChild = (cache, fullPath, iid, workItem) => {
+  const queryArgs = { query: workItemByIidQuery, variables: { fullPath, iid } };
+  const sourceData = cache.readQuery(queryArgs);
+
+  if (!sourceData) {
+    return;
+  }
+
+  cache.writeQuery({
+    ...queryArgs,
+    data: produce(sourceData, (draftState) => {
+      findHierarchyWidgetChildren(draftState.workspace.workItems.nodes[0]).push(workItem);
+    }),
+  });
+};
+
+export const removeHierarchyChild = (cache, fullPath, iid, workItem) => {
+  const queryArgs = { query: workItemByIidQuery, variables: { fullPath, iid } };
+  const sourceData = cache.readQuery(queryArgs);
+
+  if (!sourceData) {
+    return;
+  }
+
+  cache.writeQuery({
+    ...queryArgs,
+    data: produce(sourceData, (draftState) => {
+      const children = findHierarchyWidgetChildren(draftState.workspace.workItems.nodes[0]);
+      const index = children.findIndex((child) => child.id === workItem.id);
+      children.splice(index, 1);
+    }),
   });
 };

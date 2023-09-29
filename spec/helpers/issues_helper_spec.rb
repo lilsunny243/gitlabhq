@@ -2,21 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe IssuesHelper do
+RSpec.describe IssuesHelper, feature_category: :team_planning do
+  include Features::MergeRequestHelpers
+
   let_it_be(:project) { create(:project) }
   let_it_be_with_reload(:issue) { create(:issue, project: project) }
-
-  describe '#work_item_type_icon' do
-    it 'returns icon of all standard base types' do
-      WorkItems::Type.base_types.each do |type|
-        expect(work_item_type_icon(type[0])).to eq "issue-type-#{type[0].to_s.dasherize}"
-      end
-    end
-
-    it 'defaults to issue icon if type is unknown' do
-      expect(work_item_type_icon('invalid')).to eq 'issue-type-issue'
-    end
-  end
 
   describe '#award_user_list' do
     it 'returns a comma-separated list of the first X users' do
@@ -146,90 +136,15 @@ RSpec.describe IssuesHelper do
     end
   end
 
-  describe '#issue_closed_link' do
-    let(:new_issue) { create(:issue, project: project) }
-    let(:guest)     { create(:user) }
-
-    before do
-      allow(helper).to receive(:can?) do |*args|
-        Ability.allowed?(*args)
-      end
-    end
-
-    shared_examples 'successfully displays link to issue and with css class' do |action|
-      it 'returns link' do
-        link = "<a class=\"#{css_class}\" href=\"/#{new_issue.project.full_path}/-/issues/#{new_issue.iid}\">(#{action})</a>"
-
-        expect(helper.issue_closed_link(issue, user, css_class: css_class)).to match(link)
-      end
-    end
-
-    shared_examples 'does not display link' do
-      it 'returns nil' do
-        expect(helper.issue_closed_link(issue, user)).to be_nil
-      end
-    end
-
-    context 'with linked issue' do
-      context 'with moved issue' do
-        before do
-          issue.update!(moved_to: new_issue)
-        end
-
-        context 'when user has permission to see new issue' do
-          let(:user)      { project.owner }
-          let(:css_class) { 'text-white text-underline' }
-
-          it_behaves_like 'successfully displays link to issue and with css class', 'moved'
-        end
-
-        context 'when user has no permission to see new issue' do
-          let(:user) { guest }
-
-          it_behaves_like 'does not display link'
-        end
-      end
-
-      context 'with duplicated issue' do
-        before do
-          issue.update!(duplicated_to: new_issue)
-        end
-
-        context 'when user has permission to see new issue' do
-          let(:user)      { project.owner }
-          let(:css_class) { 'text-white text-underline' }
-
-          it_behaves_like 'successfully displays link to issue and with css class', 'duplicated'
-        end
-
-        context 'when user has no permission to see new issue' do
-          let(:user) { guest }
-
-          it_behaves_like 'does not display link'
-        end
-      end
-    end
-
-    context 'without linked issue' do
-      let(:user) { project.owner }
-
-      before do
-        issue.update!(moved_to: nil, duplicated_to: nil)
-      end
-
-      it_behaves_like 'does not display link'
-    end
-  end
-
   describe '#show_moved_service_desk_issue_warning?' do
     let(:project1) { create(:project, service_desk_enabled: true) }
     let(:project2) { create(:project, service_desk_enabled: true) }
-    let!(:old_issue) { create(:issue, author: User.support_bot, project: project1) }
-    let!(:new_issue) { create(:issue, author: User.support_bot, project: project2) }
+    let!(:old_issue) { create(:issue, author: Users::Internal.support_bot, project: project1) }
+    let!(:new_issue) { create(:issue, author: Users::Internal.support_bot, project: project2) }
 
     before do
-      allow(Gitlab::IncomingEmail).to receive(:enabled?) { true }
-      allow(Gitlab::IncomingEmail).to receive(:supports_wildcard?) { true }
+      allow(Gitlab::Email::IncomingEmail).to receive(:enabled?) { true }
+      allow(Gitlab::Email::IncomingEmail).to receive(:supports_wildcard?) { true }
 
       old_issue.update!(moved_to: new_issue)
     end
@@ -247,32 +162,35 @@ RSpec.describe IssuesHelper do
 
   describe '#issue_header_actions_data' do
     let(:current_user) { create(:user) }
+    let(:merge_request) { create(:merge_request, :opened, source_project: project, author: current_user) }
+    let(:issuable_sidebar_issue) { serialize_issuable_sidebar(current_user, project, merge_request) }
 
     before do
       allow(helper).to receive(:current_user).and_return(current_user)
       allow(helper).to receive(:can?).and_return(true)
+      allow(helper).to receive(:issuable_sidebar).and_return(issuable_sidebar_issue)
     end
 
     it 'returns expected result' do
       expected = {
         can_create_issue: 'true',
+        can_create_incident: 'true',
         can_destroy_issue: 'true',
         can_reopen_issue: 'true',
         can_report_spam: 'false',
         can_update_issue: 'true',
-        iid: issue.iid,
         is_issue_author: 'false',
         issue_path: issue_path(issue),
-        issue_type: 'issue',
         new_issue_path: new_project_issue_path(project, { add_related_issue: issue.iid }),
         project_path: project.full_path,
         report_abuse_path: add_category_abuse_reports_path,
         reported_user_id: issue.author.id,
         reported_from_url: issue_url(issue),
-        submit_as_spam_path: mark_as_spam_project_issue_path(project, issue)
+        submit_as_spam_path: mark_as_spam_project_issue_path(project, issue),
+        issuable_email_address: issuable_sidebar_issue[:create_note_email]
       }
 
-      expect(helper.issue_header_actions_data(project, issue, current_user)).to include(expected)
+      expect(helper.issue_header_actions_data(project, issue, current_user, issuable_sidebar_issue)).to include(expected)
     end
   end
 
@@ -370,7 +288,8 @@ RSpec.describe IssuesHelper do
         jira_integration_path: help_page_url('integration/jira/issues', anchor: 'view-jira-issues'),
         new_project_path: new_project_path(namespace_id: group.id),
         rss_path: '#',
-        sign_in_path: new_user_session_path
+        sign_in_path: new_user_session_path,
+        group_id: group.id
       }
 
       expect(helper.group_issues_list_data(group, current_user)).to include(expected)
@@ -491,23 +410,26 @@ RSpec.describe IssuesHelper do
   end
 
   describe '#hidden_issue_icon' do
-    let_it_be(:banned_user) { build(:user, :banned) }
-    let_it_be(:hidden_issue) { build(:issue, author: banned_user) }
     let_it_be(:mock_svg) { '<svg></svg>'.html_safe }
 
     before do
-      allow(helper).to receive(:sprite_icon).and_return(mock_svg)
+      allow(helper).to receive(:hidden_resource_icon).with(resource).and_return(mock_svg)
     end
 
     context 'when issue is hidden' do
+      let_it_be(:banned_user) { build(:user, :banned) }
+      let_it_be(:resource) { build(:issue, author: banned_user) }
+
       it 'returns icon with tooltip' do
-        expect(helper.hidden_issue_icon(hidden_issue)).to eq("<span class=\"has-tooltip\" title=\"This issue is hidden because its author has been banned\">#{mock_svg}</span>")
+        expect(helper.hidden_issue_icon(resource)).to eq(mock_svg)
       end
     end
 
     context 'when issue is not hidden' do
+      let_it_be(:resource) { issue }
+
       it 'returns `nil`' do
-        expect(helper.hidden_issue_icon(issue)).to be_nil
+        expect(helper.hidden_issue_icon(resource)).to be_nil
       end
     end
   end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::DataBuilder::Deployment do
+RSpec.describe Gitlab::DataBuilder::Deployment, feature_category: :continuous_delivery do
   describe '.build' do
     it 'returns the object kind for a deployment' do
       deployment = build(:deployment, deployable: nil, environment: create(:environment))
@@ -40,10 +40,20 @@ RSpec.describe Gitlab::DataBuilder::Deployment do
       expect(data[:commit_url]).to eq(expected_commit_url)
       expect(data[:commit_title]).to eq(commit.title)
       expect(data[:ref]).to eq(deployment.ref)
+      expect(data[:environment_tier]).to eq('other')
     end
 
     it 'does not include the deployable URL when there is no deployable' do
       deployment = create(:deployment, status: :failed, deployable: nil)
+      data = described_class.build(deployment, 'failed', Time.current)
+
+      expect(data[:deployable_url]).to be_nil
+    end
+
+    it 'does not include the deployable URL when deployable is bridge' do
+      project = create(:project, :repository)
+      bridge = create(:ci_bridge, project: project)
+      deployment = create(:deployment, status: :failed, project: project, deployable: bridge)
       data = described_class.build(deployment, 'failed', Time.current)
 
       expect(data[:deployable_url]).to be_nil
@@ -55,7 +65,7 @@ RSpec.describe Gitlab::DataBuilder::Deployment do
 
       subject(:data) { described_class.build(deployment, 'created', Time.current) }
 
-      before(:all) do
+      before_all do
         project.repository.remove
       end
 
@@ -73,7 +83,7 @@ RSpec.describe Gitlab::DataBuilder::Deployment do
 
       subject(:data) { described_class.build(deployment, 'created', Time.current) }
 
-      before(:all) do
+      before_all do
         deployment.user = nil
       end
 

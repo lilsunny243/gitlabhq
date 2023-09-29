@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe ProjectTeam, feature_category: :subgroups do
+RSpec.describe ProjectTeam, feature_category: :groups_and_projects do
   include ProjectForksHelper
 
   let(:maintainer) { create(:user) }
@@ -126,9 +126,12 @@ RSpec.describe ProjectTeam, feature_category: :subgroups do
 
       it 'returns invited members of a group' do
         group_member = create(:group_member)
-        create(:project_group_link, group: group_member.group,
-                                    project: project,
-                                    group_access: Gitlab::Access::GUEST)
+        create(
+          :project_group_link,
+          group: group_member.group,
+          project: project,
+          group_access: Gitlab::Access::GUEST
+        )
 
         expect(project.team.members)
           .to contain_exactly(group_member.user, project.first_owner)
@@ -136,9 +139,12 @@ RSpec.describe ProjectTeam, feature_category: :subgroups do
 
       it 'returns invited members of a group of a specified level' do
         group_member = create(:group_member)
-        create(:project_group_link, group: group_member.group,
-                                    project: project,
-                                    group_access: Gitlab::Access::REPORTER)
+        create(
+          :project_group_link,
+          group: group_member.group,
+          project: project,
+          group_access: Gitlab::Access::REPORTER
+        )
 
         expect(project.team.guests).to be_empty
         expect(project.team.reporters).to contain_exactly(group_member.user)
@@ -161,6 +167,66 @@ RSpec.describe ProjectTeam, feature_category: :subgroups do
         expect(project.team.guests).to be_empty
         expect(project.team.reporters).to contain_exactly(group_member.user)
       end
+    end
+  end
+
+  describe '#import_team' do
+    let_it_be(:source_project) { create(:project) }
+    let_it_be(:target_project) { create(:project) }
+    let_it_be(:source_project_owner) { source_project.first_owner }
+    let_it_be(:source_project_developer) { create(:user) { |user| source_project.add_developer(user) } }
+    let_it_be(:current_user) { create(:user) { |user| target_project.add_maintainer(user) } }
+    let(:imported_members) { [source_project_owner.members.last, source_project_developer.members.last] }
+
+    subject(:import) { target_project.team.import(source_project, current_user) }
+
+    it 'matches the imported members' do
+      is_expected.to match_array(imported_members)
+    end
+
+    it 'target project includes source member with the same access' do
+      import
+
+      imported_member_access = target_project.members.find_by!(user: source_project_developer).access_level
+      expect(imported_member_access).to eq(Gitlab::Access::DEVELOPER)
+    end
+
+    it 'does not change the source project members' do
+      import
+
+      expect(source_project.users).to include(source_project_developer)
+      expect(source_project.users).not_to include(current_user)
+    end
+
+    shared_examples 'imports source owners with correct access' do
+      specify do
+        import
+
+        source_owner_access_in_target = target_project.members.find_by!(user: source_project_owner).access_level
+        expect(source_owner_access_in_target).to eq(target_access_level)
+      end
+    end
+
+    context 'when importer is a maintainer in target project' do
+      it_behaves_like 'imports source owners with correct access' do
+        let(:target_access_level) { Gitlab::Access::MAINTAINER }
+      end
+    end
+
+    context 'when importer is an owner in target project' do
+      before do
+        target_project.add_owner(current_user)
+      end
+
+      it_behaves_like 'imports source owners with correct access' do
+        let(:target_access_level) { Gitlab::Access::OWNER }
+      end
+    end
+
+    context 'when source_project does not exist' do
+      let_it_be(:source_project) { nil }
+
+      it { is_expected.to eq(false) }
     end
   end
 
@@ -528,8 +594,7 @@ RSpec.describe ProjectTeam, feature_category: :subgroups do
       all_users = users + [new_contributor.id, second_new_user.id]
       create(:merge_request, :merged, author: new_contributor, target_project: project, source_project: new_fork_project, target_branch: project.default_branch.to_s)
 
-      expected_all = expected.merge(new_contributor.id => true,
-                                    second_new_user.id => false)
+      expected_all = expected.merge(new_contributor.id => true, second_new_user.id => false)
 
       contributors(users)
 
@@ -626,8 +691,10 @@ RSpec.describe ProjectTeam, feature_category: :subgroups do
         second_new_user = create(:user)
         all_users = users + [new_user.id, second_new_user.id]
 
-        expected_all = expected.merge(new_user.id => Gitlab::Access::NO_ACCESS,
-                                      second_new_user.id => Gitlab::Access::NO_ACCESS)
+        expected_all = expected.merge(
+          new_user.id => Gitlab::Access::NO_ACCESS,
+          second_new_user.id => Gitlab::Access::NO_ACCESS
+        )
 
         access_levels(users)
 

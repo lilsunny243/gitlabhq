@@ -17,14 +17,14 @@ module Gitlab
           Dir.exist?(@dir_path)
         end
 
-        # This can be removed once legacy_reader is deprecated.
-        def legacy?
-          false
-        end
-
         def consume_attributes(importable_path)
           # This reads from `tree/project.json`
           path = file_path("#{importable_path}.json")
+
+          if !File.exist?(path) || Gitlab::Utils::FileInfo.linked?(path)
+            raise Gitlab::ImportExport::Error, 'Invalid file'
+          end
+
           data = File.read(path, MAX_JSON_DOCUMENT_SIZE)
           json_decode(data)
         end
@@ -36,7 +36,7 @@ module Gitlab
             # This reads from `tree/project/merge_requests.ndjson`
             path = file_path(importable_path, "#{key}.ndjson")
 
-            next unless File.exist?(path)
+            next if !File.exist?(path) || Gitlab::Utils::FileInfo.linked?(path)
 
             File.foreach(path, MAX_JSON_DOCUMENT_SIZE).with_index do |line, line_num|
               documents << [json_decode(line), line_num]

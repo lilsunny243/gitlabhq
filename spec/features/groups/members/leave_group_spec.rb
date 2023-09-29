@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Groups > Members > Leave group', feature_category: :subgroups do
-  include Spec::Support::Helpers::Features::MembersHelpers
+RSpec.describe 'Groups > Members > Leave group', feature_category: :groups_and_projects do
+  include Features::MembersHelpers
   include Spec::Support::Helpers::ModalHelpers
 
   let(:user) { create(:user) }

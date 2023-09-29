@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe BulkImports::Projects::Pipelines::DesignBundlePipeline do
+RSpec.describe BulkImports::Projects::Pipelines::DesignBundlePipeline, feature_category: :importers do
   let_it_be(:design) { create(:design, :with_file) }
 
   let(:portable) { create(:project) }
   let(:tmpdir) { Dir.mktmpdir }
   let(:design_bundle_path) {  File.join(tmpdir, 'design.bundle') }
   let(:entity) do
-    create(:bulk_import_entity, :project_entity, project: portable, source_full_path: 'test', source_xid: nil)
+    create(:bulk_import_entity, :project_entity, project: portable, source_xid: nil)
   end
 
   let(:tracker) { create(:bulk_import_tracker, entity: entity) }
@@ -52,7 +52,8 @@ RSpec.describe BulkImports::Projects::Pipelines::DesignBundlePipeline do
         .to receive(:new)
         .with(
           configuration: context.configuration,
-          relative_url: "/#{entity.pluralized_name}/test/export_relations/download?relation=design",
+          relative_url: "/#{entity.pluralized_name}/#{CGI.escape(entity.source_full_path)}" \
+                        '/export_relations/download?relation=design',
           tmpdir: tmpdir,
           filename: 'design.tar.gz')
         .and_return(download_service)
@@ -125,12 +126,25 @@ RSpec.describe BulkImports::Projects::Pipelines::DesignBundlePipeline do
     context 'when path is symlink' do
       it 'returns' do
         symlink = File.join(tmpdir, 'symlink')
+        FileUtils.ln_s(design_bundle_path, symlink)
 
-        FileUtils.ln_s(File.join(tmpdir, design_bundle_path), symlink)
-
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(symlink).and_call_original
         expect(portable.design_repository).not_to receive(:create_from_bundle)
 
         pipeline.load(context, symlink)
+
+        expect(portable.design_repository.exists?).to eq(false)
+      end
+    end
+
+    context 'when path has multiple hard links' do
+      it 'returns' do
+        FileUtils.link(design_bundle_path, File.join(tmpdir, 'hard_link'))
+
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(design_bundle_path).and_call_original
+        expect(portable.design_repository).not_to receive(:create_from_bundle)
+
+        pipeline.load(context, design_bundle_path)
 
         expect(portable.design_repository.exists?).to eq(false)
       end
@@ -146,7 +160,7 @@ RSpec.describe BulkImports::Projects::Pipelines::DesignBundlePipeline do
     context 'when path is being traversed' do
       it 'raises an error' do
         expect { pipeline.load(context, File.join(tmpdir, '..')) }
-          .to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+          .to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
       end
     end
   end

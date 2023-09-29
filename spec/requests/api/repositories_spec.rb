@@ -37,6 +37,52 @@ RSpec.describe API::Repositories, feature_category: :source_code_management do
         end
       end
 
+      context 'when path does not exist' do
+        let(:path) { 'bogus' }
+
+        context 'when handle_structured_gitaly_errors feature is disabled' do
+          before do
+            stub_feature_flags(handle_structured_gitaly_errors: false)
+          end
+
+          it 'returns an empty array' do
+            get api("#{route}?path=#{path}", current_user)
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to include_pagination_headers
+            expect(json_response).to be_an(Array)
+            expect(json_response).to be_an_empty
+          end
+        end
+
+        context 'when handle_structured_gitaly_errors feature is enabled' do
+          before do
+            stub_feature_flags(handle_structured_gitaly_errors: true)
+          end
+
+          it_behaves_like '404 response' do
+            let(:request) { get api("#{route}?path=#{path}", current_user) }
+            let(:message) { '404 invalid revision or path Not Found' }
+          end
+        end
+      end
+
+      context 'when path is empty directory ' do
+        context 'when handle_structured_gitaly_errors feature is disabled' do
+          before do
+            stub_feature_flags(handle_structured_gitaly_errors: false)
+          end
+
+          it 'returns an empty array' do
+            get api(route, current_user)
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to include_pagination_headers
+            expect(json_response).to be_an(Array)
+          end
+        end
+      end
+
       context 'when repository is disabled' do
         include_context 'disabled repository'
 
@@ -492,6 +538,18 @@ RSpec.describe API::Repositories, feature_category: :source_code_management do
         expect(json_response['compare_same_ref']).to be_truthy
       end
 
+      context 'when unidiff format is requested' do
+        let(:commit) { project.repository.commit('feature') }
+        let(:diff) { commit.diffs.diffs.first }
+
+        it 'returns a diff in Unified format' do
+          get api(route, current_user), params: { from: 'master', to: 'feature', unidiff: true }
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response.dig('diffs', 0, 'diff')).to eq(diff.unidiff)
+        end
+      end
+
       it "returns an empty string when the diff overflows" do
         allow(Gitlab::Git::DiffCollection)
           .to receive(:default_limits)
@@ -572,6 +630,22 @@ RSpec.describe API::Repositories, feature_category: :source_code_management do
     context 'when authenticated', 'as a developer' do
       it_behaves_like 'repository compare' do
         let(:current_user) { user }
+
+        context 'when user does not have read access to the parent project' do
+          let_it_be(:group) { create(:group) }
+          let(:forked_project) { fork_project(project, current_user, repository: true, namespace: group) }
+
+          before do
+            forked_project.add_guest(current_user)
+          end
+
+          it 'returns 403 error' do
+            get api(route, current_user), params: { from: 'improve/awesome', to: 'feature', from_project_id: forked_project.id }
+
+            expect(response).to have_gitlab_http_status(:forbidden)
+            expect(json_response['message']).to eq("403 Forbidden - You don't have access to this fork's parent project")
+          end
+        end
       end
     end
 

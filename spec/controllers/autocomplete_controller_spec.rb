@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe AutocompleteController do
-  let(:project) { create(:project) }
-  let(:user) { project.first_owner }
+  let_it_be(:project) { create(:project) }
+  let_it_be(:user) { project.first_owner }
 
   context 'GET users', feature_category: :user_management do
     let!(:user2) { create(:user) }
@@ -24,6 +24,22 @@ RSpec.describe AutocompleteController do
           expect(json_response).to be_kind_of(Array)
           expect(json_response.size).to eq(1)
           expect(json_response.map { |u| u["username"] }).to include(user.username)
+        end
+
+        context "with push_code param" do
+          let(:reporter) { create(:user) }
+
+          before do
+            project.add_reporter(reporter)
+
+            get(:users, params: { project_id: project.id, push_code: 'true' })
+          end
+
+          it 'returns users that can push code', :aggregate_failures do
+            expect(json_response).to be_kind_of(Array)
+            expect(json_response.size).to eq(1)
+            expect(json_response.map { |user| user["username"] }).to match_array([user.username])
+          end
         end
       end
 
@@ -67,6 +83,7 @@ RSpec.describe AutocompleteController do
 
     context 'non-member login for public project' do
       let(:project) { create(:project, :public) }
+      let(:user) { project.first_owner }
 
       before do
         sign_in(non_member)
@@ -207,20 +224,6 @@ RSpec.describe AutocompleteController do
       end
     end
 
-    context 'skip_users parameter included' do
-      before do
-        sign_in(user)
-      end
-
-      it 'skips the user IDs passed' do
-        get(:users, params: { skip_users: [user, user2].map(&:id) })
-
-        response_user_ids = json_response.map { |user| user['id'] }
-
-        expect(response_user_ids).to contain_exactly(non_member.id)
-      end
-    end
-
     context 'merge_request_iid parameter included' do
       before do
         sign_in(user)
@@ -248,7 +251,7 @@ RSpec.describe AutocompleteController do
     end
   end
 
-  context 'GET projects', feature_category: :projects do
+  context 'GET projects', feature_category: :groups_and_projects do
     let(:authorized_project) { create(:project) }
     let(:authorized_search_project) { create(:project, name: 'rugged') }
 

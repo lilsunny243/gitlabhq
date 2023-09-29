@@ -9,12 +9,12 @@ module ApplicationSettingImplementation
                             \s              # any whitespace character
                             |               # or
                             [\r\n]          # any number of newline characters
-                          }x.freeze
+                          }x
 
   # Setting a key restriction to `-1` means that all keys of this type are
   # forbidden.
   FORBIDDEN_KEY_VALUE = KeyRestrictionValidator::FORBIDDEN
-  VALID_RUNNER_REGISTRAR_TYPES = %w(project group).freeze
+  VALID_RUNNER_REGISTRAR_TYPES = %w[project group].freeze
 
   DEFAULT_PROTECTED_PATHS = [
     '/users/password',
@@ -44,13 +44,16 @@ module ApplicationSettingImplementation
         allow_possible_spam: false,
         asset_proxy_enabled: false,
         authorized_keys_enabled: true, # TODO default to false if the instance is configured to use AuthorizedKeysCommand
+        ci_max_total_yaml_size_bytes: 157286400, # max_yaml_size_bytes * ci_max_includes = 1.megabyte * 150
         commit_email_hostname: default_commit_email_hostname,
         container_expiration_policies_enable_historic_entries: false,
         container_registry_features: [],
         container_registry_token_expire_delay: 5,
         container_registry_vendor: '',
         container_registry_version: '',
+        container_registry_db_enabled: false,
         custom_http_clone_url_root: nil,
+        decompress_archive_file_timeout: 210,
         default_artifacts_expire_in: '30 days',
         default_branch_name: nil,
         default_branch_protection: Settings.gitlab['default_branch_protection'],
@@ -60,6 +63,8 @@ module ApplicationSettingImplementation
         default_project_visibility: Settings.gitlab.default_projects_features['visibility_level'],
         default_projects_limit: Settings.gitlab['default_projects_limit'],
         default_snippet_visibility: Settings.gitlab.default_projects_features['visibility_level'],
+        default_syntax_highlighting_theme: 1,
+        deny_all_requests_except_allowed: false,
         diff_max_patch_bytes: Gitlab::Git::Diff::DEFAULT_MAX_PATCH_BYTES,
         diff_max_files: Commit::DEFAULT_MAX_DIFF_FILES_SETTING,
         diff_max_lines: Commit::DEFAULT_MAX_DIFF_LINES_SETTING,
@@ -96,13 +101,14 @@ module ApplicationSettingImplementation
         group_import_limit: 6,
         help_page_hide_commercial_content: false,
         help_page_text: nil,
-        help_page_documentation_base_url: nil,
+        help_page_documentation_base_url: 'https://docs.gitlab.com',
         hide_third_party_offers: false,
         housekeeping_enabled: true,
         housekeeping_full_repack_period: 50,
         housekeeping_gc_period: 200,
         housekeeping_incremental_repack_period: 10,
         import_sources: Settings.gitlab['import_sources'],
+        instance_level_code_suggestions_enabled: false,
         invisible_captcha_enabled: false,
         issues_create_limit: 300,
         jira_connect_application_key: nil,
@@ -116,6 +122,8 @@ module ApplicationSettingImplementation
         max_attachment_size: Settings.gitlab['max_attachment_size'],
         max_export_size: 0,
         max_import_size: 0,
+        max_import_remote_file_size: 10240,
+        max_decompressed_archive_size: 25600,
         max_terraform_state_size_bytes: 0,
         max_yaml_size_bytes: 1.megabyte,
         max_yaml_depth: 100,
@@ -131,6 +139,8 @@ module ApplicationSettingImplementation
         personal_access_token_prefix: 'glpat-',
         plantuml_enabled: false,
         plantuml_url: nil,
+        diagramsnet_enabled: true,
+        diagramsnet_url: 'https://embed.diagrams.net',
         polling_interval_multiplier: 1,
         productivity_analytics_start_date: Time.current,
         project_download_export_limit: 1,
@@ -162,6 +172,7 @@ module ApplicationSettingImplementation
         snowplow_app_id: nil,
         snowplow_collector_hostname: nil,
         snowplow_cookie_domain: nil,
+        snowplow_database_collector_hostname: nil,
         snowplow_enabled: false,
         sourcegraph_enabled: false,
         sourcegraph_public_only: true,
@@ -222,6 +233,7 @@ module ApplicationSettingImplementation
         user_show_add_ssh_key_message: true,
         valid_runner_registrars: VALID_RUNNER_REGISTRAR_TYPES,
         wiki_page_max_content_bytes: 50.megabytes,
+        wiki_asciidoc_allow_uri_includes: false,
         package_registry_cleanup_policies_worker_capacity: 2,
         container_registry_delete_tags_service_timeout: 250,
         container_registry_expiration_policies_worker_capacity: 4,
@@ -244,13 +256,19 @@ module ApplicationSettingImplementation
         user_deactivation_emails_enabled: true,
         search_rate_limit: 30,
         search_rate_limit_unauthenticated: 10,
+        search_rate_limit_allowlist: [],
         users_get_by_id_limit: 300,
         users_get_by_id_limit_allowlist: [],
         can_create_group: true,
         bulk_import_enabled: false,
+        bulk_import_max_download_file_size: 5120,
         allow_runner_registration_token: true,
         user_defaults_to_private_profile: false,
-        projects_api_rate_limit_unauthenticated: 400
+        projects_api_rate_limit_unauthenticated: 400,
+        gitlab_dedicated_instance: false,
+        ci_max_includes: 150,
+        allow_account_deletion: true,
+        gitlab_shell_operation_limit: 600
       }.tap do |hsh|
         hsh.merge!(non_production_defaults) unless Rails.env.production?
       end
@@ -365,6 +383,14 @@ module ApplicationSettingImplementation
     self.protected_paths = strings_to_array(values)
   end
 
+  def protected_paths_for_get_request_raw
+    array_to_string(protected_paths_for_get_request)
+  end
+
+  def protected_paths_for_get_request_raw=(values)
+    self.protected_paths_for_get_request = strings_to_array(values)
+  end
+
   def notes_create_limit_allowlist_raw
     array_to_string(notes_create_limit_allowlist)
   end
@@ -379,6 +405,14 @@ module ApplicationSettingImplementation
 
   def users_get_by_id_limit_allowlist_raw=(values)
     self.users_get_by_id_limit_allowlist = strings_to_array(values).map(&:downcase)
+  end
+
+  def search_rate_limit_allowlist_raw
+    array_to_string(search_rate_limit_allowlist)
+  end
+
+  def search_rate_limit_allowlist_raw=(values)
+    self.search_rate_limit_allowlist = strings_to_array(values).map(&:downcase)
   end
 
   def asset_proxy_whitelist=(values)

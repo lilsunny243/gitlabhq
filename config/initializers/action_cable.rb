@@ -10,14 +10,16 @@ Rails.application.configure do
 end
 
 ActionCable::SubscriptionAdapter::Base.prepend(Gitlab::Patch::ActionCableSubscriptionAdapterIdentifier)
-ActionCable::SubscriptionAdapter::Redis::Listener.prepend(Gitlab::Patch::ActionCableRedisListener)
 
 # https://github.com/rails/rails/blob/bb5ac1623e8de08c1b7b62b1368758f0d3bb6379/actioncable/lib/action_cable/subscription_adapter/redis.rb#L18
 ActionCable::SubscriptionAdapter::Redis.redis_connector = lambda do |config|
   args = config.except(:adapter, :channel_prefix)
     .merge(instrumentation_class: ::Gitlab::Instrumentation::Redis::ActionCable)
 
-  ::Redis.new(args)
+  primary_store = ::Redis.new(Gitlab::Redis::Pubsub.params)
+  secondary_store = ::Redis.new(args)
+
+  Gitlab::Redis::MultiStore.new(primary_store, secondary_store, "ActionCable")
 end
 
 Gitlab::ActionCable::RequestStoreCallbacks.install

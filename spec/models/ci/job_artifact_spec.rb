@@ -7,7 +7,7 @@ RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
 
   describe "Associations" do
     it { is_expected.to belong_to(:project) }
-    it { is_expected.to belong_to(:job) }
+    it { is_expected.to belong_to(:job).class_name('Ci::Build').with_foreign_key(:job_id).inverse_of(:job_artifacts) }
     it { is_expected.to validate_presence_of(:job) }
     it { is_expected.to validate_presence_of(:partition_id) }
   end
@@ -204,7 +204,7 @@ RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
   describe '.associated_file_types_for' do
     using RSpec::Parameterized::TableSyntax
 
-    subject { Ci::JobArtifact.associated_file_types_for(file_type) }
+    subject { described_class.associated_file_types_for(file_type) }
 
     where(:file_type, :result) do
       'codequality' | %w(codequality)
@@ -240,6 +240,29 @@ RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
       let!(:artifact) { create(:ci_job_artifact, :trace) }
 
       it { is_expected.to be_empty }
+    end
+  end
+
+  describe '.non_trace' do
+    subject { described_class.non_trace }
+
+    context 'when there is only a trace job artifact' do
+      let!(:trace) { create(:ci_job_artifact, :trace) }
+
+      it { is_expected.to be_empty }
+    end
+
+    context 'when there is only a non-trace job artifact' do
+      let!(:junit) { create(:ci_job_artifact, :junit) }
+
+      it { is_expected.to eq([junit]) }
+    end
+
+    context 'when there are both trace and non-trace job artifacts' do
+      let!(:trace) { create(:ci_job_artifact, :trace) }
+      let!(:junit) { create(:ci_job_artifact, :junit) }
+
+      it { is_expected.to eq([junit]) }
     end
   end
 
@@ -460,9 +483,11 @@ RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
 
       context "when #{file_type} type with other formats" do
         described_class.file_formats.except(file_format).values.each do |other_format|
-          let(:artifact) { build(:ci_job_artifact, file_type: file_type, file_format: other_format) }
+          context "with #{other_format}" do
+            let(:artifact) { build(:ci_job_artifact, file_type: file_type, file_format: other_format) }
 
-          it { is_expected.not_to be_valid }
+            it { is_expected.not_to be_valid }
+          end
         end
       end
     end
@@ -798,5 +823,83 @@ RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
     subject { artifact.filename }
 
     it { is_expected.to eq(artifact.file.filename) }
+  end
+
+  describe '#to_deleted_object_attrs' do
+    let(:pick_up_at) { nil }
+    let(:expire_at) { nil }
+    let(:file_final_path) { nil }
+
+    let(:artifact) do
+      create(
+        :ci_job_artifact,
+        :archive,
+        :remote_store,
+        file_final_path: file_final_path,
+        expire_at: expire_at
+      )
+    end
+
+    subject(:attributes) { artifact.to_deleted_object_attrs(pick_up_at) }
+
+    before do
+      stub_artifacts_object_storage
+    end
+
+    shared_examples_for 'returning attributes for object deletion' do
+      it 'returns the file store' do
+        expect(attributes[:file_store]).to eq(artifact.file_store)
+      end
+
+      context 'when pick_up_at is present' do
+        let(:pick_up_at) { 2.hours.ago }
+
+        it 'returns the pick_up_at value' do
+          expect(attributes[:pick_up_at]).to eq(pick_up_at)
+        end
+      end
+
+      context 'when pick_up_at is not present' do
+        context 'and expire_at is present' do
+          let(:expire_at) { 4.hours.ago }
+
+          it 'sets expire_at as pick_up_at' do
+            expect(attributes[:pick_up_at]).to eq(expire_at)
+          end
+        end
+
+        context 'and expire_at is not present' do
+          it 'sets current time as pick_up_at' do
+            freeze_time do
+              expect(attributes[:pick_up_at]).to eq(Time.current)
+            end
+          end
+        end
+      end
+    end
+
+    context 'when file_final_path is present' do
+      let(:file_final_path) { 'some/hash/path/to/randomfile' }
+
+      it 'returns the store_dir and file based on the file_final_path' do
+        expect(attributes).to include(
+          store_dir: 'some/hash/path/to',
+          file: 'randomfile'
+        )
+      end
+
+      it_behaves_like 'returning attributes for object deletion'
+    end
+
+    context 'when file_final_path is not present' do
+      it 'returns the uploader default store_dir and file_identifier' do
+        expect(attributes).to include(
+          store_dir: artifact.file.store_dir.to_s,
+          file: artifact.file_identifier
+        )
+      end
+
+      it_behaves_like 'returning attributes for object deletion'
+    end
   end
 end

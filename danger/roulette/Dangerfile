@@ -16,11 +16,14 @@ MARKDOWN
 
 POST_TABLE_MESSAGE = <<MARKDOWN
 
-To spread load more evenly across eligible reviewers, Danger has picked a candidate for each
-review slot, based on their timezone. Feel free to
-[override these selections](https://about.gitlab.com/handbook/engineering/projects/#gitlab)
+**Please check reviewer's status!**
+- ![available](https://gitlab-org.gitlab.io/gitlab-roulette/status-svg/_success.svg) Reviewer is available!
+- ![unavailable](https://gitlab-org.gitlab.io/gitlab-roulette/status-svg/_alert.svg) Reviewer is unavailable!
+
+Feel free to [override these selections](https://about.gitlab.com/handbook/engineering/projects/#gitlab)
 if you think someone else would be better-suited
-or use the [GitLab Review Workload Dashboard](https://gitlab-org.gitlab.io/gitlab-roulette/) to find other available reviewers.
+or use the [GitLab Review Workload Dashboard](https://gitlab-org.gitlab.io/gitlab-roulette/)
+to find other available reviewers.
 
 To read more on how to use the reviewer roulette, please take a look at the
 [Engineering workflow](https://about.gitlab.com/handbook/engineering/workflow/#basics)
@@ -55,9 +58,10 @@ end
 OPTIONAL_REVIEW_TEMPLATE = '%{role} review is optional for %{category}'
 NOT_AVAILABLE_TEMPLATES = {
   default: 'No %{role} available',
-  product_intelligence: group_not_available_template('#g_product_intelligence', '@gitlab-org/analytics-section/product-intelligence/engineers'),
-  integrations_be: group_not_available_template('#g_manage_integrations', '@gitlab-org/manage/integrations'),
-  integrations_fe: group_not_available_template('#g_manage_integrations', '@gitlab-org/manage/integrations')
+  analytics_instrumentation: group_not_available_template('#g_analyze_analytics_instrumentation', '@gitlab-org/analytics-section/analytics-instrumentation/engineers'),
+  import_integrate_be: group_not_available_template('#g_manage_import_and_integrate', '@gitlab-org/manage/import-and-integrate'),
+  import_integrate_fe: group_not_available_template('#g_manage_import_and_integrate', '@gitlab-org/manage/import-and-integrate'),
+  remote_development_be: group_not_available_template('#f_remote_development', '@gitlab-org/maintainers/remote-development/backend')
 }.freeze
 
 def note_for_spin_role(spin, role, category)
@@ -90,22 +94,14 @@ changes.delete(:docs)
 changes.delete(:changelog)
 # No special review for feature flags needed.
 changes.delete(:feature_flag)
-categories = Set.new(changes.keys - [:unknown])
 
-# Ensure to spin for database reviewer/maintainer when ~database is applied (e.g. to review SQL queries)
-categories << :database if helper.mr_labels.include?('database')
+categories = roulette.prepare_categories(changes.keys - [:unknown])
 
-# Ensure to spin for UX reviewer when ~UX is applied (e.g. to review changes to the UI) except when it's from wider community contribution where we want to assign from the corresponding group
-categories << :ux if helper.mr_labels.include?('UX') && !helper.mr_labels.include?('Community contribution') # rubocop:disable Rails/NegateInclude
+# Skip specialty reviews for stable branch MRs since they have already been merged to the default branch
+categories.subtract([:database, :ux, :analytics_instrumentation]) if stable_branch.valid_stable_branch?
 
-# Ensure to spin for Product Intelligence reviewer when ~"product intelligence::review pending" is applied
-categories << :product_intelligence if helper.mr_labels.include?("product intelligence::review pending")
-
-# Skip Product intelligence reviews for growth experiment MRs
-categories.delete(:product_intelligence) if helper.mr_labels.include?("growth experiment")
-
-if changes.any?
-  random_roulette_spins = roulette.spin(nil, categories, timezone_experiment: false)
+if changes.any? || roulette.required_approvals.any?
+  random_roulette_spins = roulette.spin(nil, categories)
 
   rows = random_roulette_spins.map do |spin|
     markdown_row_for_spin(spin.category, spin)

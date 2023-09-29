@@ -1,5 +1,5 @@
 <script>
-import { GlLink, GlIcon, GlButton } from '@gitlab/ui';
+import { GlLink, GlIcon, GlLoadingIcon, GlButton, GlCard } from '@gitlab/ui';
 import { __, sprintf } from '~/locale';
 import {
   issuableIconMap,
@@ -16,8 +16,10 @@ export default {
   name: 'RelatedIssuesBlock',
   components: {
     GlLink,
-    GlButton,
     GlIcon,
+    GlLoadingIcon,
+    GlButton,
+    GlCard,
     AddIssuableForm,
     RelatedIssuesList,
   },
@@ -181,35 +183,32 @@ export default {
 
 <template>
   <div id="related-issues" class="related-issues-block">
-    <div class="card card-slim gl-overflow-hidden gl-mt-5 gl-mb-0">
-      <div
-        :class="{
-          'gl-border-b-1': isOpen,
-          'gl-border-b-0': !isOpen,
-        }"
-        class="gl-display-flex gl-justify-content-space-between gl-line-height-24 gl-pl-5 gl-pr-4 gl-py-4 gl-bg-white gl-border-b-solid gl-border-b-gray-100"
-      >
-        <h3 class="card-title h5 gl-my-0 gl-display-flex gl-align-items-center gl-flex-grow-1">
-          <gl-link
-            id="user-content-related-issues"
-            class="anchor position-absolute gl-text-decoration-none"
-            href="#related-issues"
-            aria-hidden="true"
-          />
-          <slot name="header-text">{{ headerText }}</slot>
-
-          <div class="js-related-issues-header-issue-count gl-display-inline-flex gl-mx-3">
-            <span class="gl-display-inline-flex gl-align-items-center">
-              <gl-icon :name="issuableTypeIcon" class="gl-mr-2 gl-text-gray-500" />
-              {{ badgeLabel }}
-            </span>
+    <gl-card
+      class="gl-new-card gl-overflow-hidden"
+      header-class="gl-new-card-header"
+      body-class="gl-new-card-body"
+      :aria-expanded="isOpen.toString()"
+    >
+      <template #header>
+        <div class="gl-new-card-title-wrapper">
+          <h3 class="gl-new-card-title" data-testid="card-title">
+            <gl-link
+              id="user-content-related-issues"
+              class="anchor position-absolute gl-text-decoration-none"
+              href="#related-issues"
+              aria-hidden="true"
+            />
+            <slot name="header-text">{{ headerText }}</slot>
+          </h3>
+          <div class="gl-new-card-count js-related-issues-header-issue-count">
+            <gl-icon :name="issuableTypeIcon" class="gl-mr-2" />
+            {{ badgeLabel }}
           </div>
-        </h3>
+        </div>
         <slot name="header-actions"></slot>
         <gl-button
           v-if="canAdmin"
           size="small"
-          data-qa-selector="related_issues_plus_button"
           data-testid="related-issues-plus-button"
           :aria-label="addIssuableButtonText"
           class="gl-ml-3"
@@ -217,7 +216,7 @@ export default {
         >
           <slot name="add-button-text">{{ __('Add') }}</slot>
         </gl-button>
-        <div class="gl-pl-3 gl-ml-3 gl-border-l-1 gl-border-l-solid gl-border-l-gray-100">
+        <div class="gl-new-card-toggle">
           <gl-button
             category="tertiary"
             size="small"
@@ -227,19 +226,17 @@ export default {
             @click="handleToggle"
           />
         </div>
-      </div>
+      </template>
       <div
         v-if="isOpen"
-        class="linked-issues-card-body gl-bg-gray-10"
-        :class="{
-          'gl-p-5': isFormVisible || shouldShowTokenBody,
-        }"
+        class="linked-issues-card-body gl-new-card-content"
         data-testid="related-issues-body"
       >
         <div
           v-if="isFormVisible"
-          class="js-add-related-issues-form-area card-body bordered-box bg-white"
+          class="js-add-related-issues-form-area gl-new-card-add-form"
           :class="{ 'gl-mb-5': shouldShowTokenBody, 'gl-show-field-errors': hasError }"
+          data-testid="add-item-form"
         >
           <add-issuable-form
             :show-categorized-issues="showCategorizedIssues"
@@ -261,6 +258,7 @@ export default {
           />
         </div>
         <template v-if="shouldShowTokenBody">
+          <gl-loading-icon v-if="isFetching" size="sm" class="gl-py-2" />
           <related-issues-list
             v-for="(category, index) in categorisedIssues"
             :key="category.linkType"
@@ -272,13 +270,16 @@ export default {
             :issuable-type="issuableType"
             :path-id-separator="pathIdSeparator"
             :related-issues="category.issues"
-            :class="{ 'gl-mt-5': index > 0 }"
+            :class="{
+              'gl-pb-3 gl-mb-5 gl-border-b-1 gl-border-b-solid gl-border-b-gray-100':
+                index !== categorisedIssues.length - 1,
+            }"
             @relatedIssueRemoveRequest="$emit('relatedIssueRemoveRequest', $event)"
             @saveReorder="$emit('saveReorder', $event)"
           />
         </template>
-        <div v-if="!shouldShowTokenBody && !isFormVisible" data-testid="related-items-empty">
-          <p class="gl-my-5 gl-px-5">
+        <div v-if="!shouldShowTokenBody && !isFormVisible">
+          <p class="gl-new-card-empty">
             {{ emptyStateMessage }}
             <gl-link
               v-if="hasHelpPath"
@@ -292,6 +293,6 @@ export default {
           </p>
         </div>
       </div>
-    </div>
+    </gl-card>
   </div>
 </template>

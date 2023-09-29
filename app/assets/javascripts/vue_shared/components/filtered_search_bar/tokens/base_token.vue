@@ -9,12 +9,9 @@ import {
 } from '@gitlab/ui';
 import { debounce } from 'lodash';
 
-import { DEBOUNCE_DELAY, FILTERS_NONE_ANY, OPERATOR_NOT } from '../constants';
-import {
-  getRecentlyUsedSuggestions,
-  setTokenValueToRecentlyUsed,
-  stripQuotes,
-} from '../filtered_search_utils';
+import { stripQuotes } from '~/lib/utils/text_utility';
+import { DEBOUNCE_DELAY, FILTERS_NONE_ANY, OPERATOR_NOT, OPERATOR_OR } from '../constants';
+import { getRecentlyUsedSuggestions, setTokenValueToRecentlyUsed } from '../filtered_search_utils';
 
 export default {
   components: {
@@ -100,7 +97,7 @@ export default {
       return this.getActiveTokenValue(this.suggestions, this.value.data);
     },
     availableDefaultSuggestions() {
-      if (this.value.operator === OPERATOR_NOT) {
+      if ([OPERATOR_NOT, OPERATOR_OR].includes(this.value.operator)) {
         return this.defaultSuggestions.filter(
           (suggestion) => !FILTERS_NONE_ANY.includes(suggestion.value),
         );
@@ -113,13 +110,15 @@ export default {
      * present in "Recently used"
      */
     availableSuggestions() {
-      return this.searchKey
+      const suggestions = this.searchKey
         ? this.suggestions
         : this.suggestions.filter(
             (tokenValue) =>
               !this.recentTokenIds.includes(tokenValue[this.valueIdentifier]) &&
               !this.preloadedTokenIds.includes(tokenValue[this.valueIdentifier]),
           );
+
+      return this.applyMaxSuggestions(suggestions);
     },
     showDefaultSuggestions() {
       return this.availableDefaultSuggestions.length > 0;
@@ -195,6 +194,12 @@ export default {
       ) {
         setTokenValueToRecentlyUsed(this.config.recentSuggestionsStorageKey, activeTokenValue);
       }
+    },
+    applyMaxSuggestions(suggestions) {
+      const { maxSuggestions } = this.config;
+      if (!maxSuggestions || maxSuggestions <= 0) return suggestions;
+
+      return suggestions.slice(0, maxSuggestions);
     },
   },
 };

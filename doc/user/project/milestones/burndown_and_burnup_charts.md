@@ -5,7 +5,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Burndown and burnup charts **(PREMIUM)**
+# Burndown and burnup charts **(PREMIUM ALL)**
 
 [Burndown](#burndown-charts) and [burnup](#burnup-charts) charts show the progress of completing a milestone.
 
@@ -13,7 +13,6 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 ## Burndown charts
 
-> - [Added](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/6495) to GitLab 11.2 for group milestones.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/6903) [fixed burndown charts](#fixed-burndown-charts) in GitLab 13.6.
 > - Moved to GitLab Premium in 13.9.
 
@@ -32,12 +31,14 @@ For an overview, check the video demonstration on [Mapping work versus time with
 
 To view a project's burndown chart:
 
-1. In a project, navigate to **Issues > Milestones**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Milestones**.
 1. Select a milestone from the list.
 
 To view a group's burndown chart:
 
-1. In a group, navigate to **Issues > Milestones**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Plan > Milestones**.
 1. Select a milestone from the list.
 
 ### Use cases for burndown charts
@@ -110,12 +111,14 @@ Burnup charts show the assigned and completed work for a milestone.
 
 To view a project's burnup chart:
 
-1. In a project, navigate to **Issues > Milestones**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Milestones**.
 1. Select a milestone from the list.
 
 To view a group's burnup chart:
 
-1. In a group, navigate to **Issues > Milestones**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Plan > Milestones**.
 1. Select a milestone from the list.
 
 ### How burnup charts work
@@ -137,14 +140,16 @@ To switch between the two settings, select either **Issues** or **Issue weight**
 When sorting by weight, make sure all your issues
 have weight assigned, because issues with no weight don't show on the chart.
 
-<!-- ## Troubleshooting
+## Troubleshooting
 
-Include any troubleshooting steps that you can foresee. If you know beforehand what issues
-one might have when setting this up, or when something is changed, or on upgrading, it's
-important to describe those, too. Think of things that may go wrong and include them here.
-This is important to minimize requests for support, and to avoid doc comments with
-questions that you know someone might ask.
+### Burndown and burnup charts do not show the correct issue status
 
-Each scenario can be a third-level heading, for example `### Getting error message X`.
-If you have none to add when creating a doc, leave this section in place
-but commented out to help encourage others to add to it in the future. -->
+A limitation of these charts is that [the days are in the UTC time zone](https://gitlab.com/gitlab-org/gitlab/-/issues/267967).
+
+This can cause the graphs to be inaccurate in other timezones. For example:
+
+- All the issues in a milestone are recorded as being closed on or before the last day.
+- One issue was closed on the last day at 6 PM PST (Pacific time), which is UTC-7.
+- The issue activity log displays the closure time at 6 PM on the last day of the milestone.
+- The charts plot the time in UTC, so for this issue, the close time is 1 AM the following day.
+- The charts show the milestone as incomplete and missing one closed issue.

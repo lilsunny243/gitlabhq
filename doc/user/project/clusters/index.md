@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Project-level Kubernetes clusters (certificate-based) (DEPRECATED) **(FREE)**
+# Project-level Kubernetes clusters (certificate-based) (deprecated) **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/35954) in GitLab 10.1.
 > - [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
@@ -24,5 +24,5 @@ to a single project.
 
 To view project-level Kubernetes clusters:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Operate > Kubernetes clusters**.

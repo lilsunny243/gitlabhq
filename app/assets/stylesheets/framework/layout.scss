@@ -4,6 +4,12 @@ html {
   &.touch .tooltip {
     display: none !important;
   }
+
+  @include media-breakpoint-up(sm) {
+    &.logged-out-marketing-header {
+      --header-height: 72px;
+    }
+  }
 }
 
 body {
@@ -35,12 +41,14 @@ body {
   }
 }
 
-.content-wrapper-margin {
-  margin-top: $header-height;
+.layout-page {
+  padding-top: $calc-application-bars-height;
+  padding-bottom: $calc-application-footer-height;
 }
 
 .content-wrapper {
-  padding-bottom: 100px;
+  padding-top: var(--top-bar-height);
+  padding-bottom: $content-wrapper-padding;
 }
 
 .container {
@@ -58,11 +66,6 @@ body {
       padding-left: 15px !important;
     }
   }
-}
-
-.navless-container {
-  margin-top: $header-height;
-  padding-top: $gl-padding * 2;
 }
 
 .container-limited {
@@ -142,11 +145,6 @@ body {
   @include gl-overflow-hidden;
 }
 
-
-.with-performance-bar .layout-page {
-  margin-top: calc(#{$header-height} + #{$performance-bar-height});
-}
-
 .fullscreen-layout {
   padding-top: 0;
   height: 100vh;
@@ -203,11 +201,5 @@ body {
   .gl-drawer-body > * {
     padding-left: 0;
     padding-right: 0;
-  }
-}
-
-@include media-breakpoint-up(sm) {
-  .logged-out-marketing-header {
-    --header-height: 72px;
   }
 }

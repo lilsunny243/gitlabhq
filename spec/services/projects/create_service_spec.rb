@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::CreateService, '#execute', feature_category: :projects do
+RSpec.describe Projects::CreateService, '#execute', feature_category: :groups_and_projects do
   include ExternalAuthorizationServiceHelpers
 
   let(:user) { create :user }
@@ -156,7 +156,7 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
         project = create_project(bot_user, opts)
 
         expect(project.errors.errors.length).to eq 1
-        expect(project.errors.messages[:namespace].first).to eq(("is not valid"))
+        expect(project.errors.messages[:namespace].first).to eq("is not valid")
       end
     end
   end
@@ -254,6 +254,27 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
     end
 
     it_behaves_like 'has sync-ed traversal_ids'
+
+    context 'when project is an import' do
+      before do
+        stub_application_setting(import_sources: ['gitlab_project'])
+      end
+
+      context 'when user is not allowed to import projects' do
+        let(:group) do
+          create(:group).tap do |group|
+            group.add_developer(user)
+          end
+        end
+
+        it 'does not create the project' do
+          project = create_project(user, opts.merge!(namespace_id: group.id, import_type: 'gitlab_project'))
+
+          expect(project).not_to be_persisted
+          expect(project.errors.messages[:user].first).to eq('is not allowed to import projects')
+        end
+      end
+    end
   end
 
   context 'group sharing', :sidekiq_inline do
@@ -339,9 +360,12 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
     before do
       group.add_maintainer(group_maintainer)
 
-      create(:group_group_link, shared_group: subgroup_for_projects,
-                                shared_with_group: subgroup_for_access,
-                                group_access: share_max_access_level)
+      create(
+        :group_group_link,
+        shared_group: subgroup_for_projects,
+        shared_with_group: subgroup_for_access,
+        group_access: share_max_access_level
+      )
     end
 
     context 'membership is higher from group hierarchy' do
@@ -604,14 +628,27 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
   context 'repository creation' do
     it 'synchronously creates the repository' do
       expect_next_instance_of(Project) do |instance|
-        expect(instance).to receive(:create_repository)
+        expect(instance).to receive(:create_repository).and_return(true)
       end
 
       project = create_project(user, opts)
+
       expect(project).to be_valid
+      expect(project).to be_persisted
       expect(project.owner).to eq(user)
       expect(project.namespace).to eq(user.namespace)
       expect(project.project_namespace).to be_in_sync_with_project(project)
+    end
+
+    it 'raises when repository fails to create' do
+      expect_next_instance_of(Project) do |instance|
+        expect(instance).to receive(:create_repository).and_return(false)
+      end
+
+      project = create_project(user, opts)
+      expect(project).not_to be_persisted
+      expect(project.errors.messages).to have_key(:base)
+      expect(project.errors.messages[:base].first).to match('Failed to create repository')
     end
 
     context 'when another repository already exists on disk' do
@@ -716,16 +753,34 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
       end
     end
 
-    context 'and a default_branch_name is specified' do
+    context 'and default_branch is specified' do
+      before do
+        opts[:default_branch] = 'example_branch'
+      end
+
+      it 'creates the correct branch' do
+        expect(project.repository.branch_names).to contain_exactly('example_branch')
+      end
+
+      it_behaves_like 'a repo with a README.md' do
+        let(:expected_content) do
+          <<~MARKDOWN
+            cd existing_repo
+            git remote add origin #{project.http_url_to_repo}
+            git branch -M example_branch
+            git push -uf origin example_branch
+          MARKDOWN
+        end
+      end
+    end
+
+    context 'and the default branch setting is configured' do
       before do
         allow(Gitlab::CurrentSettings).to receive(:default_branch_name).and_return('example_branch')
       end
 
       it 'creates the correct branch' do
-        branches = project.repository.branches
-
-        expect(branches.size).to eq(1)
-        expect(branches.collect(&:name)).to contain_exactly('example_branch')
+        expect(project.repository.branch_names).to contain_exactly('example_branch')
       end
 
       it_behaves_like 'a repo with a README.md' do
@@ -956,11 +1011,11 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
         receive(:perform_async).and_call_original
       )
       expect(AuthorizedProjectUpdate::UserRefreshFromReplicaWorker).to(
-        receive(:bulk_perform_in)
-          .with(1.hour,
-                array_including([user.id], [other_user.id]),
-                batch_delay: 30.seconds, batch_size: 100)
-          .and_call_original
+        receive(:bulk_perform_in).with(
+          1.hour,
+          array_including([user.id], [other_user.id]),
+          batch_delay: 30.seconds, batch_size: 100
+        ).and_call_original
       )
 
       project = create_project(user, opts)
@@ -988,17 +1043,17 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
       end
 
       before do
-        group.update_shared_runners_setting!(shared_runners_setting)
+        group.update!(shared_runners_enabled: shared_runners_enabled,
+          allow_descendants_override_disabled_shared_runners: allow_to_override)
 
         user.refresh_authorized_projects # Ensure cache is warm
       end
 
       context 'default value based on parent group setting' do
-        where(:shared_runners_setting, :desired_config_for_new_project, :expected_result_for_project) do
-          Namespace::SR_ENABLED                    | nil | true
-          Namespace::SR_DISABLED_WITH_OVERRIDE     | nil | false
-          Namespace::SR_DISABLED_AND_OVERRIDABLE   | nil | false
-          Namespace::SR_DISABLED_AND_UNOVERRIDABLE | nil | false
+        where(:shared_runners_enabled, :allow_to_override, :desired_config_for_new_project, :expected_result_for_project) do
+          true  | false | nil | true
+          false | true  | nil | false
+          false | false | nil | false
         end
 
         with_them do
@@ -1015,14 +1070,12 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
       end
 
       context 'parent group is present and allows desired config' do
-        where(:shared_runners_setting, :desired_config_for_new_project, :expected_result_for_project) do
-          Namespace::SR_ENABLED                    | true  | true
-          Namespace::SR_ENABLED                    | false | false
-          Namespace::SR_DISABLED_WITH_OVERRIDE     | false | false
-          Namespace::SR_DISABLED_WITH_OVERRIDE     | true  | true
-          Namespace::SR_DISABLED_AND_OVERRIDABLE   | false | false
-          Namespace::SR_DISABLED_AND_OVERRIDABLE   | true  | true
-          Namespace::SR_DISABLED_AND_UNOVERRIDABLE | false | false
+        where(:shared_runners_enabled, :allow_to_override, :desired_config_for_new_project, :expected_result_for_project) do
+          true  | false | true  | true
+          true  | false | false | false
+          false | true  | false | false
+          false | true  | true  | true
+          false | false | false | false
         end
 
         with_them do
@@ -1038,8 +1091,8 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
       end
 
       context 'parent group is present and disallows desired config' do
-        where(:shared_runners_setting, :desired_config_for_new_project) do
-          Namespace::SR_DISABLED_AND_UNOVERRIDABLE | true
+        where(:shared_runners_enabled, :allow_to_override, :desired_config_for_new_project) do
+          false | false | true
         end
 
         with_them do
@@ -1074,5 +1127,59 @@ RSpec.describe Projects::CreateService, '#execute', feature_category: :projects 
         end
       end
     end
+  end
+
+  context 'when using access_level params' do
+    def expect_not_disabled_features(project, exclude: [])
+      ProjectFeature::FEATURES.excluding(exclude)
+        .excluding(project.project_feature.send(:feature_validation_exclusion))
+        .each do |feature|
+          expect(project.project_feature.public_send(ProjectFeature.access_level_attribute(feature))).not_to eq(Featurable::DISABLED)
+        end
+    end
+
+    # repository is tested on its own below because it requires other features to be set as well
+    # package_registry has different behaviour and is modified from the model based on other attributes
+    ProjectFeature::FEATURES.excluding(:repository, :package_registry).each do |feature|
+      it "when using #{feature}", :aggregate_failures do
+        feature_attribute = ProjectFeature.access_level_attribute(feature)
+        opts[feature_attribute] = ProjectFeature.str_from_access_level(Featurable::DISABLED)
+        project = create_project(user, opts)
+
+        expect(project).to be_valid
+        expect(project.project_feature.public_send(feature_attribute)).to eq(Featurable::DISABLED)
+
+        expect_not_disabled_features(project, exclude: [feature])
+      end
+    end
+
+    it 'when using repository', :aggregate_failures do
+      # model validation will fail if builds or merge_requests have higher visibility than repository
+      disabled = ProjectFeature.str_from_access_level(Featurable::DISABLED)
+      opts[:repository_access_level] = disabled
+      opts[:builds_access_level] = disabled
+      opts[:merge_requests_access_level] = disabled
+      project = create_project(user, opts)
+
+      expect(project).to be_valid
+      expect(project.project_feature.repository_access_level).to eq(Featurable::DISABLED)
+      expect(project.project_feature.builds_access_level).to eq(Featurable::DISABLED)
+      expect(project.project_feature.merge_requests_access_level).to eq(Featurable::DISABLED)
+
+      expect_not_disabled_features(project, exclude: [:repository, :builds, :merge_requests])
+    end
+  end
+
+  it 'adds pages unique domain', feature_category: :pages do
+    stub_pages_setting(enabled: true)
+
+    expect(Gitlab::Pages)
+    .to receive(:add_unique_domain_to)
+    .and_call_original
+
+    project = create_project(user, opts)
+
+    expect(project.project_setting.pages_unique_domain_enabled).to eq(true)
+    expect(project.project_setting.pages_unique_domain).to be_present
   end
 end

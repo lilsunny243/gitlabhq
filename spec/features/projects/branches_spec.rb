@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Branches', feature_category: :projects do
+RSpec.describe 'Branches', feature_category: :groups_and_projects do
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project, :public, :repository) }
   let(:repository) { project.repository }
@@ -95,15 +95,22 @@ RSpec.describe 'Branches', feature_category: :projects do
         it 'shows only default_per_page active branches sorted by last updated' do
           visit project_branches_filtered_path(project, state: 'active')
 
-          expect(page).to have_content(sorted_branches(repository, count: Kaminari.config.default_per_page,
-                                                                   sort_by: :updated_desc, state: 'active'))
+          expect(page).to have_content(sorted_branches(
+            repository,
+            count: Kaminari.config.default_per_page,
+            sort_by: :updated_desc,
+            state: 'active'
+          ))
         end
 
         it 'shows only default_per_page branches sorted by last updated on All branches' do
           visit project_branches_filtered_path(project, state: 'all')
 
-          expect(page).to have_content(sorted_branches(repository, count: Kaminari.config.default_per_page,
-                                                                   sort_by: :updated_desc))
+          expect(page).to have_content(sorted_branches(
+            repository,
+            count: Kaminari.config.default_per_page,
+            sort_by: :updated_desc
+          ))
         end
       end
     end
@@ -161,11 +168,15 @@ RSpec.describe 'Branches', feature_category: :projects do
       end
 
       it 'avoids a N+1 query in branches index' do
+        new_branches_count = 20
+        sql_queries_count_threshold = 10
+
         control_count = ActiveRecord::QueryRecorder.new { visit project_branches_path(project) }.count
 
-        %w[one two three four five].each { |ref| repository.add_branch(user, ref, 'master') }
+        (1..new_branches_count).each { |number| repository.add_branch(user, "new-branch-#{number}", 'master') }
 
-        expect { visit project_branches_filtered_path(project, state: 'all') }.not_to exceed_query_limit(control_count)
+        expect { visit project_branches_filtered_path(project, state: 'all') }
+          .not_to exceed_query_limit(control_count).with_threshold(sql_queries_count_threshold)
       end
     end
 
@@ -201,6 +212,12 @@ RSpec.describe 'Branches', feature_category: :projects do
       end
     end
 
+    describe 'Link to branch rules' do
+      it 'does not have possibility to navigate to branch rules', :js do
+        expect(page).not_to have_content(s_("Branches|View branch rules"))
+      end
+    end
+
     context 'on project with 0 branch' do
       let(:project) { create(:project, :public, :empty_repo) }
       let(:repository) { project.repository }
@@ -225,7 +242,7 @@ RSpec.describe 'Branches', feature_category: :projects do
       visit project_branches_path(project)
 
       page.within first('.all-branches li') do
-        expect(page).to have_content 'Merge request'
+        expect(page).to have_content 'New'
       end
     end
 
@@ -236,7 +253,18 @@ RSpec.describe 'Branches', feature_category: :projects do
         visit project_branches_path(project)
 
         page.within first('.all-branches li') do
-          expect(page).not_to have_content 'Merge request'
+          expect(page).not_to have_content 'New'
+        end
+      end
+
+      describe 'Navigate to branch rules from branches page' do
+        it 'shows repository settings page with Branch rules section expanded' do
+          visit project_branches_path(project)
+
+          view_branch_rules
+
+          expect(page).to have_content(
+            _('Define rules for who can push, merge, and the required approvals for each branch.'))
         end
       end
     end
@@ -249,7 +277,7 @@ RSpec.describe 'Branches', feature_category: :projects do
 
     it 'does not show merge request button' do
       page.within first('.all-branches li') do
-        expect(page).not_to have_content 'Merge request'
+        expect(page).not_to have_content 'New'
       end
     end
   end
@@ -271,13 +299,13 @@ RSpec.describe 'Branches', feature_category: :projects do
 
     it 'shows pipeline status when available' do
       page.within first('.all-branches li') do
-        expect(page).to have_css 'a.ci-status-icon-success'
+        expect(page).to have_css 'a.gl-badge .ci-status-icon-success'
       end
     end
 
     it 'displays a placeholder when not available' do
       page.all('.all-branches li') do |li|
-        expect(li).to have_css 'svg.s24'
+        expect(li).to have_css '.pipeline-status svg.s16'
       end
     end
   end
@@ -289,7 +317,7 @@ RSpec.describe 'Branches', feature_category: :projects do
 
     it 'does not show placeholder or pipeline status' do
       page.all('.all-branches') do |branches|
-        expect(branches).not_to have_css 'svg.s24'
+        expect(branches).not_to have_css '.pipeline-status svg.s16'
       end
     end
   end
@@ -305,6 +333,8 @@ RSpec.describe 'Branches', feature_category: :projects do
         visit project_branches_path(project)
 
         page.within first('.all-branches li') do
+          wait_for_requests
+          find('[data-testid="branch-more-actions"] .gl-new-dropdown-toggle').click
           click_link 'Compare'
         end
 
@@ -312,7 +342,7 @@ RSpec.describe 'Branches', feature_category: :projects do
       end
     end
 
-    context 'on a read-only instance' do
+    context 'on a read-only instance', :js do
       before do
         allow(Gitlab::Database).to receive(:read_only?).and_return(true)
       end
@@ -320,7 +350,7 @@ RSpec.describe 'Branches', feature_category: :projects do
       it_behaves_like 'compares branches'
     end
 
-    context 'on a read-write instance' do
+    context 'on a read-write instance', :js do
       it_behaves_like 'compares branches'
     end
   end
@@ -347,10 +377,19 @@ RSpec.describe 'Branches', feature_category: :projects do
   end
 
   def delete_branch_and_confirm
-    find('.js-delete-branch-button', match: :first).click
+    wait_for_requests
+    find('[data-testid="branch-more-actions"] .gl-new-dropdown-toggle', match: :first).click
+    find('[data-testid="delete-branch-button"]').click
 
     within '.modal-footer' do
       click_button 'Yes, delete branch'
     end
+  end
+
+  def view_branch_rules
+    page.within('.nav-controls') do
+      click_link s_("Branches|View branch rules")
+    end
+    wait_for_requests
   end
 end

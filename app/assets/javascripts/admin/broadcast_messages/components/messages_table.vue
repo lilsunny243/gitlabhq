@@ -1,25 +1,42 @@
 <script>
-import { GlButton, GlTableLite } from '@gitlab/ui';
+import { GlBroadcastMessage, GlButton, GlTableLite, GlModal, GlModalDirective } from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
-import { __ } from '~/locale';
+import { __, s__ } from '~/locale';
 import { formatDate } from '~/lib/utils/datetime/date_format_utility';
-import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 
 const DEFAULT_TD_CLASSES = 'gl-vertical-align-middle!';
 
 export default {
   name: 'MessagesTable',
   components: {
+    GlBroadcastMessage,
     GlButton,
     GlTableLite,
+    GlModal,
   },
   directives: {
     SafeHtml,
+    GlModal: GlModalDirective,
   },
-  mixins: [glFeatureFlagsMixin()],
   i18n: {
+    title: s__('BroadcastMessages|Delete broadcast message'),
     edit: __('Edit'),
     delete: __('Delete'),
+    modalMessage: s__('BroadcastMessages|Do you really want to delete this broadcast message?'),
+  },
+  modal: {
+    actionPrimary: {
+      text: s__('BroadcastMessages|Delete message'),
+      attributes: {
+        variant: 'danger',
+      },
+    },
+    actionSecondary: {
+      text: __('Cancel'),
+      attributes: {
+        variant: 'default',
+      },
+    },
   },
   props: {
     messages: {
@@ -27,13 +44,7 @@ export default {
       required: true,
     },
   },
-  computed: {
-    fields() {
-      if (this.glFeatures.roleTargetedBroadcastMessages) return this.$options.allFields;
-      return this.$options.allFields.filter((f) => f.key !== 'target_roles');
-    },
-  },
-  allFields: [
+  fields: [
     {
       key: 'status',
       label: __('Status'),
@@ -76,9 +87,6 @@ export default {
       tdClass: `${DEFAULT_TD_CLASSES} gl-white-space-nowrap`,
     },
   ],
-  safeHtmlConfig: {
-    ADD_TAGS: ['use'],
-  },
   methods: {
     formatDate(dateString) {
       return formatDate(new Date(dateString));
@@ -89,12 +97,15 @@ export default {
 <template>
   <gl-table-lite
     :items="messages"
-    :fields="fields"
+    :fields="$options.fields"
     :tbody-tr-attr="{ 'data-testid': 'message-row' }"
+    class="gl-mt-n1 gl-mb-n2"
     stacked="md"
   >
-    <template #cell(preview)="{ item: { preview } }">
-      <div v-safe-html:[$options.safeHtmlConfig]="preview"></div>
+    <template #cell(preview)="{ item: { message, theme, broadcast_type, dismissable } }">
+      <gl-broadcast-message :theme="theme" :type="broadcast_type" :dismissible="dismissable">
+        {{ message }}
+      </gl-broadcast-message>
     </template>
 
     <template #cell(starts_at)="{ item: { starts_at } }">
@@ -112,17 +123,25 @@ export default {
         :href="edit_path"
         data-testid="edit-message"
       />
-
       <gl-button
+        v-gl-modal="`delete-message-${id}`"
         class="gl-ml-3"
         icon="remove"
-        variant="danger"
         :aria-label="$options.i18n.delete"
         rel="nofollow"
         :disabled="disable_delete"
         :data-testid="`delete-message-${id}`"
-        @click="$emit('delete-message', id)"
       />
+      <gl-modal
+        :title="$options.i18n.title"
+        :action-primary="$options.modal.actionPrimary"
+        :action-secondary="$options.modal.actionSecondary"
+        :modal-id="`delete-message-${id}`"
+        size="sm"
+        @primary="$emit('delete-message', id)"
+      >
+        {{ $options.i18n.modalMessage }}
+      </gl-modal>
     </template>
   </gl-table-lite>
 </template>

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Labels::UpdateService do
+RSpec.describe Labels::UpdateService, feature_category: :team_planning do
   describe '#execute' do
     let(:project) { create(:project) }
 
@@ -69,6 +69,50 @@ RSpec.describe Labels::UpdateService do
         label = described_class.new(params_with(no_color)).execute(@label)
 
         expect(label).not_to be_valid
+      end
+    end
+
+    describe 'lock_on_merge' do
+      let_it_be(:params) { { lock_on_merge: true } }
+
+      context 'when feature flag is disabled' do
+        before do
+          stub_feature_flags(enforce_locked_labels_on_merge: false)
+        end
+
+        it 'does not allow setting lock_on_merge' do
+          label = described_class.new(params).execute(@label)
+
+          expect(label.reload.lock_on_merge).to be_falsey
+
+          template_label = Labels::CreateService.new(title: 'Initial').execute(template: true)
+          label = described_class.new(params).execute(template_label)
+
+          expect(label.reload.lock_on_merge).to be_falsey
+        end
+      end
+
+      context 'when feature flag is enabled' do
+        it 'allows setting lock_on_merge' do
+          label = described_class.new(params).execute(@label)
+
+          expect(label.reload.lock_on_merge).to be_truthy
+        end
+
+        it 'does not allow lock_on_merge to be unset' do
+          label_locked = Labels::CreateService.new(title: 'Initial', lock_on_merge: true).execute(project: project)
+          label = described_class.new(title: 'test', lock_on_merge: false).execute(label_locked)
+
+          expect(label.reload.lock_on_merge).to be_truthy
+          expect(label.reload.title).to eq 'test'
+        end
+
+        it 'does not allow setting lock_on_merge for templates' do
+          template_label = Labels::CreateService.new(title: 'Initial').execute(template: true)
+          label = described_class.new(params).execute(template_label)
+
+          expect(label.reload.lock_on_merge).to be_falsey
+        end
       end
     end
   end

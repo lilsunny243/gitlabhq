@@ -18,7 +18,7 @@ RSpec.shared_examples 'rejects nuget packages access' do |user_type, status, add
   end
 end
 
-RSpec.shared_examples 'process nuget service index request' do |user_type, status, add_member = true|
+RSpec.shared_examples 'process nuget service index request' do |user_type, status, add_member = true, v2 = false|
   context "for user type #{user_type}" do
     before do
       target.send("add_#{user_type}", user) if add_member && user_type != :anonymous
@@ -28,18 +28,53 @@ RSpec.shared_examples 'process nuget service index request' do |user_type, statu
 
     it_behaves_like 'a package tracking event', 'API::NugetPackages', 'cli_metadata'
 
-    it 'returns a valid json response' do
+    it 'returns a valid json or xml response' do
       subject
 
-      expect(response.media_type).to eq('application/json')
-      expect(json_response).to match_schema('public_api/v4/packages/nuget/service_index')
-      expect(json_response).to be_a(Hash)
+      if v2
+        expect(response.media_type).to eq('application/xml')
+        expect(body).to have_xpath('//service')
+          .and have_xpath('//service/workspace')
+          .and have_xpath('//service/workspace/collection[@href]')
+      else
+        expect(response.media_type).to eq('application/json')
+        expect(json_response).to match_schema('public_api/v4/packages/nuget/service_index')
+        expect(json_response).to be_a(Hash)
+      end
     end
 
-    context 'with invalid format' do
+    context 'with invalid format', unless: v2 do
       let(:url) { "/#{target_type}/#{target.id}/packages/nuget/index.xls" }
 
       it_behaves_like 'rejects nuget packages access', :anonymous, :not_found
+    end
+  end
+end
+
+RSpec.shared_examples 'process nuget v2 $metadata service request' do |user_type, status, add_member = true|
+  context "for user type #{user_type}" do
+    before do
+      target.send("add_#{user_type}", user) if add_member && user_type != :anonymous
+    end
+
+    it_behaves_like 'returning response status', status
+
+    it 'returns a valid xml response' do
+      api_request
+
+      doc = Nokogiri::XML(body)
+
+      expect(response.media_type).to eq('application/xml')
+      expect(doc.at_xpath('//edmx:Edmx')).to be_present
+      expect(doc.at_xpath('//edmx:Edmx/edmx:DataServices')).to be_present
+      expect(doc.css('*').map(&:name)).to include(
+        'Schema', 'EntityType', 'Key', 'PropertyRef', 'EntityContainer', 'EntitySet', 'FunctionImport', 'Parameter'
+      )
+      expect(doc.css('*').select { |el| el.name == 'Property' }.map { |el| el.attribute_nodes.first.value })
+        .to match_array(%w[Id Version Authors Dependencies Description DownloadCount IconUrl Published ProjectUrl
+          Tags Title LicenseUrl]
+                       )
+      expect(doc.css('*').detect { |el| el.name == 'FunctionImport' }.attr('Name')).to eq('FindPackagesById')
     end
   end
 end
@@ -320,6 +355,20 @@ RSpec.shared_examples 'process nuget download content request' do |user_type, st
         expect(response.media_type).to eq('application/octet-stream')
       end
     end
+
+    context 'with normalized package version' do
+      let(:package_version) { '0.1.0' }
+
+      it_behaves_like 'returning response status', status
+
+      it 'returns a valid package archive' do
+        subject
+
+        expect(response.media_type).to eq('application/octet-stream')
+      end
+
+      it_behaves_like 'bumping the package last downloaded at field'
+    end
   end
 end
 
@@ -399,7 +448,7 @@ RSpec.shared_examples 'process empty nuget search request' do |user_type, status
   it_behaves_like 'a package tracking event', 'API::NugetPackages', 'search_package'
 end
 
-RSpec.shared_examples 'rejects nuget access with invalid target id' do
+RSpec.shared_examples 'rejects nuget access with invalid target id' do |not_found_response: :unauthorized|
   context 'with a target id with invalid integers' do
     using RSpec::Parameterized::TableSyntax
 
@@ -411,7 +460,7 @@ RSpec.shared_examples 'rejects nuget access with invalid target id' do
       '%20'        | :bad_request
       '%2e%2e%2f'  | :bad_request
       'NaN'        | :bad_request
-      00002345     | :unauthorized
+      00002345     | not_found_response
       'anything25' | :bad_request
     end
 
@@ -421,12 +470,12 @@ RSpec.shared_examples 'rejects nuget access with invalid target id' do
   end
 end
 
-RSpec.shared_examples 'rejects nuget access with unknown target id' do
+RSpec.shared_examples 'rejects nuget access with unknown target id' do |not_found_response: :unauthorized|
   context 'with an unknown target' do
     let(:target) { double(id: 1234567890) }
 
     context 'as anonymous' do
-      it_behaves_like 'rejects nuget packages access', :anonymous, :unauthorized
+      it_behaves_like 'rejects nuget packages access', :anonymous, not_found_response
     end
 
     context 'as authenticated user' do
@@ -439,32 +488,68 @@ end
 
 RSpec.shared_examples 'nuget authorize upload endpoint' do
   using RSpec::Parameterized::TableSyntax
+  include_context 'workhorse headers'
+
+  let(:headers) { {} }
+
+  subject { put api(url), headers: headers }
+
+  it { is_expected.to have_request_urgency(:low) }
 
   context 'with valid project' do
-    where(:visibility_level, :user_role, :member, :user_token, :shared_examples_name, :expected_status) do
-      'PUBLIC'  | :developer  | true  | true  | 'process nuget workhorse authorization' | :success
-      'PUBLIC'  | :guest      | true  | true  | 'rejects nuget packages access'         | :forbidden
-      'PUBLIC'  | :developer  | true  | false | 'rejects nuget packages access'         | :unauthorized
-      'PUBLIC'  | :guest      | true  | false | 'rejects nuget packages access'         | :unauthorized
-      'PUBLIC'  | :developer  | false | true  | 'rejects nuget packages access'         | :forbidden
-      'PUBLIC'  | :guest      | false | true  | 'rejects nuget packages access'         | :forbidden
-      'PUBLIC'  | :developer  | false | false | 'rejects nuget packages access'         | :unauthorized
-      'PUBLIC'  | :guest      | false | false | 'rejects nuget packages access'         | :unauthorized
-      'PUBLIC'  | :anonymous  | false | true  | 'rejects nuget packages access'         | :unauthorized
-      'PRIVATE' | :developer  | true  | true  | 'process nuget workhorse authorization' | :success
-      'PRIVATE' | :guest      | true  | true  | 'rejects nuget packages access'         | :forbidden
-      'PRIVATE' | :developer  | true  | false | 'rejects nuget packages access'         | :unauthorized
-      'PRIVATE' | :guest      | true  | false | 'rejects nuget packages access'         | :unauthorized
-      'PRIVATE' | :developer  | false | true  | 'rejects nuget packages access'         | :not_found
-      'PRIVATE' | :guest      | false | true  | 'rejects nuget packages access'         | :not_found
-      'PRIVATE' | :developer  | false | false | 'rejects nuget packages access'         | :unauthorized
-      'PRIVATE' | :guest      | false | false | 'rejects nuget packages access'         | :unauthorized
-      'PRIVATE' | :anonymous  | false | true  | 'rejects nuget packages access'         | :unauthorized
+    where(:visibility_level, :user_role, :member, :user_token, :sent_through, :shared_examples_name, :expected_status) do
+      'PUBLIC'  | :developer  | true  | true  | :basic_auth | 'process nuget workhorse authorization' | :success
+      'PUBLIC'  | :guest      | true  | true  | :basic_auth | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :developer  | true  | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :guest      | true  | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :developer  | false | true  | :basic_auth | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :guest      | false | true  | :basic_auth | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :developer  | false | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :guest      | false | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :developer  | true  | true  | :basic_auth | 'process nuget workhorse authorization' | :success
+      'PRIVATE' | :guest      | true  | true  | :basic_auth | 'rejects nuget packages access'         | :forbidden
+      'PRIVATE' | :developer  | true  | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :guest      | true  | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :developer  | false | true  | :basic_auth | 'rejects nuget packages access'         | :not_found
+      'PRIVATE' | :guest      | false | true  | :basic_auth | 'rejects nuget packages access'         | :not_found
+      'PRIVATE' | :developer  | false | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :guest      | false | false | :basic_auth | 'rejects nuget packages access'         | :unauthorized
+
+      'PUBLIC'  | :developer  | true  | true  | :api_key    | 'process nuget workhorse authorization' | :success
+      'PUBLIC'  | :guest      | true  | true  | :api_key    | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :developer  | true  | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :guest      | true  | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :developer  | false | true  | :api_key    | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :guest      | false | true  | :api_key    | 'rejects nuget packages access'         | :forbidden
+      'PUBLIC'  | :developer  | false | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PUBLIC'  | :guest      | false | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :developer  | true  | true  | :api_key    | 'process nuget workhorse authorization' | :success
+      'PRIVATE' | :guest      | true  | true  | :api_key    | 'rejects nuget packages access'         | :forbidden
+      'PRIVATE' | :developer  | true  | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :guest      | true  | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :developer  | false | true  | :api_key    | 'rejects nuget packages access'         | :not_found
+      'PRIVATE' | :guest      | false | true  | :api_key    | 'rejects nuget packages access'         | :not_found
+      'PRIVATE' | :developer  | false | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :guest      | false | false | :api_key    | 'rejects nuget packages access'         | :unauthorized
+
+      'PUBLIC'  | :anonymous  | false | true  | nil         | 'rejects nuget packages access'         | :unauthorized
+      'PRIVATE' | :anonymous  | false | true  | nil         | 'rejects nuget packages access'         | :unauthorized
     end
 
     with_them do
       let(:token) { user_token ? personal_access_token.token : 'wrong' }
-      let(:user_headers) { user_role == :anonymous ? {} : basic_auth_header(user.username, token) }
+
+      let(:user_headers) do
+        case sent_through
+        when :basic_auth
+          basic_auth_header(user.username, token)
+        when :api_key
+          { 'X-NuGet-ApiKey' => token }
+        else
+          {}
+        end
+      end
+
       let(:headers) { user_headers.merge(workhorse_headers) }
 
       before do
@@ -488,34 +573,88 @@ end
 
 RSpec.shared_examples 'nuget upload endpoint' do |symbol_package: false|
   using RSpec::Parameterized::TableSyntax
+  include_context 'workhorse headers'
+
+  let(:headers) { {} }
+  let(:file_name) { symbol_package ? 'package.snupkg' : 'package.nupkg' }
+  let(:params) { { package: temp_file(file_name) } }
+  let(:file_key) { :package }
+  let(:send_rewritten_field) { true }
+
+  subject do
+    workhorse_finalize(
+      api(url),
+      method: :put,
+      file_key: file_key,
+      params: params,
+      headers: headers,
+      send_rewritten_field: send_rewritten_field
+    )
+  end
+
+  it { is_expected.to have_request_urgency(:low) }
 
   context 'with valid project' do
-    where(:visibility_level, :user_role, :member, :user_token, :shared_examples_name, :expected_status) do
-      'PUBLIC'  | :developer  | true  | true  | 'process nuget upload'          | :created
-      'PUBLIC'  | :guest      | true  | true  | 'rejects nuget packages access' | :forbidden
-      'PUBLIC'  | :developer  | true  | false | 'rejects nuget packages access' | :unauthorized
-      'PUBLIC'  | :guest      | true  | false | 'rejects nuget packages access' | :unauthorized
-      'PUBLIC'  | :developer  | false | true  | 'rejects nuget packages access' | :forbidden
-      'PUBLIC'  | :guest      | false | true  | 'rejects nuget packages access' | :forbidden
-      'PUBLIC'  | :developer  | false | false | 'rejects nuget packages access' | :unauthorized
-      'PUBLIC'  | :guest      | false | false | 'rejects nuget packages access' | :unauthorized
-      'PUBLIC'  | :anonymous  | false | true  | 'rejects nuget packages access' | :unauthorized
-      'PRIVATE' | :developer  | true  | true  | 'process nuget upload'          | :created
-      'PRIVATE' | :guest      | true  | true  | 'rejects nuget packages access' | :forbidden
-      'PRIVATE' | :developer  | true  | false | 'rejects nuget packages access' | :unauthorized
-      'PRIVATE' | :guest      | true  | false | 'rejects nuget packages access' | :unauthorized
-      'PRIVATE' | :developer  | false | true  | 'rejects nuget packages access' | :not_found
-      'PRIVATE' | :guest      | false | true  | 'rejects nuget packages access' | :not_found
-      'PRIVATE' | :developer  | false | false | 'rejects nuget packages access' | :unauthorized
-      'PRIVATE' | :guest      | false | false | 'rejects nuget packages access' | :unauthorized
-      'PRIVATE' | :anonymous  | false | true  | 'rejects nuget packages access' | :unauthorized
+    where(:visibility_level, :user_role, :member, :user_token, :sent_through, :shared_examples_name, :expected_status) do
+      'PUBLIC'  | :developer  | true  | true  | :basic_auth | 'process nuget upload'          | :created
+      'PUBLIC'  | :guest      | true  | true  | :basic_auth | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :developer  | true  | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :guest      | true  | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :developer  | false | true  | :basic_auth | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :guest      | false | true  | :basic_auth | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :developer  | false | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :guest      | false | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :developer  | true  | true  | :basic_auth | 'process nuget upload'          | :created
+      'PRIVATE' | :guest      | true  | true  | :basic_auth | 'rejects nuget packages access' | :forbidden
+      'PRIVATE' | :developer  | true  | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :guest      | true  | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :developer  | false | true  | :basic_auth | 'rejects nuget packages access' | :not_found
+      'PRIVATE' | :guest      | false | true  | :basic_auth | 'rejects nuget packages access' | :not_found
+      'PRIVATE' | :developer  | false | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :guest      | false | false | :basic_auth | 'rejects nuget packages access' | :unauthorized
+
+      'PUBLIC'  | :developer  | true  | true  | :api_key    | 'process nuget upload'          | :created
+      'PUBLIC'  | :guest      | true  | true  | :api_key    | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :developer  | true  | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :guest      | true  | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :developer  | false | true  | :api_key    | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :guest      | false | true  | :api_key    | 'rejects nuget packages access' | :forbidden
+      'PUBLIC'  | :developer  | false | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PUBLIC'  | :guest      | false | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :developer  | true  | true  | :api_key    | 'process nuget upload'          | :created
+      'PRIVATE' | :guest      | true  | true  | :api_key    | 'rejects nuget packages access' | :forbidden
+      'PRIVATE' | :developer  | true  | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :guest      | true  | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :developer  | false | true  | :api_key    | 'rejects nuget packages access' | :not_found
+      'PRIVATE' | :guest      | false | true  | :api_key    | 'rejects nuget packages access' | :not_found
+      'PRIVATE' | :developer  | false | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :guest      | false | false | :api_key    | 'rejects nuget packages access' | :unauthorized
+
+      'PUBLIC'  | :anonymous  | false | true  | nil         | 'rejects nuget packages access' | :unauthorized
+      'PRIVATE' | :anonymous  | false | true  | nil         | 'rejects nuget packages access' | :unauthorized
     end
 
     with_them do
       let(:token) { user_token ? personal_access_token.token : 'wrong' }
-      let(:user_headers) { user_role == :anonymous ? {} : basic_auth_header(user.username, token) }
+
+      let(:user_headers) do
+        case sent_through
+        when :basic_auth
+          basic_auth_header(user.username, token)
+        when :api_key
+          { 'X-NuGet-ApiKey' => token }
+        else
+          {}
+        end
+      end
+
       let(:headers) { user_headers.merge(workhorse_headers) }
-      let(:snowplow_gitlab_standard_context) { { project: project, user: user, namespace: project.namespace, property: 'i_package_nuget_user' } }
+
+      let(:snowplow_gitlab_standard_context) do
+        { project: project, user: user, namespace: project.namespace, property: 'i_package_nuget_user' }.tap do |ctx|
+          ctx[:feed] = 'v2' if url.include?('nuget/v2')
+        end
+      end
 
       before do
         update_visibility_to(Gitlab::VisibilityLevel.const_get(visibility_level, false))
@@ -545,5 +684,51 @@ RSpec.shared_examples 'nuget upload endpoint' do |symbol_package: false|
     end
 
     it_behaves_like 'returning response status', :bad_request
+  end
+
+  context 'when ObjectStorage::RemoteStoreError is raised' do
+    let(:headers) { basic_auth_header(deploy_token.username, deploy_token.token).merge(workhorse_headers) }
+
+    before do
+      allow_next_instance_of(::Packages::CreatePackageFileService) do |instance|
+        allow(instance).to receive(:execute).and_raise(ObjectStorage::RemoteStoreError)
+      end
+    end
+
+    it_behaves_like 'returning response status', :forbidden
+  end
+
+  context 'when package duplicates are not allowed' do
+    let(:headers) { basic_auth_header(deploy_token.username, deploy_token.token).merge(workhorse_headers) }
+    let_it_be(:existing_package) { create(:nuget_package, project: project) }
+    let_it_be(:metadata) { { package_name: existing_package.name, package_version: existing_package.version } }
+    let_it_be(:package_settings) do
+      create(:namespace_package_setting, :group, namespace: project.namespace, nuget_duplicates_allowed: false)
+    end
+
+    before do
+      allow_next_instance_of(::Packages::Nuget::MetadataExtractionService) do |instance|
+        allow(instance).to receive(:execute).and_return(ServiceResponse.success(payload: metadata))
+      end
+    end
+
+    it_behaves_like 'returning response status', :conflict unless symbol_package
+    it_behaves_like 'returning response status', :created if symbol_package
+
+    context 'when exception_regex is set' do
+      before do
+        package_settings.update_column(:nuget_duplicate_exception_regex, ".*#{existing_package.name.last(3)}.*")
+      end
+
+      it_behaves_like 'returning response status', :created
+    end
+
+    context 'when nuget_duplicates_option feature flag is disabled' do
+      before do
+        stub_feature_flags(nuget_duplicates_option: false)
+      end
+
+      it_behaves_like 'returning response status', :created
+    end
   end
 end

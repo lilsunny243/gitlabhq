@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions, mapState } from 'vuex';
 import BoardListHeader from 'ee_else_ce/boards/components/board_list_header.vue';
 import { isListDraggable } from '../boards_util';
@@ -24,12 +25,20 @@ export default {
       type: Object,
       required: true,
     },
+    highlightedListsApollo: {
+      type: Array,
+      required: false,
+      default: () => [],
+    },
   },
   computed: {
     ...mapState(['filterParams', 'highlightedLists']),
     ...mapGetters(['getBoardItemsByList']),
+    highlightedListsToUse() {
+      return this.isApolloBoard ? this.highlightedListsApollo : this.highlightedLists;
+    },
     highlighted() {
-      return this.highlightedLists.includes(this.list.id);
+      return this.highlightedListsToUse.includes(this.list.id);
     },
     listItems() {
       return this.isApolloBoard ? [] : this.getBoardItemsByList(this.list.id);
@@ -90,7 +99,12 @@ export default {
       class="board-inner gl-display-flex gl-flex-direction-column gl-relative gl-h-full gl-rounded-base gl-bg-gray-50"
       :class="{ 'board-column-highlighted': highlighted }"
     >
-      <board-list-header :list="list" :filter-params="filtersToUse" />
+      <board-list-header
+        :list="list"
+        :filter-params="filtersToUse"
+        :board-id="boardId"
+        @setActiveList="$emit('setActiveList', $event)"
+      />
       <board-list
         ref="board-list"
         :board-id="boardId"

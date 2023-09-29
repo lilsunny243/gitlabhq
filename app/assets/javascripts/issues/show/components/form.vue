@@ -1,7 +1,11 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlAlert } from '@gitlab/ui';
 import { getDraft, updateDraft, getLockVersion, clearDraft } from '~/lib/utils/autosave';
-import { TYPE_ISSUE } from '~/issues/constants';
+import { convertToGraphQLId } from '~/graphql_shared/utils';
+import { TYPENAME_ISSUE, TYPENAME_USER } from '~/graphql_shared/constants';
+import { TYPE_INCIDENT, TYPE_ISSUE } from '~/issues/constants';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import eventHub from '../event_hub';
 import EditActions from './edit_actions.vue';
 import DescriptionField from './fields/description.vue';
@@ -20,6 +24,7 @@ export default {
     IssuableTypeField,
     LockedWarning,
   },
+  mixins: [glFeatureFlagMixin()],
   props: {
     endpoint: {
       type: String,
@@ -73,6 +78,11 @@ export default {
       required: false,
       default: '',
     },
+    issueId: {
+      type: Number,
+      required: false,
+      default: null,
+    },
   },
   data() {
     const autosaveKey = [document.location.pathname, document.location.search];
@@ -97,8 +107,14 @@ export default {
     showLockedWarning() {
       return this.formState.lockedWarningVisible && !this.formState.updateLoading;
     },
-    isIssueType() {
-      return this.issuableType === TYPE_ISSUE;
+    showTypeField() {
+      return [TYPE_INCIDENT, TYPE_ISSUE].includes(this.issuableType);
+    },
+    resourceId() {
+      return this.issueId && convertToGraphQLId(TYPENAME_ISSUE, this.issueId);
+    },
+    userId() {
+      return convertToGraphQLId(TYPENAME_USER, gon.current_user_id);
     },
   },
   watch: {
@@ -185,12 +201,12 @@ export default {
         <issuable-title-field ref="title" v-model="formData.title" @input="updateTitleDraft" />
       </div>
     </div>
-    <div class="row">
-      <div v-if="isIssueType" class="col-12 col-md-4 pr-md-0">
+    <div class="row gl-gap-3">
+      <div v-if="showTypeField" class="col-12 col-md-4 pr-md-0">
         <issuable-type-field ref="issue-type" />
       </div>
 
-      <div v-if="hasIssuableTemplates" class="col-12 col-md-4 pl-md-2">
+      <div v-if="hasIssuableTemplates" class="col-12 col-md-4 gl-md-pl-0 gl-md-pr-0">
         <description-template-field
           v-model="formData.description"
           :issuable-templates="issuableTemplates"

@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Tasks **(FREE)**
+# Tasks **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/334812) in GitLab 14.5 [with a flag](../administration/feature_flags.md) named `work_items`. Disabled by default.
 > - [Creating, editing, and deleting tasks](https://gitlab.com/groups/gitlab-org/-/epics/7169) introduced in GitLab 15.0.
@@ -12,13 +12,13 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 Known limitation:
 
-- [Tasks currently cannot be accessed via REST API.](https://gitlab.com/gitlab-org/gitlab/-/issues/368055)
+- [Tasks cannot be accessed via REST API.](https://gitlab.com/gitlab-org/gitlab/-/issues/368055)
 
 For the latest updates, check the [Tasks Roadmap](https://gitlab.com/groups/gitlab-org/-/epics/7103).
 
 FLAG:
 On self-managed GitLab, by default this feature is available. To hide the feature,
-ask an administrator to [disable the feature flags](../administration/feature_flags.md) named `work_items`.
+an administrator can [disable the feature flags](../administration/feature_flags.md) named `work_items`.
 On GitLab.com, this feature is available.
 
 Use tasks to track steps needed for the [issue](project/issues/index.md) to be closed.
@@ -41,7 +41,7 @@ View tasks in issues, in the **Tasks** section.
 You can also [filter the list of issues](project/issues/managing_issues.md#filter-the-list-of-issues)
 for `Type = task`.
 
-If you select a task from an issue, it opens in a modal window.
+If you select a task from an issue, it opens in a dialog window.
 If you select a task to open in a new browser tab, or select it from the issue list,
 the task opens in a full-page view.
 
@@ -107,7 +107,7 @@ To edit a task:
 
 ### Using the rich text editor
 
-> - Rich text editing in the modal view [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/363007) in GitLab 15.6 [with a flag](../administration/feature_flags.md) named `work_items_mvc`. Disabled by default.
+> - Rich text editing in the dialog view [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/363007) in GitLab 15.6 [with a flag](../administration/feature_flags.md) named `work_items_mvc`. Disabled by default.
 > - Rich text editing in the full page view [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104533) in GitLab 15.7.
 
 FLAG:
@@ -129,6 +129,16 @@ To edit the description of a task:
 1. Next to **Description**, select the edit icon (**{pencil}**). The description text box appears.
 1. Above the text box, select **Rich text**.
 1. Make your changes, and select **Save**.
+
+## Promote a task to an issue
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/412534) in GitLab 16.1.
+
+Prerequisites:
+
+- You must have at least the Reporter role for the project.
+
+To promote a task to an issue, use the `/promote_to issue` [quick action](../user/project/quick_actions.md).
 
 ## Remove a task from an issue
 
@@ -158,6 +168,17 @@ To delete a task:
 1. In the task window, in the options menu (**{ellipsis_v}**), select **Delete task**.
 1. Select **OK**.
 
+## Reorder tasks
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/385887) in GitLab 16.0.
+
+Prerequisites:
+
+- You must have at least the Reporter role for the project.
+
+By default, tasks are ordered by creation date.
+To reorder them, drag them around.
+
 ## Assign users to a task
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/334810) in GitLab 15.4.
@@ -165,7 +186,7 @@ To delete a task:
 To show who is responsible for a task, you can assign users to it.
 
 Users on GitLab Free can assign one user per task.
-Users on GitLab Premium and higher can assign multiple users to a single task.
+Users on GitLab Premium and Ultimate can assign multiple users to a single task.
 See also [multiple assignees for issues](project/issues/multiple_assignees_for_issues.md).
 
 Prerequisites:
@@ -248,7 +269,7 @@ To add a task to a milestone:
    If a task already belongs to a milestone, the dropdown list shows the current milestone.
 1. From the dropdown list, select the milestone to be associated with the task.
 
-## Set task weight **(PREMIUM)**
+## Set task weight **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/362550) in GitLab 15.3.
 
@@ -266,14 +287,14 @@ To set issue weight of a task:
 1. Next to **Weight**, enter a whole, positive number.
 1. Select the close icon (**{close}**).
 
-## Add a task to an iteration **(PREMIUM)**
+## Add a task to an iteration **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/367456) in GitLab 15.5 [with a flag](../administration/feature_flags.md) named `work_items_mvc_2`. Disabled by default.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/367456) to feature flag named `work_items_mvc` in GitLab 15.7. Disabled by default.
 > - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/367456) in GitLab 15.7.
 
 FLAG:
-On self-managed GitLab, by default this feature is available. To hide the feature, ask an administrator to [disable the feature flag](../administration/feature_flags.md) named `work_items_mvc`.
+On self-managed GitLab, by default this feature is available. To hide the feature, an administrator can [disable the feature flag](../administration/feature_flags.md) named `work_items_mvc`.
 On GitLab.com, this feature is available.
 
 You can add a task to an [iteration](group/iterations/index.md).
@@ -289,3 +310,136 @@ To add a task to an iteration:
    The task window opens.
 1. Next to **Iteration**, select **Add to iteration**.
 1. From the dropdown list, select the iteration to be associated with the task.
+
+## View task system notes
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/378949) in GitLab 15.7 [with a flag](../administration/feature_flags.md) named `work_items_mvc_2`. Disabled by default.
+> - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/378949) to feature flag named `work_items_mvc` in GitLab 15.8. Disabled by default.
+> - Changing activity sort order [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/378949) in GitLab 15.8.
+> - Filtering activity [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/389971) in GitLab 15.10.
+> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/334812) in GitLab 15.10.
+
+You can view all the system notes related to the task. By default they are sorted by **Oldest first**.
+You can always change the sorting order to **Newest first**, which is remembered across sessions.
+You can also filter activity by **Comments only** and **History only** in addition to the default **All activity** which is remembered across sessions.
+
+## Comments and threads
+
+You can add [comments](discussions/index.md) and reply to threads in tasks.
+
+## Copy task reference
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/396553) in GitLab 16.1.
+
+To refer to a task elsewhere in GitLab, you can use its full URL or a short reference, which looks like
+`namespace/project-name#123`, where `namespace` is either a group or a username.
+
+To copy the task reference to your clipboard:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your task to view it.
+1. In the top right corner, select the vertical ellipsis (**{ellipsis_v}**), then select **Copy Reference**.
+
+You can now paste the reference into another description or comment.
+
+For more information about task references, see [GitLab-Flavored Markdown](markdown.md#gitlab-specific-references).
+
+## Copy task email address
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/396553) in GitLab 16.1.
+
+You can create a comment in a task by sending an email.
+Sending an email to this address creates a comment that contains the email body.
+
+For more information about creating comments by sending an email and the necessary configuration, see
+[Reply to a comment by sending email](discussions/index.md#reply-to-a-comment-by-sending-email).
+
+To copy the task's email address:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
+1. In the top right corner, select the vertical ellipsis (**{ellipsis_v}**), then select **Copy task email address**.
+
+## Confidential tasks
+
+> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/8410) in GitLab 15.3.
+
+Confidential tasks are tasks visible only to members of a project with
+[sufficient permissions](#who-can-see-confidential-tasks).
+You can use confidential tasks to keep security vulnerabilities private or prevent surprises from
+leaking out.
+
+### Make a task confidential
+
+By default, tasks are public.
+You can make a task confidential when you create or edit it.
+
+Prerequisites:
+
+- You must have at least the Reporter role for the project.
+- If the task has a parent issue which is non-confidential, and you want to make the issue confidential,
+  you must first make all the child tasks confidential.
+  A [confidential issue](project/issues/confidential_issues.md) can have only confidential children.
+
+#### In a new task
+
+When you create a new task, a checkbox right below the text area is available to mark the
+task as confidential.
+
+Check that box and select **Create task**.
+
+#### In an existing task
+
+To change the confidentiality of an existing task:
+
+1. [Open the task](#view-tasks).
+1. In the top right corner, select the vertical ellipsis (**{ellipsis_v}**).
+1. Select **Turn on confidentiality**.
+
+### Who can see confidential tasks
+
+When a task is made confidential, only users with at least the Reporter role for the project have
+access to the task.
+Users with Guest or [Minimal](permissions.md#users-with-minimal-access) roles can't access
+the task even if they were actively participating before the change.
+
+However, a user with the **Guest role** can create confidential tasks, but can only view the ones
+that they created themselves.
+
+Users with the Guest role or non-members can read the confidential task if they are assigned to the task.
+When a Guest user or non-member is unassigned from a confidential task, they can no longer view it.
+
+Confidential tasks are hidden in search results for users without the necessary permissions.
+
+### Confidential task indicators
+
+Confidential tasks are visually different from regular tasks in a few ways.
+Wherever tasks are listed, you can see the confidential (**{eye-slash}**) icon
+next to the tasks that are marked as confidential.
+
+If you don't have [enough permissions](#who-can-see-confidential-tasks),
+you cannot see confidential tasks at all.
+
+Likewise, while inside the task, you can see the confidential (**{eye-slash}**) icon right next to
+the breadcrumbs.
+
+Every change from regular to confidential and vice versa, is indicated by a
+system note in the task's comments, for example:
+
+> - **{eye-slash}** Jo Garcia made the issue confidential 5 minutes ago
+> - **{eye}** Jo Garcia made the issue visible to everyone just now
+
+## Two-column layout
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/415077) in GitLab 16.2 [with a flag](../administration/feature_flags.md) named `work_items_mvc_2`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../administration/feature_flags.md) named `work_items_mvc_2`.
+On GitLab.com, this feature is not available.
+This feature is not ready for production use.
+
+When enabled, tasks use a two-column layout, similar to issues.
+The description and threads are on the left, and attributes, such as labels
+or assignees, on the right.
+
+![Task two column view](img/task_two_column_view_v16_2.png)

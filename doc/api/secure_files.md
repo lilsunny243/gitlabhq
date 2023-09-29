@@ -5,12 +5,19 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, api
 ---
 
-# Project-level Secure Files API **(FREE)**
+# Project-level Secure Files API **(FREE ALL)**
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78227) in GitLab 14.8. [Deployed behind the `ci_secure_files` flag](../administration/feature_flags.md), disabled by default.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/350748) in GitLab 15.7.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78227) in GitLab 14.8 [with a flag](../administration/feature_flags.md) named `ci_secure_files`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/350748) in GitLab 15.7. Feature flag `ci_secure_files` removed.
 
-Limited to 100 secure files per project. Files must be smaller than 5 MB. Project-level Secure Files is an experimental feature developed by [GitLab Incubation Engineering](https://about.gitlab.com/handbook/engineering/incubation/).
+This feature is part of [Mobile DevOps](../ci/mobile_devops.md) developed by [GitLab Incubation Engineering](https://about.gitlab.com/handbook/engineering/incubation/).
+The feature is still in development, but you can:
+
+- [Request a feature](https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/feedback/-/issues/new?issuable_template=feature_request).
+- [Report a bug](https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/feedback/-/issues/new?issuable_template=report_bug).
+- [Share feedback](https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/feedback/-/issues/new?issuable_template=general_feedback).
+
+You can securely store up to 100 files for use in CI/CD pipelines as secure files. These files are stored securely outside of your project's repository and are not version controlled. It is safe to store sensitive information in these files. Secure files support both plain text and binary file types but must be 5 MB or less.
 
 ## List project secure files
 
@@ -22,9 +29,9 @@ GET /projects/:project_id/secure_files
 
 Supported attributes:
 
-| Attribute    | Type           | Required               | Description |
-|--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `project_id` | integer/string | Yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
 
 Example request:
 
@@ -51,7 +58,7 @@ Example response:
         "checksum": "16630b189ab34b2e3504f4758e1054d2e478deda510b2b08cc0ef38d12e80aa2",
         "checksum_algorithm": "sha256",
         "created_at": "2022-02-22T22:22:22.222Z",
-        "expires_at": "2022-09-21T14:56:00.000Z",
+        "expires_at": "2023-09-21T14:55:59.000Z",
         "metadata": {
             "id":"75949910542696343243264405377658443914",
             "issuer": {
@@ -67,7 +74,7 @@ Example response:
                 "OU":"ABC123XYZ",
                 "UID":"ABC123XYZ"
             },
-            "expires_at":"2022-09-21T14:56:00.000Z"
+            "expires_at":"2023-09-21T14:55:59.000Z"
         }
     }
 ]
@@ -83,10 +90,10 @@ GET /projects/:project_id/secure_files/:id
 
 Supported attributes:
 
-| Attribute    | Type           | Required               | Description |
-|--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `project_id` | integer/string | Yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `id`         | integer        | Yes      | The ID of a secure file. |
 
 Example request:
 
@@ -118,11 +125,11 @@ POST /projects/:project_id/secure_files
 
 Supported attributes:
 
-| Attribute       | Type           | Required               | Description |
-|-----------------|----------------|------------------------|-------------|
-| `project_id`    | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `name`          | string         | **{check-circle}** Yes | The `name` of the file being uploaded. The filename must be unique within the project. |
-| `file`          | file           | **{check-circle}** Yes | The `file` being uploaded (5 MB limit). |
+| Attribute       | Type           | Required | Description |
+|-----------------|----------------|----------|-------------|
+| `project_id`    | integer/string | Yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `name`          | string         | Yes      | The name of the file being uploaded. The filename must be unique in the project. |
+| `file`          | file           | Yes      | The file being uploaded (5 MB limit). |
 
 Example request:
 
@@ -155,10 +162,10 @@ GET /projects/:project_id/secure_files/:id/download
 
 Supported attributes:
 
-| Attribute    | Type           | Required               | Description |
-|--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `project_id` | integer/string | Yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `id`         | integer        | Yes      | The ID of a secure file. |
 
 Example request:
 
@@ -176,10 +183,10 @@ DELETE /projects/:project_id/secure_files/:id
 
 Supported attributes:
 
-| Attribute    | Type           | Required               | Description |
-|--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `project_id` | integer/string | Yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `id`         | integer        | Yes      | The ID of a secure file. |
 
 Example request:
 

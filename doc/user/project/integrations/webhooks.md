@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Webhooks **(FREE)**
+# Webhooks **(FREE ALL)**
 
 [Webhooks](https://en.wikipedia.org/wiki/Webhook) are custom HTTP callbacks
 that you define. They are usually triggered by an
@@ -28,7 +28,7 @@ listens for specific [events](#events) and GitLab sends a POST request with data
 
 Usually, you set up your own [webhook receiver](#create-an-example-webhook-receiver)
 to receive information from GitLab and send it to another app, according to your requirements.
-We have a [built-in receiver](slack.md)
+We have a [built-in receiver](gitlab_slack_application.md#slack-notifications)
 for sending [Slack](https://api.slack.com/incoming-webhooks) notifications per project.
 
 GitLab.com enforces [webhook limits](../../../user/gitlab_com/index.md#webhooks),
@@ -37,10 +37,10 @@ including:
 - The maximum number of webhooks and their size, both per project and per group.
 - The number of webhook calls per minute.
 
-## Group webhooks **(PREMIUM)**
+## Group webhooks **(PREMIUM ALL)**
 
 You can configure a group webhook, which is triggered by events
-that occur across all projects in the group. If you configure identical webhooks
+that occur across all projects in the group and its subgroups. If you configure identical webhooks
 in a group and a project, they are both triggered by an event in the
 project.
 
@@ -55,11 +55,12 @@ specific to a group, including:
 To configure a webhook for a project or group:
 
 1. In your project or group, on the left sidebar, select **Settings > Webhooks**.
+1. Select **Add new webhook**.
 1. In **URL**, enter the URL of the webhook endpoint.
    The URL must be percent-encoded if it contains one or more special characters.
 1. In **Secret token**, enter the [secret token](#validate-payloads-by-using-a-secret-token) to validate payloads.
 1. In the **Trigger** section, select the [events](webhook_events.md) to trigger the webhook.
-1. Optional. Clear the **Enable SSL verification** checkbox to disable [SSL verification](index.md#manage-ssl-verification).
+1. Optional. Clear the **Enable SSL verification** checkbox to disable [SSL verification](index.md#ssl-verification).
 1. Select **Add webhook**.
 
 ## Mask sensitive portions of webhook URLs
@@ -99,7 +100,7 @@ You can define URL variables directly using the REST API.
 ## Configure your webhook receiver endpoint
 
 Webhook receiver endpoints should be fast and stable.
-Slow and unstable receivers can be [disabled automatically](#failing-webhooks) to ensure system reliability. Webhooks that fail can lead to retries, [which cause duplicate events](#webhook-fails-or-multiple-webhook-requests-are-triggered).
+Slow and unstable receivers can be [disabled automatically](#failing-webhooks) to ensure system reliability. Webhooks that fail might lead to [duplicate events](#webhook-fails-or-multiple-webhook-requests-are-triggered).
 
 Endpoints should follow these best practices:
 
@@ -118,24 +119,43 @@ Endpoints should follow these best practices:
 - Never return `500` server error status responses if the event has been handled as this can cause the webhook to be [temporarily disabled](#failing-webhooks).
 - Invalid HTTP responses are treated as failed requests.
 
-### Failing webhooks
+## Failing webhooks
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/60837) in GitLab 13.12 [with a flag](../../../administration/feature_flags.md) named `web_hooks_disable_failed`. Disabled by default.
-> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/329849) in GitLab 15.7.
-> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/329849) in GitLab 15.7. Feature flag `web_hooks_disable_failed` removed.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/60837) for project webhooks in GitLab 13.12 [with a flag](../../../administration/feature_flags.md) named `web_hooks_disable_failed`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/329849) for project webhooks in GitLab 15.7. Feature flag `web_hooks_disable_failed` removed.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/385902) for group webhooks in GitLab 15.10.
+> - [Disabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/390157) in GitLab 15.10 [with a flag](../../../administration/feature_flags.md) named `auto_disabling_web_hooks`.
 
-If a webhook fails repeatedly, it may be disabled automatically.
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../../../administration/feature_flags.md) named `auto_disabling_web_hooks`.
+On GitLab.com, this feature is available.
 
-Webhooks that return response codes in the `5xx` range are understood to be failing
+Project or group webhooks that fail four consecutive times are automatically disabled.
+
+Project or group webhooks that return response codes in the `5xx` range are understood to be failing
 intermittently and are temporarily disabled. These webhooks are initially disabled
-for 1 minute, which is extended on each retry up to a maximum of 24 hours.
+for one minute, which is extended on each subsequent failure up to a maximum of 24 hours.
 
-Webhooks that return response codes in the `4xx` range are understood to be
-misconfigured and are permanently disabled until you manually re-enable
-them yourself.
+Project or group webhooks that return response codes in the `4xx` range are understood to be
+misconfigured and are permanently disabled until you [manually re-enable](#re-enable-disabled-webhooks)
+the webhooks yourself.
 
-See [Troubleshooting](#troubleshoot-webhooks) for more information on
-disabled webhooks and how to re-enable them.
+### Re-enable disabled webhooks
+
+> - Introduced in GitLab 15.2 [with a flag](../../../administration/feature_flags.md) named `webhooks_failed_callout`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/365535) in GitLab 15.7. Feature flag `webhooks_failed_callout` removed.
+
+If a webhook is failing, a banner displays at the top of the edit page explaining
+why the webhook is disabled and when it is automatically re-enabled. For example:
+
+![A banner for a failing webhook, warning it has failed to connect and is retrying in 60 minutes](img/failed_banner.png)
+
+In the case of a failed webhook, an error banner is displayed:
+
+![A banner for a failed webhook, showing an error state, and explaining how to re-enable it](img/failed_banner_error.png)
+
+To re-enable a failing or failed webhook, [send a test request](#test-a-webhook). If the test
+request succeeds, the webhook is re-enabled.
 
 ## Test a webhook
 
@@ -146,7 +166,7 @@ For example, to test `push events`, your project should have at least one commit
 
 NOTE:
 Testing is not supported for some types of events for project and groups webhooks.
-Read more in [issue 379201](https://gitlab.com/gitlab-org/gitlab/-/issues/379201).
+For more information, see [issue 379201](https://gitlab.com/gitlab-org/gitlab/-/issues/379201).
 
 Prerequisites:
 
@@ -254,23 +274,53 @@ Image URLs are not rewritten if:
 
 ## Events
 
-For more information about supported events for Webhooks, go to [Webhook events](webhook_events.md).
+For more information about supported events for webhooks, see [webhook events](webhook_events.md).
 
 ## Delivery headers
 
 > - `X-Gitlab-Event-UUID` header [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/329743) in GitLab 14.8.
 > - `X-Gitlab-Instance` header [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/31333) in GitLab 15.5.
+> - `X-Gitlab-Webhook-UUID` header [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/230830) in GitLab 16.2.
 
 Webhook requests to your endpoint include the following headers:
 
 | Header | Description | Example |
 | ------ | ------ | ------ |
-| `User-Agent` | In the format `"Gitlab/<VERSION>"`. | `"GitLab/15.5.0-pre"` |
+| `User-Agent` | User agent in the format `"Gitlab/<VERSION>"`. | `"GitLab/15.5.0-pre"` |
 | `X-Gitlab-Instance` | Hostname of the GitLab instance that sent the webhook. | `"https://gitlab.com"` |
+| `X-Gitlab-Webhook-UUID` | Unique ID per webhook. | `"02affd2d-2cba-4033-917d-ec22d5dc4b38"` |
 | `X-Gitlab-Event` | Name of the webhook type. Corresponds to [event types](webhook_events.md) but in the format `"<EVENT> Hook"`. | `"Push Hook"` |
 | `X-Gitlab-Event-UUID` | Unique ID per webhook that is not recursive. A hook is recursive if triggered by an earlier webhook that hit the GitLab instance. Recursive webhooks have the same value for this header. | `"13792a34-cac6-4fda-95a8-c58e00a3954e"` |
 
-## Troubleshoot webhooks
+## Develop webhooks
+
+If you don't have an existing HTTPS endpoint or URL for your webhook setup, you must deploy one on a server. This HTTPS endpoint is used in configuration. To develop against GitLab webhooks and capture the payloads, you can use:
+
+- [Public webhook inspection and testing tools](#public-webhook-inspection-and-testing-tools)
+- [The GitLab Development Kit (GDK)](#gitlab-development-kit-gdk)
+- [Recently triggered webhook payloads in GitLab settings](#recently-triggered-webhook-payloads-in-gitlab-settings)
+
+### Public webhook inspection and testing tools
+
+You can use public tools to inspect and test webhook payloads. These tools act as catch-all endpoints for HTTP requests and respond with a `200 OK` HTTP status code. You can use these payloads to develop your webhook services.
+
+You should exercise caution when using these tools as you might be sending sensitive data to external tools. You should use test tokens with these tools and rotate any secrets inadvertently sent to a third party.
+
+These public tools include:
+
+- [Beeceptor](https://beeceptor.com) to create a temporary HTTPS endpoint and inspect incoming payloads
+- [Webhook.site](https://webhook.site) to review incoming payloads
+- [Webhook Tester](https://webhook-test.com) to inspect and debug incoming payloads
+
+### GitLab Development Kit (GDK)
+
+For a safer development environment, you can use the [GitLab Development Kit (GDK)](https://gitlab.com/gitlab-org/gitlab-development-kit) to develop against GitLab webhooks locally. With the GDK, you can send webhooks from your local GitLab instance to a webhook receiver running locally on your machine. To use this approach, you must install and configure the GDK.
+
+### Recently triggered webhook payloads in GitLab settings
+
+You can [review recently triggered webhook payloads](#troubleshooting) in GitLab settings. For each webhook event, a detail page exists with information about the data GitLab sends and receives from the webhook endpoint.
+
+## Troubleshooting
 
 > **Recent events** for group webhooks [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325642) in GitLab 15.3.
 
@@ -288,8 +338,9 @@ To view the table:
 1. Scroll down to the webhooks.
 1. Each [failing webhook](#failing-webhooks) has a badge listing it as:
 
-   - **Failed to connect** if it is misconfigured, and needs manual intervention to re-enable it.
-   - **Fails to connect** if it is temporarily disabled and is retrying later.
+   - **Failed to connect** if it's misconfigured and must be manually re-enabled.
+   - **Fails to connect** if it's temporarily disabled and is automatically
+     re-enabled after the timeout limit has elapsed.
 
    ![Badges on failing webhooks](img/failed_badges.png)
 
@@ -325,24 +376,15 @@ Missing intermediate certificates are common causes of verification failure.
 
 ### Webhook fails or multiple webhook requests are triggered
 
-If you are receiving multiple webhook requests, the webhook might have timed out and
-been retried.
+If you're receiving multiple webhook requests, the webhook might have timed out.
 
 GitLab expects a response in [10 seconds](../../../user/gitlab_com/index.md#other-limits). On self-managed GitLab instances, you can [change the webhook timeout limit](../../../administration/instance_limits.md#webhook-timeout).
 
-### Re-enable disabled webhooks
+### Webhook is not triggered
 
-> - Introduced in GitLab 15.2 [with a flag](../../../administration/feature_flags.md) named `webhooks_failed_callout`. Disabled by default.
-> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/365535) in GitLab 15.7. Feature flag `webhooks_failed_callout` removed.
+> Webhooks not triggered in Silent Mode [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/393639) in GitLab 16.3.
 
-If a webhook is failing, a banner displays at the top of the edit page explaining
-why it is disabled, and when it is automatically re-enabled. For example:
+If a webhook is not triggered, check that:
 
-![A banner for a failing webhook, warning it has failed to connect and is retrying in 60 minutes](img/failed_banner.png)
-
-In the case of a failed webhook, an error banner is displayed:
-
-![A banner for a failed webhook, showing an error state, and explaining how to re-enable it](img/failed_banner_error.png)
-
-To re-enable a failing or failed webhook, [send a test request](#test-a-webhook). If the test
-request succeeds, the webhook is re-enabled.
+- The webhook was not [automatically disabled](#failing-webhooks).
+- The GitLab instance is not in [Silent Mode](../../../administration/silent_mode/index.md).

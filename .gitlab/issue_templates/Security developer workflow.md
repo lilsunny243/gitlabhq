@@ -13,6 +13,7 @@ Set the title to: `Description of the original issue`
 - [ ] Add a `~severity::x` label to the issue and all associated merge requests.
 - [ ] **IMPORTANT**: Mark this [issue as linked] to the Security Release Tracking Issue. You can find it [here](https://gitlab.com/gitlab-org/gitlab/-/issues?sort=created_date&state=opened&label_name[]=upcoming+security+release). This issue
 MUST be linked for the release bot to know that the associated merge requests should be merged for this security release.
+- [ ] Mark this [issue as linked] to the `gitlab-org/gitlab` issue that describes the security vulnerability.
 - Fill out the [Links section](#links):
   - [ ] Next to **Issue on GitLab**, add a link to the `gitlab-org/gitlab` issue that describes the security vulnerability.
 - [ ] If this change affects the public interface (public API or UI) of the product, post in the `#support_gitlab-com` Slack channel  to explain the impact and discuss a mitigation plan for users that might be affected. If you need Support feedback or approval, reach out in `#spt_managers` Slack channel or mention `@gitlab-com/support/managers`.
@@ -23,6 +24,7 @@ MUST be linked for the release bot to know that the associated merge requests sh
 - [ ] Create a new branch prefixing it with `security-`.
 - [ ] Create a merge request targeting `master` on `gitlab.com/gitlab-org/security` and use the [Security Release merge request template].
 - [ ] If this includes a breaking change, make sure to include a mention of it for the relevant versions in [`doc/update/index.md`](https://gitlab.com/gitlab-org/security/gitlab/-/blob/master/doc/update/index.md#version-specific-upgrading-instructions)
+   * See if the [breaking changes workflow] applies
 
 After your merge request has been approved according to our [approval guidelines] and by a team member of the AppSec team, you're ready to prepare the backports
 
@@ -39,6 +41,7 @@ After your merge request has been approved according to our [approval guidelines
 
 ## Documentation and final details
 
+- [ ] When you believe this issue is ready for release (Backports are approved and ready to be merged), apply the ~"security-target" label (This label does not have an effect yet, but will in upcoming releases. See <https://gitlab.com/gitlab-com/gl-infra/delivery/-/issues/19611#computer-developer-process> for more information).
 - [ ] To avoid release delays, please nominate a developer in a different timezone who will be able to respond to any pipeline or merge failures in your absence `@gitlab-username`
 - [ ] Ensure `~severity::x` label is on this issue, all associated issues, and merge requests
 - [ ] Ensure the [Links section](#links) is completed.
@@ -75,5 +78,6 @@ After your merge request has been approved according to our [approval guidelines
 [approval guidelines]: https://docs.gitlab.com/ee/development/code_review.html#approval-guidelines
 [issue as linked]: https://docs.gitlab.com/ee/user/project/issues/related_issues.html#add-a-linked-issue
 [issue really needs to follow the security release workflow]: https://gitlab.com/gitlab-org/release/docs/-/blob/master/general/security/developer.md#making-sure-the-issue-needs-to-follow-the-security-release-workflow
+[breaking changes workflow]: https://gitlab.com/gitlab-org/release/docs/-/blob/master/general/security/far_reaching_impact_fixes_or_breaking_change_fixes.md
 
 /label ~security

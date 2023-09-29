@@ -1,11 +1,11 @@
 ---
-stage: Create
-group: Editor
+stage: Plan
+group: Knowledge
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, api
 ---
 
-# Group wikis API **(PREMIUM)**
+# Group wikis API **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/212199) in GitLab 13.5.
 > - The `encoding` field was [added](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/81150) in GitLab 14.9.
@@ -207,7 +207,7 @@ Example response:
 {
   "file_name" : "dk.png",
   "file_path" : "uploads/6a061c4cf9f1c28cb22c384b4b8d4e3c/dk.png",
-  "branch" : "master",
+  "branch" : "main",
   "link" : {
     "url" : "uploads/6a061c4cf9f1c28cb22c384b4b8d4e3c/dk.png",
     "markdown" : "![dk](uploads/6a061c4cf9f1c28cb22c384b4b8d4e3c/dk.png)"

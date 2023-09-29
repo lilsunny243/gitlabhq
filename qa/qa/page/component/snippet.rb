@@ -43,7 +43,7 @@ module QA
             element :snippet_embed_dropdown
           end
 
-          base.view 'app/assets/javascripts/vue_shared/components/clone_dropdown.vue' do
+          base.view 'app/assets/javascripts/vue_shared/components/clone_dropdown/clone_dropdown.vue' do
             element :copy_http_url_button
             element :copy_ssh_url_button
           end
@@ -70,6 +70,10 @@ module QA
             element :note_author_content
           end
 
+          base.view 'app/views/shared/notes/_notes_with_form.html.haml' do
+            element :notes_list
+          end
+
           base.view 'app/views/projects/notes/_more_actions_dropdown.html.haml' do
             element :more_actions_dropdown
             element :delete_comment_button
@@ -84,9 +88,9 @@ module QA
             element :copy_contents_button
           end
 
-          base.view 'app/views/layouts/nav/_breadcrumbs.html.haml' do
-            element :breadcrumb_links_content
-            element :breadcrumb_current_link
+          base.view 'app/views/layouts/nav/breadcrumbs/_breadcrumbs.html.haml' do
+            element 'breadcrumb-links'
+            element 'breadcrumb-current-link'
           end
         end
 
@@ -156,8 +160,14 @@ module QA
           end
         end
 
-        def has_embed_dropdown?
-          has_element?(:snippet_embed_dropdown)
+        RSpec::Matchers.define :have_embed_dropdown do
+          match do |page|
+            page.has_element?(:snippet_embed_dropdown)
+          end
+
+          match_when_negated do |page|
+            page.has_no_element?(:snippet_embed_dropdown)
+          end
         end
 
         def click_edit_button
@@ -210,6 +220,10 @@ module QA
           end
         end
 
+        def within_notes_list(&block)
+          within_element :notes_list, &block
+        end
+
         def has_syntax_highlighting?(language)
           within_element(:blob_viewer_file_content) do
             find('.line')['lang'].to_s == language
@@ -259,8 +273,8 @@ module QA
         end
 
         def snippet_id
-          within_element(:breadcrumb_links_content) do
-            find_element(:breadcrumb_current_link).text.delete_prefix('$')
+          within_element('breadcrumb-links') do
+            find_element('breadcrumb-current-link').text.delete_prefix('$')
           end
         end
       end

@@ -17,11 +17,6 @@ describe('AssigneeTitle component', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   describe('assignee title', () => {
     it('renders assignee', () => {
       wrapper = createComponent({
@@ -39,27 +34,6 @@ describe('AssigneeTitle component', () => {
       });
 
       expect(wrapper.vm.$el.innerText.trim()).toEqual('2 Assignees');
-    });
-  });
-
-  describe('gutter toggle', () => {
-    it('does not show toggle by default', () => {
-      wrapper = createComponent({
-        numberOfAssignees: 2,
-        editable: false,
-      });
-
-      expect(wrapper.vm.$el.querySelector('.gutter-toggle')).toBeNull();
-    });
-
-    it('shows toggle when showToggle is true', () => {
-      wrapper = createComponent({
-        numberOfAssignees: 2,
-        editable: false,
-        showToggle: true,
-      });
-
-      expect(wrapper.vm.$el.querySelector('.gutter-toggle')).toEqual(expect.any(Object));
     });
   });
 

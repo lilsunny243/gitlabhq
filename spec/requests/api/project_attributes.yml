@@ -27,6 +27,7 @@ itself: # project
     - mirror_overwrites_diverged_branches
     - mirror_trigger_builds
     - mirror_user_id
+    - mirror_branch_regex
     - only_mirror_protected_branches
     - pages_https_only
     - pending_delete
@@ -42,8 +43,8 @@ itself: # project
     - runners_token_encrypted
     - storage_version
     - topic_list
-    - updated_at
-    - mirror_branch_regex
+    - verification_checksum
+    - organization_id
   remapped_attributes:
     avatar: avatar_url
     build_allow_git_fetch: build_git_strategy
@@ -60,6 +61,7 @@ itself: # project
     - container_registry_image_prefix
     - default_branch
     - empty_repo
+    - emails_disabled
     - forks_count
     - http_url_to_repo
     - import_status
@@ -75,6 +77,7 @@ itself: # project
     - tag_list
     - topics
     - web_url
+    - description_html
 
 build_auto_devops: # auto_devops
   unexposed_attributes:
@@ -91,15 +94,16 @@ ci_cd_settings:
     - id
     - project_id
     - merge_trains_enabled
+    - merge_trains_skip_train_allowed
     - merge_pipelines_enabled
     - auto_rollback_enabled
     - inbound_job_token_scope_enabled
   remapped_attributes:
     default_git_depth: ci_default_git_depth
     forward_deployment_enabled: ci_forward_deployment_enabled
+    forward_deployment_rollback_allowed: ci_forward_deployment_rollback_allowed
     job_token_scope_enabled: ci_job_token_scope_enabled
     separated_caches: ci_separated_caches
-    opt_in_jwt: ci_opt_in_jwt
     allow_fork_pipelines_to_run_in_parent_project: ci_allow_fork_pipelines_to_run_in_parent_project
 
 build_import_state: # import_state
@@ -127,6 +131,8 @@ project_feature:
     - package_registry_access_level
     - project_id
     - updated_at
+    - operations_access_level
+    - model_experiments_access_level
   computed_attributes:
     - issues_enabled
     - jobs_enabled
@@ -161,9 +167,28 @@ project_setting:
     - jitsu_key
     - mirror_branch_regex
     - allow_pipeline_trigger_approve_deployment
-    - emails_enabled
     - pages_unique_domain_enabled
     - pages_unique_domain
+    - pages_multiple_versions_enabled
+    - runner_registration_enabled
+    - product_analytics_instrumentation_key
+    - jitsu_host
+    - jitsu_project_xid
+    - jitsu_administrator_email
+    - jitsu_administrator_password
+    - encrypted_jitsu_administrator_password
+    - encrypted_jitsu_administrator_password_iv
+    - product_analytics_data_collector_host
+    - product_analytics_clickhouse_connection_string
+    - encrypted_product_analytics_clickhouse_connection_string
+    - encrypted_product_analytics_clickhouse_connection_string_iv
+    - cube_api_base_url
+    - cube_api_key
+    - encrypted_cube_api_key
+    - encrypted_cube_api_key_iv
+    - encrypted_product_analytics_configurator_connection_string
+    - encrypted_product_analytics_configurator_connection_string_iv
+    - product_analytics_configurator_connection_string
 
 build_service_desk_setting: # service_desk_setting
   unexposed_attributes:

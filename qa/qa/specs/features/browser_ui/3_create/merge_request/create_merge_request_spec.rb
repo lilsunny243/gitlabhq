@@ -3,12 +3,7 @@
 module QA
   RSpec.describe 'Create' do
     describe 'Create a new merge request', product_group: :code_review do
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project'
-        end
-      end
-
+      let(:project) { create(:project) }
       let(:merge_request_title) { 'One merge request to rule them all' }
       let(:merge_request_description) { '... to find them, to bring them all, and in the darkness bind them' }
 
@@ -40,14 +35,9 @@ module QA
       ) do
         gitlab_account_user_name = Resource::User.default.reload!.name
 
-        milestone = Resource::ProjectMilestone.fabricate_via_api! do |milestone|
-          milestone.project = project
-        end
+        milestone = create(:project_milestone, project: project)
 
-        label = Resource::ProjectLabel.fabricate_via_api! do |label|
-          label.project = project
-          label.title = 'label'
-        end
+        label = create(:project_label, project: project, title: 'foo::label')
 
         Resource::MergeRequest.fabricate_via_browser_ui! do |merge_request|
           merge_request.title = merge_request_title

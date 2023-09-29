@@ -8,7 +8,7 @@ unless Gitlab::Runtime.sidekiq?
     Rails.application.configure do
       config.lograge.enabled = true
       # Store the lograge JSON files in a separate file
-      config.lograge.keep_original_rails_log = Gitlab::Utils.to_boolean(ENV.fetch('UNSTRUCTURED_RAILS_LOG', 'false'))
+      config.lograge.keep_original_rails_log = Rails.env.development?
       # Don't use the Logstash formatter since this requires logstash-event, an
       # unmaintained gem that monkey patches `Time`
       config.lograge.formatter = Lograge::Formatters::Json.new
@@ -23,7 +23,7 @@ unless Gitlab::Runtime.sidekiq?
         # Remove empty hashes to prevent type mismatches
         # These are set to empty hashes in Lograge's ActionCable subscriber
         # https://github.com/roidrage/lograge/blob/v0.11.2/lib/lograge/log_subscribers/action_cable.rb#L14-L16
-        %i(method path format).each do |key|
+        %i[method path format].each do |key|
           data[key] = nil if data[key] == {}
         end
 

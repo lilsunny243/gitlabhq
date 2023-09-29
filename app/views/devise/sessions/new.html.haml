@@ -1,7 +1,12 @@
 - page_title _("Sign in")
+
 - content_for :page_specific_javascripts do
   = render "layouts/google_tag_manager_head"
   = render "layouts/one_trust"
+
+- content_for :sessions_broadcast do
+  = render "devise/sessions/broadcast"
+
 = render "layouts/google_tag_manager_body"
 
 #signin-container
@@ -26,5 +31,4 @@
       = _("Don't have an account yet?")
       = link_to _("Register now"), new_registration_path(:user, invite_email: @invite_email), data: { qa_selector: 'register_link' }
   - if omniauth_enabled? && devise_mapping.omniauthable? && button_based_providers_enabled?
-    .clearfix
-      = render 'devise/shared/omniauth_box'
+    = render 'devise/shared/omniauth_box'

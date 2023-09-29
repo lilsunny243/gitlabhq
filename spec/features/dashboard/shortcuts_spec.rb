@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard shortcuts', :js, feature_category: :not_owned do
+RSpec.describe 'Dashboard shortcuts', :js, feature_category: :shared do
   context 'logged in' do
     let(:user) { create(:user) }
     let(:project) { create(:project) }
@@ -20,7 +20,11 @@ RSpec.describe 'Dashboard shortcuts', :js, feature_category: :not_owned do
 
       find('body').send_keys([:shift, 'M'])
 
-      check_page_title('Merge requests')
+      check_page_title('Assigned merge requests')
+
+      find('body').send_keys([:shift, 'R'])
+
+      check_page_title('Review requests')
 
       find('body').send_keys([:shift, 'T'])
 
@@ -46,13 +50,13 @@ RSpec.describe 'Dashboard shortcuts', :js, feature_category: :not_owned do
 
   context 'logged out' do
     before do
+      stub_feature_flags(super_sidebar_logged_out: false)
       visit explore_root_path
     end
 
     it 'navigate to tabs' do
       find('body').send_keys([:shift, 'G'])
 
-      find('.nothing-here-block')
       expect(page).to have_content('No public groups')
 
       find('body').send_keys([:shift, 'S'])

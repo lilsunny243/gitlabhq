@@ -5,11 +5,15 @@ module UploadsActions
   include Gitlab::Utils::StrongMemoize
   include SendFileUpload
 
-  UPLOAD_MOUNTS = %w[avatar attachment file logo pwa_icon header_logo favicon].freeze
+  UPLOAD_MOUNTS = %w[avatar attachment file logo pwa_icon header_logo favicon screenshot].freeze
 
   included do
     prepend_before_action :set_request_format_from_path_extension
     rescue_from FileUploader::InvalidSecret, with: :render_404
+
+    rescue_from ::Gitlab::PathTraversal::PathTraversalAttackError do
+      head :bad_request
+    end
   end
 
   def create
@@ -33,6 +37,8 @@ module UploadsActions
   #   - or redirect to its URL
   #
   def show
+    Gitlab::PathTraversal.check_path_traversal!(params[:filename])
+
     return render_404 unless uploader&.exists?
 
     ttl, directives = *cache_settings
@@ -104,7 +110,7 @@ module UploadsActions
     if uploader_mounted?
       model.public_send(upload_mount) # rubocop:disable GitlabSecurity/PublicSend
     else
-      build_uploader_from_upload || build_uploader_from_params
+      build_uploader_from_upload
     end
   end
   strong_memoize_attr :uploader
@@ -118,13 +124,6 @@ module UploadsActions
     upload&.retrieve_uploader
   end
   # rubocop: enable CodeReuse/ActiveRecord
-
-  def build_uploader_from_params
-    return unless uploader = build_uploader
-
-    uploader.retrieve_from_store!(params[:filename])
-    uploader
-  end
 
   def build_uploader
     return unless params[:secret] && params[:filename]

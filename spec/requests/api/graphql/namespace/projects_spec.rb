@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting projects', feature_category: :projects do
+RSpec.describe 'getting projects', feature_category: :groups_and_projects do
   include GraphqlHelpers
 
   let(:group)             { create(:group) }
@@ -23,7 +23,7 @@ RSpec.describe 'getting projects', feature_category: :projects do
       projects(includeSubgroups: #{include_subgroups}) {
         edges {
           node {
-            #{all_graphql_fields_for('Project', max_depth: 1)}
+            #{all_graphql_fields_for('Project', max_depth: 1, excluded: ['productAnalyticsState'])}
           }
         }
       }

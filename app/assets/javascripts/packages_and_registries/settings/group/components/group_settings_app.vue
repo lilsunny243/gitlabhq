@@ -72,12 +72,13 @@ export default {
 </script>
 
 <template>
-  <div>
+  <div data-testid="packages-and-registries-group-settings">
     <gl-alert v-if="alertMessage" variant="warning" class="gl-mt-4" @dismiss="dismissAlert">
       {{ alertMessage }}
     </gl-alert>
 
     <packages-settings
+      class="settings-section-no-bottom"
       :package-settings="packageSettings"
       :is-loading="isLoading"
       @success="handleSuccess(2)"

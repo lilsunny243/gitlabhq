@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Packages::Cleanup::ExecutePolicyService do
+RSpec.describe Packages::Cleanup::ExecutePolicyService, feature_category: :package_registry do
   let_it_be(:project) { create(:project) }
   let_it_be_with_reload(:policy) { create(:packages_cleanup_policy, project: project) }
 
@@ -122,13 +122,13 @@ RSpec.describe Packages::Cleanup::ExecutePolicyService do
             def mock_service_timeout(on_iteration:)
               execute_call_count = 1
               expect_next_instances_of(::Packages::MarkPackageFilesForDestructionService, 3) do |service|
-                expect(service).to receive(:execute).and_wrap_original do |m, *args|
+                expect(service).to receive(:execute).and_wrap_original do |m, *args, **kwargs|
                   # timeout if we are on the right iteration
                   if execute_call_count == on_iteration
                     service_timeout_response
                   else
                     execute_call_count += 1
-                    m.call(*args)
+                    m.call(*args, **kwargs)
                   end
                 end
               end

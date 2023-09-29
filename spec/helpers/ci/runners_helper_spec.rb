@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::RunnersHelper do
+RSpec.describe Ci::RunnersHelper, feature_category: :runner_fleet do
   let_it_be(:user) { create(:user) }
 
   before do
@@ -35,6 +35,14 @@ RSpec.describe Ci::RunnersHelper do
       runner = create(:ci_runner, created_at: 4.months.ago)
       expect(helper.runner_status_icon(runner)).to include("is stale")
       expect(helper.runner_status_icon(runner)).to include("never contacted")
+    end
+  end
+
+  describe '#runner_short_name' do
+    it 'shows runner short name' do
+      runner = build_stubbed(:ci_runner, id: non_existing_record_id)
+
+      expect(helper.runner_short_name(runner)).to eq("##{runner.id} (#{runner.short_sha})")
     end
   end
 
@@ -75,29 +83,16 @@ RSpec.describe Ci::RunnersHelper do
   end
 
   describe '#admin_runners_data_attributes' do
-    let_it_be(:admin) { create(:user, :admin) }
-    let_it_be(:instance_runner) { create(:ci_runner, :instance) }
-    let_it_be(:project_runner) { create(:ci_runner, :project ) }
+    subject { helper.admin_runners_data_attributes }
 
-    before do
-      allow(helper).to receive(:current_user).and_return(admin)
-    end
-
-    it 'returns the data in format' do
-      expect(helper.admin_runners_data_attributes).to include(
-        runner_install_help_page: 'https://docs.gitlab.com/runner/install/',
-        registration_token: Gitlab::CurrentSettings.runners_registration_token,
-        online_contact_timeout_secs: 7200,
-        stale_timeout_secs: 7889238,
-        empty_state_svg_path: start_with('/assets/illustrations/pipelines_empty'),
-        empty_state_filtered_svg_path: start_with('/assets/illustrations/magnifying-glass')
-      )
-    end
+    it_behaves_like 'admin_runners_data_attributes contains data'
   end
 
   describe '#group_shared_runners_settings_data' do
     let_it_be(:parent) { create(:group) }
     let_it_be(:group) { create(:group, parent: parent, shared_runners_enabled: false) }
+    let_it_be(:group_with_project) { create(:group, parent: parent) }
+    let_it_be(:project) { create(:project, group: group_with_project) }
 
     let(:runner_constants) do
       {
@@ -107,10 +102,19 @@ RSpec.describe Ci::RunnersHelper do
       }
     end
 
+    before do
+      allow(helper).to receive(:can?).with(user, :admin_group, parent).and_return(true)
+    end
+
     it 'returns group data for top level group' do
       result = {
         group_id: parent.id,
+        group_name: parent.name,
+        group_is_empty: 'false',
         shared_runners_setting: Namespace::SR_ENABLED,
+
+        parent_name: nil,
+        parent_settings_path: nil,
         parent_shared_runners_setting: nil
       }.merge(runner_constants)
 
@@ -120,11 +124,48 @@ RSpec.describe Ci::RunnersHelper do
     it 'returns group data for child group' do
       result = {
         group_id: group.id,
+        group_name: group.name,
+        group_is_empty: 'true',
         shared_runners_setting: Namespace::SR_DISABLED_AND_UNOVERRIDABLE,
-        parent_shared_runners_setting: Namespace::SR_ENABLED
+
+        parent_shared_runners_setting: Namespace::SR_ENABLED,
+        parent_name: parent.name,
+        parent_settings_path: group_settings_ci_cd_path(group.parent, anchor: 'runners-settings')
       }.merge(runner_constants)
 
       expect(helper.group_shared_runners_settings_data(group)).to eq result
+    end
+
+    it 'returns groups data for child group with no access to parent' do
+      allow(helper).to receive(:can?).with(user, :admin_group, parent).and_return(false)
+
+      result = {
+        group_id: group.id,
+        group_name: group.name,
+        group_is_empty: 'true',
+        shared_runners_setting: Namespace::SR_DISABLED_AND_UNOVERRIDABLE,
+
+        parent_shared_runners_setting: Namespace::SR_ENABLED,
+        parent_name: nil,
+        parent_settings_path: nil
+      }.merge(runner_constants)
+
+      expect(helper.group_shared_runners_settings_data(group)).to eq result
+    end
+
+    it 'returns group data for child group with project' do
+      result = {
+        group_id: group_with_project.id,
+        group_name: group_with_project.name,
+        group_is_empty: 'false',
+        shared_runners_setting: Namespace::SR_ENABLED,
+
+        parent_shared_runners_setting: Namespace::SR_ENABLED,
+        parent_name: parent.name,
+        parent_settings_path: group_settings_ci_cd_path(group.parent, anchor: 'runners-settings')
+      }.merge(runner_constants)
+
+      expect(helper.group_shared_runners_settings_data(group_with_project)).to eq result
     end
   end
 
@@ -142,9 +183,7 @@ RSpec.describe Ci::RunnersHelper do
           group_full_path: group.full_path,
           runner_install_help_page: 'https://docs.gitlab.com/runner/install/',
           online_contact_timeout_secs: 7200,
-          stale_timeout_secs: 7889238,
-          empty_state_svg_path: start_with('/assets/illustrations/pipelines_empty'),
-          empty_state_filtered_svg_path: start_with('/assets/illustrations/magnifying-glass')
+          stale_timeout_secs: 7889238
         )
       end
     end
@@ -168,8 +207,28 @@ RSpec.describe Ci::RunnersHelper do
 
     context 'when project has runners' do
       it 'returns the correct value for is_enabled' do
+        allow(helper).to receive(:can?).with(user, :admin_group, group).and_return(false)
+
         data = helper.toggle_shared_runners_settings_data(project_with_runners)
-        expect(data[:is_enabled]).to eq("true")
+
+        expect(data).to include(
+          is_enabled: 'true',
+          group_name: nil,
+          group_settings_path: nil
+        )
+      end
+    end
+
+    context 'when group can be configured by user' do
+      it 'returns values to configure group' do
+        allow(helper).to receive(:can?).with(user, :admin_group, group).and_return(true)
+
+        data = helper.toggle_shared_runners_settings_data(project_with_runners)
+
+        expect(data).to include(
+          group_name: group.name,
+          group_settings_path: group_settings_ci_cd_path(group, anchor: 'runners-settings')
+        )
       end
     end
 
@@ -196,9 +255,9 @@ RSpec.describe Ci::RunnersHelper do
       using RSpec::Parameterized::TableSyntax
 
       where(:shared_runners_setting, :is_disabled_and_unoverridable) do
-        :shared_runners_enabled     | "false"
-        :disabled_and_overridable   | "false"
-        :disabled_and_unoverridable | "true"
+        :shared_runners_enabled                    | "false"
+        :shared_runners_disabled_and_overridable   | "false"
+        :shared_runners_disabled_and_unoverridable | "true"
       end
 
       with_them do

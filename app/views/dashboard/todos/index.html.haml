@@ -1,9 +1,8 @@
-- @hide_top_links = true
 - page_title _("To-Do List")
-- header_title _("To-Do List"), dashboard_todos_path
 
 = render_two_factor_auth_recovery_settings_check
 = render_dashboard_ultimate_trial(current_user)
+= render_if_exists 'dashboard/todos/saml_reauth_notice'
 - add_page_specific_style 'page_bundles/todos'
 - add_page_specific_style 'page_bundles/issuable'
 
@@ -37,7 +36,7 @@
           .filter-item.gl-m-2
             - if params[:group_id].present?
               = hidden_field_tag(:group_id, params[:group_id])
-            = dropdown_tag(group_dropdown_label(params[:group_id], _("Group")), options: { toggle_class: 'js-group-search js-filter-submit gl-xs-w-full!', title: s_("Todos|Filter by group"), filter: true, filterInput: 'input#group-search', dropdown_class: 'dropdown-menu-selectable dropdown-menu-group js-filter-submit', placeholder: _("Search groups"), data: { default_label: _("Group"), display: 'static', qa_selector: 'group_dropdown' } })
+            = dropdown_tag(group_dropdown_label(params[:group_id], _("Group")), options: { toggle_class: 'js-group-search js-filter-submit gl-xs-w-full!', title: s_("Todos|Filter by group"), filter: true, filterInput: 'input#group-search', dropdown_class: 'dropdown-menu-selectable dropdown-menu-group js-filter-submit', placeholder: _("Search groups"), data: { default_label: _("Group"), display: 'static', testid: 'group-dropdown' } })
           .filter-item.gl-m-2
             - if params[:project_id].present?
               = hidden_field_tag(:project_id, params[:project_id])
@@ -54,7 +53,7 @@
             - if params[:action_id].present?
               = hidden_field_tag(:action_id, params[:action_id])
             = dropdown_tag(todo_actions_dropdown_label(params[:action_id], _("Action")), options: { toggle_class: 'js-action-search js-filter-submit gl-xs-w-full!', dropdown_class: 'dropdown-menu-selectable dropdown-menu-action js-filter-submit', data: { data: todo_actions_options, default_label: _("Action") } })
-        .filter-item.sort-filter.gl-mt-3.gl-sm-mt-0.gl-mb-0.gl-sm-mb-0
+        .filter-item.sort-filter.gl-my-2
           .dropdown
             %button.dropdown-menu-toggle.dropdown-menu-toggle-sort{ type: 'button', class: 'gl-xs-w-full!', 'data-toggle' => 'dropdown' }
               %span.light
@@ -62,7 +61,7 @@
                 = sort_options_hash[@sort]
               - else
                 = sort_title_recently_created
-              = sprite_icon('chevron-down', css_class: 'dropdown-menu-toggle-icon gl-top-3')
+              = sprite_icon('chevron-down', css_class: 'dropdown-menu-toggle-icon')
             %ul.dropdown-menu.dropdown-menu-sort.dropdown-menu-right
               %li
                 = link_to todos_filter_path(sort: sort_value_label_priority) do
@@ -82,15 +81,15 @@
           = render @allowed_todos
       = paginate @todos, theme: "gitlab"
     .js-nothing-here-container.empty-state.hidden
-      .svg-content
-        = image_tag 'illustrations/todos_all_done.svg'
+      .svg-content.svg-150
+        = image_tag 'illustrations/empty-todos-all-done-md.svg'
       .text-content.gl-text-center
         %h4
           = s_("Todos|You're all done!")
   - elsif current_user.todos.any?
     .col.todos-all-done.empty-state
-      .svg-content.svg-250
-        = image_tag 'illustrations/todos_all_done.svg'
+      .svg-content.svg-150
+        = image_tag 'illustrations/empty-todos-all-done-md.svg'
       .text-content.gl-text-center
         - if todos_filter_empty?
           %h4
@@ -102,8 +101,8 @@
             = s_("Todos|Nothing is on your to-do list. Nice work!")
   - else
     .col.empty-state
-      .svg-content
-        = image_tag 'illustrations/todos_empty.svg'
+      .svg-content.svg-150
+        = image_tag 'illustrations/empty-todos-md.svg'
       .text-content.gl-text-center
         %h4
           = s_("Todos|Your To-Do List shows what to work on next")

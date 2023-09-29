@@ -5,6 +5,7 @@ require 'mime/types'
 module API
   class Repositories < ::API::Base
     include PaginationParams
+    include Helpers::Unidiff
 
     content_type :txt, 'text/plain'
 
@@ -41,7 +42,7 @@ module API
       end
     end
 
-    before { authorize! :read_code, user_project }
+    before { authorize_read_code! }
 
     feature_category :source_code_management
 
@@ -63,7 +64,7 @@ module API
         end
 
         def assign_blob_vars!(limit:)
-          authorize! :read_code, user_project
+          authorize_read_code!
 
           @repo = user_project.repository
 
@@ -95,6 +96,10 @@ module API
             params
           ]
         end
+
+        def rescue_not_found?
+          Feature.disabled?(:handle_structured_gitaly_errors)
+        end
       end
 
       desc 'Get a project repository tree' do
@@ -108,7 +113,7 @@ module API
         optional :recursive, type: Boolean, default: false, desc: 'Used to get a recursive tree'
 
         use :pagination
-        optional :pagination, type: String, values: %w(legacy keyset none), default: 'legacy', desc: 'Specify the pagination method ("none" is only valid if "recursive" is true)'
+        optional :pagination, type: String, values: %w[legacy keyset none], default: 'legacy', desc: 'Specify the pagination method ("none" is only valid if "recursive" is true)'
 
         given pagination: ->(value) { value == 'keyset' } do
           optional :page_token, type: String,
@@ -123,13 +128,16 @@ module API
         end
       end
       get ':id/repository/tree', urgency: :low do
-        tree_finder = ::Repositories::TreeFinder.new(user_project, declared_params(include_missing: false))
+        tree_finder = ::Repositories::TreeFinder.new(user_project, declared_params(include_missing: false).merge(rescue_not_found: rescue_not_found?))
 
         not_found!("Tree") unless tree_finder.commit_exists?
 
         tree = Gitlab::Pagination::GitalyKeysetPager.new(self, user_project).paginate(tree_finder)
 
         present tree, with: Entities::TreeObject
+
+      rescue Gitlab::Git::Index::IndexError => e
+        not_found!(e.message)
       end
 
       desc 'Get raw blob contents from the repository'
@@ -195,6 +203,7 @@ module API
                       documentation: { example: 'feature' }
         optional :from_project_id, type: Integer, desc: 'The project to compare from', documentation: { example: 1 }
         optional :straight, type: Boolean, desc: 'Comparison method, `true` for direct comparison between `from` and `to` (`from`..`to`), `false` to compare using merge base (`from`...`to`)', default: false
+        use :with_unidiff
       end
       get ':id/repository/compare', urgency: :low do
         target_project = fetch_target_project(current_user, user_project, params)
@@ -203,13 +212,17 @@ module API
           render_api_error!("Target project id:#{params[:from_project_id]} is not a fork of project id:#{params[:id]}", 400)
         end
 
+        unless can?(current_user, :read_code, target_project)
+          forbidden!("You don't have access to this fork's parent project")
+        end
+
         cache_key = compare_cache_key(current_user, user_project, target_project, declared_params)
 
         cache_action(cache_key, expires_in: 1.minute) do
           compare = CompareService.new(user_project, params[:to]).execute(target_project, params[:from], straight: params[:straight])
 
           if compare
-            present compare, with: Entities::Compare, current_user: current_user
+            present compare, with: Entities::Compare, current_user: current_user, enable_unidiff: declared_params[:unidiff]
           else
             not_found!("Ref")
           end

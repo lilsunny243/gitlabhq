@@ -15,12 +15,9 @@ class GitlabSchema < GraphQL::Schema
   use Gitlab::Graphql::Tracers::MetricsTracer
   use Gitlab::Graphql::Tracers::LoggerTracer
 
-  # TODO: Old tracer which will be removed eventually
-  #       See https://gitlab.com/gitlab-org/gitlab/-/issues/345396
-  use Gitlab::Graphql::GenericTracing
   use Gitlab::Graphql::Tracers::TimerTracer
 
-  use GraphQL::Subscriptions::ActionCableSubscriptions
+  use Gitlab::Graphql::Subscriptions::ActionCableWithLoadBalancing
   use BatchLoader::GraphQL
   use Gitlab::Graphql::Pagination::Connections
   use Gitlab::Graphql::Timeout, max_seconds: Gitlab.config.gitlab.graphql_timeout
@@ -148,6 +145,12 @@ class GitlabSchema < GraphQL::Schema
     # ```
     def parse_gids(global_ids, ctx = {})
       global_ids.map { |gid| parse_gid(gid, ctx) }
+    end
+
+    def unauthorized_field(error)
+      return error.field.if_unauthorized if error.field.respond_to?(:if_unauthorized) && error.field.if_unauthorized
+
+      super
     end
 
     private

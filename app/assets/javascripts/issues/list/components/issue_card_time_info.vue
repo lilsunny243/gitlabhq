@@ -10,6 +10,8 @@ import {
   newDateAsLocaleTime,
 } from '~/lib/utils/datetime_utility';
 import { __ } from '~/locale';
+import { STATE_CLOSED } from '~/work_items/constants';
+import { isMilestoneWidget, isStartAndDueDateWidget } from '~/work_items/utils';
 
 export default {
   components: {
@@ -26,9 +28,12 @@ export default {
     },
   },
   computed: {
+    milestone() {
+      return this.issue.milestone || this.issue.widgets?.find(isMilestoneWidget)?.milestone;
+    },
     milestoneDate() {
-      if (this.issue.milestone?.dueDate) {
-        const { dueDate, startDate } = this.issue.milestone;
+      if (this.milestone.dueDate) {
+        const { dueDate, startDate } = this.milestone;
         const date = dateInWords(newDateAsLocaleTime(dueDate), true);
         const remainingTime = this.milestoneRemainingTime(dueDate, startDate);
         return `${date} (${remainingTime})`;
@@ -36,15 +41,19 @@ export default {
       return __('Milestone');
     },
     milestoneLink() {
-      return this.issue.milestone.webPath || this.issue.milestone.webUrl;
+      return this.milestone.webPath || this.milestone.webUrl;
     },
     dueDate() {
-      return this.issue.dueDate && dateInWords(newDateAsLocaleTime(this.issue.dueDate), true);
+      return this.issue.dueDate || this.issue.widgets?.find(isStartAndDueDateWidget)?.dueDate;
+    },
+    dueDateText() {
+      return this.dueDate && dateInWords(newDateAsLocaleTime(this.dueDate), true);
+    },
+    isClosed() {
+      return this.issue.state === STATUS_CLOSED || this.issue.state === STATE_CLOSED;
     },
     showDueDateInRed() {
-      return (
-        isInPast(newDateAsLocaleTime(this.issue.dueDate)) && this.issue.state !== STATUS_CLOSED
-      );
+      return isInPast(newDateAsLocaleTime(this.dueDate)) && !this.isClosed;
     },
     timeEstimate() {
       return this.issue.humanTimeEstimate || this.issue.timeStats?.humanTimeEstimate;
@@ -57,11 +66,14 @@ export default {
 
       if (dueDate && isInPast(due)) {
         return __('Past due');
-      } else if (dueDate && isToday(due)) {
+      }
+      if (dueDate && isToday(due)) {
         return __('Today');
-      } else if (startDate && isInFuture(start)) {
+      }
+      if (startDate && isInFuture(start)) {
         return __('Upcoming');
-      } else if (dueDate) {
+      }
+      if (dueDate) {
         return getTimeRemainingInWords(due);
       }
       return '';
@@ -73,25 +85,30 @@ export default {
 <template>
   <span>
     <span
-      v-if="issue.milestone"
-      class="issuable-milestone gl-mr-3"
+      v-if="milestone"
+      class="issuable-milestone gl-mr-3 gl-text-truncate gl-max-w-26 gl-display-inline-block gl-vertical-align-bottom"
       data-testid="issuable-milestone"
     >
-      <gl-link v-gl-tooltip :href="milestoneLink" :title="milestoneDate">
-        <gl-icon name="clock" />
-        {{ issue.milestone.title }}
+      <gl-link
+        v-gl-tooltip
+        :href="milestoneLink"
+        :title="milestoneDate"
+        class="gl-font-sm gl-text-gray-500!"
+      >
+        <gl-icon name="clock" :size="12" />
+        {{ milestone.title }}
       </gl-link>
     </span>
     <span
-      v-if="issue.dueDate"
+      v-if="dueDate"
       v-gl-tooltip
       class="issuable-due-date gl-mr-3"
       :class="{ 'gl-text-red-500': showDueDateInRed }"
       :title="__('Due date')"
       data-testid="issuable-due-date"
     >
-      <gl-icon name="calendar" />
-      {{ dueDate }}
+      <gl-icon name="calendar" :size="12" />
+      {{ dueDateText }}
     </span>
     <span
       v-if="timeEstimate"
@@ -100,7 +117,7 @@ export default {
       :title="__('Estimate')"
       data-testid="time-estimate"
     >
-      <gl-icon name="timer" />
+      <gl-icon name="timer" :size="12" />
       {{ timeEstimate }}
     </span>
     <slot></slot>

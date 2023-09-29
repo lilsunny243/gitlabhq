@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Use Auto DevOps to deploy an application to Google Kubernetes Engine **(FREE)**
+# Use Auto DevOps to deploy an application to Google Kubernetes Engine **(FREE ALL)**
 
 In this tutorial, we'll help you to get started with [Auto DevOps](../index.md)
 through an example of how to deploy an application to Google Kubernetes Engine (GKE).
@@ -62,8 +62,7 @@ those projects provide a bare-bones application built on some well-known framewo
 WARNING:
 Create the application project in the group hierarchy at the same level or below the project for cluster management. Otherwise, it fails to [authorize the agent](../../../user/clusters/agent/ci_cd_workflow.md#authorize-the-agent).
 
-1. On the top bar in GitLab, select the plus icon (**{plus-square}**), and select
-   **New project/repository**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create from template**.
 1. Select the **Ruby on Rails** template.
 1. Give your project a name, optionally a description, and make it public so that
@@ -137,8 +136,8 @@ While Auto DevOps is enabled by default, Auto DevOps can be disabled at both
 the instance level (for self-managed instances) and the group level. Complete
 these steps to enable Auto DevOps if it's disabled:
 
-1. On the top bar, select **Main menu > Projects** and find the application project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find the application project.
+1. Select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Select **Default to Auto DevOps pipeline** to display more options.
 1. In **Deployment strategy**, select your desired [continuous deployment strategy](../requirements.md#auto-devops-deployment-strategy)
@@ -183,9 +182,8 @@ The jobs are separated into stages:
   - Jobs suffixed with `-sast` run static analysis on the current code to check for potential
     security issues, and are allowed to fail ([Auto SAST](../stages.md#auto-sast))
   - The `secret-detection` job checks for leaked secrets and is allowed to fail ([Auto Secret Detection](../stages.md#auto-secret-detection))
-  - The `license_scanning` job searches the application's dependencies to determine each of their
-    licenses and is allowed to fail
-    ([Auto License Compliance](../stages.md#auto-license-compliance))
+  - The `license_scanning` job is deprecated and does not produce any results. It is allowed to fail
+    ([Auto License Compliance](../stages.md#auto-license-compliance-deprecated))
 
 - **Review** - Pipelines on the default branch include this stage with a `dast_environment_deploy` job.
   For more information, see [Dynamic Application Security Testing (DAST)](../../../user/application_security/dast/index.md).
@@ -205,7 +203,7 @@ to monitor it.
 
 After successfully deploying your application, you can view its website and check
 on its health on the **Environments** page by navigating to
-**Deployments > Environments**. This page displays details about
+**Operate > Environments**. This page displays details about
 the deployed applications, and the right-hand column displays icons that link
 you to common environment tasks:
 
@@ -221,7 +219,7 @@ you to common environment tasks:
 - **Re-deploy to environment** (**{repeat}**) - For more information, see
   [Retrying and rolling back](../../../ci/environments/index.md#retry-or-roll-back-a-deployment)
 - **Stop environment** (**{stop}**) - For more information, see
-  [Stopping an environment](../../../ci/environments/index.md#stop-an-environment)
+  [Stopping an environment](../../../ci/environments/index.md#stopping-an-environment)
 
 GitLab displays the [deploy board](../../../user/project/deploy_boards.md) below the
 environment's information, with squares representing pods in your
@@ -236,8 +234,7 @@ in **Settings > CI/CD > Variables**.
 
 ### Work with branches
 
-Following the [GitLab flow](../../gitlab_flow.md#working-with-feature-branches),
-you should next create a feature branch to add content to your application:
+Next, create a feature branch to add content to your application:
 
 1. In your project's repository, go to the following file: `app/views/welcome/index.html.erb`.
    This file should only contain a paragraph: `<p>You're on Rails!</p>`.
@@ -303,4 +300,3 @@ and customized to fit your workflow. Here are some helpful resources for further
 1. [Incremental rollout to production](../cicd_variables.md#incremental-rollout-to-production)
 1. [Disable jobs you don't need with CI/CD variables](../cicd_variables.md)
 1. [Use your own buildpacks to build your application](../customize.md#custom-buildpacks)
-1. [Prometheus monitoring](../../../user/project/integrations/prometheus.md)

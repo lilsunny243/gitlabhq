@@ -2,6 +2,7 @@ import { GlToggle, GlAlert } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mockTracking } from 'helpers/tracking_helper';
 import waitForPromises from 'helpers/wait_for_promises';
@@ -24,10 +25,6 @@ describe('Edit feature flag form', () => {
   });
 
   const factory = (provide = { searchPath: '/search' }) => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
     wrapper = shallowMount(EditFeatureFlag, {
       store,
       provide,
@@ -53,7 +50,6 @@ describe('Edit feature flag form', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     mock.restore();
   });
 

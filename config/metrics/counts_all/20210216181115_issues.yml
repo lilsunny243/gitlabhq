@@ -5,7 +5,6 @@ description: Count of users creating Issues
 product_section: dev
 product_stage: plan
 product_group: project_management
-product_category: issue_tracking
 value_type: number
 status: active
 time_frame: all
@@ -18,4 +17,6 @@ tier:
 - free
 - premium
 - ultimate
+performance_indicator_type:
+- customer_health_score
 milestone: "<13.9"

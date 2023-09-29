@@ -45,7 +45,7 @@ static-verification-with-database:
     - .static-analysis-base
     - .rubocop-job-cache
     - .static-analysis:rules:static-verification-with-database
-    - .use-pg12
+    - .use-pg14
   script:
     - bundle exec rake lint:static_verification_with_database
   variables:
@@ -64,6 +64,7 @@ generate-apollo-graphql-schema:
   script:
     - apollo client:download-schema --config=config/apollo.config.js ${GRAPHQL_SCHEMA_APOLLO_FILE}
   artifacts:
+    expire_in: 30 days
     name: graphql-schema-apollo
     paths:
       - "${GRAPHQL_SCHEMA_APOLLO_FILE}"
@@ -134,7 +135,7 @@ rubocop:
         unset CI_SLACK_WEBHOOK_URL
         run_timed_command "fail_on_warnings bundle exec rake rubocop:check:graceful"
       else
-        cat "${RSPEC_CHANGED_FILES_PATH}" | ruby -e 'print $stdin.read.split(" ").select { |f| File.exist?(f) }.join(" ")' > "$RUBOCOP_TARGET_FILES"
+        select_existing_files < "${RSPEC_CHANGED_FILES_PATH}" > "${RUBOCOP_TARGET_FILES}"
         # Skip running RuboCop if there's no target files
         if [ -s "${RUBOCOP_TARGET_FILES}" ]; then
           run_timed_command "fail_on_warnings bundle exec rubocop --parallel --force-exclusion $(cat ${RUBOCOP_TARGET_FILES})"
@@ -193,14 +194,16 @@ semgrep-appsec-custom-rules:
   script:
     # Required to avoid a timeout https://github.com/returntocorp/semgrep/issues/5395
     - git fetch origin master
+    - git clone $CUSTOM_RULES_REPOSITORY "${CI_BUILDS_DIR}/sast-custom-rules"
     # Include/exclude list isn't ideal https://github.com/returntocorp/semgrep/issues/5399
     - |
-      semgrep ci --gitlab-sast --metrics off --config $CUSTOM_RULES_URL \
+      semgrep ci --gitlab-sast --metrics off --config "${CI_BUILDS_DIR}/sast-custom-rules" \
         --include app --include lib --include workhorse \
         --exclude '*_test.go' --exclude spec --exclude qa > gl-sast-report.json || true
   variables:
-    CUSTOM_RULES_URL: https://gitlab.com/gitlab-com/gl-security/appsec/sast-custom-rules/-/raw/main/appsec-pings/rules.yml
+    CUSTOM_RULES_REPOSITORY: https://gitlab.com/gitlab-com/gl-security/appsec/sast-custom-rules.git
   artifacts:
+    expire_in: 30 days
     paths:
       - gl-sast-report.json
 
@@ -211,9 +214,37 @@ ping-appsec-for-sast-findings:
     - .ping-appsec-for-sast-findings:rules
   variables:
     # Project Access Token bot ID for /gitlab-com/gl-security/appsec/sast-custom-rules
-    BOT_USER_ID: 13559989
+    BOT_USER_ID: 14406065
   needs:
     - semgrep-appsec-custom-rules
   script:
     - apk add jq curl
     - scripts/process_custom_semgrep_results.sh
+
+trigger-depsaster:
+  extends: .static-analysis:rules:trigger-depsaster
+  stage: lint
+  variables:
+    MERGE_REQUEST_PROJECT_ID: $CI_MERGE_REQUEST_PROJECT_ID
+    MERGE_REQUEST_IID: $CI_MERGE_REQUEST_IID
+  trigger:
+    project: "gitlab-com/gl-security/appsec/tooling/depsaster"
+  allow_failure: true
+
+ping-appsec-for-dependency-review:
+  stage: lint
+  needs: []
+  variables:
+    GIT_CHECKOUT: "false"
+    DISABLE_MENTIONS: "false"
+    DISABLE_SCORING: "true"
+    DISABLE_COMMENTING: "false"
+    DEPENDENCY_REVIEW_BOT_CI_REG: "${CI_REGISTRY}/gitlab-com/gl-security/appsec/tooling/depscore/master"
+  extends: [".ping-appsec-for-dependency-review:rules", ".use-docker-in-docker"]
+  before_script:
+    - apk add jq curl
+    - DEPENDENCY_REVIEW_BOT_UNAME=$(curl --header "PRIVATE-TOKEN:$DEPENDENCY_REVIEW_PAT" "https://gitlab.com/api/v4/user" | jq -r '.username')
+    - echo "$DEPENDENCY_REVIEW_PAT" | docker login --password-stdin -u "$DEPENDENCY_REVIEW_BOT_UNAME" -- "$DEPENDENCY_REVIEW_BOT_CI_REG"
+  script:
+    - docker run --interactive --rm "$DEPENDENCY_REVIEW_BOT_CI_REG:latest" -t "$DEPENDENCY_REVIEW_PAT" -p "$CI_PROJECT_ID" -m "$CI_MERGE_REQUEST_IID" -s "$DISABLE_SCORING" -a "$DISABLE_MENTIONS" -c "$DISABLE_COMMENTING"
+  allow_failure: true

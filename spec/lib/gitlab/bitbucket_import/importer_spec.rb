@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integrations do
+RSpec.describe Gitlab::BitbucketImport::Importer, :clean_gitlab_redis_cache, feature_category: :importers do
   include ImportSpecHelper
 
   before do
@@ -92,6 +92,7 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
 
   describe '#import_pull_requests' do
     let(:source_branch_sha) { sample.commits.last }
+    let(:merge_commit_sha) { sample.commits.second }
     let(:target_branch_sha) { sample.commits.first }
     let(:pull_request) do
       instance_double(
@@ -101,13 +102,17 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
         source_branch_name: Gitlab::Git::BRANCH_REF_PREFIX + sample.source_branch,
         target_branch_sha: target_branch_sha,
         target_branch_name: Gitlab::Git::BRANCH_REF_PREFIX + sample.target_branch,
+        merge_commit_sha: merge_commit_sha,
         title: 'This is a title',
         description: 'This is a test pull request',
         state: 'merged',
-        author: 'other',
+        author: pull_request_author,
         created_at: Time.now,
         updated_at: Time.now)
     end
+
+    let(:pull_request_author) { 'other' }
+    let(:comments) { [@inline_note, @reply] }
 
     let(:author_line) { "*Created by: someuser*\n\n" }
 
@@ -141,8 +146,6 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
         has_parent?: true,
         parent_id: 2)
 
-      comments = [@inline_note, @reply]
-
       allow(subject.client).to receive(:repo)
       allow(subject.client).to receive(:pull_requests).and_return([pull_request])
       allow(subject.client).to receive(:pull_request_comments).with(anything, pull_request.iid).and_return(comments)
@@ -168,6 +171,16 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
       expect(reply_note.note).to include(author_line)
     end
 
+    context 'when author is blank' do
+      let(:pull_request_author) { nil }
+
+      it 'adds created by anonymous in the description', :aggregate_failures do
+        expect { subject.execute }.to change { MergeRequest.count }.by(1)
+
+        expect(MergeRequest.first.description).to include('Created by: Anonymous')
+      end
+    end
+
     context 'when user exists in GitLab' do
       let!(:existing_user) { create(:user, username: 'someuser') }
       let!(:identity) { create(:identity, provider: 'bitbucket', extern_uid: existing_user.username, user: existing_user) }
@@ -188,6 +201,12 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
       end
     end
 
+    it 'calls RefConverter to convert Bitbucket refs to Gitlab refs' do
+      expect(subject.instance_values['ref_converter']).to receive(:convert_note).twice
+
+      subject.execute
+    end
+
     context 'when importing a pull request throws an exception' do
       before do
         allow(pull_request).to receive(:raw).and_return({ error: "broken" })
@@ -205,16 +224,39 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
       end
     end
 
-    context "when branches' sha is not found in the repository" do
+    context 'when source SHA is not found in the repository' do
       let(:source_branch_sha) { 'a' * Commit::MIN_SHA_LENGTH }
-      let(:target_branch_sha) { 'b' * Commit::MIN_SHA_LENGTH }
+      let(:target_branch_sha) { 'c' * Commit::MIN_SHA_LENGTH }
 
-      it 'uses the pull request sha references' do
+      it 'uses merge commit SHA for source' do
         expect { subject.execute }.to change { MergeRequest.count }.by(1)
 
         merge_request_diff = MergeRequest.first.merge_request_diff
-        expect(merge_request_diff.head_commit_sha).to eq source_branch_sha
+        expect(merge_request_diff.head_commit_sha).to eq merge_commit_sha
         expect(merge_request_diff.start_commit_sha).to eq target_branch_sha
+      end
+
+      context 'when the merge commit SHA is also not found' do
+        let(:merge_commit_sha) { 'b' * Commit::MIN_SHA_LENGTH }
+
+        it 'uses the pull request sha references' do
+          expect { subject.execute }.to change { MergeRequest.count }.by(1)
+
+          merge_request_diff = MergeRequest.first.merge_request_diff
+          expect(merge_request_diff.head_commit_sha).to eq source_branch_sha
+          expect(merge_request_diff.start_commit_sha).to eq target_branch_sha
+        end
+      end
+    end
+
+    context "when target_branch_sha is blank" do
+      let(:target_branch_sha) { nil }
+
+      it 'creates the merge request with no target branch', :aggregate_failures do
+        expect { subject.execute }.to change { MergeRequest.count }.by(1)
+
+        merge_request = MergeRequest.first
+        expect(merge_request.target_branch_sha).to eq(nil)
       end
     end
 
@@ -233,6 +275,29 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
         expect(counter).to receive(:increment)
 
         subject.execute
+      end
+    end
+
+    context 'when pull request was already imported' do
+      let(:pull_request_already_imported) do
+        instance_double(
+          BitbucketServer::Representation::PullRequest,
+          iid: 11)
+      end
+
+      let(:cache_key) do
+        format(described_class::ALREADY_IMPORTED_CACHE_KEY, project: project.id, collection: :pull_requests)
+      end
+
+      before do
+        allow(subject.client).to receive(:pull_requests).and_return([pull_request, pull_request_already_imported])
+        Gitlab::Cache::Import::Caching.set_add(cache_key, pull_request_already_imported.iid)
+      end
+
+      it 'does not import the previously imported pull requests', :aggregate_failures do
+        expect { subject.execute }.to change { MergeRequest.count }.by(1)
+
+        expect(Gitlab::Cache::Import::Caching.set_includes?(cache_key, pull_request.iid)).to eq(true)
       end
     end
   end
@@ -324,6 +389,12 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
           expect(label_after_import.attributes).to eq(existing_label.attributes)
         end
       end
+
+      it 'raises an error if a label is not valid' do
+        stub_const("#{described_class}::LABELS", [{ title: nil, color: nil }])
+
+        expect { importer.create_labels }.to raise_error(StandardError, /Failed to create label/)
+      end
     end
 
     it 'maps statuses to open or closed' do
@@ -358,7 +429,7 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
 
     describe 'issue import' do
       it 'allocates internal ids' do
-        expect(Issue).to receive(:track_project_iid!).with(project, 6)
+        expect(Issue).to receive(:track_namespace_iid!).with(project.project_namespace, 6)
 
         importer.execute
       end
@@ -384,25 +455,50 @@ RSpec.describe Gitlab::BitbucketImport::Importer, feature_category: :integration
       end
 
       context 'with issue comments' do
+        let(:note) { 'Hello world' }
         let(:inline_note) do
-          instance_double(Bitbucket::Representation::Comment, note: 'Hello world', author: 'someuser', created_at: Time.now, updated_at: Time.now)
+          instance_double(Bitbucket::Representation::Comment, note: note, author: 'someuser', created_at: Time.now, updated_at: Time.now)
         end
 
         before do
           allow_next_instance_of(Bitbucket::Client) do |instance|
             allow(instance).to receive(:issue_comments).and_return([inline_note])
           end
+          allow(importer).to receive(:import_wiki)
         end
 
         it 'imports issue comments' do
-          allow(importer).to receive(:import_wiki)
           importer.execute
 
           comment = project.notes.first
           expect(project.notes.size).to eq(7)
-          expect(comment.note).to include(inline_note.note)
+          expect(comment.note).to include(note)
           expect(comment.note).to include(inline_note.author)
           expect(importer.errors).to be_empty
+        end
+
+        it 'calls RefConverter to convert Bitbucket refs to Gitlab refs' do
+          expect(importer.instance_values['ref_converter']).to receive(:convert_note).exactly(7).times
+
+          importer.execute
+        end
+      end
+
+      context 'when issue was already imported' do
+        let(:cache_key) do
+          format(described_class::ALREADY_IMPORTED_CACHE_KEY, project: project.id, collection: :issues)
+        end
+
+        before do
+          Gitlab::Cache::Import::Caching.set_add(cache_key, sample_issues_statuses.first[:id])
+        end
+
+        it 'does not import previously imported issues', :aggregate_failures do
+          expect { subject.execute }.to change { Issue.count }.by(sample_issues_statuses.size - 1)
+
+          sample_issues_statuses.each do |sample_issues_status|
+            expect(Gitlab::Cache::Import::Caching.set_includes?(cache_key, sample_issues_status[:id])).to eq(true)
+          end
         end
       end
     end

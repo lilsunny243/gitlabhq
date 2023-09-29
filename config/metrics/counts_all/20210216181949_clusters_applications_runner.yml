@@ -5,7 +5,7 @@ description: Count of users creating managed clusters with Runner enabled
 product_section: ops
 product_stage: configure
 product_group: configure
-product_category: kubernetes_management
+product_category: deployment_management
 value_type: number
 status: removed
 time_frame: all
@@ -19,3 +19,4 @@ tier:
 - ultimate
 milestone: "<13.9"
 milestone_removed: "14.4"
+removed_by_url:

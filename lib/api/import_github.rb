@@ -20,7 +20,10 @@ module API
       end
 
       def access_params
-        { github_access_token: params[:personal_access_token] }
+        {
+          github_access_token: params[:personal_access_token],
+          additional_access_tokens: params[:additional_access_tokens]
+        }
       end
 
       def client_options
@@ -59,6 +62,13 @@ module API
       requires :target_namespace, type: String, allow_blank: false, desc: 'Namespace or group to import repository into'
       optional :github_hostname, type: String, desc: 'Custom GitHub enterprise hostname'
       optional :optional_stages, type: Hash, desc: 'Optional stages of import to be performed'
+      optional :timeout_strategy, type: String, values: ::ProjectImportData::TIMEOUT_STRATEGIES,
+        desc: 'Strategy for behavior on timeouts'
+      optional :additional_access_tokens,
+        type: Array[String],
+        coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce,
+        desc: 'Additional list of personal access tokens',
+        documentation: { example: 'foo,bar' }
     end
     post 'import/github' do
       result = Import::GithubService.new(client, current_user, params).execute(access_params, provider)
@@ -111,8 +121,6 @@ module API
       requires :personal_access_token, type: String, desc: 'GitHub personal access token'
     end
     post 'import/github/gists' do
-      not_found! if Feature.disabled?(:github_import_gists)
-
       authorize! :create_snippet
 
       result = Import::Github::GistsImportService.new(current_user, client, access_params).execute

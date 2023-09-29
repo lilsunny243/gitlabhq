@@ -14,7 +14,6 @@ module Gitlab
 
         METRICS_SHARD_TAG_PREFIX = 'metrics_shard::'
         DEFAULT_METRICS_SHARD = 'default'
-        JOBS_RUNNING_FOR_PROJECT_MAX_BUCKET = 5
 
         OPERATION_COUNTERS = [
           :build_can_pick,
@@ -57,7 +56,7 @@ module Gitlab
 
         def register_success(job)
           labels = { shared_runner: runner.instance_type?,
-                     jobs_running_for_project: jobs_running_for_project(job),
+                     jobs_running_for_project: job.project_jobs_running_on_instance_runners_count,
                      shard: DEFAULT_METRICS_SHARD }
 
           if runner.instance_type?
@@ -65,7 +64,7 @@ module Gitlab
             labels[:shard] = shard.gsub(METRICS_SHARD_TAG_PREFIX, '') if shard
           end
 
-          self.class.job_queue_duration_seconds.observe(labels, Time.current - job.queued_at) unless job.queued_at.nil?
+          self.class.job_queue_duration_seconds.observe(labels, job.time_in_queue_seconds) unless job.queued_at.nil?
           self.class.attempt_counter.increment
         end
 
@@ -74,7 +73,7 @@ module Gitlab
         end
 
         def observe_queue_depth(queue, size)
-          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics)
+          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics, type: :ops)
 
           if !Rails.env.production? && !QUEUE_DEPTH_HISTOGRAMS.include?(queue)
             raise ArgumentError, "unknown queue depth label: #{queue}"
@@ -84,7 +83,7 @@ module Gitlab
         end
 
         def observe_queue_size(size_proc, runner_type)
-          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics)
+          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics, type: :ops)
 
           size = size_proc.call.to_f
           self.class.queue_size_total.observe({ runner_type: runner_type }, size)
@@ -96,7 +95,7 @@ module Gitlab
 
           result = yield
 
-          return result unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics)
+          return result unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics, type: :ops)
 
           seconds = ::Gitlab::Metrics::System.monotonic_time - start_time
 
@@ -121,7 +120,7 @@ module Gitlab
         end
 
         def self.observe_active_runners(runners_proc)
-          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics)
+          return unless Feature.enabled?(:gitlab_ci_builds_queuing_metrics, type: :ops)
 
           queue_active_runners_total.observe({}, runners_proc.call.to_f)
         end
@@ -133,7 +132,7 @@ module Gitlab
         def self.failed_attempt_counter
           strong_memoize(:failed_attempt_counter) do
             name = :job_register_attempts_failed_total
-            comment = 'Counts the times a runner tries to register a job'
+            comment = 'Counts the times a runner fails to register a job'
 
             Gitlab::Metrics.counter(name, comment)
           end
@@ -231,28 +230,6 @@ module Gitlab
             Gitlab::Metrics.histogram(name, comment, labels, buckets)
           end
         end
-
-        private
-
-        # rubocop: disable CodeReuse/ActiveRecord
-        def jobs_running_for_project(job)
-          return '+Inf' unless runner.instance_type?
-
-          # excluding currently started job
-          running_jobs_count = running_jobs_relation(job)
-            .limit(JOBS_RUNNING_FOR_PROJECT_MAX_BUCKET + 1).count - 1
-
-          if running_jobs_count < JOBS_RUNNING_FOR_PROJECT_MAX_BUCKET
-            running_jobs_count
-          else
-            "#{JOBS_RUNNING_FOR_PROJECT_MAX_BUCKET}+"
-          end
-        end
-
-        def running_jobs_relation(job)
-          ::Ci::RunningBuild.instance_type.where(project_id: job.project_id)
-        end
-        # rubocop: enable CodeReuse/ActiveRecord
       end
     end
   end

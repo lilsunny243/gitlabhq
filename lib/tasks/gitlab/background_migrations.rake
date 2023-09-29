@@ -6,7 +6,7 @@ namespace :gitlab do
   namespace :background_migrations do
     desc 'Synchronously finish executing a batched background migration'
     task :finalize, [:job_class_name, :table_name, :column_name, :job_arguments] => :environment do |_, args|
-      if Gitlab::Database.db_config_names.size > 1
+      if Gitlab::Database.db_config_names(with_schema: :gitlab_shared).size > 1
         puts "Please specify the database".color(:red)
         exit 1
       end
@@ -46,20 +46,22 @@ namespace :gitlab do
     end
 
     desc 'Display the status of batched background migrations'
-    task status: :environment do |_, args|
-      Gitlab::Database.database_base_models.each do |name, model|
-        display_migration_status(name, model.connection)
+    task status: :environment do |_, _args|
+      Gitlab::Database.database_base_models.each do |database_name, model|
+        next unless Gitlab::Database.has_database?(database_name)
+
+        display_migration_status(database_name, model.connection)
       end
     end
 
     namespace :status do
-      ActiveRecord::Tasks::DatabaseTasks.for_each(databases) do |name|
-        next if name.to_s == 'geo'
+      ActiveRecord::Tasks::DatabaseTasks.for_each(databases) do |database_name|
+        next if database_name.to_s == 'geo'
 
-        desc "Gitlab | DB | Display the status of batched background migrations on #{name} database"
-        task name => :environment do |_, args|
-          model = Gitlab::Database.database_base_models[name]
-          display_migration_status(name, model.connection)
+        desc "Gitlab | DB | Display the status of batched background migrations on #{database_name} database"
+        task database_name => :environment do |_, _args|
+          model = Gitlab::Database.database_base_models[database_name]
+          display_migration_status(database_name, model.connection)
         end
       end
     end

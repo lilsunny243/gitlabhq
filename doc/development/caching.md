@@ -267,7 +267,7 @@ All the time!
 
 #### Possible downsides
 
-- Adding new attributes to a cached object using `Gitlab::JsonCache`
+- Adding new attributes to a cached object using `Gitlab::Cache::JsonCache`
   and `Gitlab::SafeRequestStore`, for example, can lead to stale data issues
   where the cache data doesn't have the appropriate value for the new attribute
   (see this past [incident](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/6372)).
@@ -332,11 +332,11 @@ views/projects/_home_panel:462ad2485d7d6957e03ceba2c6717c29/projects/16-20210316
 ```
 
 1. The view name and template tree digest
-    `views/projects/_home_panel:462ad2485d7d6957e03ceba2c6717c29`
+   `views/projects/_home_panel:462ad2485d7d6957e03ceba2c6717c29`
 1. The model name, ID, and `updated_at` values
-    `projects/16-20210316142425469452`
+   `projects/16-20210316142425469452`
 1. The symbol we passed in, converted to a string
-    `tag_list`
+   `tag_list`
 
 ### Look for
 

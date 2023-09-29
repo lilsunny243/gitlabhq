@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Upload a project export archive', :api, :js, feature_category: :projects do
+RSpec.describe 'Upload a project export archive', :api, :js, feature_category: :groups_and_projects do
   include_context 'file upload requests helpers'
 
   let_it_be(:user) { create(:user, :admin) }
@@ -20,6 +20,10 @@ RSpec.describe 'Upload a project export archive', :api, :js, feature_category: :
         file: file
       }
     )
+  end
+
+  before do
+    stub_application_setting(import_sources: ['gitlab_project'])
   end
 
   RSpec.shared_examples 'for a project export archive' do

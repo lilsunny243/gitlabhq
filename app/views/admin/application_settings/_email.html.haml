@@ -10,13 +10,10 @@
       = f.label :commit_email_hostname, _('Custom hostname (for private commit emails)'), class: 'label-bold'
       = f.text_field :commit_email_hostname, class: 'form-control gl-form-input'
       .form-text.text-muted
-        - commit_email_hostname_docs_link = link_to _('Learn more'), help_page_path('user/admin_area/settings/email.md', anchor: 'custom-hostname-for-private-commit-emails'), target: '_blank', rel: 'noopener noreferrer'
+        - commit_email_hostname_docs_link = link_to _('Learn more'), help_page_path('administration/settings/email.md', anchor: 'custom-hostname-for-private-commit-emails'), target: '_blank', rel: 'noopener noreferrer'
         = _("Hostname used in private commit emails. %{learn_more}").html_safe % { learn_more: commit_email_hostname_docs_link }
 
     = render_if_exists 'admin/application_settings/email_additional_text_setting', form: f
-
-    .form-group
-      = f.gitlab_ui_checkbox_component :in_product_marketing_emails_enabled, _('Enable in-product marketing emails'), help_text: _('Send emails to help guide new users through the onboarding process.')
 
     .form-group
       = f.gitlab_ui_checkbox_component :user_deactivation_emails_enabled, _('Enable user deactivation emails'), help_text: _('Send emails to users upon account deactivation.')
@@ -28,4 +25,4 @@
         .form-text.text-muted
           = _('Text added to the body of user deactivation email messages. 1000 character limit.')
 
-  = f.submit _('Save changes'), pajamas_button: true, data: { qa_selector: 'save_changes_button' }
+  = f.submit _('Save changes'), pajamas_button: true, data: { testid: 'save-changes-button' }

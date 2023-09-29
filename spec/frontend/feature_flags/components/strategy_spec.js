@@ -1,10 +1,14 @@
 import { GlAlert, GlFormSelect, GlLink, GlToken, GlButton } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
+import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
 import { last } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Api from '~/api';
+import axios from '~/lib/utils/axios_utils';
 import NewEnvironmentsDropdown from '~/feature_flags/components/new_environments_dropdown.vue';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import Strategy from '~/feature_flags/components/strategy.vue';
 import StrategyParameters from '~/feature_flags/components/strategy_parameters.vue';
 import {
@@ -21,16 +25,18 @@ import { userList } from '../mock_data';
 
 jest.mock('~/api');
 
+const TEST_HOST = '/test';
 const provide = {
   strategyTypeDocsPagePath: 'link-to-strategy-docs',
   environmentsScopeDocsPath: 'link-scope-docs',
-  environmentsEndpoint: '',
+  environmentsEndpoint: TEST_HOST,
 };
 
 Vue.use(Vuex);
 
 describe('Feature flags strategy', () => {
   let wrapper;
+  let axiosMock;
 
   const findStrategyParameters = () => wrapper.findComponent(StrategyParameters);
   const findDocsLinks = () => wrapper.findAllComponents(GlLink);
@@ -44,10 +50,8 @@ describe('Feature flags strategy', () => {
       provide,
     },
   ) => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
+    axiosMock = new MockAdapter(axios);
+    axiosMock.onGet(TEST_HOST).reply(HTTP_STATUS_OK, []);
     wrapper = mount(Strategy, { store: createStore({ projectId: '1' }), ...opts });
   };
 
@@ -56,10 +60,7 @@ describe('Feature flags strategy', () => {
   });
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
+    axiosMock.restore();
   });
 
   describe('helper links', () => {

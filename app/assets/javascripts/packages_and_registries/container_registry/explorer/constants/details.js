@@ -65,10 +65,10 @@ export const MISSING_MANIFEST_WARNING_TOOLTIP = s__(
   'ContainerRegistry|Invalid tag: missing manifest digest',
 );
 
-export const UPDATED_AT = s__('ContainerRegistry|Last updated %{time}');
+export const CREATED_AT = s__('ContainerRegistry|Created %{time}');
 
 export const NOT_AVAILABLE_TEXT = __('Not applicable.');
-export const NOT_AVAILABLE_SIZE = __('0 bytes');
+export const NOT_AVAILABLE_SIZE = __('0 B');
 
 export const CLEANUP_UNSCHEDULED_TEXT = s__('ContainerRegistry|Cleanup will run %{time}');
 export const CLEANUP_SCHEDULED_TEXT = s__('ContainerRegistry|Cleanup pending');
@@ -93,6 +93,7 @@ export const DETAILS_DELETE_IMAGE_ERROR_MESSAGE = s__(
   'ContainerRegistry|Something went wrong while scheduling the image for deletion.',
 );
 
+export const DELETE_IMAGE_TEXT = s__('ContainerRegistry|Delete image repository');
 export const DELETE_IMAGE_CONFIRMATION_TITLE = s__('ContainerRegistry|Delete image repository?');
 export const DELETE_IMAGE_CONFIRMATION_TEXT = s__(
   'ContainerRegistry|Deleting the image repository will delete all images and tags inside. This action cannot be undone. Please type the following to confirm: %{code}',

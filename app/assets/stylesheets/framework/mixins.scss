@@ -156,6 +156,12 @@
   background: linear-gradient(to $gradient-direction,
   $gradient-color 45%,
   rgba($gradient-color, 0.4));
+  border: 0;
+  padding: 0;
+
+  &:hover {
+    @include gl-focus;
+  }
 
   &.scrolling {
     visibility: visible;
@@ -164,8 +170,8 @@
   }
 
   svg {
-    position: relative;
-    top: 5px;
+    position: absolute;
+    top: 12px;
     font-size: 18px;
   }
 }
@@ -223,18 +229,6 @@
 }
 
 /*
-* Mixin that handles the position of sticky alerts at the top. It accounts for the performance bar
-*/
-// stylelint-disable-next-line length-zero-no-unit
-@mixin sticky-top-positioning($extra: 0px) {
-  top: calc(#{$header-height} + #{$extra});
-
-  .with-performance-bar & {
-    top: calc(#{$header-height} + #{$performance-bar-height} + #{$extra});
-  }
-}
-
-/*
 * Mixin that handles the container for the job logs (CI/CD and kubernetes pod logs)
 */
 @mixin build-log($background: $black) {
@@ -260,7 +254,7 @@
 @mixin build-log-bar($height) {
   height: $height;
   min-height: $height;
-  background: var(--gray-50, $gray-50);
+  background: var(--white, $white);
   border: 1px solid var(--border-color, $border-color);
   color: var(--gl-text-color, $gl-text-color);
   padding: $grid-size;
@@ -268,14 +262,8 @@
 
 @mixin build-log-top-bar($height) {
   @include build-log-bar($height);
-
-  position: -webkit-sticky;
   position: sticky;
-  top: $header-height;
-
-  .with-performance-bar & {
-    top: calc(#{$header-height} + #{$performance-bar-height});
-  }
+  top: calc(#{$calc-application-header-height} - 1px);
 }
 
 /*
@@ -337,11 +325,6 @@
   min-width: 16px;
   color: $gray-500;
   fill: $gray-500;
-
-  svg {
-    @include btn-svg;
-    margin: 0;
-  }
 
   .award-control-icon-positive,
   .award-control-icon-super-positive {
@@ -448,8 +431,7 @@
 
   &:last-child {
     &::after {
-      content: '';
-      padding: 0;
+      display: none;
     }
   }
 }
@@ -467,5 +449,23 @@
   &:hover {
     background-color: $border-color;
     color: $gl-text-color;
+  }
+}
+
+@mixin omniauth-divider {
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--gray-100, $gray-100);
+    margin: $gl-padding-24 0;
+  }
+
+  &::before {
+    margin-right: $gl-padding;
+  }
+
+  &::after {
+    margin-left: $gl-padding;
   }
 }

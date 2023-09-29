@@ -1,10 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Releases API **(FREE)**
+# Releases API **(FREE ALL)**
 
 > - Release Evidences were [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/26019) in GitLab 12.5.
 > - `description_html` became an opt-in field [with GitLab 13.12 for performance reasons](https://gitlab.com/gitlab-org/gitlab/-/issues/299447).
@@ -158,14 +158,12 @@ Example response:
                "id":2,
                "name":"awesome-v0.2.msi",
                "url":"http://192.168.10.15:3000/msi",
-               "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
                "link_type":"other"
             },
             {
                "id":1,
                "name":"awesome-v0.2.dmg",
                "url":"http://192.168.10.15:3000",
-               "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
                "link_type":"other"
             }
          ],
@@ -386,7 +384,6 @@ Example response:
             "id":3,
             "name":"hoge",
             "url":"https://gitlab.example.com/root/awesome-app/-/tags/v0.11.1/binaries/linux-amd64",
-            "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
             "link_type":"other"
          }
       ]
@@ -430,7 +427,7 @@ GET /projects/:id/releases/:tag_name/downloads/:direct_asset_path
 Example request:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/24/releases/v0.1/downloads/bin/asset.exe"
+curl --location --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/24/releases/v0.1/downloads/bin/asset.exe"
 ```
 
 ### Get the latest release
@@ -594,7 +591,6 @@ Example response:
             "id":3,
             "name":"hoge",
             "url":"https://gitlab.example.com/root/awesome-app/-/tags/v0.11.1/binaries/linux-amd64",
-            "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
             "link_type":"other"
          }
       ],

@@ -14,7 +14,11 @@ module Enums
       maven: 5,
       npm: 6,
       nuget: 7,
-      pypi: 8
+      pypi: 8,
+      apk: 9,
+      rpm: 10,
+      deb: 11,
+      cbl_mariner: 12
     }.with_indifferent_access.freeze
 
     def self.component_types
@@ -22,7 +26,9 @@ module Enums
     end
 
     def self.purl_types
-      PURL_TYPES
+      # return 0 by default if the purl_type is not found, to prevent
+      # consumers from producing invalid SQL caused by null entries
+      @_purl_types ||= PURL_TYPES.dup.tap { |h| h.default = 0 }
     end
   end
 end

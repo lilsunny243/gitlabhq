@@ -1,9 +1,10 @@
 import Vue from 'vue';
 import Translate from '~/vue_shared/translate';
+import { parseBoolean } from '~/lib/utils/common_utils';
 import { apolloProvider } from '~/packages_and_registries/package_registry/graphql/index';
 import PackageRegistry from '~/packages_and_registries/package_registry/pages/index.vue';
 import RegistryBreadcrumb from '~/packages_and_registries/shared/components/registry_breadcrumb.vue';
-import { renderBreadcrumb } from '~/packages_and_registries/shared/utils';
+import { injectVueAppBreadcrumbs } from '~/lib/utils/breadcrumbs';
 import createRouter from './router';
 
 Vue.use(Translate);
@@ -19,6 +20,8 @@ export default () => {
     npmInstanceUrl,
     projectListUrl,
     groupListUrl,
+    settingsPath,
+    canDeletePackages,
   } = el.dataset;
 
   const isGroupPage = pageType === 'groups';
@@ -48,6 +51,8 @@ export default () => {
         projectListUrl,
         groupListUrl,
         breadCrumbState,
+        settingsPath,
+        canDeletePackages: parseBoolean(canDeletePackages),
       },
       render(createElement) {
         return createElement(PackageRegistry);
@@ -55,7 +60,7 @@ export default () => {
     });
 
   return {
-    attachBreadcrumb: renderBreadcrumb(router, apolloProvider, RegistryBreadcrumb),
+    attachBreadcrumb: () => injectVueAppBreadcrumbs(router, RegistryBreadcrumb, apolloProvider),
     attachMainComponent,
   };
 };

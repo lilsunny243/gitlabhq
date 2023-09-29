@@ -2,6 +2,7 @@ import { PROVIDE_SERIALIZER_OR_RENDERER_ERROR } from '~/content_editor/constants
 import { createContentEditor } from '~/content_editor/services/create_content_editor';
 import createGlApiMarkdownDeserializer from '~/content_editor/services/gl_api_markdown_deserializer';
 import createRemarkMarkdownDeserializer from '~/content_editor/services/remark_markdown_deserializer';
+import AssetResolver from '~/content_editor/services/asset_resolver';
 import { createTestContentEditorExtension } from '../test_utils';
 
 jest.mock('~/emoji');
@@ -20,7 +21,7 @@ describe('content_editor/services/create_content_editor', () => {
         preserveUnchangedMarkdown: false,
       },
     };
-    editor = createContentEditor({ renderMarkdown, uploadsPath });
+    editor = createContentEditor({ renderMarkdown, uploadsPath, drawioEnabled: true });
   });
 
   describe('when preserveUnchangedMarkdown feature is on', () => {
@@ -45,15 +46,7 @@ describe('content_editor/services/create_content_editor', () => {
     });
   });
 
-  it('sets gl-outline-0! class selector to the tiptapEditor instance', () => {
-    expect(editor.tiptapEditor.options.editorProps).toMatchObject({
-      attributes: {
-        class: 'gl-outline-0!',
-      },
-    });
-  });
-
-  it('allows providing external content editor extensions', async () => {
+  it('allows providing external content editor extensions', () => {
     const labelReference = 'this is a ~group::editor';
     const { tiptapExtension, serializer } = createTestContentEditorExtension();
 
@@ -80,6 +73,16 @@ describe('content_editor/services/create_content_editor', () => {
     ).toMatchObject({
       uploadsPath,
       renderMarkdown,
+    });
+  });
+
+  it('provides uploadsPath and renderMarkdown function to DrawioDiagram extension', () => {
+    expect(
+      editor.tiptapEditor.extensionManager.extensions.find((e) => e.name === 'drawioDiagram')
+        .options,
+    ).toMatchObject({
+      uploadsPath,
+      assetResolver: expect.any(AssetResolver),
     });
   });
 });

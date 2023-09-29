@@ -24,10 +24,11 @@ class Note < ApplicationRecord
   include Sortable
   include EachBatch
   include IgnorableColumns
+  include Spammable
 
-  ignore_column :id_convert_to_bigint, remove_with: '16.0', remove_after: '2023-05-22'
+  ignore_column :id_convert_to_bigint, remove_with: '16.3', remove_after: '2023-08-22'
 
-  ISSUE_TASK_SYSTEM_NOTE_PATTERN = /\A.*marked\sthe\stask.+as\s(completed|incomplete).*\z/.freeze
+  ISSUE_TASK_SYSTEM_NOTE_PATTERN = /\A.*marked\sthe\stask.+as\s(completed|incomplete).*\z/
 
   cache_markdown_field :note, pipeline: :note, issuable_reference_expansion_enabled: true
 
@@ -68,9 +69,12 @@ class Note < ApplicationRecord
 
   attribute :system, default: false
 
+  attr_spammable :note, spam_description: true
+
   attr_mentionable :note, pipeline: :note
   participant :author
 
+  belongs_to :namespace
   belongs_to :project
   belongs_to :noteable, polymorphic: true # rubocop:disable Cop/PolymorphicAssociations
   belongs_to :author, class_name: "User"
@@ -87,6 +91,7 @@ class Note < ApplicationRecord
     inverse_of: :note, dependent: :delete_all # rubocop:disable Cop/ActiveRecordDependent
   has_many :events, as: :target, dependent: :delete_all # rubocop:disable Cop/ActiveRecordDependent
   has_one :system_note_metadata
+  has_one :note_metadata, inverse_of: :note, class_name: 'Notes::NoteMetadata'
   has_one :note_diff_file, inverse_of: :diff_note, foreign_key: :diff_note_id
   has_many :diff_note_positions
 
@@ -95,9 +100,12 @@ class Note < ApplicationRecord
   delegate :name, :email, to: :author, prefix: true
   delegate :title, to: :noteable, allow_nil: true
 
+  accepts_nested_attributes_for :note_metadata
+
   validates :note, presence: true
   validates :note, length: { maximum: Gitlab::Database::MAX_TEXT_SIZE_LIMIT }
   validates :project, presence: true, if: :for_project_noteable?
+  validates :namespace, presence: true
 
   # Attachments are deprecated and are handled by Markdown uploader
   validates :attachment, file_size: { maximum: :max_attachment_size }
@@ -138,11 +146,12 @@ class Note < ApplicationRecord
   scope :with_discussion_ids, ->(discussion_ids) { where(discussion_id: discussion_ids) }
   scope :with_suggestions, -> { joins(:suggestions) }
   scope :inc_author, -> { includes(:author) }
+  scope :authored_by, ->(user) { where(author: user) }
   scope :inc_note_diff_file, -> { includes(:note_diff_file) }
   scope :with_api_entity_associations, -> { preload(:note_diff_file, :author) }
   scope :inc_relations_for_view, ->(noteable = nil) do
     relations = [{ project: :group }, { author: :status }, :updated_by, :resolved_by,
-      :award_emoji, { system_note_metadata: :description_version }, :suggestions]
+      :award_emoji, :note_metadata, { system_note_metadata: :description_version }, :suggestions]
 
     if noteable.nil? || DiffNote.noteable_types.include?(noteable.class.name)
       relations += [:note_diff_file, :diff_note_positions]
@@ -162,28 +171,35 @@ class Note < ApplicationRecord
     end
   end
 
-  scope :diff_notes, -> { where(type: %w(LegacyDiffNote DiffNote)) }
+  scope :diff_notes, -> { where(type: %w[LegacyDiffNote DiffNote]) }
   scope :new_diff_notes, -> { where(type: 'DiffNote') }
   scope :non_diff_notes, -> { where(type: NON_DIFF_NOTE_TYPES) }
 
   scope :with_associations, -> do
     # FYI noteable cannot be loaded for LegacyDiffNote for commits
-    includes(:author, :noteable, :updated_by,
-             project: [:project_members, :namespace, { group: [:group_members] }])
+    includes(
+      :author, :noteable, :updated_by,
+      project: [:project_members, :namespace, { group: [:group_members] }]
+    )
   end
   scope :with_metadata, -> { includes(:system_note_metadata) }
-  scope :with_web_entity_associations, -> { preload(:project, :author, :noteable) }
+
+  scope :without_hidden, -> {
+    if Feature.enabled?(:hidden_notes)
+      where_not_exists(Users::BannedUser.where('notes.author_id = banned_users.user_id'))
+    else
+      all
+    end
+  }
 
   scope :for_note_or_capitalized_note, ->(text) { where(note: [text, text.capitalize]) }
   scope :like_note_or_capitalized_note, ->(text) { where('(note LIKE ? OR note LIKE ?)', text, text.capitalize) }
 
-  before_validation :nullify_blank_type, :nullify_blank_line_code
+  before_validation :ensure_namespace_id, :nullify_blank_type, :nullify_blank_line_code
   # Syncs `confidential` with `internal` as we rename the column.
   # https://gitlab.com/gitlab-org/gitlab/-/issues/367923
   before_create :set_internal_flag
-  after_destroy :expire_etag_cache
   after_save :keep_around_commit, if: :for_project_noteable?, unless: -> { importing? || skip_keep_around_commits }
-  after_save :expire_etag_cache, unless: :importing?
   after_save :touch_noteable, unless: :importing?
   after_commit :notify_after_create, on: :create
   after_commit :notify_after_destroy, on: :destroy
@@ -191,6 +207,7 @@ class Note < ApplicationRecord
   after_commit :trigger_note_subscription_create, on: :create
   after_commit :trigger_note_subscription_update, on: :update
   after_commit :trigger_note_subscription_destroy, on: :destroy
+  after_commit :broadcast_noteable_notes_changed, unless: :importing?
 
   def trigger_note_subscription_create
     return unless trigger_note_subscription?
@@ -291,6 +308,10 @@ class Note < ApplicationRecord
     def cherry_picked_merge_requests(shas)
       where(noteable_type: 'MergeRequest', commit_id: shas).select(:noteable_id)
     end
+
+    def with_web_entity_associations
+      preload(:project, :author, :noteable)
+    end
   end
 
   # rubocop: disable CodeReuse/ServiceClass
@@ -331,6 +352,10 @@ class Note < ApplicationRecord
 
   def for_issue?
     noteable_type == "Issue"
+  end
+
+  def for_work_item?
+    noteable.is_a?(WorkItem)
   end
 
   def for_merge_request?
@@ -385,8 +410,6 @@ class Note < ApplicationRecord
       project.merge_requests.by_commit_sha(commit_id)
     elsif for_merge_request?
       MergeRequest.id_in(noteable_id)
-    else
-      nil
     end
   end
 
@@ -409,6 +432,10 @@ class Note < ApplicationRecord
 
   def contributor?
     project&.team&.contributor?(self.author_id)
+  end
+
+  def human_max_access
+    project&.team&.human_max_access(self.author_id)
   end
 
   def noteable_author?(noteable)
@@ -472,7 +499,7 @@ class Note < ApplicationRecord
   end
 
   def can_be_discussion_note?
-    self.noteable.supports_discussions? && !part_of_discussion?
+    self.noteable.supports_discussions? && !part_of_discussion? && !system?
   end
 
   def can_create_todo?
@@ -564,8 +591,8 @@ class Note < ApplicationRecord
     update_columns(attributes_to_update)
   end
 
-  def expire_etag_cache
-    noteable&.expire_note_etag_cache
+  def broadcast_noteable_notes_changed
+    noteable&.broadcast_notes_changed
   end
 
   def touch(*args, **kwargs)
@@ -670,6 +697,7 @@ class Note < ApplicationRecord
   def show_outdated_changes?
     return false unless for_merge_request?
     return false unless system?
+    return false if change_position&.on_file?
     return false unless change_position&.line_range
 
     change_position.line_range["end"] || change_position.line_range["start"]
@@ -729,7 +757,7 @@ class Note < ApplicationRecord
     Ability.users_that_can_read_internal_notes(users, resource_parent).pluck(:id)
   end
 
-  # Method necesary while we transition into the new format for task system notes
+  # Method necessary while we transition into the new format for task system notes
   # TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/369923
   def note
     return super unless system? && for_issue? && super&.match?(ISSUE_TASK_SYSTEM_NOTE_PATTERN)
@@ -753,6 +781,24 @@ class Note < ApplicationRecord
     return true unless system?
 
     readable_by?(user)
+  end
+
+  # Override method defined in Spammable
+  # Wildcard argument because user: argument is not used
+  def check_for_spam?(*)
+    return false if system? || !spammable_attribute_changed? || confidential?
+    return false if noteable.try(:confidential?) == true || noteable.try(:public?) == false
+    return false if noteable.try(:group)&.public? == false || project&.public? == false
+
+    true
+  end
+
+  # Use attributes.keys instead of attribute_names to filter out the fields that are skipped during export:
+  #
+  # - note_html
+  # - cached_markdown_version
+  def attribute_names_for_serialization
+    attributes.keys
   end
 
   private
@@ -779,6 +825,16 @@ class Note < ApplicationRecord
 
   def keep_around_commit
     project.repository.keep_around(self.commit_id)
+  end
+
+  def ensure_namespace_id
+    return if namespace_id.present? && !noteable_changed? && !project_changed?
+
+    self.namespace_id = if for_project_noteable?
+                          project&.project_namespace_id
+                        elsif for_personal_snippet?
+                          noteable&.author&.namespace&.id
+                        end
   end
 
   def nullify_blank_type
@@ -808,7 +864,9 @@ class Note < ApplicationRecord
         user_visible_reference_count > 0 && user_visible_reference_count == total_reference_count
     else
       refs = all_references(user)
-      refs.all.any? && refs.all_visible?
+      refs.all
+
+      refs.all_visible?
     end
   end
 

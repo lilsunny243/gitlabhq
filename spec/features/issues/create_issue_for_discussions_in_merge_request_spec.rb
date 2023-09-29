@@ -12,9 +12,9 @@ RSpec.describe 'Resolving all open threads in a merge request from an issue', :j
     url = new_project_issue_path(project, merge_request_to_resolve_discussions_of: merge_request.iid)
 
     if title.empty?
-      %Q{a[href="#{url}"]}
+      %{a[href="#{url}"]}
     else
-      %Q{a[title="#{title}"][href="#{url}"]}
+      %{a[title="#{title}"][href="#{url}"]}
     end
   end
 
@@ -30,10 +30,10 @@ RSpec.describe 'Resolving all open threads in a merge request from an issue', :j
     end
 
     it 'shows a button to resolve all threads by creating a new issue' do
-      find('.discussions-counter .dropdown-toggle').click
+      find('.discussions-counter .gl-new-dropdown-toggle').click
 
       within('.discussions-counter') do
-        expect(page).to have_link(_("Create issue to resolve all threads"), href: new_project_issue_path(project, merge_request_to_resolve_discussions_of: merge_request.iid))
+        expect(page).to have_link(_("Resolve all with new issue"), href: new_project_issue_path(project, merge_request_to_resolve_discussions_of: merge_request.iid))
       end
     end
 
@@ -44,13 +44,12 @@ RSpec.describe 'Resolving all open threads in a merge request from an issue', :j
 
       it 'hides the link for creating a new issue' do
         expect(page).not_to have_selector resolve_all_discussions_link_selector
-        expect(page).not_to have_content "Create issue to resolve all threads"
       end
     end
 
     context 'creating an issue for threads' do
       before do
-        find('.discussions-counter .dropdown-toggle').click
+        find('.discussions-counter .gl-new-dropdown-toggle').click
         find(resolve_all_discussions_link_selector).click
       end
 
@@ -66,10 +65,11 @@ RSpec.describe 'Resolving all open threads in a merge request from an issue', :j
         before do
           project.project_feature.update_attribute(:issues_access_level, ProjectFeature::DISABLED)
           visit project_merge_request_path(project, merge_request)
+          find('.discussions-counter .gl-new-dropdown-toggle').click
         end
 
         it 'does not show a link to create a new issue' do
-          expect(page).not_to have_link 'Create issue to resolve all threads'
+          expect(page).not_to have_link 'Resolve all with new issue'
         end
       end
 
@@ -80,22 +80,6 @@ RSpec.describe 'Resolving all open threads in a merge request from an issue', :j
 
         it 'shows a warning that the merge request contains unresolved threads' do
           expect(page).to have_content 'all threads must be resolved'
-        end
-
-        it 'has a link to resolve all threads by creating an issue' do
-          expect(page).to have_link 'Create issue to resolve all threads', href: new_project_issue_path(project, merge_request_to_resolve_discussions_of: merge_request.iid)
-        end
-
-        context 'creating an issue for threads' do
-          before do
-            page.within '.mr-state-widget' do
-              page.click_link 'Create issue to resolve all threads', href: new_project_issue_path(project, merge_request_to_resolve_discussions_of: merge_request.iid)
-
-              wait_for_all_requests
-            end
-          end
-
-          it_behaves_like 'creating an issue for a thread'
         end
       end
     end

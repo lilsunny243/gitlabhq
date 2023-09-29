@@ -172,9 +172,86 @@ RSpec.describe ApplicationHelper do
     end
   end
 
+  describe 'edited_time_ago_with_tooltip' do
+    around do |example|
+      Time.use_zone('UTC') { example.run }
+    end
+
+    let(:project) { build_stubbed(:project) }
+
+    context 'when editable object was not edited' do
+      let(:merge_request) { build_stubbed(:merge_request, source_project: project) }
+
+      it { expect(helper.edited_time_ago_with_tooltip(merge_request)).to eq(nil) }
+    end
+
+    context 'when editable object was edited' do
+      let(:user) { build_stubbed(:user) }
+      let(:now) { Time.zone.parse('2015-07-02 08:23') }
+      let(:merge_request) { build_stubbed(:merge_request, source_project: project, last_edited_at: now, last_edited_by: user) }
+
+      it { expect(helper.edited_time_ago_with_tooltip(merge_request)).to have_text("Edited #{now.strftime('%b %d, %Y')} by #{user.name}") }
+      it { expect(helper.edited_time_ago_with_tooltip(merge_request, exclude_author: true)).to have_text("Edited #{now.strftime('%b %d, %Y')}") }
+    end
+  end
+
   describe '#active_when' do
     it { expect(helper.active_when(true)).to eq('active') }
     it { expect(helper.active_when(false)).to eq(nil) }
+  end
+
+  describe '#linkedin_url?' do
+    using RSpec::Parameterized::TableSyntax
+
+    let(:user) { build_stubbed(:user) }
+
+    subject { helper.linkedin_url(user) }
+
+    before do
+      user.linkedin = linkedin_name
+    end
+
+    where(:linkedin_name, :linkedin_url) do
+      nil                                       | 'https://www.linkedin.com/in/'
+      ''                                        | 'https://www.linkedin.com/in/'
+      'alice'                                   | 'https://www.linkedin.com/in/alice'
+      'http://www.linkedin.com/in/alice'        | 'http://www.linkedin.com/in/alice'
+      'http://linkedin.com/in/alice'            | 'http://linkedin.com/in/alice'
+      'https://www.linkedin.com/in/alice'       | 'https://www.linkedin.com/in/alice'
+      'https://linkedin.com/in/alice'           | 'https://linkedin.com/in/alice'
+      'https://linkedin.com/in/alice/more/path' | 'https://linkedin.com/in/alice/more/path'
+    end
+
+    with_them do
+      it { is_expected.to eq(linkedin_url) }
+    end
+  end
+
+  describe '#twitter_url?' do
+    using RSpec::Parameterized::TableSyntax
+
+    let(:user) { build_stubbed(:user) }
+
+    subject { helper.twitter_url(user) }
+
+    before do
+      user.twitter = twitter_name
+    end
+
+    where(:twitter_name, :twitter_url) do
+      nil                                   | 'https://twitter.com/'
+      ''                                    | 'https://twitter.com/'
+      'alice'                               | 'https://twitter.com/alice'
+      'http://www.twitter.com/alice'        | 'http://www.twitter.com/alice'
+      'http://twitter.com/alice'            | 'http://twitter.com/alice'
+      'https://www.twitter.com/alice'       | 'https://www.twitter.com/alice'
+      'https://twitter.com/alice'           | 'https://twitter.com/alice'
+      'https://twitter.com/alice/more/path' | 'https://twitter.com/alice/more/path'
+    end
+
+    with_them do
+      it { is_expected.to eq(twitter_url) }
+    end
   end
 
   unless Gitlab.jh?
@@ -410,7 +487,8 @@ RSpec.describe ApplicationHelper do
             page: 'application',
             page_type_id: nil,
             find_file: nil,
-            group: nil
+            group: nil,
+            group_full_path: nil
           }
         )
       end
@@ -426,7 +504,8 @@ RSpec.describe ApplicationHelper do
               page: 'application',
               page_type_id: nil,
               find_file: nil,
-              group: group.path
+              group: group.path,
+              group_full_path: group.full_path
             }
           )
         end
@@ -450,8 +529,9 @@ RSpec.describe ApplicationHelper do
             page_type_id: nil,
             find_file: nil,
             group: nil,
+            group_full_path: nil,
             project_id: project.id,
-            project: project.name,
+            project: project.path,
             namespace_id: project.namespace.id
           }
         )
@@ -468,8 +548,9 @@ RSpec.describe ApplicationHelper do
               page_type_id: nil,
               find_file: nil,
               group: project.group.name,
+              group_full_path: project.group.full_path,
               project_id: project.id,
-              project: project.name,
+              project: project.path,
               namespace_id: project.namespace.id
             }
           )
@@ -494,8 +575,9 @@ RSpec.describe ApplicationHelper do
                 page_type_id: issue.id,
                 find_file: nil,
                 group: nil,
+                group_full_path: nil,
                 project_id: issue.project.id,
-                project: issue.project.name,
+                project: issue.project.path,
                 namespace_id: issue.project.namespace.id
               }
             )
@@ -567,12 +649,13 @@ RSpec.describe ApplicationHelper do
 
     it 'adds custom form builder to options and calls `form_for`' do
       options = { html: { class: 'foo-bar' } }
-      expected_options = options.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder, url: '/root' })
+      expected_options = options.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder })
 
       expect do |b|
         helper.gitlab_ui_form_for(user, options, &b)
       end.to yield_with_args(::Gitlab::FormBuilders::GitlabUiFormBuilder)
-      expect(helper).to have_received(:form_for).with(user, expected_options)
+
+      expect(helper).to have_received(:form_for).with(user, a_hash_including(expected_options))
     end
   end
 
@@ -596,15 +679,75 @@ RSpec.describe ApplicationHelper do
   end
 
   describe '#page_class' do
+    let_it_be(:user) { build(:user) }
+
     subject(:page_class) do
       helper.page_class.flatten
     end
 
-    before do
-      allow(helper).to receive(:current_user).and_return(nil)
+    describe 'with-header' do
+      using RSpec::Parameterized::TableSyntax
+
+      before do
+        allow(helper).to receive(:show_super_sidebar?).and_return(show_super_sidebar)
+        allow(helper).to receive(:current_user).and_return(current_user)
+      end
+
+      where(:show_super_sidebar, :current_user) do
+        true  | nil
+        false | ref(:user)
+        false | nil
+      end
+
+      with_them do
+        it { is_expected.to include('with-header') }
+      end
+
+      context 'when with-header should not be shown' do
+        let(:show_super_sidebar) { true }
+        let(:current_user) { user }
+
+        it { is_expected.not_to include('with-header') }
+      end
     end
 
-    it { is_expected.not_to include('logged-out-marketing-header') }
+    describe 'with-top-bar' do
+      context 'when show_super_sidebar? is true' do
+        context 'when @hide_top_bar_padding is false' do
+          before do
+            allow(helper).to receive(:show_super_sidebar?).and_return(true)
+            helper.instance_variable_set(:@hide_top_bar_padding, false)
+          end
+
+          it { is_expected.to include('with-top-bar') }
+        end
+
+        context 'when @hide_top_bar_padding is true' do
+          before do
+            allow(helper).to receive(:show_super_sidebar?).and_return(true)
+            helper.instance_variable_set(:@hide_top_bar_padding, true)
+          end
+
+          it { is_expected.not_to include('with-top-bar') }
+        end
+      end
+
+      context 'when show_super_sidebar? is false' do
+        before do
+          allow(helper).to receive(:show_super_sidebar?).and_return(false)
+        end
+
+        it { is_expected.not_to include('with-top-bar') }
+      end
+    end
+
+    describe 'logged-out-marketing-header' do
+      before do
+        allow(helper).to receive(:current_user).and_return(nil)
+      end
+
+      it { is_expected.not_to include('logged-out-marketing-header') }
+    end
   end
 
   describe '#dispensable_render' do
@@ -696,14 +839,150 @@ RSpec.describe ApplicationHelper do
   end
 
   describe 'stylesheet_link_tag_defer' do
-    it 'uses print stylesheet by default' do
-      expect(helper.stylesheet_link_tag_defer('test')).to eq( '<link rel="stylesheet" media="print" href="/stylesheets/test.css" />')
+    it 'uses media="all" in stylesheet' do
+      expect(helper.stylesheet_link_tag_defer('test')).to eq( '<link rel="stylesheet" href="/stylesheets/test.css" media="all" />')
+    end
+  end
+
+  describe 'sign_in_with_redirect?' do
+    context 'when on the sign-in page that redirects afterwards' do
+      before do
+        allow(helper).to receive(:current_page?).and_return(true)
+        session[:user_return_to] = true
+      end
+
+      it 'returns true' do
+        expect(helper.sign_in_with_redirect?).to be_truthy
+      end
     end
 
-    it 'uses regular stylesheet when no_startup_css param present' do
-      allow(helper.controller).to receive(:params).and_return({ no_startup_css: '' })
+    context 'when on a non sign-in page' do
+      before do
+        allow(helper).to receive(:current_page?).and_return(false)
+      end
 
-      expect(helper.stylesheet_link_tag_defer('test')).to eq( '<link rel="stylesheet" media="screen" href="/stylesheets/test.css" />')
+      it 'returns false' do
+        expect(helper.sign_in_with_redirect?).to be_falsey
+      end
+    end
+  end
+
+  describe 'collapsed_super_sidebar?' do
+    context 'when @force_desktop_expanded_sidebar is true' do
+      before do
+        helper.instance_variable_set(:@force_desktop_expanded_sidebar, true)
+      end
+
+      it 'returns false' do
+        expect(helper.collapsed_super_sidebar?).to eq(false)
+      end
+
+      it 'does not use the cookie value' do
+        expect(helper).not_to receive(:cookies)
+        helper.collapsed_super_sidebar?
+      end
+    end
+
+    context 'when @force_desktop_expanded_sidebar is not set (default)' do
+      context 'when super_sidebar_collapsed cookie is true' do
+        before do
+          helper.request.cookies['super_sidebar_collapsed'] = 'true'
+        end
+
+        it 'returns true' do
+          expect(helper.collapsed_super_sidebar?).to eq(true)
+        end
+      end
+
+      context 'when super_sidebar_collapsed cookie is false' do
+        before do
+          helper.request.cookies['super_sidebar_collapsed'] = 'false'
+        end
+
+        it 'returns false' do
+          expect(helper.collapsed_super_sidebar?).to eq(false)
+        end
+      end
+    end
+  end
+
+  describe '#hidden_resource_icon', feature_category: :insider_threat do
+    let_it_be(:mock_svg) { '<svg></svg>'.html_safe }
+
+    shared_examples 'returns icon with tooltip' do
+      before do
+        allow(helper).to receive(:sprite_icon).with('spam', css_class: 'gl-vertical-align-text-bottom').and_return(mock_svg)
+      end
+
+      it 'returns icon with tooltip' do
+        result = helper.hidden_resource_icon(resource)
+        expect(result).to eq("<span class=\"has-tooltip\" title=\"#{expected_title}\">#{mock_svg}</span>")
+      end
+    end
+
+    context 'when resource is an issue' do
+      let_it_be(:resource) { build(:issue) }
+      let(:expected_title) { 'This issue is hidden because its author has been banned.' }
+
+      it_behaves_like 'returns icon with tooltip'
+    end
+
+    context 'when resource is a merge request' do
+      let_it_be(:resource) { build(:merge_request) }
+      let(:expected_title) { 'This merge request is hidden because its author has been banned.' }
+
+      it_behaves_like 'returns icon with tooltip'
+    end
+
+    context 'when resource is a project' do
+      let_it_be(:resource) { build(:project) }
+      let(:expected_title) { 'This project is hidden because its creator has been banned' }
+
+      it_behaves_like 'returns icon with tooltip'
+    end
+
+    context 'when css_class is provided' do
+      let_it_be(:resource) { build(:issue) }
+
+      it 'passes the value to sprite_icon' do
+        expect(helper).to receive(:sprite_icon).with('spam', css_class: 'gl-vertical-align-text-bottom extra-class').and_return(mock_svg)
+
+        helper.hidden_resource_icon(resource, css_class: 'extra-class')
+      end
+    end
+  end
+
+  describe '#controller_full_path' do
+    let(:path) { 'some_path' }
+    let(:action) { 'show' }
+
+    before do
+      allow(helper.controller).to receive(:controller_path).and_return(path)
+      allow(helper.controller).to receive(:action_name).and_return(action)
+    end
+
+    context 'when is create action' do
+      let(:action) { 'create' }
+
+      it 'transforms to "new" path' do
+        expect(helper.controller_full_path).to eq("#{path}/new")
+      end
+    end
+
+    context 'when is update action' do
+      let(:action) { 'update' }
+
+      it 'transforms to "edit" path' do
+        expect(helper.controller_full_path).to eq("#{path}/edit")
+      end
+    end
+
+    context 'when is show action' do
+      let(:action) { 'show' }
+
+      it 'passes through' do
+        expect(helper.controller_full_path).to eq("#{path}/#{action}")
+      end
     end
   end
 end

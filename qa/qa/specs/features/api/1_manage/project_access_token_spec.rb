@@ -4,26 +4,20 @@ module QA
   RSpec.describe 'Manage' do
     describe 'Project access token', product_group: :authentication_and_authorization do
       before(:all) do
-        @project_access_token = QA::Resource::ProjectAccessToken.fabricate_via_api! do |pat|
-          pat.project = Resource::Project.fabricate_via_api! do |project|
-            project.initialize_with_readme = true
-          end
-        end
-
+        @project_access_token = create(:project_access_token, project: create(:project, :with_readme))
         @user_api_client = Runtime::API::Client.new(:gitlab, personal_access_token: @project_access_token.token)
       end
 
       context 'for the same project' do
         it 'can be used to create a file via the project API', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347858' do
           expect do
-            Resource::File.fabricate_via_api! do |file|
-              file.api_client = @user_api_client
-              file.project = @project_access_token.project
-              file.branch = "new_branch_#{SecureRandom.hex(8)}"
-              file.commit_message = 'Add new file'
-              file.name = "text-#{SecureRandom.hex(8)}.txt"
-              file.content = 'New file'
-            end
+            create(:file,
+              api_client: @user_api_client,
+              project: @project_access_token.project,
+              branch: "new_branch_#{SecureRandom.hex(8)}")
+          rescue StandardError => e
+            QA::Runtime::Logger.error("Full failure message: #{e.message}")
+            raise
           end.not_to raise_error
         end
 
@@ -37,6 +31,9 @@ module QA
               commit.commit_message = 'Add new file'
               commit.add_files([{ file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }])
             end
+          rescue StandardError => e
+            QA::Runtime::Logger.error("Full failure message: #{e.message}")
+            raise
           end.not_to raise_error
         end
       end
@@ -48,14 +45,10 @@ module QA
 
         it 'cannot be used to create a file via the project API', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347860' do
           expect do
-            Resource::File.fabricate_via_api! do |file|
-              file.api_client = @user_api_client
-              file.project = @different_project
-              file.branch = "new_branch_#{SecureRandom.hex(8)}"
-              file.commit_message = 'Add new file'
-              file.name = "text-#{SecureRandom.hex(8)}.txt"
-              file.content = 'New file'
-            end
+            create(:file,
+              api_client: @user_api_client,
+              project: @different_project,
+              branch: "new_branch_#{SecureRandom.hex(8)}")
           end.to raise_error(Resource::ApiFabricator::ResourceFabricationFailedError, /403 Forbidden/)
         end
 

@@ -2,7 +2,7 @@
 
 import $ from 'jquery';
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { __ } from '~/locale';
 
@@ -121,9 +121,7 @@ MarkdownPreview.prototype.renderReferencedCommands = function (commands, $form) 
 const markdownPreview = new MarkdownPreview();
 
 const previewButtonSelector = '.js-md-preview-button';
-const writeButtonSelector = '.js-md-write-button';
 lastTextareaPreviewed = null;
-const markdownToolbar = $('.md-header-toolbar');
 
 $(document).on('markdown-preview:show', (e, $form) => {
   if (!$form) {
@@ -133,14 +131,19 @@ $(document).on('markdown-preview:show', (e, $form) => {
   lastTextareaPreviewed = $form.find('textarea.markdown-area');
   lastTextareaHeight = lastTextareaPreviewed.height();
 
-  // toggle tabs
-  $form.find(writeButtonSelector).parent().removeClass('active');
-  $form.find(previewButtonSelector).parent().addClass('active');
+  const $previewButton = $form.find(previewButtonSelector);
+
+  if (!$previewButton.parents('.js-vue-markdown-field').length) {
+    $previewButton.val('edit');
+    $previewButton.children('span.gl-button-text').text(__('Continue editing'));
+    $previewButton.addClass('gl-shadow-none! gl-bg-transparent!');
+  }
 
   // toggle content
   $form.find('.md-write-holder').hide();
   $form.find('.md-preview-holder').show();
-  markdownToolbar.removeClass('active');
+  $form.find('.haml-markdown-button, .js-zen-enter').addClass('gl-display-none!');
+
   markdownPreview.showPreview($form);
 });
 
@@ -154,15 +157,18 @@ $(document).on('markdown-preview:hide', (e, $form) => {
     $form.find('textarea.markdown-area').height(lastTextareaHeight);
   }
 
-  // toggle tabs
-  $form.find(writeButtonSelector).parent().addClass('active');
-  $form.find(previewButtonSelector).parent().removeClass('active');
+  const $previewButton = $form.find(previewButtonSelector);
+
+  if (!$previewButton.parents('.js-vue-markdown-field').length) {
+    $previewButton.val('preview');
+    $previewButton.children('span.gl-button-text').text(__('Preview'));
+  }
 
   // toggle content
   $form.find('.md-write-holder').show();
   $form.find('textarea.markdown-area').focus();
   $form.find('.md-preview-holder').hide();
-  markdownToolbar.addClass('active');
+  $form.find('.haml-markdown-button, .js-zen-enter').removeClass('gl-display-none!');
 
   markdownPreview.hideReferencedCommands($form);
 });
@@ -183,13 +189,26 @@ $(document).on('markdown-preview:toggle', (e, keyboardEvent) => {
 $(document).on('click', previewButtonSelector, function (e) {
   e.preventDefault();
   const $form = $(this).closest('form');
-  $(document).triggerHandler('markdown-preview:show', [$form]);
+  const eventName = e.currentTarget.getAttribute('value') === 'preview' ? 'show' : 'hide';
+  $(document).triggerHandler(`markdown-preview:${eventName}`, [$form]);
 });
 
-$(document).on('click', writeButtonSelector, function (e) {
+$(document).on('mousedown', previewButtonSelector, function (e) {
   e.preventDefault();
   const $form = $(this).closest('form');
-  $(document).triggerHandler('markdown-preview:hide', [$form]);
+  $form.find(previewButtonSelector).removeClass('gl-shadow-none! gl-bg-transparent!');
+});
+
+$(document).on('mouseenter', previewButtonSelector, function (e) {
+  e.preventDefault();
+  const $form = $(this).closest('form');
+  $form.find(previewButtonSelector).removeClass('gl-bg-transparent!');
+});
+
+$(document).on('mouseleave', previewButtonSelector, function (e) {
+  e.preventDefault();
+  const $form = $(this).closest('form');
+  $form.find(previewButtonSelector).addClass('gl-bg-transparent!');
 });
 
 export default MarkdownPreview;

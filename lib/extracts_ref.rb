@@ -1,10 +1,23 @@
 # frozen_string_literal: true
 
+# TOOD: https://gitlab.com/gitlab-org/gitlab/-/issues/425379
+# WARNING: This module has been deprecated.
+# The module solely exists because ExtractsPath depends on this module (ExtractsPath is the only user.)
+# ExtractsRef::RefExtractor class is a refactored version of this module and provides
+# the same functionalities. You should use the class instead.
+#
 # Module providing methods for dealing with separating a tree-ish string and a
 # file path string when combined in a request parameter
 # Can be extended for different types of repository object, e.g. Project or Snippet
 module ExtractsRef
-  InvalidPathError = Class.new(StandardError)
+  InvalidPathError = ExtractsRef::RefExtractor::InvalidPathError
+  BRANCH_REF_TYPE = ExtractsRef::RefExtractor::BRANCH_REF_TYPE
+  TAG_REF_TYPE = ExtractsRef::RefExtractor::TAG_REF_TYPE
+  REF_TYPES = ExtractsRef::RefExtractor::REF_TYPES
+
+  def self.ref_type(type)
+    ExtractsRef::RefExtractor.ref_type(type)
+  end
 
   # Given a string containing both a Git tree-ish, such as a branch or tag, and
   # a filesystem path joined by forward slashes, attempts to separate the two.
@@ -59,7 +72,6 @@ module ExtractsRef
   #
   # If the :id parameter appears to be requesting a specific response format,
   # that will be handled as well.
-  #
   # rubocop:disable Gitlab/ModuleWithInstanceVariables
   def assign_ref_vars
     @id, @ref, @path = extract_ref_path
@@ -69,7 +81,7 @@ module ExtractsRef
     return unless @ref.present?
 
     @commit = if ref_type
-                @fully_qualified_ref = %(refs/#{ref_type}/#{@ref})
+                @fully_qualified_ref = ExtractsRef::RefExtractor.qualify_ref(@ref, ref_type)
                 @repo.commit(@fully_qualified_ref)
               else
                 @repo.commit(@ref)
@@ -89,9 +101,7 @@ module ExtractsRef
   end
 
   def ref_type
-    return unless params[:ref_type].present?
-
-    params[:ref_type] == 'tags' ? 'tags' : 'heads'
+    ExtractsRef.ref_type(params[:ref_type])
   end
 
   private
@@ -153,5 +163,15 @@ module ExtractsRef
 
   def repository_container
     raise NotImplementedError
+  end
+
+  # deprecated in favor of ExtractsRef::RequestedRef
+  def ambiguous_ref?(project, ref)
+    return false unless ref
+    return true if project.repository.ambiguous_ref?(ref)
+    return false unless ref.starts_with?(%r{(refs|heads|tags)/})
+
+    unprefixed_ref = ref.sub(%r{^(refs/)?(heads|tags)/}, '')
+    project.repository.commit(unprefixed_ref).present?
   end
 end

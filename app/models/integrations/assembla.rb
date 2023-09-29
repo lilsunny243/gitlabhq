@@ -5,7 +5,7 @@ module Integrations
     validates :token, presence: true, if: :activated?
 
     field :token,
-      type: 'password',
+      type: :password,
       non_empty_password_title: -> { s_('ProjectService|Enter new token') },
       non_empty_password_help: -> { s_('ProjectService|Leave blank to use your current token.') },
       placeholder: '',
@@ -28,7 +28,7 @@ module Integrations
     end
 
     def self.supported_events
-      %w(push)
+      %w[push]
     end
 
     def execute(data)

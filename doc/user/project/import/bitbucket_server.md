@@ -1,11 +1,10 @@
 ---
-type: reference, howto
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Import your project from Bitbucket Server **(FREE)**
+# Import your project from Bitbucket Server **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/20164) in GitLab 11.2.
 
@@ -24,19 +23,26 @@ created as private in GitLab as well.
 
 ## Import your Bitbucket repositories
 
-> Ability to re-import projects [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23905) in GitLab 15.9.
+> - Ability to re-import projects [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23905) in GitLab 15.9.
+> - Ability to import reviewers [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/416611) in GitLab 16.3.
 
-Prerequisites:
+You can import Bitbucket repositories to GitLab.
 
-- An administrator must enable **Bitbucket Server** in  **Admin > Settings > General > Visibility and access controls > Import sources**.
-- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
-  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
+### Prerequisites
+
+> Requirement for Maintainer role instead of Developer role introduced in GitLab 16.0 and backported to GitLab 15.11.1 and GitLab 15.10.5.
+
+- [Bitbucket Server import source](../../../administration/settings/import_and_export_settings.md#configure-allowed-import-sources)
+  must be enabled. If not enabled, ask your GitLab administrator to enable it. The Bitbucket Server import source is enabled
+  by default on GitLab.com.
+- At least the Maintainer role on the destination group to import to.
+
+### Import repositories
 
 To import your Bitbucket repositories:
 
 1. Sign in to GitLab.
-1. On the top bar, select **New** (**{plus}**).
-1. Select **New project/repository**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Import project**.
 1. Select **Bitbucket Server**.
 1. Log in to Bitbucket and grant GitLab access to your Bitbucket account.
@@ -81,6 +87,9 @@ original creator.
 The importer creates any new namespaces (groups) if they don't exist. If the namespace is taken, the
 repository imports under the namespace of the user who started the import process.
 
+The importer attempts to find reviewers by their email address in the GitLab user database. If they don't exist in GitLab, they cannot be added as reviewers to a
+merge request.
+
 ### User assignment by username
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218609) in GitLab 13.4 [with a flag](../../../administration/feature_flags.md) named `bitbucket_server_user_mapping_by_username`. Disabled by default.
@@ -88,7 +97,7 @@ repository imports under the namespace of the user who started the import proces
 
 FLAG:
 On self-managed GitLab and GitLab.com, by default this feature is not available. To make it
-available, ask an administrator to [enable the feature flag](../../../administration/feature_flags.md)
+available, an administrator can [enable the feature flag](../../../administration/feature_flags.md)
 named `bitbucket_server_user_mapping_by_username`. This feature is not ready for production use.
 
 With this feature enabled, the importer tries to find a user in the GitLab user database with the
@@ -120,7 +129,16 @@ If the project import completes but LFS objects can't be downloaded or cloned, y
 password or personal access token containing special characters. For more information, see
 [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/337769).
 
+### Pull requests are missing
+
+Importing large projects spawns a process that can consume a lot of memory. Sometimes you can see messages such as `Sidekiq worker RSS out of range` in the
+[Sidekiq logs](../../../administration/logs/index.md#sidekiq-logs). This can mean that MemoryKiller is interrupting the `RepositoryImportWorker` because it's using
+too much memory.
+
+To resolve this problem, temporarily increase the `SIDEKIQ_MEMORY_KILLER_MAX_RSS` environment variable using
+[custom environment variables](https://docs.gitlab.com/omnibus/settings/environment-variables.html) from the default `2000000` value to a larger value like `3000000`.
+Consider memory constraints on the system before deciding to increase `SIDEKIQ_MEMORY_KILLER_MAX_RSS`.
+
 ## Related topics
 
-For information on automating user, group, and project import API calls, see
-[Automate group and project import](index.md#automate-group-and-project-import).
+- [Automate group and project import](index.md#automate-group-and-project-import)

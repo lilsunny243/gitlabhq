@@ -1,10 +1,13 @@
 <script>
 import { GlAlert, GlButton, GlForm, GlFormGroup, GlFormInput, GlLink } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions } from 'vuex';
 import BoardEditableItem from '~/boards/components/sidebar/board_editable_item.vue';
 import { joinPaths } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
 import autofocusonshow from '~/vue_shared/directives/autofocusonshow';
+import { titleQueries } from 'ee_else_ce/boards/constants';
+import { setError } from '../../graphql/cache_updates';
 
 export default {
   components: {
@@ -19,6 +22,13 @@ export default {
   directives: {
     autofocusonshow,
   },
+  inject: ['fullPath', 'issuableType', 'isEpicBoard', 'isApolloBoard'],
+  props: {
+    activeItem: {
+      type: Object,
+      required: true,
+    },
+  },
   data() {
     return {
       title: '',
@@ -27,7 +37,10 @@ export default {
     };
   },
   computed: {
-    ...mapGetters({ item: 'activeBoardItem' }),
+    ...mapGetters(['activeBoardItem']),
+    item() {
+      return this.isApolloBoard ? this.activeItem : this.activeBoardItem;
+    },
     pendingChangesStorageKey() {
       return this.getPendingChangesKey(this.item);
     },
@@ -53,7 +66,7 @@ export default {
     },
   },
   methods: {
-    ...mapActions(['setActiveItemTitle', 'setError']),
+    ...mapActions(['setActiveItemTitle']),
     getPendingChangesKey(item) {
       if (!item) {
         return '';
@@ -67,8 +80,9 @@ export default {
     },
     async setPendingState() {
       const pendingChanges = localStorage.getItem(this.pendingChangesStorageKey);
+      const shouldOpen = pendingChanges !== this.title;
 
-      if (pendingChanges) {
+      if (pendingChanges && shouldOpen) {
         this.title = pendingChanges;
         this.showChangesAlert = true;
         await this.$nextTick();
@@ -83,6 +97,26 @@ export default {
       this.showChangesAlert = false;
       localStorage.removeItem(this.pendingChangesStorageKey);
     },
+    async setActiveBoardItemTitle() {
+      if (!this.isApolloBoard) {
+        await this.setActiveItemTitle({ title: this.title, projectPath: this.projectPath });
+        return;
+      }
+      const { fullPath, issuableType, isEpicBoard, title } = this;
+      const workspacePath = isEpicBoard
+        ? { groupPath: fullPath }
+        : { projectPath: this.projectPath };
+      await this.$apollo.mutate({
+        mutation: titleQueries[issuableType].mutation,
+        variables: {
+          input: {
+            ...workspacePath,
+            iid: String(this.item.iid),
+            title,
+          },
+        },
+      });
+    },
     async setTitle() {
       this.$refs.sidebarItem.collapse();
 
@@ -92,12 +126,12 @@ export default {
 
       try {
         this.loading = true;
-        await this.setActiveItemTitle({ title: this.title, projectPath: this.projectPath });
+        await this.setActiveBoardItemTitle();
         localStorage.removeItem(this.pendingChangesStorageKey);
         this.showChangesAlert = false;
       } catch (e) {
         this.title = this.item.title;
-        this.setError({ error: e, message: this.$options.i18n.updateTitleError });
+        setError({ error: e, message: this.$options.i18n.updateTitleError });
       } finally {
         this.loading = false;
       }

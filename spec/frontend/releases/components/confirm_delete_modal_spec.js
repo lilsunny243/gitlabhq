@@ -1,4 +1,5 @@
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { GlModal } from '@gitlab/ui';
 import originalOneReleaseForEditingQueryResponse from 'test_fixtures/graphql/releases/graphql/queries/one_release_for_editing.query.graphql.json';
@@ -40,10 +41,6 @@ describe('~/releases/components/confirm_delete_modal.vue', () => {
 
   beforeEach(() => {
     factory();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   describe('button', () => {

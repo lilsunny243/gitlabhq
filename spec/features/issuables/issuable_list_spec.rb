@@ -48,7 +48,7 @@ RSpec.describe 'issuable list', :js, feature_category: :team_planning do
     end
   end
 
-  it 'displays a warning if counting the number of issues times out' do
+  it 'displays a warning if counting the number of issues times out', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/393344' do
     allow_any_instance_of(IssuesFinder).to receive(:count_by_state).and_raise(ActiveRecord::QueryCanceled)
 
     visit_issuable_list(:issue)
@@ -99,9 +99,7 @@ RSpec.describe 'issuable list', :js, feature_category: :team_planning do
 
     if issuable_type == :issue
       issue = Issue.reorder(:iid).first
-      merge_request = create(:merge_request,
-                              source_project: project,
-                              source_branch: generate(:branch))
+      merge_request = create(:merge_request, source_project: project, source_branch: generate(:branch))
 
       create(:merge_requests_closing_issues, issue: issue, merge_request: merge_request)
     end

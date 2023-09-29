@@ -1,10 +1,10 @@
 import Api from '~/api';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { visitUrl, setUrlParams } from '~/lib/utils/url_utility';
 import { logError } from '~/lib/logger';
 import { __ } from '~/locale';
-import { languageFilterData } from '~/search/sidebar/constants/language_filter_data';
+import { labelFilterData } from '~/search/sidebar/components/label_filter/data';
 import { GROUPS_LOCAL_STORAGE_KEY, PROJECTS_LOCAL_STORAGE_KEY, SIDEBAR_PARAMS } from './constants';
 import * as types from './mutation_types';
 import {
@@ -13,6 +13,7 @@ import {
   mergeById,
   isSidebarDirty,
   getAggregationsUrl,
+  prepareSearchAggregations,
 } from './utils';
 
 export const fetchGroups = ({ commit }, search) => {
@@ -106,27 +107,42 @@ export const applyQuery = ({ state }) => {
 };
 
 export const resetQuery = ({ state }) => {
+  const resetParams = SIDEBAR_PARAMS.reduce((acc, param) => {
+    acc[param] = null;
+    return acc;
+  }, {});
+
   visitUrl(
-    setUrlParams({ ...state.query, page: null, state: null, confidential: null }, undefined, true),
+    setUrlParams(
+      {
+        ...state.query,
+        page: null,
+        ...resetParams,
+      },
+      undefined,
+      true,
+    ),
   );
 };
 
-export const resetLanguageQueryWithRedirect = ({ state }) => {
-  visitUrl(setUrlParams({ ...state.query, language: null }, undefined, true));
+export const closeLabel = ({ state, commit }, { key }) => {
+  const labels = state?.query?.labels.filter((labelKey) => labelKey !== key);
+
+  setQuery({ state, commit }, { key: labelFilterData.filterParam, value: labels });
 };
 
-export const resetLanguageQuery = ({ commit }) => {
-  commit(types.SET_QUERY, { key: languageFilterData?.filterParam, value: [] });
+export const setLabelFilterSearch = ({ commit }, { value }) => {
+  commit(types.SET_LABEL_SEARCH_STRING, value);
 };
 
 export const fetchSidebarCount = ({ commit, state }) => {
-  const promises = Object.keys(state.navigation).map((scope) => {
+  const promises = Object.values(state.navigation).map((navItem) => {
     // active nav item has count already so we skip it
-    if (scope !== state.urlQuery.scope) {
+    if (!navItem.active && navItem.count_link) {
       return axios
-        .get(state.navigation[scope].count_link)
+        .get(navItem.count_link)
         .then(({ data: { count } }) => {
-          commit(types.RECEIVE_NAVIGATION_COUNT, { key: scope, count });
+          commit(types.RECEIVE_NAVIGATION_COUNT, { key: navItem.scope, count });
         })
         .catch((e) => logError(e));
     }
@@ -135,12 +151,12 @@ export const fetchSidebarCount = ({ commit, state }) => {
   return Promise.all(promises);
 };
 
-export const fetchLanguageAggregation = ({ commit }) => {
+export const fetchAllAggregation = ({ commit, state }) => {
   commit(types.REQUEST_AGGREGATIONS);
   return axios
     .get(getAggregationsUrl())
     .then(({ data }) => {
-      commit(types.RECEIVE_AGGREGATIONS_SUCCESS, data);
+      commit(types.RECEIVE_AGGREGATIONS_SUCCESS, prepareSearchAggregations(state, data));
     })
     .catch((e) => {
       logError(e);

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { merge } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { nextTick } from 'vue';
 import { GlDatepicker, GlFormCheckbox } from '@gitlab/ui';
@@ -31,6 +32,8 @@ describe('Release edit/new component', () => {
   let actions;
   let getters;
   let state;
+  let refActions;
+  let refState;
   let mock;
 
   const factory = async ({ featureFlags = {}, store: storeUpdates = {} } = {}) => {
@@ -62,6 +65,20 @@ describe('Release edit/new component', () => {
         tagNameValidation: new ValidationResult(),
       }),
       formattedReleaseNotes: () => 'these notes are formatted',
+      isCreating: jest.fn(),
+      isSearching: jest.fn(),
+      isExistingTag: jest.fn(),
+      isNewTag: jest.fn(),
+    };
+
+    refState = {
+      matches: [],
+    };
+
+    refActions = {
+      setEnabledRefTypes: jest.fn(),
+      setProjectId: jest.fn(),
+      search: jest.fn(),
     };
 
     const store = new Vuex.Store(
@@ -73,6 +90,11 @@ describe('Release edit/new component', () => {
               actions,
               state,
               getters,
+            },
+            ref: {
+              namespaced: true,
+              actions: refActions,
+              state: refState,
             },
           },
         },
@@ -288,7 +310,7 @@ describe('Release edit/new component', () => {
       });
 
       it('renders the submit button as disabled', () => {
-        expect(findSubmitButton().attributes('disabled')).toBe('disabled');
+        expect(findSubmitButton().attributes('disabled')).toBeDefined();
       });
 
       it('does not allow the form to be submitted', () => {

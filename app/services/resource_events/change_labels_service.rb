@@ -31,7 +31,7 @@ module ResourceEvents
       end
 
       create_timeline_events_from(added_labels: added_labels, removed_labels: removed_labels)
-      resource.expire_note_etag_cache
+      resource.broadcast_notes_changed
 
       return unless resource.is_a?(Issue)
 
@@ -55,7 +55,7 @@ module ResourceEvents
     end
 
     def create_timeline_events_from(added_labels: [], removed_labels: [])
-      return unless resource.incident?
+      return unless resource.incident_type_issue?
 
       IncidentManagement::TimelineEvents::CreateService.change_labels(
         resource,

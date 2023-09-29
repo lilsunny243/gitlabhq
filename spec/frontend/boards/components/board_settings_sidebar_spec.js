@@ -2,32 +2,50 @@ import { GlDrawer, GlLabel, GlModal, GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import { MountingPortal } from 'portal-vue';
 import Vue, { nextTick } from 'vue';
+import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
+import createMockApollo from 'helpers/mock_apollo_helper';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
+import waitForPromises from 'helpers/wait_for_promises';
 import { stubComponent } from 'helpers/stub_component';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import BoardSettingsSidebar from '~/boards/components/board_settings_sidebar.vue';
 import { inactiveId, LIST } from '~/boards/constants';
+import destroyBoardListMutation from '~/boards/graphql/board_list_destroy.mutation.graphql';
+import * as cacheUpdates from '~/boards/graphql/cache_updates';
 import actions from '~/boards/stores/actions';
 import getters from '~/boards/stores/getters';
 import mutations from '~/boards/stores/mutations';
 import sidebarEventHub from '~/sidebar/event_hub';
-import { mockLabelList } from '../mock_data';
+import { mockLabelList, destroyBoardListMutationResponse } from '../mock_data';
 
+Vue.use(VueApollo);
 Vue.use(Vuex);
 
 describe('BoardSettingsSidebar', () => {
   let wrapper;
+  let mockApollo;
   const labelTitle = mockLabelList.label.title;
   const labelColor = mockLabelList.label.color;
   const listId = mockLabelList.id;
   const modalID = 'board-settings-sidebar-modal';
+
+  const destroyBoardListMutationHandlerSuccess = jest
+    .fn()
+    .mockResolvedValue(destroyBoardListMutationResponse);
+  const errorMessage = 'Failed to delete list';
+  const destroyBoardListMutationHandlerFailure = jest
+    .fn()
+    .mockRejectedValue(new Error(errorMessage));
 
   const createComponent = ({
     canAdminList = false,
     list = {},
     sidebarType = LIST,
     activeId = inactiveId,
+    destroyBoardListMutationHandler = destroyBoardListMutationHandlerSuccess,
+    isApolloBoard = false,
   } = {}) => {
     const boardLists = {
       [listId]: list,
@@ -39,13 +57,25 @@ describe('BoardSettingsSidebar', () => {
       actions,
     });
 
+    mockApollo = createMockApollo([[destroyBoardListMutation, destroyBoardListMutationHandler]]);
+
     wrapper = extendedWrapper(
       shallowMount(BoardSettingsSidebar, {
         store,
+        apolloProvider: mockApollo,
         provide: {
           canAdminList,
           scopedLabelsAvailable: false,
           isIssueBoard: true,
+          boardType: 'group',
+          issuableType: 'issue',
+          isApolloBoard,
+        },
+        propsData: {
+          listId: list.id || '',
+          boardId: 'gid://gitlab/Board/1',
+          list,
+          queryVariables: {},
         },
         directives: {
           GlModal: createMockDirective('gl-modal'),
@@ -57,16 +87,17 @@ describe('BoardSettingsSidebar', () => {
         },
       }),
     );
+
+    // Necessary for cache update
+    mockApollo.clients.defaultClient.cache.updateQuery = jest.fn();
   };
   const findLabel = () => wrapper.findComponent(GlLabel);
   const findDrawer = () => wrapper.findComponent(GlDrawer);
   const findModal = () => wrapper.findComponent(GlModal);
   const findRemoveButton = () => wrapper.findComponent(GlButton);
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-    wrapper.destroy();
-    wrapper = null;
+  beforeEach(() => {
+    cacheUpdates.setError = jest.fn();
   });
 
   it('finds a MountingPortal component', () => {
@@ -168,6 +199,21 @@ describe('BoardSettingsSidebar', () => {
       expect(findRemoveButton().exists()).toBe(true);
     });
 
+    it('removes the list', () => {
+      createComponent({
+        canAdminList: true,
+        activeId: listId,
+        list: mockLabelList,
+        isApolloBoard: true,
+      });
+
+      findRemoveButton().vm.$emit('click');
+
+      wrapper.findComponent(GlModal).vm.$emit('primary');
+
+      expect(destroyBoardListMutationHandlerSuccess).toHaveBeenCalled();
+    });
+
     it('has the correct ID on the button', () => {
       createComponent({ canAdminList: true, activeId: listId, list: mockLabelList });
       const binding = getBinding(findRemoveButton().element, 'gl-modal');
@@ -177,6 +223,24 @@ describe('BoardSettingsSidebar', () => {
     it('has the correct ID on the modal', () => {
       createComponent({ canAdminList: true, activeId: listId, list: mockLabelList });
       expect(findModal().props('modalId')).toBe(modalID);
+    });
+
+    it('sets error when destroy list mutation fails', async () => {
+      createComponent({
+        canAdminList: true,
+        activeId: listId,
+        list: mockLabelList,
+        destroyBoardListMutationHandler: destroyBoardListMutationHandlerFailure,
+        isApolloBoard: true,
+      });
+
+      findRemoveButton().vm.$emit('click');
+
+      wrapper.findComponent(GlModal).vm.$emit('primary');
+
+      await waitForPromises();
+
+      expect(cacheUpdates.setError).toHaveBeenCalled();
     });
   });
 });

@@ -25,7 +25,7 @@ module Gitlab
 
     def new_changes_error
       if additional_repo_storage_available?
-        "Your push to this repository has been rejected because it would exceed storage limits. Please contact your GitLab administrator for more information."
+        "Your push to this repository has been rejected because it would exceed storage limits. #{more_info_message}"
       else
         "Your push to this repository would cause it to exceed the size limit of #{formatted(limit)} so it has been rejected. #{more_info_message}"
       end

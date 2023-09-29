@@ -1,18 +1,30 @@
 import { s__ } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
+import { DOCS_URL_IN_EE_DIR } from 'jh_else_ce/lib/utils/url_utility';
 import { stateToComponentMap as classStateMap, stateKey } from './stores/state_maps';
+
+export const FOUR_MINUTES_IN_MS = 1000 * 60 * 4;
+
+export const STATE_QUERY_POLLING_INTERVAL_DEFAULT = 5000;
+export const STATE_QUERY_POLLING_INTERVAL_BACKOFF = 2;
 
 export const SUCCESS = 'success';
 export const WARNING = 'warning';
 export const INFO = 'info';
 
 export const MWPS_MERGE_STRATEGY = 'merge_when_pipeline_succeeds';
+export const MWCP_MERGE_STRATEGY = 'merge_when_checks_pass';
 export const MTWPS_MERGE_STRATEGY = 'add_to_merge_train_when_pipeline_succeeds';
 export const MT_MERGE_STRATEGY = 'merge_train';
 
 export const PIPELINE_FAILED_STATE = 'failed';
 
-export const AUTO_MERGE_STRATEGIES = [MWPS_MERGE_STRATEGY, MTWPS_MERGE_STRATEGY, MT_MERGE_STRATEGY];
+export const AUTO_MERGE_STRATEGIES = [
+  MWPS_MERGE_STRATEGY,
+  MTWPS_MERGE_STRATEGY,
+  MT_MERGE_STRATEGY,
+  MWCP_MERGE_STRATEGY,
+];
 
 // SP - "Suggest Pipelines"
 export const SP_TRACK_LABEL = 'no_pipeline_noticed';
@@ -21,7 +33,7 @@ export const SP_SHOW_TRACK_VALUE = 10;
 export const SP_HELP_CONTENT = s__(
   `mrWidget|GitLab %{linkStart}CI/CD can automatically build, test, and deploy your application.%{linkEnd} It only takes a few minutes to get started, and we can help you create a pipeline configuration file.`,
 );
-export const SP_HELP_URL = 'https://docs.gitlab.com/ee/ci/quick_start/';
+export const SP_HELP_URL = `${DOCS_URL_IN_EE_DIR}/ci/quick_start/`;
 export const SP_ICON_NAME = 'status_notfound';
 
 export const MERGE_ACTIVE_STATUS_PHRASES = [
@@ -163,9 +175,6 @@ export const EXTENSION_ICON_CLASS = {
   severityUnknown: 'gl-text-gray-400',
 };
 
-export const EXTENSION_SUMMARY_FAILED_CLASS = 'gl-text-red-500';
-export const EXTENSION_SUMMARY_NEUTRAL_CLASS = 'gl-text-gray-700';
-
 export const TELEMETRY_WIDGET_VIEWED = 'WIDGET_VIEWED';
 export const TELEMETRY_WIDGET_EXPANDED = 'WIDGET_EXPANDED';
 export const TELEMETRY_WIDGET_FULL_REPORT_CLICKED = 'WIDGET_FULL_REPORT_CLICKED';
@@ -180,6 +189,7 @@ export const INVALID_RULES_DOCS_PATH = helpPagePath(
 );
 
 export const DETAILED_MERGE_STATUS = {
+  PREPARING: 'PREPARING',
   MERGEABLE: 'MERGEABLE',
   CHECKING: 'CHECKING',
   NOT_OPEN: 'NOT_OPEN',

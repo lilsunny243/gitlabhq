@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UserPreference do
+RSpec.describe UserPreference, feature_category: :user_profile do
   let_it_be(:user) { create(:user) }
 
   let(:user_preference) { create(:user_preference, user: user) }
@@ -48,11 +48,20 @@ RSpec.describe UserPreference do
       end
     end
 
-    describe 'use_legacy_web_ide' do
-      it { is_expected.to allow_value(true).for(:use_legacy_web_ide) }
-      it { is_expected.to allow_value(false).for(:use_legacy_web_ide) }
-      it { is_expected.not_to allow_value(nil).for(:use_legacy_web_ide) }
-      it { is_expected.not_to allow_value("").for(:use_legacy_web_ide) }
+    describe 'pass_user_identities_to_ci_jwt' do
+      it { is_expected.to allow_value(true, false).for(:pass_user_identities_to_ci_jwt) }
+      it { is_expected.not_to allow_value(nil).for(:pass_user_identities_to_ci_jwt) }
+      it { is_expected.not_to allow_value("").for(:pass_user_identities_to_ci_jwt) }
+    end
+
+    describe 'visibility_pipeline_id_type' do
+      it 'is set to 0 by default' do
+        pref = described_class.new
+
+        expect(pref.visibility_pipeline_id_type).to eq('id')
+      end
+
+      it { is_expected.to define_enum_for(:visibility_pipeline_id_type).with_values(id: 0, iid: 1) }
     end
   end
 
@@ -215,44 +224,31 @@ RSpec.describe UserPreference do
     end
   end
 
-  describe '#time_format_in_24h' do
-    it 'is set to false by default' do
+  describe '#project_shortcut_buttons' do
+    it 'is set to true by default' do
       pref = described_class.new
 
-      expect(pref.time_format_in_24h).to eq(false)
-    end
-
-    it 'returns default value when assigning nil' do
-      pref = described_class.new(time_format_in_24h: nil)
-
-      expect(pref.time_format_in_24h).to eq(false)
-    end
-
-    it 'returns default value when the value is NULL' do
-      pref = create(:user_preference, user: user)
-      pref.update_column(:time_format_in_24h, nil)
-
-      expect(pref.reload.time_format_in_24h).to eq(false)
+      expect(pref.project_shortcut_buttons).to eq(true)
     end
 
     it 'returns assigned value' do
-      pref = described_class.new(time_format_in_24h: true)
+      pref = described_class.new(project_shortcut_buttons: false)
 
-      expect(pref.time_format_in_24h).to eq(true)
+      expect(pref.project_shortcut_buttons).to eq(false)
     end
   end
 
-  describe '#time_format_in_24h=' do
-    it 'sets to default value when nil' do
-      pref = described_class.new(time_format_in_24h: nil)
+  describe '#keyboard_shortcuts_enabled' do
+    it 'is set to true by default' do
+      pref = described_class.new
 
-      expect(pref.read_attribute(:time_format_in_24h)).to eq(false)
+      expect(pref.keyboard_shortcuts_enabled).to eq(true)
     end
 
-    it 'sets user values' do
-      pref = described_class.new(time_format_in_24h: true)
+    it 'returns assigned value' do
+      pref = described_class.new(keyboard_shortcuts_enabled: false)
 
-      expect(pref.read_attribute(:time_format_in_24h)).to eq(true)
+      expect(pref.keyboard_shortcuts_enabled).to eq(false)
     end
   end
 

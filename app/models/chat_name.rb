@@ -3,7 +3,6 @@
 class ChatName < ApplicationRecord
   LAST_USED_AT_INTERVAL = 1.hour
 
-  belongs_to :integration
   belongs_to :user
 
   validates :user, presence: true
@@ -28,6 +27,6 @@ class ChatName < ApplicationRecord
   end
 
   def update_last_used_at?
-    last_used_at.nil? || last_used_at > LAST_USED_AT_INTERVAL.ago
+    last_used_at.nil? || last_used_at.before?(LAST_USED_AT_INTERVAL.ago)
   end
 end

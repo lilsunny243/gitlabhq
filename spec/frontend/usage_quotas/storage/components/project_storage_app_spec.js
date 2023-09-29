@@ -1,16 +1,24 @@
 import { GlAlert, GlLoadingIcon } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
-import { extendedWrapper } from 'helpers/vue_test_utils_helper';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import ProjectStorageApp from '~/usage_quotas/storage/components/project_storage_app.vue';
-import UsageGraph from '~/usage_quotas/storage/components/usage_graph.vue';
-import { TOTAL_USAGE_DEFAULT_TEXT } from '~/usage_quotas/storage/constants';
-import getProjectStorageStatistics from '~/usage_quotas/storage/queries/project_storage.query.graphql';
+import SectionedPercentageBar from '~/usage_quotas/components/sectioned_percentage_bar.vue';
 import {
-  projectData,
+  descendingStorageUsageSort,
+  getStorageTypesFromProjectStatistics,
+} from '~/usage_quotas/storage/utils';
+import {
+  storageTypeHelpPaths,
+  PROJECT_STORAGE_TYPES,
+  NAMESPACE_STORAGE_TYPES,
+  TOTAL_USAGE_DEFAULT_TEXT,
+} from '~/usage_quotas/storage/constants';
+import getProjectStorageStatistics from '~/usage_quotas/storage/queries/project_storage.query.graphql';
+import { numberToHumanSize } from '~/lib/utils/number_utils';
+import {
   mockGetProjectStorageStatisticsGraphQLResponse,
   mockEmptyResponse,
   defaultProjectProvideValues,
@@ -36,29 +44,26 @@ describe('ProjectStorageApp', () => {
   };
 
   const createComponent = ({ provide = {}, mockApollo } = {}) => {
-    wrapper = extendedWrapper(
-      shallowMount(ProjectStorageApp, {
-        apolloProvider: mockApollo,
-        provide: {
-          ...defaultProjectProvideValues,
-          ...provide,
-        },
-      }),
-    );
+    wrapper = shallowMountExtended(ProjectStorageApp, {
+      apolloProvider: mockApollo,
+      provide: {
+        ...defaultProjectProvideValues,
+        ...provide,
+      },
+    });
   };
 
   const findAlert = () => wrapper.findComponent(GlAlert);
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findUsagePercentage = () => wrapper.findByTestId('total-usage');
-  const findUsageQuotasHelpLink = () => wrapper.findByTestId('usage-quotas-help-link');
-  const findUsageGraph = () => wrapper.findComponent(UsageGraph);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
+  const findSectionedPercentageBar = () => wrapper.findComponent(SectionedPercentageBar);
+  const findProjectDetailsTable = () => wrapper.findByTestId('usage-quotas-project-usage-details');
+  const findNamespaceDetailsTable = () =>
+    wrapper.findByTestId('usage-quotas-namespace-usage-details');
 
   describe('with apollo fetching successful', () => {
     let mockApollo;
+    const mockProjectData = mockGetProjectStorageStatisticsGraphQLResponse.data.project;
 
     beforeEach(async () => {
       mockApollo = createMockApolloProvider({
@@ -69,13 +74,33 @@ describe('ProjectStorageApp', () => {
     });
 
     it('renders correct total usage', () => {
-      expect(findUsagePercentage().text()).toBe(projectData.storage.totalUsage);
+      const expectedValue = numberToHumanSize(
+        mockGetProjectStorageStatisticsGraphQLResponse.data.project.statistics.storageSize,
+        1,
+      );
+      expect(findUsagePercentage().text()).toBe(expectedValue);
     });
 
-    it('renders correct usage quotas help link', () => {
-      expect(findUsageQuotasHelpLink().attributes('href')).toBe(
-        defaultProjectProvideValues.helpLinks.usageQuotas,
+    it('passes project storage entities to project details table', () => {
+      const expectedValue = getStorageTypesFromProjectStatistics(
+        PROJECT_STORAGE_TYPES,
+        mockProjectData.statistics,
+        mockProjectData.statisticsDetailsPaths,
+        storageTypeHelpPaths,
+      ).sort(descendingStorageUsageSort('value'));
+
+      expect(findProjectDetailsTable().props('storageTypes')).toStrictEqual(expectedValue);
+    });
+
+    it('passes namespace storage entities to namespace details table', () => {
+      const expectedValue = getStorageTypesFromProjectStatistics(
+        NAMESPACE_STORAGE_TYPES,
+        mockProjectData.statistics,
+        mockProjectData.statisticsDetailsPaths,
+        storageTypeHelpPaths,
       );
+
+      expect(findNamespaceDetailsTable().props('storageTypes')).toStrictEqual(expectedValue);
     });
   });
 
@@ -108,6 +133,14 @@ describe('ProjectStorageApp', () => {
     it('shows default text for total usage', () => {
       expect(findUsagePercentage().text()).toBe(TOTAL_USAGE_DEFAULT_TEXT);
     });
+
+    it('passes empty array to project details table', () => {
+      expect(findProjectDetailsTable().props('storageTypes')).toStrictEqual([]);
+    });
+
+    it('passes empty array to namespace details table', () => {
+      expect(findNamespaceDetailsTable().props('storageTypes')).toStrictEqual([]);
+    });
   });
 
   describe('with apollo fetching error', () => {
@@ -124,7 +157,7 @@ describe('ProjectStorageApp', () => {
     });
   });
 
-  describe('rendering <usage-graph />', () => {
+  describe('rendering <sectioned-percentage-bar />', () => {
     let mockApollo;
 
     beforeEach(async () => {
@@ -135,16 +168,23 @@ describe('ProjectStorageApp', () => {
       await waitForPromises();
     });
 
-    it('renders usage-graph component if project.statistics exists', () => {
-      expect(findUsageGraph().exists()).toBe(true);
+    it('renders sectioned-percentage-bar component if project.statistics exists', () => {
+      expect(findSectionedPercentageBar().exists()).toBe(true);
     });
 
-    it('passes project.statistics to usage-graph component', () => {
-      const {
-        __typename,
-        ...statistics
-      } = mockGetProjectStorageStatisticsGraphQLResponse.data.project.statistics;
-      expect(findUsageGraph().props('rootStorageStatistics')).toMatchObject(statistics);
+    it('passes processed project statistics to sectioned-percentage-bar component', () => {
+      expect(findSectionedPercentageBar().props('sections')).toMatchObject([
+        { formattedValue: '4.58 MiB', id: 'lfsObjects', label: 'LFS', value: 4800000 },
+        { formattedValue: '3.72 MiB', id: 'repository', label: 'Repository', value: 3900000 },
+        { formattedValue: '3.62 MiB', id: 'packages', label: 'Packages', value: 3800000 },
+        {
+          formattedValue: '390.63 KiB',
+          id: 'buildArtifacts',
+          label: 'Job artifacts',
+          value: 400000,
+        },
+        { formattedValue: '292.97 KiB', id: 'wiki', label: 'Wiki', value: 300000 },
+      ]);
     });
   });
 });

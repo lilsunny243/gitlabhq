@@ -5,8 +5,7 @@ group: Optimize
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-
-# Code review analytics **(PREMIUM)**
+# Code review analytics **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -24,6 +23,9 @@ and improve your code review process.
   - Opportunities to accelerate your development cycle.
 - Few comments and approvers may indicate a lack of available team members.
 
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For a video explanation, see [Code review analytics: Faster code review](https://www.youtube.com/watch?v=OkLaWhYkASM).
+
 ## View code review analytics
 
 Prerequisite:
@@ -32,8 +34,8 @@ Prerequisite:
 
 To view code review analytics:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Code Review**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Analyze > Code review analytics**.
 1. Optional. Filter results:
    1. Select the filter bar.
    1. Select a parameter. You can filter merge requests by milestone and label.

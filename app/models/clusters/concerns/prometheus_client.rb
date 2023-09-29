@@ -29,13 +29,13 @@ module Clusters
         rescue Kubeclient::HttpError, Errno::ECONNRESET, Errno::ECONNREFUSED, Errno::ENETUNREACH
           # If users have mistakenly set parameters or removed the depended clusters,
           # `proxy_url` could raise an exception because gitlab can not communicate with the cluster.
-          # Since `PrometheusAdapter#can_query?` is eargely loaded on environement pages in gitlab,
+          # Since `PrometheusAdapter#can_query?` is eargely loaded on environment pages in gitlab,
           # we need to silence the exceptions
         end
 
         def configured?
           kube_client.present? && available?
-        rescue Gitlab::UrlBlocker::BlockedUrlError
+        rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError
           false
         end
 

@@ -3,7 +3,7 @@
 class Profiles::PersonalAccessTokensController < Profiles::ApplicationController
   include RenderAccessTokens
 
-  feature_category :authentication_and_authorization
+  feature_category :system_access
 
   before_action :check_personal_access_tokens_enabled
 
@@ -25,7 +25,10 @@ class Profiles::PersonalAccessTokensController < Profiles::ApplicationController
 
   def create
     result = ::PersonalAccessTokens::CreateService.new(
-      current_user: current_user, target_user: current_user, params: personal_access_token_params
+      current_user: current_user,
+      target_user: current_user,
+      params: personal_access_token_params,
+      concatenate_errors: false
     ).execute
 
     @personal_access_token = result.payload[:personal_access_token]
@@ -58,6 +61,7 @@ class Profiles::PersonalAccessTokensController < Profiles::ApplicationController
 
   def set_index_vars
     @scopes = Gitlab::Auth.available_scopes_for(current_user)
+    @scopes.delete(Gitlab::Auth::K8S_PROXY_SCOPE) unless Feature.enabled?(:k8s_proxy_pat, current_user)
     @active_access_tokens = active_access_tokens
   end
 

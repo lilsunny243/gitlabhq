@@ -8,18 +8,12 @@ require 'spec_helper'
 # Because this kind of spec takes more time to run there is no need to add new ones
 # for each existing quick action unless they test something not tested by existing tests.
 RSpec.describe 'Merge request > User uses quick actions', :js, :use_clean_rails_redis_caching,
-feature_category: :code_review_workflow do
-  include Spec::Support::Helpers::Features::NotesHelpers
-
-  let(:project) { create(:project, :public, :repository) }
-  let(:user) { project.creator }
-  let(:guest) { create(:user) }
-  let(:merge_request) { create(:merge_request, source_project: project) }
-  let!(:milestone) { create(:milestone, project: project, title: 'ASAP') }
+  feature_category: :code_review_workflow do
+  include Features::NotesHelpers
 
   context "issuable common quick actions" do
     let!(:new_url_opts) { { merge_request: { source_branch: 'feature', target_branch: 'master' } } }
-    let(:maintainer) { create(:user) }
+    let(:maintainer) { create(:user, :no_super_sidebar) }
     let(:project) { create(:project, :public, :repository) }
     let!(:label_bug) { create(:label, project: project, title: 'bug') }
     let!(:label_feature) { create(:label, project: project, title: 'feature') }
@@ -32,7 +26,8 @@ feature_category: :code_review_workflow do
   end
 
   describe 'merge-request-only commands' do
-    let(:user) { create(:user) }
+    let(:user) { create(:user, :no_super_sidebar) }
+    let(:guest) { create(:user, :no_super_sidebar) }
     let(:project) { create(:project, :public, :repository) }
     let(:merge_request) { create(:merge_request, source_project: project) }
     let!(:milestone) { create(:milestone, project: project, title: 'ASAP') }

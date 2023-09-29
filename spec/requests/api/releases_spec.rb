@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Releases, feature_category: :release_orchestration do
+RSpec.describe API::Releases, :aggregate_failures, feature_category: :release_orchestration do
   let(:project) { create(:project, :repository, :private) }
   let(:maintainer) { create(:user) }
   let(:reporter) { create(:user) }
@@ -422,22 +422,6 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
             .to eq('release-18.04.dmg')
           expect(json_response['assets']['links'].first['url'])
             .to eq('https://my-external-hosting.example.com/scrambled-url/app.zip')
-          expect(json_response['assets']['links'].first['external'])
-            .to be_truthy
-        end
-
-        context 'when link is internal' do
-          let(:url) do
-            "#{project.web_url}/-/jobs/artifacts/v11.6.0-rc4/download?" \
-            "job=rspec-mysql+41%2F50"
-          end
-
-          it 'has external false' do
-            get api("/projects/#{project.id}/releases/v0.1", maintainer)
-
-            expect(json_response['assets']['links'].first['external'])
-              .to be_falsy
-          end
         end
       end
 
@@ -480,7 +464,7 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
     end
 
     context 'when specified tag is not found in the project' do
-      it 'returns 404 for maintater' do
+      it 'returns 404 for maintainer' do
         get api("/projects/#{project.id}/releases/non_exist_tag", maintainer)
 
         expect(response).to have_gitlab_http_status(:not_found)
@@ -807,16 +791,16 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
         name: 'New release',
         tag_name: 'v0.1',
         description: 'Super nice release',
-        assets: {
-          links: [
-            {
-              name: 'An example runbook link',
-              url: 'https://example.com/runbook',
-              link_type: 'runbook',
-              filepath: '/permanent/path/to/runbook'
-            }
-          ]
-        }
+        assets: { links: [link_asset] }
+      }
+    end
+
+    let(:link_asset) do
+      {
+        name: 'An example runbook link',
+        url: 'https://example.com/runbook',
+        link_type: 'runbook',
+        filepath: '/permanent/path/to/runbook'
       }
     end
 
@@ -922,8 +906,13 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
     end
 
     context 'when using `direct_asset_path` for the asset link' do
-      before do
-        params[:direct_asset_path] = params.delete(:filepath)
+      let(:link_asset) do
+        {
+          name: 'An example runbook link',
+          url: 'https://example.com/runbook',
+          link_type: 'runbook',
+          direct_asset_path: '/permanent/path/to/runbook'
+        }
       end
 
       it 'creates a new release successfully' do
@@ -931,8 +920,9 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
           post api("/projects/#{project.id}/releases", maintainer), params: params
         end.to change { Release.count }.by(1)
 
-        release = project.releases.last
+        expect(response).to have_gitlab_http_status(:created)
 
+        release = project.releases.last
         expect(release.links.last.filepath).to eq('/permanent/path/to/runbook')
       end
     end
@@ -1665,7 +1655,11 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
     let_it_be(:release2) { create(:release, project: project2) }
     let_it_be(:release3) { create(:release, project: project3) }
 
-    context 'when authenticated as owner' do
+    it_behaves_like 'GET request permissions for admin mode' do
+      let(:path) { "/groups/#{group1.id}/releases" }
+    end
+
+    context 'when authenticated as owner', :enable_admin_mode do
       it 'gets releases from all projects in the group' do
         get api("/groups/#{group1.id}/releases", admin)
 
@@ -1715,9 +1709,14 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
         context 'with subgroups' do
           let(:group) { create(:group) }
 
-          it 'include_subgroups avoids N+1 queries' do
+          subject { get api("/groups/#{group.id}/releases", admin, admin_mode: true), params: query_params.merge({ include_subgroups: true }) }
+
+          it 'include_subgroups avoids N+1 queries', :use_sql_query_cache do
+            subject
+            expect(response).to have_gitlab_http_status(:ok)
+
             control_count = ActiveRecord::QueryRecorder.new(skip_cached: false) do
-              get api("/groups/#{group.id}/releases", admin), params: query_params.merge({ include_subgroups: true })
+              subject
             end.count
 
             subgroups = create_list(:group, 10, parent: group1)
@@ -1725,7 +1724,7 @@ RSpec.describe API::Releases, feature_category: :release_orchestration do
             create_list(:release, 10, project: projects[0], author: admin)
 
             expect do
-              get api("/groups/#{group.id}/releases", admin), params: query_params.merge({ include_subgroups: true })
+              subject
             end.not_to exceed_all_query_limit(control_count)
           end
         end

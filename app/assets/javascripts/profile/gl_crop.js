@@ -3,6 +3,8 @@
 import $ from 'jquery';
 import 'cropper';
 import { isString } from 'lodash';
+import { s__ } from '~/locale';
+import { createAlert } from '~/alert';
 import { loadCSSFile } from '../lib/utils/css_utils';
 
 (() => {
@@ -23,6 +25,7 @@ import { loadCSSFile } from '../lib/utils/css_utils';
         exportHeight = 200,
         cropBoxWidth = 200,
         cropBoxHeight = 200,
+        onBlobChange = () => {},
       } = {},
     ) {
       this.onUploadImageBtnClick = this.onUploadImageBtnClick.bind(this);
@@ -52,6 +55,7 @@ import { loadCSSFile } from '../lib/utils/css_utils';
       this.uploadImageBtn = isString(uploadImageBtn) ? $(uploadImageBtn) : uploadImageBtn;
       this.modalCropImg = isString(modalCropImg) ? $(modalCropImg) : modalCropImg;
       this.cropActionsBtn = this.modalCrop.find('[data-method]');
+      this.onBlobChange = onBlobChange;
       this.bindEvents();
     }
 
@@ -73,6 +77,7 @@ import { loadCSSFile } from '../lib/utils/css_utils';
         const btn = this;
         return _this.onActionBtnClick(btn);
       });
+      this.onBlobChange(null);
       return (this.croppedImageBlob = null);
     }
 
@@ -139,11 +144,20 @@ import { loadCSSFile } from '../lib/utils/css_utils';
     }
 
     readFile(input) {
-      const _this = this;
       const reader = new FileReader();
       reader.onload = () => {
-        _this.modalCropImg.attr('src', reader.result);
-        return _this.modalCrop.modal('show');
+        this.modalCropImg.attr('src', reader.result);
+        import(/* webpackChunkName: 'bootstrapModal' */ 'bootstrap/js/dist/modal')
+          .then(() => {
+            this.modalCrop.modal('show');
+          })
+          .catch(() => {
+            createAlert({
+              message: s__(
+                'UserProfile|Failed to set avatar. Please reload the page to try again.',
+              ),
+            });
+          });
       };
       return reader.readAsDataURL(input.files[0]);
     }
@@ -176,7 +190,10 @@ import { loadCSSFile } from '../lib/utils/css_utils';
           height: 200,
         })
         .toDataURL('image/png');
-      return (this.croppedImageBlob = this.dataURLtoBlob(this.dataURL));
+
+      this.croppedImageBlob = this.dataURLtoBlob(this.dataURL);
+      this.onBlobChange(this.croppedImageBlob);
+      return this.croppedImageBlob;
     }
 
     getBlob() {

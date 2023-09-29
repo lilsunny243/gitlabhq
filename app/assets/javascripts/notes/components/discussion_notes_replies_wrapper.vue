@@ -1,4 +1,5 @@
 <script>
+import { normalizeChildren } from '~/lib/utils/vue3compat/normalize_children';
 /**
  * Wrapper for discussion notes replies section.
  *
@@ -20,13 +21,13 @@ export default {
         'li',
         {
           class:
-            'discussion-collapsible gl-border-solid gl-border-gray-100 gl-border-1 gl-rounded-base clearfix',
+            'discussion-collapsible gl-border-solid gl-border-gray-100 gl-border-1 gl-rounded-base gl-border-top-0',
         },
         [h('ul', { class: 'notes' }, children)],
       );
     }
 
-    return children;
+    return normalizeChildren(children);
   },
 };
 </script>

@@ -1,6 +1,17 @@
 import MockAdapter from 'axios-mock-adapter';
 
-import { followUser, unfollowUser, associationsCount, updateUserStatus } from '~/api/user_api';
+import projects from 'test_fixtures/api/users/projects/get.json';
+import followers from 'test_fixtures/api/users/followers/get.json';
+import following from 'test_fixtures/api/users/following/get.json';
+import {
+  followUser,
+  unfollowUser,
+  associationsCount,
+  updateUserStatus,
+  getUserProjects,
+  getUserFollowers,
+  getUserFollowing,
+} from '~/api/user_api';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import {
@@ -9,22 +20,20 @@ import {
 } from 'jest/admin/users/mock_data';
 import { AVAILABILITY_STATUS } from '~/set_status_modal/constants';
 import { timeRanges } from '~/vue_shared/constants';
+import { DEFAULT_PER_PAGE } from '~/api';
 
 describe('~/api/user_api', () => {
   let axiosMock;
-  let originalGon;
 
   beforeEach(() => {
     axiosMock = new MockAdapter(axios);
 
-    originalGon = window.gon;
     window.gon = { api_version: 'v4' };
   });
 
   afterEach(() => {
     axiosMock.restore();
     axiosMock.resetHistory();
-    window.gon = originalGon;
   });
 
   describe('followUser', () => {
@@ -92,6 +101,55 @@ describe('~/api/user_api', () => {
       ).resolves.toEqual(expect.objectContaining({ data: expectedResponse }));
       expect(axiosMock.history.patch[0].url).toBe(expectedUrl);
       expect(JSON.parse(axiosMock.history.patch[0].data)).toEqual(expectedData);
+    });
+  });
+
+  describe('getUserProjects', () => {
+    it('calls correct URL and returns expected response', async () => {
+      const expectedUrl = '/api/v4/users/1/projects';
+      const expectedResponse = { data: projects };
+
+      axiosMock.onGet(expectedUrl).replyOnce(HTTP_STATUS_OK, expectedResponse);
+
+      await expect(getUserProjects(1)).resolves.toEqual(
+        expect.objectContaining({ data: expectedResponse }),
+      );
+      expect(axiosMock.history.get[0].url).toBe(expectedUrl);
+    });
+  });
+
+  describe('getUserFollowers', () => {
+    it('calls correct URL and returns expected response', async () => {
+      const expectedUrl = '/api/v4/users/1/followers';
+      const expectedResponse = { data: followers };
+      const params = { page: 2 };
+
+      axiosMock.onGet(expectedUrl).replyOnce(HTTP_STATUS_OK, expectedResponse);
+
+      await expect(getUserFollowers(1, params)).resolves.toEqual(
+        expect.objectContaining({ data: expectedResponse }),
+      );
+      expect(axiosMock.history.get[0].url).toBe(expectedUrl);
+      expect(axiosMock.history.get[0].params).toEqual({ ...params, per_page: DEFAULT_PER_PAGE });
+    });
+  });
+
+  describe('getUserFollowing', () => {
+    it('calls correct URL and returns expected response', async () => {
+      const MOCK_USER_ID = 1;
+      const MOCK_PAGE = 2;
+
+      const expectedUrl = `/api/v4/users/${MOCK_USER_ID}/following`;
+      const expectedResponse = { data: following };
+      const params = { page: MOCK_PAGE };
+
+      axiosMock.onGet(expectedUrl).replyOnce(HTTP_STATUS_OK, expectedResponse);
+
+      await expect(getUserFollowing(MOCK_USER_ID, params)).resolves.toEqual(
+        expect.objectContaining({ data: expectedResponse }),
+      );
+      expect(axiosMock.history.get[0].url).toBe(expectedUrl);
+      expect(axiosMock.history.get[0].params).toEqual({ ...params, per_page: DEFAULT_PER_PAGE });
     });
   });
 });

@@ -12,16 +12,14 @@
   .nav-block
     %ul.breadcrumb.repo-breadcrumb
       %li.breadcrumb-item
-        = link_to 'Artifacts', browse_project_job_artifacts_path(@project, @build)
+        = link_to _('Artifacts'), browse_project_job_artifacts_path(@project, @build)
       - path_breadcrumbs do |title, path|
         %li.breadcrumb-item
           = link_to truncate(title, length: 40), browse_project_job_artifacts_path(@project, @build, path)
 
     .tree-controls<
-      = link_to download_project_job_artifacts_path(@project, @build),
-        rel: 'nofollow', download: '', class: 'gl-button btn btn-default download' do
-        = sprite_icon('download', css_class: 'gl-mr-2')
-        Download artifacts archive
+      = link_button_to download_project_job_artifacts_path(@project, @build), rel: 'nofollow', download: '', class: 'download', icon: 'download' do
+        = _('Download artifacts archive')
 
   .tree-content-holder
     %table.table.tree-table

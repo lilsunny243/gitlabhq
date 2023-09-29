@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Infrastructure as Code with Terraform and GitLab **(FREE)**
+# Infrastructure as Code with Terraform and GitLab **(FREE ALL)**
 
 To manage your infrastructure with GitLab, you can use the integration with
 Terraform to define resources that you can version, reuse, and share:
@@ -54,7 +54,7 @@ If you use earlier versions of GitLab, you might face incompatibility errors
 between the GitLab version and the template version. In this case, you can opt
 to use one of these templates:
 
-- [The stable template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Terraform.gitlab-ci.yml) with an skeleton that you can built on top of.
+- [The stable template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Terraform.gitlab-ci.yml) with a skeleton that you can built on top of.
 - [The advanced template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Terraform/Base.gitlab-ci.yml) to fully customize your setup.
 
 NOTE:
@@ -64,8 +64,8 @@ In each GitLab major release (for example, 15.0), the latest templates replace t
 
 To use a Terraform template:
 
-1. On the top bar, select **Main menu > Projects** and find the project you want to integrate with Terraform.
-1. On the left sidebar, select **Repository > Files**.
+1. On the left sidebar, select **Search or go to** and find your project you want to integrate with Terraform.
+1. Select **Code > Repository**.
 1. Edit your `.gitlab-ci.yml` file, use the `include` attribute to fetch the Terraform template:
 
    ```yaml
@@ -73,7 +73,7 @@ To use a Terraform template:
     # To fetch the latest template, use:
      - template: Terraform.latest.gitlab-ci.yml
     # To fetch the advanced latest template, use:
-     - template: Terraform/Base.latest.gitlab-ci.yml 
+     - template: Terraform/Base.latest.gitlab-ci.yml
     # To fetch the stable template, use:
      - template: Terraform.gitlab-ci.yml
     # To fetch the advanced stable template, use:
@@ -100,7 +100,7 @@ For GitLab-curated template recipes, see [Terraform template recipes](terraform_
 ## Related topics
 
 - View [the images that contain the `gitlab-terraform` shell script](https://gitlab.com/gitlab-org/terraform-images).
-- Use GitLab as a [Terraform module registry](../../packages/terraform_module_registry/index.md).
+- Use GitLab as a [Terraform Module Registry](../../packages/terraform_module_registry/index.md).
 - To store state files in local storage or in a remote store, use the [GitLab-managed Terraform state](terraform_state.md).
 - To collaborate on Terraform code changes and Infrastructure-as-Code workflows, use the
   [Terraform integration in merge requests](mr_integration.md).

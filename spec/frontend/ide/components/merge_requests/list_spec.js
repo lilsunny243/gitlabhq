@@ -1,6 +1,7 @@
 import { GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Item from '~/ide/components/merge_requests/item.vue';
 import List from '~/ide/components/merge_requests/list.vue';
@@ -46,11 +47,6 @@ describe('IDE merge requests list', () => {
 
   beforeEach(() => {
     fetchMergeRequestsMock = jest.fn();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   it('calls fetch on mounted', () => {

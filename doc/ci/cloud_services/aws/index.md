@@ -4,7 +4,11 @@ group: Pipeline Security
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Configure OpenID Connect in AWS to retrieve temporary credentials **(FREE)**
+# Configure OpenID Connect in AWS to retrieve temporary credentials **(FREE ALL)**
+
+WARNING:
+`CI_JOB_JWT_V2` was [deprecated in GitLab 15.9](../../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated)
+and is scheduled to be removed in GitLab 17.0. Use [ID tokens](../../yaml/index.md#id_tokens) instead.
 
 In this tutorial, we'll show you how to use a GitLab CI/CD job with a JSON web token (JWT) to retrieve temporary credentials from AWS without needing to store secrets.
 To do this, you must configure OpenID Connect (OIDC) for ID federation between GitLab and AWS. For background and requirements for integrating GitLab using OIDC, see [Connect to cloud services](../index.md).
@@ -62,25 +66,31 @@ After you configure the OIDC and role, the GitLab CI/CD job can retrieve a tempo
 
 ```yaml
 assume role:
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.example.com
   script:
     - >
       export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
       $(aws sts assume-role-with-web-identity
       --role-arn ${ROLE_ARN}
       --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
-      --web-identity-token $CI_JOB_JWT_V2
+      --web-identity-token ${GITLAB_OIDC_TOKEN}
       --duration-seconds 3600
       --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
       --output text))
     - aws sts get-caller-identity
 ```
 
-- `CI_JOB_JWT_V2`: Predefined variable.
 - `ROLE_ARN`: The role ARN defined in this [step](#configure-a-role-and-trust).
+- `GITLAB_OIDC_TOKEN`: An OIDC [ID token](../../yaml/index.md#id_tokens).
 
-## Working example
+## Working examples
 
-See this [reference project](https://gitlab.com/guided-explorations/aws/configure-openid-connect-in-aws) for provisioning OIDC in AWS using Terraform and a sample script to retrieve temporary credentials.
+- See this [reference project](https://gitlab.com/guided-explorations/aws/configure-openid-connect-in-aws) for provisioning OIDC in AWS using Terraform and a sample script to retrieve temporary credentials.
+- [OIDC and Multi-Account Deployment with GitLab and ECS](https://gitlab.com/guided-explorations/aws/oidc-and-multi-account-deployment-with-ecs).
+- AWS Partner (APN) Blog: [Setting up OpenID Connect with GitLab CI/CD](https://aws.amazon.com/blogs/apn/setting-up-openid-connect-with-gitlab-ci-cd-to-provide-secure-access-to-environments-in-aws-accounts/).
+- [GitLab at AWS re:Inforce 2023: Secure GitLab CD pipelines to AWS w/ OpenID and JWT](https://www.youtube.com/watch?v=xWQGADDVn8g).
 
 ## Troubleshooting
 

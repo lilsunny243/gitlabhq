@@ -22,13 +22,12 @@ Doorkeeper.configure do
     end
   end
 
-  resource_owner_from_credentials do |routes|
-    user = Gitlab::Auth.find_with_user_password(params[:username], params[:password], increment_failed_attempts: true)
-
+  resource_owner_from_credentials do |_routes|
+    user = User.find_by_login(params[:username])
     next unless user
     next if user.two_factor_enabled? || Gitlab::Auth::TwoFactorAuthVerifier.new(user).two_factor_authentication_enforced?
 
-    user
+    Gitlab::Auth.find_with_user_password(params[:username], params[:password], increment_failed_attempts: true)
   end
 
   # If you want to restrict access to the web interface for adding oauth authorized applications, you need to declare the block below.
@@ -101,7 +100,7 @@ Doorkeeper.configure do
   # "password"           => Resource Owner Password Credentials Grant Flow
   # "client_credentials" => Client Credentials Grant Flow
   #
-  grant_flows %w(authorization_code password client_credentials)
+  grant_flows %w[authorization_code password client_credentials]
 
   # Under some circumstances you might want to have applications auto-approved,
   # so that the user skips the authorization step.
@@ -120,4 +119,12 @@ Doorkeeper.configure do
   #
   # We might want to disable this in the future, see https://gitlab.com/gitlab-org/gitlab/-/issues/323615
   skip_client_authentication_for_password_grant true
+
+  # 2 hours in seconds
+  # This is also the database default value
+  access_token_expires_in 7200
+
+  # Use a custom class for generating the application secret.
+  # https://doorkeeper.gitbook.io/guides/configuration/other-configurations#custom-application-secret-generator
+  application_secret_generator 'Gitlab::DoorkeeperSecretStoring::Token::UniqueApplicationToken'
 end

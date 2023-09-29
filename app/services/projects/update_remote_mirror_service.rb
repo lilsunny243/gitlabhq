@@ -75,12 +75,14 @@ module Projects
       end
 
       if message.present?
-        Gitlab::AppJsonLogger.info(message: "Error synching remote mirror",
-                                   project_id: project.id,
-                                   project_path: project.full_path,
-                                   remote_mirror_id: remote_mirror.id,
-                                   lfs_sync_failed: lfs_sync_failed,
-                                   divergent_ref_list: response.divergent_refs)
+        Gitlab::AppJsonLogger.info(
+          message: "Error synching remote mirror",
+          project_id: project.id,
+          project_path: project.full_path,
+          remote_mirror_id: remote_mirror.id,
+          lfs_sync_failed: lfs_sync_failed,
+          divergent_ref_list: response.divergent_refs
+        )
       end
 
       [failed, message]
@@ -91,7 +93,7 @@ module Projects
 
       # TODO: Support LFS sync over SSH
       # https://gitlab.com/gitlab-org/gitlab/-/issues/249587
-      return unless remote_mirror.url =~ %r{\Ahttps?://}i
+      return unless %r{\Ahttps?://}i.match?(remote_mirror.url)
       return unless remote_mirror.password_auth?
 
       Lfs::PushService.new(

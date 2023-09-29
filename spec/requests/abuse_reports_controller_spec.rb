@@ -11,48 +11,12 @@ RSpec.describe AbuseReportsController, feature_category: :insider_threat do
     attributes_for(:abuse_report) do |hash|
       hash[:user_id] = user.id
       hash[:category] = abuse_category
+      hash[:screenshot] = fixture_file_upload('spec/fixtures/dk.png')
     end
   end
 
   before do
     sign_in(reporter)
-  end
-
-  describe 'GET new' do
-    let(:ref_url) { 'http://example.com' }
-
-    it 'sets the instance variables' do
-      get new_abuse_report_path(user_id: user.id, ref_url: ref_url)
-
-      expect(assigns(:abuse_report)).to be_kind_of(AbuseReport)
-      expect(assigns(:abuse_report)).to have_attributes(
-        user_id: user.id,
-        reported_from_url: ref_url
-      )
-    end
-
-    context 'when the user has already been deleted' do
-      it 'redirects the reporter to root_path' do
-        user_id = user.id
-        user.destroy!
-
-        get new_abuse_report_path(user_id: user_id)
-
-        expect(response).to redirect_to root_path
-        expect(flash[:alert]).to eq(_('Cannot create the abuse report. The user has been deleted.'))
-      end
-    end
-
-    context 'when the user has already been blocked' do
-      it 'redirects the reporter to the user\'s profile' do
-        user.block
-
-        get new_abuse_report_path(user_id: user.id)
-
-        expect(response).to redirect_to user
-        expect(flash[:alert]).to eq(_('Cannot create the abuse report. This user has been blocked.'))
-      end
-    end
   end
 
   describe 'POST add_category', :aggregate_failures do
@@ -126,16 +90,16 @@ RSpec.describe AbuseReportsController, feature_category: :insider_threat do
       end
     end
 
-    context 'when the user has already been blocked' do
+    context 'when the user has already been banned' do
       let(:request_params) { { user_id: user.id, abuse_report: { category: abuse_category } } }
 
       it 'redirects the reporter to the user\'s profile' do
-        user.block
+        user.ban
 
         subject
 
         expect(response).to redirect_to user
-        expect(flash[:alert]).to eq(_('Cannot create the abuse report. This user has been blocked.'))
+        expect(flash[:alert]).to eq(_('Cannot create the abuse report. This user has been banned.'))
       end
     end
   end

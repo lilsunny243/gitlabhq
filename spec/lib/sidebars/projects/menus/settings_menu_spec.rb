@@ -2,23 +2,25 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Projects::Menus::SettingsMenu do
-  let_it_be(:project) { create(:project) }
+RSpec.describe Sidebars::Projects::Menus::SettingsMenu, feature_category: :navigation do
+  let(:project) { build_stubbed(:project) }
 
   let(:user) { project.first_owner }
   let(:context) { Sidebars::Projects::Context.new(current_user: user, container: project) }
 
   subject { described_class.new(context) }
 
-  before do
-    stub_feature_flags(show_pages_in_deployments_menu: false)
-  end
-
   describe '#render?' do
     it 'returns false when menu does not have any menu items' do
       allow(subject).to receive(:has_renderable_items?).and_return(false)
 
       expect(subject.render?).to be false
+    end
+  end
+
+  describe '#separated?' do
+    it 'returns true' do
+      expect(subject.separated?).to be true
     end
   end
 
@@ -108,32 +110,6 @@ RSpec.describe Sidebars::Projects::Menus::SettingsMenu do
 
           specify { is_expected.to be_nil }
         end
-      end
-    end
-
-    describe 'Pages' do
-      let(:item_id) { :pages }
-
-      before do
-        allow(project).to receive(:pages_available?).and_return(pages_enabled)
-      end
-
-      describe 'when pages are enabled' do
-        let(:pages_enabled) { true }
-
-        specify { is_expected.not_to be_nil }
-
-        describe 'when the user does not have access' do
-          let(:user) { nil }
-
-          specify { is_expected.to be_nil }
-        end
-      end
-
-      describe 'when pages are not enabled' do
-        let(:pages_enabled) { false }
-
-        specify { is_expected.to be_nil }
       end
     end
 

@@ -3,6 +3,10 @@
     "AlertManagementHttpIntegration",
     "AlertManagementPrometheusIntegration"
   ],
+  "BaseHeaderInterface": [
+    "AuditEventStreamingHeader",
+    "AuditEventsStreamingInstanceHeader"
+  ],
   "CiVariable": [
     "CiGroupVariable",
     "CiInstanceVariable",
@@ -21,7 +25,8 @@
     "Epic",
     "EpicIssue",
     "Issue",
-    "MergeRequest"
+    "MergeRequest",
+    "WorkItemWidgetCurrentUserTodos"
   ],
   "DependencyLinkMetadata": [
     "NugetDependencyLinkMetadata"
@@ -38,6 +43,14 @@
   "Eventable": [
     "BoardEpic",
     "Epic"
+  ],
+  "ExternalAuditEventDestinationInterface": [
+    "ExternalAuditEventDestination",
+    "InstanceExternalAuditEventDestination"
+  ],
+  "GoogleCloudLoggingConfigurationInterface": [
+    "GoogleCloudLoggingConfigurationType",
+    "InstanceGoogleCloudLoggingConfigurationType"
   ],
   "Issuable": [
     "Epic",
@@ -84,6 +97,24 @@
     "NugetMetadata",
     "PypiMetadata"
   ],
+  "Registrable": [
+    "CiSecureFileRegistry",
+    "ContainerRepositoryRegistry",
+    "DependencyProxyBlobRegistry",
+    "DependencyProxyManifestRegistry",
+    "DesignManagementRepositoryRegistry",
+    "GroupWikiRepositoryRegistry",
+    "JobArtifactRegistry",
+    "LfsObjectRegistry",
+    "MergeRequestDiffRegistry",
+    "PackageFileRegistry",
+    "PagesDeploymentRegistry",
+    "PipelineArtifactRegistry",
+    "ProjectWikiRepositoryRegistry",
+    "SnippetRepositoryRegistry",
+    "TerraformStateVersionRegistry",
+    "UploadRegistry"
+  ],
   "ResolvableInterface": [
     "Discussion",
     "Note"
@@ -112,6 +143,8 @@
     "WorkItem"
   ],
   "User": [
+    "AddOnUser",
+    "AutocompletedUser",
     "MergeRequestAssignee",
     "MergeRequestAuthor",
     "MergeRequestParticipant",
@@ -129,6 +162,7 @@
     "VulnerabilityDetailList",
     "VulnerabilityDetailMarkdown",
     "VulnerabilityDetailModuleLocation",
+    "VulnerabilityDetailNamedList",
     "VulnerabilityDetailTable",
     "VulnerabilityDetailText",
     "VulnerabilityDetailUrl"
@@ -145,13 +179,17 @@
   ],
   "WorkItemWidget": [
     "WorkItemWidgetAssignees",
+    "WorkItemWidgetAwardEmoji",
+    "WorkItemWidgetCurrentUserTodos",
     "WorkItemWidgetDescription",
     "WorkItemWidgetHealthStatus",
     "WorkItemWidgetHierarchy",
     "WorkItemWidgetIteration",
     "WorkItemWidgetLabels",
+    "WorkItemWidgetLinkedItems",
     "WorkItemWidgetMilestone",
     "WorkItemWidgetNotes",
+    "WorkItemWidgetNotifications",
     "WorkItemWidgetProgress",
     "WorkItemWidgetRequirementLegacy",
     "WorkItemWidgetStartAndDueDate",

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::PullRequests::ImportReviewRequestWorker do
+RSpec.describe Gitlab::GithubImport::PullRequests::ImportReviewRequestWorker, feature_category: :importers do
   subject(:worker) { described_class.new }
 
   describe '#import' do
@@ -26,6 +26,8 @@ RSpec.describe Gitlab::GithubImport::PullRequests::ImportReviewRequestWorker do
     end
 
     it 'imports an pull request review requests' do
+      allow(import_state).to receive(:in_progress?).and_return(true)
+
       expect(Gitlab::GithubImport::Importer::PullRequests::ReviewRequestImporter)
         .to receive(:new)
         .with(

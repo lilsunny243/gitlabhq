@@ -7,9 +7,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 # Free user limit **(FREE SAAS)**
 
 A five-user limit applies to newly created top-level namespaces with
-private visibility on GitLab SaaS. For existing namespaces, this limit
-is being rolled out gradually. Impacted users are notified in
-GitLab.com at least 60 days before the limit is applied.
+private visibility on GitLab SaaS. For existing namespaces created before December 28, 2022, the limit was applied on June 13, 2023.
 
 When the five-user limit is applied, top-level private namespaces
 exceeding the user limit are placed in a read-only state. These
@@ -27,7 +25,7 @@ Prerequisite:
 
 - You must have the Owner role for the group.
 
-1. On the top bar, select **Main menu > Groups > View all groups** and find your group.
+1. On the left sidebar, select **Search or go to** and find your group.
 1. On the left sidebar, select **Settings > Usage Quotas**.
 1. To view all members, select the **Seats** tab.
 1. To remove a member, select **Remove user**.

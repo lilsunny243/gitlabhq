@@ -21,16 +21,9 @@ RSpec.shared_examples 'Debian packages upload request' do |status, body = nil|
     it 'creates package files', :aggregate_failures do
       expect(::Packages::Debian::CreatePackageFileService).to receive(:new).with(package: be_a(Packages::Package), current_user: be_an(User), params: be_an(Hash)).and_call_original
 
-      if file_name.end_with? '.changes'
-        expect(::Packages::Debian::ProcessChangesWorker).to receive(:perform_async)
-      else
-        expect(::Packages::Debian::ProcessChangesWorker).not_to receive(:perform_async)
-      end
-
-      if extra_params[:distribution]
+      if extra_params[:distribution] || file_name.end_with?('.changes')
         expect(::Packages::Debian::FindOrCreateIncomingService).not_to receive(:new)
-        expect(::Packages::Debian::ProcessPackageFileWorker).to receive(:perform_async)
-
+        expect(::Packages::Debian::ProcessPackageFileWorker).to receive(:perform_async).with(be_a(Integer), extra_params[:distribution], extra_params[:component])
         expect { subject }
           .to change { container.packages.debian.count }.by(1)
           .and not_change { container.packages.debian.where(name: 'incoming').count }
@@ -164,4 +157,42 @@ RSpec.shared_examples 'Debian packages write endpoint' do |desired_behavior, suc
   end
 
   it_behaves_like 'rejects Debian access with unknown container id', :unauthorized, :basic
+end
+
+RSpec.shared_examples 'Debian packages endpoint catching ObjectStorage::RemoteStoreError' do
+  include_context 'Debian repository access', :public, :developer, :basic do
+    it "returns forbidden" do
+      expect(::Packages::Debian::CreatePackageFileService).to receive(:new).and_raise ObjectStorage::RemoteStoreError
+
+      subject
+
+      expect(response).to have_gitlab_http_status(:forbidden)
+    end
+  end
+end
+
+RSpec.shared_examples 'Debian packages index endpoint' do |success_body|
+  it_behaves_like 'Debian packages read endpoint', 'GET', :success, success_body
+
+  context 'when no ComponentFile is found' do
+    let(:target_component_name) { component.name + FFaker::Lorem.word }
+
+    it_behaves_like 'Debian packages read endpoint', 'GET', :no_content, /^$/
+  end
+end
+
+RSpec.shared_examples 'Debian packages index sha256 endpoint' do |success_body|
+  it_behaves_like 'Debian packages read endpoint', 'GET', :success, success_body
+
+  context 'with empty checksum' do
+    let(:target_sha256) { 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }
+
+    it_behaves_like 'Debian packages read endpoint', 'GET', :no_content, /^$/
+  end
+
+  context 'when ComponentFile is not found' do
+    let(:target_component_name) { component.name + FFaker::Lorem.word }
+
+    it_behaves_like 'Debian packages read endpoint', 'GET', :not_found, /^{"message":"404 Not Found"}$/
+  end
 end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Types::Ci::JobType do
+RSpec.describe Types::Ci::JobType, feature_category: :continuous_integration do
   include GraphqlHelpers
 
   specify { expect(described_class.graphql_name).to eq('CiJob') }
@@ -32,6 +32,7 @@ RSpec.describe Types::Ci::JobType do
       needs
       pipeline
       playable
+      previousStageJobs
       previousStageJobsOrNeeds
       project
       queued_at
@@ -40,6 +41,8 @@ RSpec.describe Types::Ci::JobType do
       refPath
       retryable
       retried
+      runner
+      runnerManager
       scheduledAt
       schedulingType
       shortSha
@@ -51,7 +54,18 @@ RSpec.describe Types::Ci::JobType do
       triggered
       userPermissions
       webPath
+      playPath
+      canPlayJob
+      scheduled
+      trace
+      failure_message
     ]
+
+    if Gitlab.ee?
+      expected_fields += %i[
+        aiFailureAnalysis
+      ]
+    end
 
     expect(described_class).to have_graphql_fields(*expected_fields)
   end

@@ -1,5 +1,6 @@
 import { identity } from 'lodash';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions } from 'vuex';
 import { DEFAULT_BRANCH } from '~/ide/constants';
 import PerformancePlugin from '~/performance/vue_performance_plugin';
@@ -72,7 +73,6 @@ export const initLegacyWebIDE = (el, options = {}) => {
         environmentsGuidanceAlertDismissed: !parseBoolean(el.dataset.enableEnvironmentsGuidance),
         previewMarkdownPath: el.dataset.previewMarkdownPath,
         userPreferencesPath: el.dataset.userPreferencesPath,
-        learnGitlabSource: parseBoolean(el.dataset.learnGitlabSource),
       });
     },
     beforeDestroy() {

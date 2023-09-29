@@ -23,9 +23,17 @@ module StubGitlabCalls
   end
 
   def stub_ci_pipeline_yaml_file(ci_yaml_content)
+    blob = instance_double(Blob, empty?: ci_yaml_content.blank?, data: ci_yaml_content)
+    allow(blob).to receive(:load_all_data!)
+
     allow_any_instance_of(Repository)
-      .to receive(:gitlab_ci_yml_for)
-      .and_return(ci_yaml_content)
+      .to receive(:blob_at)
+      .and_call_original
+
+    allow_any_instance_of(Repository)
+      .to receive(:blob_at)
+      .with(String, '.gitlab-ci.yml')
+      .and_return(blob)
 
     # Ensure we don't hit auto-devops when config not found in repository
     unless ci_yaml_content
@@ -94,10 +102,10 @@ module StubGitlabCalls
   end
 
   def stub_commonmark_sourcepos_disabled
-    render_options = Banzai::Filter::MarkdownEngines::CommonMark::RENDER_OPTIONS
+    engine = Banzai::Filter::MarkdownFilter.render_engine(nil)
 
-    allow_next_instance_of(Banzai::Filter::MarkdownEngines::CommonMark) do |instance|
-      allow(instance).to receive(:render_options).and_return(render_options)
+    allow_next_instance_of(engine) do |instance|
+      allow(instance).to receive(:sourcepos_disabled?).and_return(true)
     end
   end
 

@@ -8,6 +8,7 @@ import {
   GlFormGroup,
   GlFormInput,
   GlLink,
+  GlAlert,
 } from '@gitlab/ui';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { __ } from '~/locale';
@@ -17,6 +18,9 @@ import ServiceDeskTemplateDropdown from './service_desk_template_dropdown.vue';
 export default {
   i18n: {
     toggleLabel: __('Activate Service Desk'),
+    issueTrackerEnableMessage: __(
+      'To use Service Desk in this project, you must %{linkStart}activate the issue tracker%{linkEnd}.',
+    ),
   },
   components: {
     ClipboardButton,
@@ -28,10 +32,15 @@ export default {
     GlFormGroup,
     GlFormInputGroup,
     GlLink,
+    GlAlert,
     ServiceDeskTemplateDropdown,
   },
   props: {
     isEnabled: {
+      type: Boolean,
+      required: true,
+    },
+    isIssueTrackerEnabled: {
       type: Boolean,
       required: true,
     },
@@ -40,12 +49,12 @@ export default {
       required: false,
       default: '',
     },
-    customEmail: {
+    serviceDeskEmail: {
       type: String,
       required: false,
       default: '',
     },
-    customEmailEnabled: {
+    serviceDeskEmailEnabled: {
       type: Boolean,
       required: false,
     },
@@ -92,22 +101,27 @@ export default {
   },
   computed: {
     hasProjectKeySupport() {
-      return Boolean(this.customEmailEnabled);
+      return Boolean(this.serviceDeskEmailEnabled);
     },
     email() {
-      return this.customEmail || this.incomingEmail;
+      return this.serviceDeskEmail || this.incomingEmail;
     },
-    hasCustomEmail() {
-      return this.customEmail && this.customEmail !== this.incomingEmail;
+    hasServiceDeskEmail() {
+      return this.serviceDeskEmail && this.serviceDeskEmail !== this.incomingEmail;
     },
     emailSuffixHelpUrl() {
       return helpPagePath('user/project/service_desk.html', {
-        anchor: 'configuring-a-custom-email-address-suffix',
+        anchor: 'configure-a-suffix-for-service-desk-alias-email',
       });
     },
-    customEmailAddressHelpUrl() {
+    serviceDeskEmailAddressHelpUrl() {
       return helpPagePath('user/project/service_desk.html', {
-        anchor: 'using-a-custom-email-address',
+        anchor: 'use-an-additional-service-desk-alias-email',
+      });
+    },
+    issuesHelpPagePath() {
+      return helpPagePath('user/project/settings/index.md', {
+        anchor: 'configure-project-visibility-features-and-permissions',
       });
     },
   },
@@ -141,9 +155,24 @@ export default {
 
 <template>
   <div>
+    <gl-alert v-if="!isIssueTrackerEnabled" class="mb-3" variant="info" :dismissible="false">
+      <gl-sprintf :message="$options.i18n.issueTrackerEnableMessage">
+        <template #link="{ content }">
+          <gl-link
+            class="gl-display-inline-block"
+            data-testid="issue-help-page"
+            :href="issuesHelpPagePath"
+            target="_blank"
+          >
+            {{ content }}
+          </gl-link>
+        </template>
+      </gl-sprintf>
+    </gl-alert>
     <gl-toggle
       id="service-desk-checkbox"
       :value="isEnabled"
+      :disabled="!isIssueTrackerEnabled"
       class="d-inline-block align-middle mr-1"
       :label="$options.i18n.toggleLabel"
       label-position="hidden"
@@ -155,7 +184,7 @@ export default {
     <div v-if="isEnabled" class="row mt-3">
       <div class="col-md-9 mb-0">
         <gl-form-group
-          :label="__('Email address to use for Support Desk')"
+          :label="__('Email address to use for Service Desk')"
           label-for="incoming-email"
           data-testid="incoming-email-label"
         >
@@ -175,7 +204,7 @@ export default {
               <clipboard-button :title="__('Copy')" :text="email" css-class="input-group-text" />
             </template>
           </gl-form-input-group>
-          <template v-if="email && hasCustomEmail" #description>
+          <template v-if="email && hasServiceDeskEmail" #description>
             <span class="gl-mt-2 gl-display-inline-block">
               <gl-sprintf :message="__('Emails sent to %{email} are also supported.')">
                 <template #email>
@@ -194,6 +223,7 @@ export default {
           :label="__('Email address suffix')"
           :state="!projectKeyError"
           data-testid="suffix-form-group"
+          :disabled="!isIssueTrackerEnabled"
         >
           <gl-form-input
             v-if="hasProjectKeySupport"
@@ -230,7 +260,7 @@ export default {
               >
                 <template #link="{ content }">
                   <gl-link
-                    :href="customEmailAddressHelpUrl"
+                    :href="serviceDeskEmailAddressHelpUrl"
                     target="_blank"
                     class="gl-text-blue-600 font-size-inherit"
                     >{{ content }}
@@ -249,6 +279,7 @@ export default {
           :label="__('Template to append to all Service Desk issues')"
           :state="!projectKeyError"
           class="mt-3"
+          :disabled="!isIssueTrackerEnabled"
         >
           <service-desk-template-dropdown
             :selected-template="selectedTemplate"
@@ -268,6 +299,7 @@ export default {
             id="service-desk-email-from-name"
             v-model.trim="outgoingName"
             data-testid="email-from-name"
+            :disabled="!isIssueTrackerEnabled"
           />
 
           <template #description>
@@ -280,7 +312,7 @@ export default {
           class="gl-mt-5"
           data-testid="save_service_desk_settings_button"
           data-qa-selector="save_service_desk_settings_button"
-          :disabled="isTemplateSaving"
+          :disabled="isTemplateSaving || !isIssueTrackerEnabled"
           @click="onSaveTemplate"
         >
           {{ __('Save changes') }}

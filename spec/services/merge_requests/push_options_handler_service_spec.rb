@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::PushOptionsHandlerService do
+RSpec.describe MergeRequests::PushOptionsHandlerService, feature_category: :source_code_management do
   include ProjectForksHelper
 
   let_it_be(:parent_group) { create(:group, :public) }
@@ -858,6 +858,21 @@ RSpec.describe MergeRequests::PushOptionsHandlerService do
       service.execute
 
       expect(service.errors).to eq(["Target branch #{project.full_path}:my-branch does not exist"])
+    end
+  end
+
+  describe 'when user does not have access to target project' do
+    let(:push_options) { { create: true, target: 'my-branch' } }
+    let(:changes) { default_branch_changes }
+
+    before do
+      allow(user1).to receive(:can?).with(:read_code, project).and_return(false)
+    end
+
+    it 'records an error', :sidekiq_inline do
+      service.execute
+
+      expect(service.errors).to eq(["User access was denied"])
     end
   end
 

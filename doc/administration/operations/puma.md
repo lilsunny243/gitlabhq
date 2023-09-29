@@ -99,7 +99,7 @@ To change the worker timeout to 600 seconds:
 ## Disable Puma clustered mode in memory-constrained environments
 
 WARNING:
-This is an experimental [Alpha feature](../../policy/alpha-beta-support.md#alpha-features) and subject to change without notice. The feature
+This feature is an [Experiment](../../policy/experiment-beta-support.md#experiment) and subject to change without notice. The feature
 is not ready for production use. If you want to use this feature, you should test
 outside of production first. See the [known issues](#puma-single-mode-known-issues)
 for additional details.
@@ -173,7 +173,7 @@ optimal configuration:
 
 ## Configuring Puma to listen over SSL
 
-Puma, when deployed with Omnibus GitLab, listens over a Unix socket by
+Puma, when deployed with a Linux package installation, listens over a Unix socket by
 default. To configure Puma to listen over an HTTPS port instead, follow the
 steps below:
 
@@ -182,7 +182,7 @@ steps below:
 
    NOTE:
    If using a self-signed certificate from a custom Certificate Authority (CA),
-   follow [the documentation](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates)
+   follow [the documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html#install-custom-public-certificates)
    to make them trusted by other GitLab components.
 
 1. Edit `/etc/gitlab/gitlab.rb`:
@@ -211,6 +211,71 @@ make Prometheus scrape them over HTTPS, and support for it is being discussed
 Hence, it is not technically possible to turn off this HTTP listener without
 losing Prometheus metrics.
 
+### Using an encrypted SSL key
+
+> [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/7799) in GitLab 16.1.
+
+Puma supports the use of an encrypted private SSL key, which can be
+decrypted at runtime. The following instructions illustrate how to
+configure this:
+
+1. Encrypt the key with a password if it is not already:
+
+   ```shell
+   openssl rsa -aes256 -in /path/to/ssl-key.pem -out /path/to/encrypted-ssl-key.pem
+   ```
+
+   Enter in a password twice to write the encrypted file. In this
+   example, we use `some-password-here`.
+
+1. Create a script or executable that prints the password. For
+   example, create a basic script in
+   `/var/opt/gitlab/gitlab-rails/etc/puma-ssl-key-password` that echoes
+   the password:
+
+   ```shell
+   #!/bin/sh
+   echo some-password-here
+   ```
+
+   Note that in production, you should avoid storing the password on
+   disk and use a secure mechanism for retrieving a password, such as
+   Vault. For example, the script might look like:
+
+   ```shell
+   #!/bin/sh
+   export VAULT_ADDR=http://vault-password-distribution-point:8200
+   export VAULT_TOKEN=<some token>
+
+   echo "$(vault kv get -mount=secret puma-ssl-password)"
+   ```
+
+1. Ensure the Puma process has sufficient permissions to execute the
+   script and to read the encrypted key:
+
+   ```shell
+   chown git:git /var/opt/gitlab/gitlab-rails/etc/puma-ssl-key-password
+   chmod 770 /var/opt/gitlab/gitlab-rails/etc/puma-ssl-key-password
+   chmod 660 /path/to/encrypted-ssl-key.pem
+   ```
+
+1. Edit `/etc/gitlab/gitlab.rb`, and replace `puma['ssl_certificate_key']` with the encrypted key and specify
+   `puma['ssl_key_password_command]`:
+
+   ```ruby
+   puma['ssl_certificate_key'] = '/path/to/encrypted-ssl-key.pem'
+   puma['ssl_key_password_command'] = '/var/opt/gitlab/gitlab-rails/etc/puma-ssl-key-password'
+   ```
+
+1. Reconfigure GitLab:
+
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+1. If GitLab comes up successfully, you should be able to remove the
+   unencrypted SSL key that was stored on the GitLab instance.
+
 ## Switch from Unicorn to Puma
 
 NOTE:
@@ -218,7 +283,7 @@ For Helm-based deployments, see the
 [`webservice` chart documentation](https://docs.gitlab.com/charts/charts/gitlab/webservice/index.html).
 
 Starting with GitLab 13.0, Puma is the default web server and Unicorn has been disabled.
-In GitLab 14.0, [Unicorn was removed](../../update/removals.md#unicorn-in-gitlab-self-managed)
+In GitLab 14.0, [Unicorn was removed](https://docs.gitlab.com/omnibus/update/gitlab_14_changes.html)
 from the Linux package and is no longer supported.
 
 Puma has a multi-thread architecture that uses less memory than a multi-process
@@ -321,7 +386,7 @@ downtime. Otherwise, skip to the next section.
 
 GDB reports an error if the Puma process terminates before you can run these commands.
 To buy more time, you can always raise the
-Puma worker timeout. For omnibus users, you can edit `/etc/gitlab/gitlab.rb` and
+Puma worker timeout. For Linux package installation users, you can edit `/etc/gitlab/gitlab.rb` and
 increase it from 60 seconds to 600:
 
 ```ruby
@@ -330,10 +395,10 @@ gitlab_rails['env'] = {
 }
 ```
 
-For source installations, set the environment variable.
+For self-compiled installations, set the environment variable.
 Refer to [Puma Worker timeout](../operations/puma.md#change-the-worker-timeout).
 
-[Reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure) GitLab for the changes to take effect.
+[Reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation) GitLab for the changes to take effect.
 
 #### Troubleshooting without affecting other users
 

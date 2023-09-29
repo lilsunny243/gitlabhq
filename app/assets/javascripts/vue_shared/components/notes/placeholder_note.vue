@@ -17,6 +17,7 @@
  *   />
  */
 import { GlAvatarLink, GlAvatar } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { renderMarkdown } from '~/notes/utils';
@@ -45,18 +46,31 @@ export default {
       required: false,
       default: false,
     },
+    internalNote: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   computed: {
     ...mapGetters(['getUserData']),
     renderedNote() {
       return renderMarkdown(this.note.body);
     },
+    internalNoteClass() {
+      return {
+        'internal-note': this.internalNote,
+      };
+    },
   },
 };
 </script>
 
 <template>
-  <timeline-entry-item class="note note-wrapper note-comment being-posted fade-in-half">
+  <timeline-entry-item
+    class="note note-wrapper note-comment being-posted fade-in-half"
+    :class="internalNoteClass"
+  >
     <div class="timeline-avatar gl-float-left">
       <gl-avatar-link :href="getUserData.path">
         <gl-avatar

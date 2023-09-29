@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'shows and resets runner registration token' do
-  include Spec::Support::Helpers::Features::RunnersHelpers
+  include Features::RunnersHelpers
   include Spec::Support::Helpers::ModalHelpers
 
   before do
@@ -57,22 +57,21 @@ RSpec.shared_examples 'shows and resets runner registration token' do
       click_on dropdown_text
       click_on 'Click to reveal'
 
-      expect(old_registration_token).not_to eq registration_token
+      expect(find_field('token-value').value).not_to eq old_registration_token
     end
   end
 end
 
 RSpec.shared_examples 'shows no runners registered' do
-  it 'shows total count with 0' do
+  it 'shows 0 count and the empty state' do
     expect(find('[data-testid="runner-type-tabs"]')).to have_text "#{s_('Runners|All')} 0"
 
     # No stats are shown
     expect(page).not_to have_text s_('Runners|Online')
     expect(page).not_to have_text s_('Runners|Offline')
     expect(page).not_to have_text s_('Runners|Stale')
-  end
 
-  it 'shows "no runners" message' do
+    # "no runners" message
     expect(page).to have_text s_('Runners|Get started with runners')
   end
 end
@@ -84,16 +83,25 @@ RSpec.shared_examples 'shows no runners found' do
 end
 
 RSpec.shared_examples 'shows runner in list' do
-  it 'does not show empty state' do
-    expect(page).not_to have_content s_('Runners|Get started with runners')
-  end
-
-  it 'shows runner row' do
+  it 'shows runner row and no empty state' do
     within_runner_row(runner.id) do
       expect(page).to have_text "##{runner.id}"
       expect(page).to have_text runner.short_sha
       expect(page).to have_text runner.description
     end
+
+    expect(page).not_to have_content s_('Runners|Get started with runners')
+  end
+end
+
+RSpec.shared_examples 'shows runner details from list' do
+  it 'shows runner details page' do
+    click_link("##{runner.id} (#{runner.short_sha})")
+
+    expect(current_url).to include(runner_page_path)
+
+    expect(page).to have_selector 'h1', text: "##{runner.id} (#{runner.short_sha})"
+    expect(page).to have_content "#{s_('Runners|Description')} #{runner.description}"
   end
 end
 
@@ -130,7 +138,7 @@ RSpec.shared_examples 'pauses, resumes and deletes a runner' do
 
     it 'deletes a runner' do
       within_modal do
-        click_on 'Delete runner'
+        click_on 'Permanently delete runner'
       end
 
       expect(page.find('.gl-toast')).to have_text(/Runner .+ deleted/)
@@ -194,6 +202,13 @@ RSpec.shared_examples 'shows runner jobs tab' do
   end
 end
 
+RSpec.shared_examples 'shows locked field' do
+  it 'shows locked checkbox with description', :js do
+    expect(page).to have_selector('input[type="checkbox"][name="locked"]')
+    expect(page).to have_content(_('Lock to current projects'))
+  end
+end
+
 RSpec.shared_examples 'submits edit runner form' do
   it 'breadcrumb contains runner id and token' do
     page.within '[data-testid="breadcrumb-links"]' do
@@ -204,13 +219,13 @@ RSpec.shared_examples 'submits edit runner form' do
 
   describe 'runner header', :js do
     it 'contains the runner id' do
-      expect(page).to have_content("Runner ##{runner.id} created")
+      expect(page).to have_content("##{runner.id} (#{runner.short_sha})")
     end
   end
 
   context 'when a runner is updated', :js do
     before do
-      find('[data-testid="runner-field-description"] input').set('new-runner-description')
+      fill_in s_('Runners|Runner description'), with: 'new-runner-description'
 
       click_on _('Save changes')
       wait_for_requests
@@ -226,6 +241,36 @@ RSpec.shared_examples 'submits edit runner form' do
 
     it 'shows updated information' do
       expect(page).to have_content("#{s_('Runners|Description')} new-runner-description")
+    end
+  end
+end
+
+RSpec.shared_examples 'creates runner and shows register page' do
+  context 'when runner is saved' do
+    before do
+      fill_in s_('Runners|Runner description'), with: 'runner-foo'
+      fill_in s_('Runners|Tags'), with: 'tag1'
+      click_on s_('Runners|Create runner')
+      wait_for_requests
+    end
+
+    it 'navigates to registration page and opens install instructions drawer' do
+      expect(page.find('[data-testid="alert-success"]')).to have_content(s_('Runners|Runner created.'))
+      expect(current_url).to match(register_path_pattern)
+
+      click_on 'How do I install GitLab Runner?'
+      expect(page.find('[data-testid="runner-platforms-drawer"]')).to have_content('gitlab-runner install')
+    end
+
+    it 'warns from leaving page without finishing registration' do
+      click_on s_('Runners|Go to runners page')
+
+      alert = page.driver.browser.switch_to.alert
+
+      expect(alert).not_to be_nil
+      alert.dismiss
+
+      expect(current_url).to match(register_path_pattern)
     end
   end
 end

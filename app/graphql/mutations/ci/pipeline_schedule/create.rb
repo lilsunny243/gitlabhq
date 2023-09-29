@@ -51,13 +51,15 @@ module Mutations
 
           params = pipeline_schedule_attrs.merge(variables_attributes: variables.map(&:to_h))
 
-          schedule = ::Ci::CreatePipelineScheduleService
-                      .new(project, current_user, params)
-                      .execute
+          response = ::Ci::PipelineSchedules::CreateService
+                        .new(project, current_user, params)
+                        .execute
 
-          unless schedule.persisted?
+          schedule = response.payload
+
+          unless response.success?
             return {
-              pipeline_schedule: nil, errors: schedule.errors.full_messages
+              pipeline_schedule: nil, errors: response.errors
             }
           end
 

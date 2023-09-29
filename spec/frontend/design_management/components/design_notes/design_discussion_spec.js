@@ -1,6 +1,5 @@
-import { GlLoadingIcon } from '@gitlab/ui';
+import { GlLoadingIcon, GlFormCheckbox } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
-import { ApolloMutation } from 'vue-apollo';
 import { nextTick } from 'vue';
 import waitForPromises from 'helpers/wait_for_promises';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
@@ -9,7 +8,6 @@ import DesignNote from '~/design_management/components/design_notes/design_note.
 import DesignNoteSignedOut from '~/design_management/components/design_notes/design_note_signed_out.vue';
 import DesignReplyForm from '~/design_management/components/design_notes/design_reply_form.vue';
 import ToggleRepliesWidget from '~/design_management/components/design_notes/toggle_replies_widget.vue';
-import createNoteMutation from '~/design_management/graphql/mutations/create_note.mutation.graphql';
 import toggleResolveDiscussionMutation from '~/design_management/graphql/mutations/toggle_resolve_discussion.mutation.graphql';
 import ReplyPlaceholder from '~/notes/components/discussion_reply_placeholder.vue';
 import destroyNoteMutation from '~/design_management/graphql/mutations/destroy_note.mutation.graphql';
@@ -29,9 +27,9 @@ const defaultMockDiscussion = {
 const DEFAULT_TODO_COUNT = 2;
 
 describe('Design discussions component', () => {
-  const originalGon = window.gon;
   let wrapper;
 
+  const findDesignNotesList = () => wrapper.find('[data-testid="design-discussion-content"]');
   const findDesignNotes = () => wrapper.findAllComponents(DesignNote);
   const findReplyPlaceholder = () => wrapper.findComponent(ReplyPlaceholder);
   const findReplyForm = () => wrapper.findComponent(DesignReplyForm);
@@ -39,19 +37,8 @@ describe('Design discussions component', () => {
   const findResolveButton = () => wrapper.find('[data-testid="resolve-button"]');
   const findResolvedMessage = () => wrapper.find('[data-testid="resolved-message"]');
   const findResolveLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
-  const findResolveCheckbox = () => wrapper.find('[data-testid="resolve-checkbox"]');
-  const findApolloMutation = () => wrapper.findComponent(ApolloMutation);
+  const findResolveCheckbox = () => wrapper.findComponent(GlFormCheckbox);
 
-  const mutationVariables = {
-    mutation: createNoteMutation,
-    variables: {
-      input: {
-        noteableId: 'noteable-id',
-        body: 'test',
-        discussionId: '0',
-      },
-    },
-  };
   const registerPath = '/users/sign_up?redirect_to_referer=yes';
   const signInPath = '/users/sign_in?redirect_to_referer=yes';
   const mutate = jest.fn().mockResolvedValue({ data: { createNote: { errors: [] } } });
@@ -102,6 +89,9 @@ describe('Design discussions component', () => {
           },
         },
       },
+      stubs: {
+        EmojiPicker: true,
+      },
     });
   }
 
@@ -110,8 +100,6 @@ describe('Design discussions component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
-    window.gon = originalGon;
     confirmAction.mockReset();
   });
 
@@ -222,7 +210,7 @@ describe('Design discussions component', () => {
     it('emit todo:toggle when discussion is resolved', async () => {
       createComponent({
         props: { discussionWithOpenForm: defaultMockDiscussion.id },
-        data: { discussionComment: 'test', isFormRendered: true },
+        data: { isFormRendered: true },
       });
       findResolveButton().trigger('click');
       findReplyForm().vm.$emit('submitForm');
@@ -275,16 +263,14 @@ describe('Design discussions component', () => {
     expect(findReplyForm().exists()).toBe(true);
   });
 
-  it('calls mutation on submitting form and closes the form', async () => {
+  it('closes the form when note submit mutation is completed', async () => {
     createComponent({
       props: { discussionWithOpenForm: defaultMockDiscussion.id },
-      data: { discussionComment: 'test', isFormRendered: true },
+      data: { isFormRendered: true },
     });
 
-    findReplyForm().vm.$emit('submit-form');
-    expect(mutate).toHaveBeenCalledWith(mutationVariables);
+    findReplyForm().vm.$emit('note-submit-complete', { data: { createNote: {} } });
 
-    await mutate();
     await nextTick();
 
     expect(findReplyForm().exists()).toBe(false);
@@ -293,13 +279,11 @@ describe('Design discussions component', () => {
   it('clears the discussion comment on closing comment form', async () => {
     createComponent({
       props: { discussionWithOpenForm: defaultMockDiscussion.id },
-      data: { discussionComment: 'test', isFormRendered: true },
+      data: { isFormRendered: true },
     });
 
     await nextTick();
     findReplyForm().vm.$emit('cancel-form');
-
-    expect(wrapper.vm.discussionComment).toBe('');
 
     await nextTick();
     expect(findReplyForm().exists()).toBe(false);
@@ -307,7 +291,7 @@ describe('Design discussions component', () => {
 
   describe('when any note from a discussion is active', () => {
     it.each([notes[0], notes[0].discussion.notes.nodes[1]])(
-      'applies correct class to all notes in the active discussion',
+      'applies correct class to the active discussion',
       (note) => {
         createComponent({
           props: { discussion: mockDiscussion },
@@ -319,11 +303,7 @@ describe('Design discussions component', () => {
           },
         });
 
-        expect(
-          wrapper
-            .findAllComponents(DesignNote)
-            .wrappers.every((designNote) => designNote.classes('gl-bg-blue-50')),
-        ).toBe(true);
+        expect(findDesignNotesList().classes('gl-bg-blue-50')).toBe(true);
       },
     );
   });
@@ -345,7 +325,7 @@ describe('Design discussions component', () => {
   it('calls toggleResolveDiscussion mutation after adding a note if checkbox was checked', () => {
     createComponent({
       props: { discussionWithOpenForm: defaultMockDiscussion.id },
-      data: { discussionComment: 'test', isFormRendered: true },
+      data: { isFormRendered: true },
     });
     findResolveButton().trigger('click');
     findReplyForm().vm.$emit('submitForm');
@@ -380,7 +360,7 @@ describe('Design discussions component', () => {
           },
           discussionWithOpenForm: defaultMockDiscussion.id,
         },
-        data: { discussionComment: 'test', isFormRendered: true },
+        data: { isFormRendered: true },
       });
     });
 
@@ -392,10 +372,6 @@ describe('Design discussions component', () => {
       expect(findReplyPlaceholder().exists()).toBe(false);
     });
 
-    it('does not render apollo-mutation component', () => {
-      expect(findApolloMutation().exists()).toBe(false);
-    });
-
     it('renders design-note-signed-out component', () => {
       expect(findDesignNoteSignedOut().exists()).toBe(true);
       expect(findDesignNoteSignedOut().props()).toMatchObject({
@@ -405,7 +381,7 @@ describe('Design discussions component', () => {
     });
   });
 
-  it('should open confirmation modal when the note emits `delete-note` event', async () => {
+  it('should open confirmation modal when the note emits `delete-note` event', () => {
     createComponent();
 
     findDesignNotes().at(0).vm.$emit('delete-note', { id: '1' });

@@ -3,6 +3,31 @@
 class IssuableBaseService < ::BaseContainerService
   private
 
+  def available_callbacks
+    [
+      Issuable::Callbacks::Milestone
+    ].freeze
+  end
+
+  def initialize_callbacks!(issuable)
+    @callbacks = available_callbacks.filter_map do |callback_class|
+      callback_params = params.slice(*callback_class::ALLOWED_PARAMS)
+
+      next if callback_params.empty?
+
+      callback_class.new(issuable: issuable, current_user: current_user, params: callback_params)
+    end
+
+    remove_callback_params
+    @callbacks.each(&:after_initialize)
+  end
+
+  def remove_callback_params
+    available_callbacks.each do |callback_class|
+      callback_class::ALLOWED_PARAMS.each { |p| params.delete(p) }
+    end
+  end
+
   def self.constructor_container_arg(value)
     # TODO: Dynamically determining the type of a constructor arg based on the class is an antipattern,
     # but the root cause is that Epics::BaseService has some issues that inheritance may not be the
@@ -13,14 +38,12 @@ class IssuableBaseService < ::BaseContainerService
     { container: value }
   end
 
-  attr_accessor :params, :skip_milestone_email
+  attr_accessor :params
 
   def initialize(container:, current_user: nil, params: {})
     # we need to exclude project params since they may come from external requests. project should always
     # be passed as part of the service's initializer
     super(container: container, current_user: current_user, params: params.except(:project, :project_id))
-
-    @skip_milestone_email = @params.delete(:skip_milestone_email)
   end
 
   def can_admin_issuable?(issuable)
@@ -36,10 +59,7 @@ class IssuableBaseService < ::BaseContainerService
   end
 
   def filter_params(issuable)
-    params.delete(:milestone)
-
     unless can_set_issuable_metadata?(issuable)
-      params.delete(:milestone_id)
       params.delete(:labels)
       params.delete(:add_label_ids)
       params.delete(:add_labels)
@@ -63,7 +83,6 @@ class IssuableBaseService < ::BaseContainerService
     params.delete(:remove_contacts) unless can?(current_user, :set_issue_crm_contacts, issuable)
 
     filter_assignees(issuable)
-    filter_milestone
     filter_labels
     filter_severity(issuable)
     filter_escalation_status(issuable)
@@ -102,19 +121,6 @@ class IssuableBaseService < ::BaseContainerService
     resource     = issuable.persisted? ? issuable : project
 
     can?(user, ability_name, resource)
-  end
-
-  def filter_milestone
-    milestone_id = params[:milestone_id]
-    return unless milestone_id
-
-    params[:milestone_id] = '' if milestone_id == IssuableFinder::Params::NONE
-    groups = project.group&.self_and_ancestors&.select(:id)
-
-    milestone =
-      Milestone.for_projects_and_groups([project.id], groups).find_by_id(milestone_id)
-
-    params[:milestone_id] = '' unless milestone
   end
 
   def filter_labels
@@ -163,7 +169,7 @@ class IssuableBaseService < ::BaseContainerService
     params[:incident_management_issuable_escalation_status_attributes] = result[:escalation_status]
   end
 
-  def process_label_ids(attributes, existing_label_ids: nil, extra_label_ids: [])
+  def process_label_ids(attributes, issuable:, existing_label_ids: nil, extra_label_ids: []) # rubocop:disable Lint/UnusedMethodArgument
     label_ids = attributes.delete(:label_ids)
     add_label_ids = attributes.delete(:add_label_ids)
     remove_label_ids = attributes.delete(:remove_label_ids)
@@ -174,15 +180,29 @@ class IssuableBaseService < ::BaseContainerService
     new_label_ids |= add_label_ids if add_label_ids
     new_label_ids -= remove_label_ids if remove_label_ids
 
-    new_label_ids.uniq
+    filter_locked_labels(issuable, new_label_ids.uniq, existing_label_ids)
+  end
+
+  # Filter out any locked labels that are attempting to be removed
+  def filter_locked_labels(issuable, ids, existing_label_ids)
+    return ids unless issuable.supports_lock_on_merge?
+    return ids unless existing_label_ids.present?
+
+    removed_label_ids = existing_label_ids - ids
+    removed_locked_label_ids = labels_service.filter_locked_label_ids(removed_label_ids)
+
+    ids + removed_locked_label_ids
   end
 
   def process_assignee_ids(attributes, existing_assignee_ids: nil, extra_assignee_ids: [])
-    process = Issuable::ProcessAssignees.new(assignee_ids: attributes.delete(:assignee_ids),
-                                             add_assignee_ids: attributes.delete(:add_assignee_ids),
-                                             remove_assignee_ids: attributes.delete(:remove_assignee_ids),
-                                             existing_assignee_ids: existing_assignee_ids,
-                                             extra_assignee_ids: extra_assignee_ids)
+    process = Issuable::ProcessAssignees.new(
+      assignee_ids: attributes.delete(:assignee_ids),
+      add_assignee_ids: attributes.delete(:add_assignee_ids),
+      remove_assignee_ids: attributes.delete(:remove_assignee_ids),
+      existing_assignee_ids: existing_assignee_ids,
+      extra_assignee_ids: extra_assignee_ids
+    )
+
     process.execute
   end
 
@@ -208,12 +228,14 @@ class IssuableBaseService < ::BaseContainerService
   end
 
   def create(issuable, skip_system_notes: false)
+    initialize_callbacks!(issuable)
+
     handle_quick_actions(issuable)
     filter_params(issuable)
 
     params.delete(:state_event)
     params[:author] ||= current_user
-    params[:label_ids] = process_label_ids(params, extra_label_ids: issuable.label_ids.to_a)
+    params[:label_ids] = process_label_ids(params, issuable: issuable, extra_label_ids: issuable.label_ids.to_a)
 
     if issuable.respond_to?(:assignee_ids)
       params[:assignee_ids] = process_assignee_ids(params, extra_assignee_ids: issuable.assignee_ids.to_a)
@@ -231,6 +253,8 @@ class IssuableBaseService < ::BaseContainerService
     end
 
     if issuable_saved
+      @callbacks.each(&:after_save_commit)
+
       create_system_notes(issuable, is_update: false) unless skip_system_notes
       handle_changes(issuable, { params: params })
 
@@ -280,19 +304,22 @@ class IssuableBaseService < ::BaseContainerService
   end
 
   def update(issuable)
+    old_associations = associations_before_update(issuable)
+
+    initialize_callbacks!(issuable)
+
     prepare_update_params(issuable)
     handle_quick_actions(issuable)
     filter_params(issuable)
 
     change_additional_attributes(issuable)
-    old_associations = associations_before_update(issuable)
 
     assign_requested_labels(issuable)
     assign_requested_assignees(issuable)
     assign_requested_crm_contacts(issuable)
     widget_params = filter_widget_params
 
-    if issuable.changed? || params.present? || widget_params.present?
+    if issuable.changed? || params.present? || widget_params.present? || @callbacks.present?
       issuable.assign_attributes(allowed_update_params(params))
 
       if issuable.description_changed?
@@ -301,21 +328,26 @@ class IssuableBaseService < ::BaseContainerService
 
       before_update(issuable)
 
-      # Do not touch when saving the issuable if only changes position within a list. We should call
-      # this method at this point to capture all possible changes.
-      should_touch = update_timestamp?(issuable)
-
-      issuable.updated_by = current_user if should_touch
       # We have to perform this check before saving the issuable as Rails resets
       # the changed fields upon calling #save.
       update_project_counters = issuable.project && update_project_counter_caches?(issuable)
-      ensure_milestone_available(issuable)
 
       issuable_saved = issuable.with_transaction_returning_status do
+        @callbacks.each(&:before_update)
+
+        # Do not touch when saving the issuable if only changes position within a list. We should call
+        # this method at this point to capture all possible changes.
+        should_touch = update_timestamp?(issuable)
+
+        issuable.updated_by = current_user if should_touch
+
         transaction_update(issuable, { save_with_touch: should_touch })
       end
 
       if issuable_saved
+        @callbacks.each(&:after_update_commit)
+        @callbacks.each(&:after_save_commit)
+
         create_system_notes(
           issuable, old_labels: old_associations[:labels], old_milestone: old_associations[:milestone]
         )
@@ -355,9 +387,11 @@ class IssuableBaseService < ::BaseContainerService
     filter_params(issuable)
 
     if issuable.changed? || params.present?
-      issuable.assign_attributes(params.merge(updated_by: current_user,
-                                              last_edited_at: Time.current,
-                                              last_edited_by: current_user))
+      issuable.assign_attributes(params.merge(
+        updated_by: current_user,
+        last_edited_at: Time.current,
+        last_edited_by: current_user
+      ))
 
       before_update(issuable, skip_spam_check: true)
 
@@ -386,10 +420,13 @@ class IssuableBaseService < ::BaseContainerService
     update_task_params = params.delete(:update_task)
     return unless update_task_params
 
-    tasklist_toggler = TaskListToggleService.new(issuable.description, issuable.description_html,
-                                                 line_source: update_task_params[:line_source],
-                                                 line_number: update_task_params[:line_number].to_i,
-                                                 toggle_as_checked: update_task_params[:checked])
+    tasklist_toggler = TaskListToggleService.new(
+      issuable.description,
+      issuable.description_html,
+      line_source: update_task_params[:line_source],
+      line_number: update_task_params[:line_number].to_i,
+      toggle_as_checked: update_task_params[:checked]
+    )
 
     unless tasklist_toggler.execute
       # if we make it here, the data is much newer than we thought it was - fail fast
@@ -451,7 +488,7 @@ class IssuableBaseService < ::BaseContainerService
   # rubocop: enable CodeReuse/ActiveRecord
 
   def assign_requested_labels(issuable)
-    label_ids = process_label_ids(params, existing_label_ids: issuable.label_ids)
+    label_ids = process_label_ids(params, issuable: issuable, existing_label_ids: issuable.label_ids)
     return unless ids_changing?(issuable.label_ids, label_ids)
 
     params[:label_ids] = label_ids
@@ -584,14 +621,6 @@ class IssuableBaseService < ::BaseContainerService
 
   def parent
     project
-  end
-
-  # we need to check this because milestone from milestone_id param is displayed on "new" page
-  # where private project milestone could leak without this check
-  def ensure_milestone_available(issuable)
-    return unless issuable.supports_milestone? && issuable.milestone_id.present?
-
-    issuable.milestone_id = nil unless issuable.milestone_available?
   end
 
   def update_timestamp?(issuable)

@@ -6,7 +6,7 @@ module Types
       graphql_name 'PackageBase'
       description 'Represents a package in the Package Registry'
 
-      connection_type_class(Types::CountableConnectionType)
+      connection_type_class Types::CountableConnectionType
 
       authorize :read_package
 
@@ -52,8 +52,6 @@ module Types
           object.nuget_metadatum
         when 'pypi'
           object.pypi_metadatum
-        else
-          nil
         end
       end
       # rubocop: enable GraphQL/ResolverMethodLength

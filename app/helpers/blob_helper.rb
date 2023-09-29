@@ -2,9 +2,7 @@
 
 module BlobHelper
   def edit_blob_path(project = @project, ref = @ref, path = @path, options = {})
-    project_edit_blob_path(project,
-                           tree_join(ref, path),
-                           options[:link_opts])
+    project_edit_blob_path(project, tree_join(ref, path), options[:link_opts])
   end
 
   def ide_edit_path(project = @project, ref = @ref, path = @path)
@@ -52,9 +50,11 @@ module BlobHelper
   def fork_path_for_current_user(project, path, with_notice: true)
     return unless current_user
 
-    project_forks_path(project,
-                      namespace_key: current_user.namespace&.id,
-                      continue: edit_blob_fork_params(path, with_notice: with_notice))
+    project_forks_path(
+      project,
+      namespace_key: current_user.namespace&.id,
+      continue: edit_blob_fork_params(path, with_notice: with_notice)
+    )
   end
 
   def encode_ide_path(path)
@@ -66,12 +66,14 @@ module BlobHelper
 
     common_classes = "btn gl-button btn-confirm js-edit-blob gl-ml-3 #{options[:extra_class]}"
 
-    edit_button_tag(blob,
-                    common_classes,
-                    _('Edit'),
-                    edit_blob_path(project, ref, path, options),
-                    project,
-                    ref)
+    edit_button_tag(
+      blob,
+      common_classes,
+      _('Edit'),
+      edit_blob_path(project, ref, path, options),
+      project,
+      ref
+    )
   end
 
   def can_modify_blob?(blob, project = @project, ref = @ref)
@@ -116,8 +118,8 @@ module BlobHelper
     "#{blob_raw_path.rpartition('/').first}/"
   end
 
-  # SVGs can contain malicious JavaScript; only include whitelisted
-  # elements and attributes. Note that this whitelist is by no means complete
+  # SVGs can contain malicious JavaScript; only include allowlisted
+  # elements and attributes. Note that this allowlist is by no means complete
   # and may omit some elements.
   def sanitize_svg_data(data)
     Gitlab::Sanitizers::SVG.clean(data)
@@ -137,10 +139,6 @@ module BlobHelper
 
   def gitlab_ci_ymls(project)
     @gitlab_ci_ymls ||= TemplateFinder.all_template_names(project, :gitlab_ci_ymls)
-  end
-
-  def metrics_dashboard_ymls(project)
-    @metrics_dashboard_ymls ||= TemplateFinder.all_template_names(project, :metrics_dashboard_ymls)
   end
 
   def dockerfile_names(project)
@@ -270,20 +268,12 @@ module BlobHelper
     }.compact
   end
 
-  def edit_modify_file_fork_params(action)
-    {
-      to: request.fullpath,
-      notice: edit_in_new_fork_notice_action(action),
-      notice_now: edit_in_new_fork_notice_now
-    }
-  end
-
   def edit_fork_button_tag(common_classes, project, label, params, action = 'edit')
     fork_path = project_forks_path(project, namespace_key: current_user.namespace.id, continue: params)
 
     button_tag label,
-               class: "#{common_classes} js-edit-blob-link-fork-toggler",
-               data: { action: action, fork_path: fork_path }
+      class: "#{common_classes} js-edit-blob-link-fork-toggler",
+      data: { action: action, fork_path: fork_path }
   end
 
   def edit_disabled_button_tag(button_text, common_classes)
@@ -324,8 +314,16 @@ module BlobHelper
     @project.team.human_max_access(current_user&.id).try(:downcase)
   end
 
-  def editing_ci_config?
-    @path.to_s.end_with?(Ci::Pipeline::CONFIG_EXTENSION) ||
-      @path.to_s == @project.ci_config_path_or_default
+  def vue_blob_app_data(project, blob, ref)
+    {
+      blob_path: blob.path,
+      project_path: project.full_path,
+      resource_id: project.to_global_id,
+      user_id: current_user.present? ? current_user.to_global_id : '',
+      target_branch: project.empty_repo? ? ref : @ref,
+      original_branch: @ref
+    }
   end
 end
+
+BlobHelper.prepend_mod_with('BlobHelper')

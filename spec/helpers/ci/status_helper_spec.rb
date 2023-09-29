@@ -20,29 +20,6 @@ RSpec.describe Ci::StatusHelper do
     end
   end
 
-  describe '#ci_text_for_status' do
-    context 'when status is manual' do
-      it 'changes the status to blocked' do
-        expect(helper.ci_text_for_status('manual'))
-          .to eq 'blocked'
-      end
-    end
-
-    context 'when status is success' do
-      it 'changes the status to passed' do
-        expect(helper.ci_text_for_status('success'))
-          .to eq 'passed'
-      end
-    end
-
-    context 'when status is something else' do
-      it 'returns status unchanged' do
-        expect(helper.ci_text_for_status('some-status'))
-          .to eq 'some-status'
-      end
-    end
-  end
-
   describe "#pipeline_status_cache_key" do
     it "builds a cache key for pipeline status" do
       pipeline_status = Gitlab::Cache::Ci::ProjectPipelineStatus.new(
@@ -78,10 +55,6 @@ RSpec.describe Ci::StatusHelper do
         is_expected.to include("href=\"/commit-path\"")
       end
 
-      it "does not contain a span element" do
-        is_expected.not_to include("<span")
-      end
-
       it "has 'Pipeline' as the status type in the title" do
         is_expected.to include("title=\"Pipeline: passed\"")
       end
@@ -111,7 +84,8 @@ RSpec.describe Ci::StatusHelper do
       subject { helper.render_status_with_link("success", cssclass: "extra-class") }
 
       it "has appended extra class to icon classes" do
-        is_expected.to include("class=\"ci-status-link ci-status-icon-success d-inline-flex extra-class\"")
+        is_expected.to include('class="ci-status-link ci-status-icon-success d-inline-flex ' \
+                               'gl-line-height-1 extra-class"')
       end
     end
 
@@ -128,6 +102,45 @@ RSpec.describe Ci::StatusHelper do
 
       it "has the svg class to change size" do
         is_expected.to include("<svg class=\"s24\"")
+      end
+    end
+
+    context "when status is success-with-warnings" do
+      subject { helper.render_status_with_link("success-with-warnings") }
+
+      it "renders warning variant of gl-badge" do
+        is_expected.to include('gl-badge badge badge-pill badge-warning')
+      end
+    end
+
+    context "when status is manual" do
+      subject { helper.render_status_with_link("manual") }
+
+      it "renders neutral variant of gl-badge" do
+        is_expected.to include('gl-badge badge badge-pill badge-neutral')
+      end
+    end
+  end
+
+  describe '#badge_variant' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:status, :expected_badge_variant_class) do
+      'success'               | 'badge-success'
+      'success-with-warnings' | 'badge-warning'
+      'pending'               | 'badge-warning'
+      'failed'                | 'badge-danger'
+      'running'               | 'badge-info'
+      'canceled'              | 'badge-neutral'
+      'manual'                | 'badge-neutral'
+      'other-status'          | 'badge-muted'
+    end
+
+    with_them do
+      subject { helper.render_status_with_link(status) }
+
+      it 'uses the correct badge variant classes for gl-badge' do
+        is_expected.to include("gl-badge badge badge-pill #{expected_badge_variant_class}")
       end
     end
   end

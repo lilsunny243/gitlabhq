@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu do
+RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu, feature_category: :navigation do
   let_it_be(:owner) { create(:user) }
   let_it_be_with_reload(:group) do
     build(:group, :private).tap do |g|
@@ -16,21 +16,12 @@ RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu do
   let(:context) { Sidebars::Groups::Context.new(current_user: user, container: group) }
   let(:menu) { described_class.new(context) }
 
+  it_behaves_like 'not serializable as super_sidebar_menu_args'
+
   describe '#render?' do
     context 'when menu has menu items to show' do
       it 'returns true' do
         expect(menu.render?).to eq true
-      end
-    end
-
-    context 'when menu does not have any menu item to show' do
-      it 'returns false' do
-        stub_feature_flags(harbor_registry_integration: false)
-        stub_container_registry_config(enabled: false)
-        stub_config(packages: { enabled: false })
-        stub_config(dependency_proxy: { enabled: false })
-
-        expect(menu.render?).to eq false
       end
     end
   end
@@ -38,13 +29,11 @@ RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu do
   describe '#link' do
     let(:registry_enabled) { true }
     let(:packages_enabled) { true }
-    let(:harbor_registry_integration) { true }
 
     before do
       stub_container_registry_config(enabled: registry_enabled)
       stub_config(packages: { enabled: packages_enabled })
       stub_config(dependency_proxy: { enabled: true })
-      stub_feature_flags(harbor_registry_integration: harbor_registry_integration)
     end
 
     subject { menu.link }
@@ -67,14 +56,6 @@ RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu do
 
         it 'menu link points to Harbor Registry page' do
           expect(subject).to eq find_menu(menu, :harbor_registry).link
-        end
-
-        context 'when Harbor Registry is not visible' do
-          let(:harbor_registry_integration) { false }
-
-          it 'menu link points to Dependency Proxy page' do
-            expect(subject).to eq find_menu(menu, :dependency_proxy).link
-          end
         end
       end
     end
@@ -192,28 +173,12 @@ RSpec.describe Sidebars::Groups::Menus::PackagesRegistriesMenu do
     describe 'Harbor Registry' do
       let(:item_id) { :harbor_registry }
 
-      before do
-        stub_feature_flags(harbor_registry_integration: harbor_registry_enabled)
-      end
-
-      context 'when config harbor registry setting is disabled' do
-        let(:harbor_registry_enabled) { false }
-
-        it_behaves_like 'the menu entry is not available'
-      end
-
-      context 'when config harbor registry setting is enabled' do
-        let(:harbor_registry_enabled) { true }
-
-        it_behaves_like 'the menu entry is available'
-      end
+      it_behaves_like 'the menu entry is available'
 
       context 'when config harbor registry setting is not activated' do
         before do
           harbor_integration.update!(active: false)
         end
-
-        let(:harbor_registry_enabled) { true }
 
         it_behaves_like 'the menu entry is not available'
       end

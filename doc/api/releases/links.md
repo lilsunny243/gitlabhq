@@ -1,10 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Release links API **(FREE)**
+# Release links API **(FREE ALL)**
 
 > Support for [GitLab CI/CD job token](../../ci/jobs/ci_job_token.md) authentication [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/250819) in GitLab 15.1.
 
@@ -40,14 +40,12 @@ Example response:
       "id":2,
       "name":"awesome-v0.2.msi",
       "url":"http://192.168.10.15:3000/msi",
-      "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
       "link_type":"other"
    },
    {
       "id":1,
       "name":"awesome-v0.2.dmg",
       "url":"http://192.168.10.15:3000",
-      "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
       "link_type":"other"
    }
 ]
@@ -80,7 +78,6 @@ Example response:
    "id":1,
    "name":"awesome-v0.2.dmg",
    "url":"http://192.168.10.15:3000",
-   "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
    "link_type":"other"
 }
 ```
@@ -122,7 +119,6 @@ Example response:
    "name":"hellodarwin-amd64",
    "url":"https://gitlab.example.com/mynamespace/hello/-/jobs/688/artifacts/raw/bin/hello-darwin-amd64",
    "direct_asset_url":"https://gitlab.example.com/mynamespace/hello/-/releases/v1.7.0/downloads/bin/hellodarwin-amd64",
-   "external":false, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
    "link_type":"other"
 }
 ```
@@ -164,7 +160,6 @@ Example response:
    "id":1,
    "name":"new name",
    "url":"http://192.168.10.15:3000",
-   "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
    "link_type":"runbook"
 }
 ```
@@ -196,7 +191,6 @@ Example response:
    "id":1,
    "name":"new name",
    "url":"http://192.168.10.15:3000",
-   "external":true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
    "link_type":"other"
 }
 ```

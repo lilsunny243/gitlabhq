@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectMember do
+RSpec.describe ProjectMember, feature_category: :groups_and_projects do
   describe 'associations' do
     it { is_expected.to belong_to(:project).with_foreign_key(:source_id) }
   end
 
   describe 'validations' do
     it { is_expected.to allow_value('Project').for(:source_type) }
-    it { is_expected.not_to allow_value('project').for(:source_type) }
+    it { is_expected.not_to allow_value('Group').for(:source_type) }
     it { is_expected.to validate_inclusion_of(:access_level).in_array(Gitlab::Access.values) }
   end
 
@@ -103,54 +103,6 @@ RSpec.describe ProjectMember do
 
         expect(project_member.holder_of_the_personal_namespace?).to be(expected)
       end
-    end
-  end
-
-  describe '.import_team' do
-    before do
-      @project_1 = create(:project)
-      @project_2 = create(:project)
-
-      @user_1 = create :user
-      @user_2 = create :user
-
-      @project_1.add_developer(@user_1)
-      @project_2.add_reporter(@user_2)
-
-      @status = @project_2.team.import(@project_1)
-    end
-
-    it { expect(@status).to be_truthy }
-
-    describe 'project 2 should get user 1 as developer. user_2 should not be changed' do
-      it { expect(@project_2.users).to include(@user_1) }
-      it { expect(@project_2.users).to include(@user_2) }
-
-      it { expect(Ability.allowed?(@user_1, :create_project, @project_2)).to be_truthy }
-      it { expect(Ability.allowed?(@user_2, :read_project, @project_2)).to be_truthy }
-    end
-
-    describe 'project 1 should not be changed' do
-      it { expect(@project_1.users).to include(@user_1) }
-      it { expect(@project_1.users).not_to include(@user_2) }
-    end
-  end
-
-  describe '.add_members_to_projects' do
-    it 'adds the given users to the given projects' do
-      projects = create_list(:project, 2)
-      users = create_list(:user, 2)
-
-      described_class.add_members_to_projects(
-        [projects.first.id, projects.second.id],
-        [users.first.id, users.second],
-        described_class::MAINTAINER)
-
-      expect(projects.first.users).to include(users.first)
-      expect(projects.first.users).to include(users.second)
-
-      expect(projects.second.users).to include(users.first)
-      expect(projects.second.users).to include(users.second)
     end
   end
 
@@ -256,10 +208,7 @@ RSpec.describe ProjectMember do
         stub_feature_flags(do_not_run_safety_net_auth_refresh_jobs: false)
 
         expect(AuthorizedProjectUpdate::UserRefreshFromReplicaWorker).to(
-          receive(:bulk_perform_in)
-            .with(1.hour,
-                  [[user.id]],
-                  batch_delay: 30.seconds, batch_size: 100)
+          receive(:bulk_perform_in).with(1.hour, [[user.id]], batch_delay: 30.seconds, batch_size: 100)
         )
 
         action

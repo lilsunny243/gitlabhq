@@ -16,12 +16,11 @@ module QA
         MSG
 
         def initialize(name)
-          @image = 'registry.gitlab.com/gitlab-org/gitlab-runner:alpine'
+          @image = "#{QA::Runtime::Env.container_registry_host}/#{QA::Runtime::Env.runner_container_namespace}/#{QA::Runtime::Env.runner_container_image}" # rubocop:disable Layout/LineLength
           @name = name || "qa-runner-#{SecureRandom.hex(4)}"
           @run_untagged = true
           @executor = :shell
-          @executor_image = 'registry.gitlab.com/gitlab-org/gitlab-build-images:gitlab-qa-alpine-ruby-2.7'
-
+          @executor_image = "#{QA::Runtime::Env.container_registry_host}/#{QA::Runtime::Env.runner_container_namespace}/#{QA::Runtime::Env.gitlab_qa_build_image}" # rubocop:disable Layout/LineLength
           super()
         end
 
@@ -39,9 +38,10 @@ module QA
           raise("Missing runner token value!") unless token
 
           cmd = <<~CMD.tr("\n", ' ')
-            docker run -d --rm --network #{runner_network} --name #{@name}
+            docker run -d --rm --network #{network} --name #{@name} #{'--user=root' if Runtime::Env.fips?}
             #{'-v /var/run/docker.sock:/var/run/docker.sock' if @executor == :docker}
             --privileged
+            #{"--add-host gdk.test:#{gdk_host_ip}" if gdk_network}
             #{@image}  #{add_gitlab_tls_cert if @address.include? 'https'}
             && docker exec --detach #{@name} sh -c "#{register_command}"
           CMD
@@ -50,7 +50,7 @@ module QA
           wait_until_running_and_configured
 
           # Prove airgappedness
-          shell("docker exec #{@name} sh -c '#{prove_airgap}'") if runner_network == 'airgapped'
+          shell("docker exec #{@name} sh -c '#{prove_airgap}'") if network == 'airgapped'
         end
 
         def tags=(tags)
@@ -104,7 +104,15 @@ module QA
         # Ping Cloudflare DNS, should fail
         # Ping Registry, should fail to resolve
         def prove_airgap
-          gitlab_ip = Resolv.getaddress 'registry.gitlab.com'
+          begin
+            gitlab_ip = Resolv.getaddress 'registry.gitlab.com'
+          rescue Resolv::ResolvError => e
+            Runtime::Logger.debug("prove_airgap unable to get ip address for endpoint - #{e.message}")
+            # If Resolv.getaddress fails, it implies we cannot access the URL in question
+            # This may occur in offline-environment/airgapped testing
+            return 'true'
+          end
+
           <<~CMD
             echo "Checking airgapped connectivity..."
             nc -zv -w 10 #{gitlab_ip} 80 && (echo "Airgapped network faulty. Connectivity netcat check failed." && exit 1) || (echo "Connectivity netcat check passed." && exit 0)

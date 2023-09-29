@@ -2,8 +2,7 @@
 
 module Gitlab::UsageDataCounters
   class CiTemplateUniqueCounter
-    REDIS_SLOT = 'ci_templates'
-    KNOWN_EVENTS_FILE_PATH = File.expand_path('known_events/ci_templates.yml', __dir__)
+    PREFIX = 'ci_templates'
 
     class << self
       def track_unique_project_event(project:, template:, config_source:, user:)
@@ -28,7 +27,7 @@ module Gitlab::UsageDataCounters
       def ci_template_event_name(template_name, config_source)
         prefix = 'implicit_' if config_source.to_s == 'auto_devops_source'
 
-        "p_#{REDIS_SLOT}_#{prefix}#{template_to_event_name(template_name)}"
+        "p_#{PREFIX}_#{prefix}#{template_to_event_name(template_name)}"
       end
 
       def expand_template_name(template_name)
@@ -39,7 +38,7 @@ module Gitlab::UsageDataCounters
         expanded_template_name = expand_template_name(template_name)
         results = [expanded_template_name].tap do |result|
           template = Gitlab::Template::GitlabCiYmlTemplate.find(template_name.chomp('.gitlab-ci.yml'))
-          data = Gitlab::Ci::Config::Yaml.load!(template.content)
+          data = Gitlab::Ci::Config::Yaml::Loader.new(template.content).load.content
           [data[:include]].compact.flatten.each do |ci_include|
             if ci_include_template = ci_include[:template]
               result.concat(all_included_templates(ci_include_template))

@@ -7,13 +7,25 @@ module API
 
     LOG_FILENAME = Rails.root.join("log", "api_json.log")
 
-    NO_SLASH_URL_PART_REGEX = %r{[^/]+}.freeze
+    NO_SLASH_URL_PART_REGEX = %r{[^/]+}
     NAMESPACE_OR_PROJECT_REQUIREMENTS = { id: NO_SLASH_URL_PART_REGEX }.freeze
     COMMIT_ENDPOINT_REQUIREMENTS = NAMESPACE_OR_PROJECT_REQUIREMENTS.merge(sha: NO_SLASH_URL_PART_REGEX).freeze
     USER_REQUIREMENTS = { user_id: NO_SLASH_URL_PART_REGEX }.freeze
     LOG_FILTERS = ::Rails.application.config.filter_parameters + [/^output$/]
     LOG_FORMATTER = Gitlab::GrapeLogging::Formatters::LogrageWithTimestamp.new
     LOGGER = Logger.new(LOG_FILENAME)
+
+    class MovedPermanentlyError < StandardError
+      MSG_PREFIX = 'This resource has been moved permanently to'
+
+      attr_reader :location_url
+
+      def initialize(location_url)
+        @location_url = location_url
+
+        super("#{MSG_PREFIX} #{location_url}")
+      end
+    end
 
     insert_before Grape::Middleware::Error,
                   GrapeLogging::Middleware::RequestLogger,
@@ -91,6 +103,18 @@ module API
     end
 
     after do
+      Gitlab::UsageDataCounters::JetBrainsBundledPluginActivityUniqueCounter.track_api_request_when_trackable(user_agent: request&.user_agent, user: @current_user)
+    end
+
+    after do
+      Gitlab::UsageDataCounters::VisualStudioExtensionActivityUniqueCounter.track_api_request_when_trackable(user_agent: request&.user_agent, user: @current_user)
+    end
+
+    after do
+      Gitlab::UsageDataCounters::NeovimPluginActivityUniqueCounter.track_api_request_when_trackable(user_agent: request&.user_agent, user: @current_user)
+    end
+
+    after do
       Gitlab::UsageDataCounters::GitLabCliActivityUniqueCounter.track_api_request_when_trackable(user_agent: request&.user_agent, user: @current_user)
     end
 
@@ -130,8 +154,16 @@ module API
       error! e.message, e.status, e.headers
     end
 
+    rescue_from MovedPermanentlyError do |e|
+      rack_response(e.message, 301, { 'Location' => e.location_url })
+    end
+
     rescue_from Gitlab::Auth::TooManyIps do |e|
       rack_response({ 'message' => '403 Forbidden' }.to_json, 403)
+    end
+
+    rescue_from Gitlab::Git::ResourceExhaustedError do |exception|
+      rack_response({ 'message' => exception.message }.to_json, 503, exception.headers)
     end
 
     rescue_from :all do |exception|
@@ -172,8 +204,11 @@ module API
         # Keep in alphabetical order
         mount ::API::AccessRequests
         mount ::API::Admin::BatchedBackgroundMigrations
+        mount ::API::Admin::BroadcastMessages
         mount ::API::Admin::Ci::Variables
+        mount ::API::Admin::Dictionary
         mount ::API::Admin::InstanceClusters
+        mount ::API::Admin::Migrations
         mount ::API::Admin::PlanLimits
         mount ::API::AlertManagementAlerts
         mount ::API::Appearance
@@ -181,7 +216,6 @@ module API
         mount ::API::Avatar
         mount ::API::Badges
         mount ::API::Branches
-        mount ::API::BroadcastMessages
         mount ::API::BulkImports
         mount ::API::Ci::JobArtifacts
         mount ::API::Groups
@@ -234,6 +268,9 @@ module API
         mount ::API::ImportBitbucketServer
         mount ::API::ImportGithub
         mount ::API::Integrations
+        mount ::API::Integrations::Slack::Events
+        mount ::API::Integrations::Slack::Interactions
+        mount ::API::Integrations::Slack::Options
         mount ::API::Integrations::JiraConnect::Subscriptions
         mount ::API::Invitations
         mount ::API::IssueLinks
@@ -248,7 +285,9 @@ module API
         mount ::API::Metadata
         mount ::API::Metrics::Dashboard::Annotations
         mount ::API::Metrics::UserStarredDashboards
+        mount ::API::MlModelPackages
         mount ::API::Namespaces
+        mount ::API::NpmGroupPackages
         mount ::API::NpmInstancePackages
         mount ::API::NpmProjectPackages
         mount ::API::NugetGroupPackages
@@ -265,6 +304,7 @@ module API
         mount ::API::ProjectExport
         mount ::API::ProjectHooks
         mount ::API::ProjectImport
+        mount ::API::ProjectJobTokenScope
         mount ::API::ProjectPackages
         mount ::API::ProjectRepositoryStorageMoves
         mount ::API::ProjectSnippets
@@ -300,6 +340,7 @@ module API
         mount ::API::UsageDataQueries
         mount ::API::Users
         mount ::API::UserCounts
+        mount ::API::UserRunners
         mount ::API::Wikis
 
         add_open_api_documentation!
@@ -313,7 +354,6 @@ module API
       mount ::API::Ci::PipelineSchedules
       mount ::API::Ci::SecureFiles
       mount ::API::Discussions
-      mount ::API::ErrorTracking::Collector
       mount ::API::GroupBoards
       mount ::API::GroupLabels
       mount ::API::GroupMilestones
@@ -335,7 +375,8 @@ module API
       mount ::API::Todos
       mount ::API::UsageData
       mount ::API::UsageDataNonSqlMetrics
-      mount ::API::Ml::Mlflow
+      mount ::API::VsCodeSettingsSync
+      mount ::API::Ml::Mlflow::Entrypoint
     end
 
     mount ::API::Internal::Base

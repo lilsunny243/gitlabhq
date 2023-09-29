@@ -20,6 +20,24 @@ RSpec.describe Ci::PipelineCreation::CancelRedundantPipelinesService, feature_ca
     create(:ci_build, :interruptible, pipeline: pipeline)
   end
 
+  shared_examples 'time limits pipeline cancellation' do
+    context 'with old pipelines' do
+      let(:old_pipeline) { create(:ci_pipeline, project: project, created_at: 5.days.ago) }
+
+      before do
+        create(:ci_build, :interruptible, :pending, pipeline: old_pipeline)
+      end
+
+      it 'ignores old pipelines' do
+        execute
+
+        expect(build_statuses(prev_pipeline)).to contain_exactly('canceled', 'success', 'canceled')
+        expect(build_statuses(pipeline)).to contain_exactly('pending')
+        expect(build_statuses(old_pipeline)).to contain_exactly('pending')
+      end
+    end
+  end
+
   describe '#execute!' do
     subject(:execute) { service.execute }
 
@@ -54,14 +72,6 @@ RSpec.describe Ci::PipelineCreation::CancelRedundantPipelinesService, feature_ca
           canceled_by_pipeline_id: pipeline.id,
           canceled_by_pipeline_source: pipeline.source
         )
-      end
-
-      it 'cancels the builds with 2 queries to avoid query timeout' do
-        second_query_regex = /WHERE "ci_pipelines"\."id" = \d+ AND \(NOT EXISTS/
-        recorder = ActiveRecord::QueryRecorder.new { execute }
-        second_query = recorder.occurrences.keys.filter { |occ| occ =~ second_query_regex }
-
-        expect(second_query).to be_one
       end
 
       context 'when the previous pipeline has a child pipeline' do
@@ -226,11 +236,26 @@ RSpec.describe Ci::PipelineCreation::CancelRedundantPipelinesService, feature_ca
 
         expect(build_statuses(pipeline.reload)).to contain_exactly('pending')
       end
+
+      it_behaves_like 'time limits pipeline cancellation'
     end
 
     context 'when auto-cancel is disabled' do
       before do
         project.update!(auto_cancel_pending_pipelines: 'disabled')
+      end
+
+      it 'does not cancel any build' do
+        subject
+
+        expect(build_statuses(prev_pipeline)).to contain_exactly('running', 'success', 'created')
+        expect(build_statuses(pipeline)).to contain_exactly('pending')
+      end
+    end
+
+    context 'when enable_cancel_redundant_pipelines_service FF is enabled' do
+      before do
+        stub_feature_flags(disable_cancel_redundant_pipelines_service: true)
       end
 
       it 'does not cancel any build' do

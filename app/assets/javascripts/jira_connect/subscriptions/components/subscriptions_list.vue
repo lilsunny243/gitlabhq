@@ -1,6 +1,7 @@
 <script>
 import { GlButton, GlTableLite } from '@gitlab/ui';
 import { isEmpty } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapMutations, mapState } from 'vuex';
 import { removeSubscription } from '~/jira_connect/subscriptions/api';
 import { reloadPage } from '~/jira_connect/subscriptions/utils';
@@ -24,11 +25,11 @@ export default {
   fields: [
     {
       key: 'name',
-      label: s__('Integrations|Linked namespaces'),
+      label: s__('JiraConnect|Linked groups'),
     },
     {
       key: 'created_at',
-      label: __('Added'),
+      label: __('Created on'),
       tdClass: 'gl-vertical-align-middle! gl-w-20p',
     },
     {
@@ -38,7 +39,7 @@ export default {
     },
   ],
   i18n: {
-    unlinkError: s__('Integrations|Failed to unlink namespace. Please try again.'),
+    unlinkError: s__('JiraConnect|Failed to unlink group. Please try again.'),
   },
   computed: {
     ...mapState(['subscriptions']),

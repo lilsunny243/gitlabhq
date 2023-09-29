@@ -19,12 +19,12 @@ describe('The basis for an Source Editor extension', () => {
   const findLine = (num) => {
     return document.querySelector(`.${EXTENSION_BASE_LINE_NUMBERS_CLASS}:nth-child(${num})`);
   };
-  const generateLines = () => {
+  const generateFixture = () => {
     let res = '';
     for (let line = 1, lines = 5; line <= lines; line += 1) {
       res += `<div class="${EXTENSION_BASE_LINE_NUMBERS_CLASS}">${line}</div>`;
     }
-    return res;
+    return `<span class="soft-wrap-toggle"></span>${res}`;
   };
   const generateEventMock = ({ line = defaultLine, el = null } = {}) => {
     return {
@@ -51,12 +51,11 @@ describe('The basis for an Source Editor extension', () => {
   };
 
   beforeEach(() => {
-    setHTMLFixture(generateLines());
+    setHTMLFixture(generateFixture());
     event = generateEventMock();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
     resetHTMLFixture();
   });
 
@@ -156,12 +155,13 @@ describe('The basis for an Source Editor extension', () => {
 
   describe('toggleSoftwrap', () => {
     let instance;
-
     beforeEach(() => {
       instance = createInstance();
 
       instance.toolbar = toolbar;
       instance.use({ definition: SourceEditorExtension });
+
+      jest.spyOn(document.querySelector('.soft-wrap-toggle'), 'blur');
     });
 
     it.each`
@@ -183,6 +183,7 @@ describe('The basis for an Source Editor extension', () => {
         expect(instance.toolbar.updateItem).toHaveBeenCalledWith(EXTENSION_SOFTWRAP_ID, {
           selected: expectSelected,
         });
+        expect(document.querySelector('.soft-wrap-toggle').blur).toHaveBeenCalled();
       },
     );
   });

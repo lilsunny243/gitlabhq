@@ -4,7 +4,7 @@ group: Security Policies
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Policies **(ULTIMATE)**
+# Policies **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5329) in GitLab 13.10 with a flag named `security_orchestration_policies_configuration`. Disabled by default.
 > - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/321258) in GitLab 14.3.
@@ -13,7 +13,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 Policies in GitLab provide security teams a way to require scans of their choice to be run
 whenever a project pipeline runs according to the configuration specified. Security teams can
 therefore be confident that the scans they set up have not been changed, altered, or disabled. You
-can access these by navigating to your project's **Security and Compliance > Policies** page.
+can access these by navigating to your project's **Secure > Policies** page.
 
 GitLab supports the following security policies:
 
@@ -24,8 +24,12 @@ GitLab supports the following security policies:
 
 All security policies are stored as YAML in a separate security policy project that gets linked to
 the development project, group, or sub-group. This association can be a one-to-many relationship, allowing one security
-policy project to apply to multiple development projects, groups, or sub-groups. Linked projects are not required to be in
-the same group as the development projects to which they are linked.
+policy project to apply to multiple development projects, groups, or sub-groups:
+
+- For self-managed GitLab instances, linked projects are not required to be in the same group
+  or the same subgroup as the development projects to which they are linked.
+- For GitLab SaaS, the security policy project is required to be in the same top-level group
+  as the development project, although, it is not necessary for the project to be in the same subgroup.
 
 ![Security Policy Project Linking Diagram](img/association_diagram.png)
 
@@ -33,10 +37,6 @@ Although it is possible to have one project linked to itself and to serve as bot
 project and the security policy project, this is not recommended. Keeping the security policy
 project separate from the development project allows for complete separation of duties between
 security/compliance teams and development teams.
-
-You should not link a security policy project to a development project and to the group
-or sub-group the development project belongs to at the same time. Linking this way will result in
-approval rules from the Scan Result Policy not being applied to merge requests in the development project.
 
 All security policies are stored in the `.gitlab/security-policies/policy.yml` YAML file inside the
 linked security policy project. The format for this YAML is specific to the type of policy that is
@@ -58,8 +58,8 @@ to select, edit, and unlink a security policy project.
 As a project owner, take the following steps to create or edit an association between your current
 project and a project that you would like to designate as the security policy project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Policies**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Policies**.
 1. Select **Edit Policy Project**, and search for and select the
    project you would like to link from the dropdown list.
 1. Select **Save**.
@@ -82,8 +82,8 @@ policies for all available environments. You can check a
 policy's information (for example, description or enforcement
 status), and create and edit deployed policies:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Policies**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Policies**.
 
 ![Policies List Page](img/policies_list_v15_1.png)
 
@@ -93,8 +93,8 @@ status), and create and edit deployed policies:
 
 You can use the policy editor to create, edit, and delete policies:
 
-1. On the top bar, select **Main menu > Projects** and find your group.
-1. On the left sidebar, select **Security and Compliance > Policies**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Policies**.
    - To create a new policy, select **New policy** which is located in the **Policies** page's header.
      You can then select which type of policy to create.
    - To edit an existing policy, select **Edit policy** in the selected policy drawer.
@@ -138,3 +138,19 @@ When you create a new security policy or change an existing policy, a new branch
 If you have group or instance [push rules that do not allow branch name patterns](../../project/repository/push_rules.md#validate-branch-names) that contain the text `update-policy-<timestamp>`, you will get an error that states `Branch name 'update-policy-<timestamp>' does not follow the pattern '<branch_name_regex>'`.
 
 The workaround is to amend your group or instance push rules to allow branches following the pattern `update-policy-` followed by an integer timestamp.
+
+### Troubleshooting common issues configuring security policies
+
+- Confirm that scanners are properly configured and producing results for the latest branch. Security Policies are designed to require approval when there are no results (no security report), as this ensures that no vulnerabilities are introduced. We cannot know if there are any vulnerabilities unless the scans enforced by the policy complete successfully and are evaluated.
+- For scan result policies, we require artifacts for each scanner defined in the policy for both the source and target branch. To ensure scan result policies capture the necessary results, confirm your scan execution is properly implemented and enforced. If using scan execution policies, enforcing on `all branches` often address this need.
+- When running scan execution policies based on a SAST action, ensure target repositories contain proper code files. SAST runs different analyzers [based on the types of files in the repository](../sast/index.md#supported-languages-and-frameworks), and if no supported files are found it will not run any jobs. See the [SAST CI template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/SAST.gitlab-ci.yml) for more details.
+- Check for any branch configuration conflicts. If your policy is configured to enforce rules on `main` but some projects within the scope are using `master` as their default branch, the policy is not applied for the latter. You can define policies to enforce rules generically on `default` branches regardless of the name used in the project or on `all protected branches` to address this issue.
+- Scan result policies created at the group or sub-group level can take some time to apply to all the merge requests in the group.
+- Scheduled scan execution policies run with a minimum 15 minute cadence. Learn more [about the schedule rule type](../policies/scan-execution-policies.md#schedule-rule-type).
+- When scheduling pipelines, keep in mind that CRON scheduling is based on UTC on GitLab SaaS and is based on your server time for self managed instances. When testing new policies, it may appear pipelines are not running properly when in fact they are scheduled in your server's timezone.
+- When enforcing scan execution policies, security policies use a bot in the target project that will trigger scheduled pipelines to ensure enforcement. When the bot is missing, it will be automatically created, and the following scheduled scan will use it.
+- You should not link a security policy project to a development project and to the group or sub-group the development project belongs to at the same time. Linking this way will result in approval rules from the Scan Result Policy not being applied to merge requests in the development project.
+- When creating a Scan Result Policy, neither the array `severity_levels` nor the array `vulnerability_states` in the [`scan_finding` rule](../policies/scan-result-policies.md#scan_finding-rule-type) can be left empty; for a working rule, at least one entry must exist.
+- When configuring pipeline and scan result policies, it's important to remember that security scans performed in manual jobs aren't verified to determine whether MR approval is required. When you run a manual job with security scans, it won't ensure approval even if vulnerabilities are introduced.
+
+If you are still experiencing issues, you can [view recent reported bugs](https://gitlab.com/gitlab-org/gitlab/-/issues/?sort=popularity&state=opened&label_name%5B%5D=group%3A%3Asecurity%20policies&label_name%5B%5D=type%3A%3Abug&first_page_size=20) and raise new unreported issues.

@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Atlassian Bamboo **(FREE)**
+# Atlassian Bamboo **(FREE ALL)**
 
 You can automatically trigger builds in Atlassian Bamboo when you push changes
 to your project in GitLab.
@@ -36,19 +36,18 @@ integration in GitLab.
 
 ## Configure GitLab
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **Atlassian Bamboo**.
 1. Ensure the **Active** checkbox is selected.
 1. Enter the base URL of your Bamboo server. For example, `https://bamboo.example.com`.
-1. Optional. Clear the **Enable SSL verification** checkbox to disable [SSL verification](index.md#manage-ssl-verification).
+1. Optional. Clear the **Enable SSL verification** checkbox to disable [SSL verification](index.md#ssl-verification).
 1. Enter the [build key](#identify-the-bamboo-build-plan-build-key) from your Bamboo
    build plan.
 1. If necessary, enter a username and password for a Bamboo user that has
    access to trigger the build plan. Leave these fields blank if you do not require
    authentication.
-1. Optional. To test the configuration and trigger a build in Bamboo,
-   select **Test Settings**.
+1. Optional. Select **Test settings**.
 1. Select **Save changes**.
 
 ### Identify the Bamboo build plan build key
@@ -125,7 +124,7 @@ For example:
 ### Builds not triggered
 
 If builds are not triggered, ensure you entered the right GitLab IP address in
-Bamboo under **Trigger IP addresses**. Also check [service hook logs](index.md#troubleshooting-integrations) for request failures.
+Bamboo under **Trigger IP addresses**. Also, check the integration webhook logs for request failures.
 
 ### Advanced Atlassian Bamboo features not available in GitLab UI
 

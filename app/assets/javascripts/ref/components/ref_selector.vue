@@ -1,6 +1,7 @@
 <script>
 import { GlBadge, GlIcon, GlCollapsibleListbox } from '@gitlab/ui';
 import { debounce, isArray } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
 import { sprintf } from '~/locale';
 import {
@@ -10,6 +11,10 @@ import {
   REF_TYPE_BRANCHES,
   REF_TYPE_TAGS,
   REF_TYPE_COMMITS,
+  TAG_REF_TYPE,
+  BRANCH_REF_TYPE,
+  TAG_REF_TYPE_ICON,
+  BRANCH_REF_TYPE_ICON,
 } from '../constants';
 import createStore from '../stores';
 import { formatListBoxItems, formatErrors } from '../format_refs';
@@ -42,10 +47,10 @@ export default {
       required: false,
       default: '',
     },
-    refType: {
-      type: String,
+    queryParams: {
+      type: Object,
       required: false,
-      default: null,
+      default: () => {},
     },
     projectId: {
       type: String,
@@ -93,6 +98,7 @@ export default {
       matches: (state) => state.matches,
       lastQuery: (state) => state.query,
       selectedRef: (state) => state.selectedRef,
+      params: (state) => state.params,
     }),
     ...mapGetters(['isLoading', 'isQueryPossiblyASha']),
     i18n() {
@@ -157,6 +163,17 @@ export default {
           })
         : this.i18n.noResults;
     },
+    dropdownIcon() {
+      let icon;
+
+      if (this.selectedRef.includes(`refs/${TAG_REF_TYPE}`)) {
+        icon = TAG_REF_TYPE_ICON;
+      } else if (this.selectedRef.includes(`refs/${BRANCH_REF_TYPE}`)) {
+        icon = BRANCH_REF_TYPE_ICON;
+      }
+
+      return icon;
+    },
   },
   watch: {
     // Keep the Vuex store synchronized if the parent
@@ -186,6 +203,7 @@ export default {
     this.debouncedSearch = debounce(this.search, SEARCH_DEBOUNCE_MS);
 
     this.setProjectId(this.projectId);
+    this.setParams(this.queryParams);
 
     this.$watch(
       'enabledRefTypes',
@@ -206,6 +224,7 @@ export default {
     ...mapActions([
       'setEnabledRefTypes',
       'setUseSymbolicRefNames',
+      'setParams',
       'setProjectId',
       'setSelectedRef',
     ]),
@@ -242,6 +261,7 @@ export default {
       :search-placeholder="i18n.searchPlaceholder"
       :toggle-class="extendedToggleButtonClass"
       :toggle-text="buttonText"
+      :icon="dropdownIcon"
       v-bind="$attrs"
       v-on="$listeners"
       @hidden="$emit('hide')"

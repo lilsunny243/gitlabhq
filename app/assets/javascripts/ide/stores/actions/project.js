@@ -1,5 +1,5 @@
 import { escape } from 'lodash';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, sprintf } from '~/locale';
 import { logError } from '~/lib/logger';
 import api from '~/api';
@@ -133,7 +133,8 @@ export const loadBranch = ({ dispatch, getters, state }, { projectId, branchId }
 
   if (currentProject?.branches?.[branchId]) {
     return Promise.resolve();
-  } else if (getters.emptyRepo) {
+  }
+  if (getters.emptyRepo) {
     return dispatch('loadEmptyBranch', { projectId, branchId });
   }
 

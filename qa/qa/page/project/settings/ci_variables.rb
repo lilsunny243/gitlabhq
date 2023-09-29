@@ -11,7 +11,6 @@ module QA
             element :ci_variable_key_field
             element :ci_variable_value_field
             element :ci_variable_save_button
-            element :ci_variable_delete_button
           end
 
           def fill_variable(key, value, masked = false)
@@ -20,7 +19,7 @@ module QA
             click_ci_variable_save_button
 
             wait_until(reload: false) do
-              within_element(:ci_variable_table_content) { has_element?(:edit_ci_variable_button) }
+              within_element('ci-variable-table') { has_element?(:edit_ci_variable_button) }
             end
           end
 
@@ -29,21 +28,13 @@ module QA
           end
 
           def click_edit_ci_variable
-            within_element(:ci_variable_table_content) do
+            within_element('ci-variable-table') do
               click_element :edit_ci_variable_button
             end
           end
 
           def click_ci_variable_save_button
             click_element :ci_variable_save_button
-          end
-
-          def click_reveal_ci_variable_value_button
-            click_element :reveal_ci_variable_value_button
-          end
-
-          def click_ci_variable_delete_button
-            click_element :ci_variable_delete_button
           end
         end
       end

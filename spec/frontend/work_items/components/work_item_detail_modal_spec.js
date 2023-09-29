@@ -6,21 +6,16 @@ import waitForPromises from 'helpers/wait_for_promises';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { stubComponent } from 'helpers/stub_component';
 import WorkItemDetailModal from '~/work_items/components/work_item_detail_modal.vue';
-import deleteWorkItemFromTaskMutation from '~/work_items/graphql/delete_task_from_work_item.mutation.graphql';
 import deleteWorkItemMutation from '~/work_items/graphql/delete_work_item.mutation.graphql';
 import WorkItemDetail from '~/work_items/components/work_item_detail.vue';
-import {
-  deleteWorkItemFromTaskMutationErrorResponse,
-  deleteWorkItemFromTaskMutationResponse,
-  deleteWorkItemMutationErrorResponse,
-  deleteWorkItemResponse,
-} from '../mock_data';
+import { deleteWorkItemMutationErrorResponse, deleteWorkItemResponse } from '../mock_data';
 
 describe('WorkItemDetailModal component', () => {
   let wrapper;
 
   Vue.use(VueApollo);
 
+  const workItemId = 'gid://gitlab/WorkItem/1';
   const hideModal = jest.fn();
   const GlModal = {
     template: `
@@ -33,72 +28,50 @@ describe('WorkItemDetailModal component', () => {
     },
   };
 
-  const defaultPropsData = {
-    issueGid: 'gid://gitlab/WorkItem/1',
-    workItemId: 'gid://gitlab/WorkItem/2',
-  };
-
   const findModal = () => wrapper.findComponent(GlModal);
   const findAlert = () => wrapper.findComponent(GlAlert);
   const findWorkItemDetail = () => wrapper.findComponent(WorkItemDetail);
 
   const createComponent = ({
-    lockVersion,
-    lineNumberStart,
-    lineNumberEnd,
-    error = false,
-    deleteWorkItemFromTaskMutationHandler = jest
-      .fn()
-      .mockResolvedValue(deleteWorkItemFromTaskMutationResponse),
     deleteWorkItemMutationHandler = jest.fn().mockResolvedValue(deleteWorkItemResponse),
   } = {}) => {
     const apolloProvider = createMockApollo([
-      [deleteWorkItemFromTaskMutation, deleteWorkItemFromTaskMutationHandler],
       [deleteWorkItemMutation, deleteWorkItemMutationHandler],
     ]);
 
     wrapper = shallowMount(WorkItemDetailModal, {
       apolloProvider,
       propsData: {
-        ...defaultPropsData,
-        lockVersion,
-        lineNumberStart,
-        lineNumberEnd,
-      },
-      data() {
-        return {
-          error,
-        };
+        workItemId,
+        workItemIid: '1',
       },
       provide: {
         fullPath: 'group/project',
       },
       stubs: {
         GlModal,
-        WorkItemDetail: stubComponent(WorkItemDetail, {
-          apollo: {},
-        }),
+        WorkItemDetail: stubComponent(WorkItemDetail),
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('renders WorkItemDetail', () => {
     createComponent();
 
     expect(findWorkItemDetail().props()).toEqual({
       isModal: true,
-      workItemId: defaultPropsData.workItemId,
-      workItemParentId: defaultPropsData.issueGid,
-      workItemIid: null,
+      workItemIid: '1',
+      workItemParentId: null,
     });
   });
 
-  it('renders alert if there is an error', () => {
-    createComponent({ error: true });
+  it('renders alert if there is an error', async () => {
+    createComponent({
+      deleteWorkItemMutationHandler: jest.fn().mockRejectedValue({ message: 'message' }),
+    });
+
+    findWorkItemDetail().vm.$emit('deleteWorkItem');
+    await waitForPromises();
 
     expect(findAlert().exists()).toBe(true);
   });
@@ -110,7 +83,13 @@ describe('WorkItemDetailModal component', () => {
   });
 
   it('dismisses the alert on `dismiss` emitted event', async () => {
-    createComponent({ error: true });
+    createComponent({
+      deleteWorkItemMutationHandler: jest.fn().mockRejectedValue({ message: 'message' }),
+    });
+
+    findWorkItemDetail().vm.$emit('deleteWorkItem');
+    await waitForPromises();
+
     findAlert().vm.$emit('dismiss');
     await nextTick();
 
@@ -126,106 +105,47 @@ describe('WorkItemDetailModal component', () => {
 
   it('hides the modal when WorkItemDetail emits `close` event', () => {
     createComponent();
-    const closeSpy = jest.spyOn(wrapper.vm.$refs.modal, 'hide');
 
     findWorkItemDetail().vm.$emit('close');
 
-    expect(closeSpy).toHaveBeenCalled();
+    expect(hideModal).toHaveBeenCalled();
   });
 
   it('updates the work item when WorkItemDetail emits `update-modal` event', async () => {
     createComponent();
 
-    findWorkItemDetail().vm.$emit('update-modal', undefined, {
-      id: 'updatedId',
-      iid: 'updatedIid',
-    });
-    await waitForPromises();
+    findWorkItemDetail().vm.$emit('update-modal', undefined, { iid: 'updatedIid' });
+    await nextTick();
 
-    expect(findWorkItemDetail().props().workItemId).toEqual('updatedId');
-    expect(findWorkItemDetail().props().workItemIid).toEqual('updatedIid');
+    expect(findWorkItemDetail().props('workItemIid')).toBe('updatedIid');
   });
 
   describe('delete work item', () => {
-    describe('when there is task data', () => {
-      it('emits workItemDeleted and closes modal', async () => {
-        const mutationMock = jest.fn().mockResolvedValue(deleteWorkItemFromTaskMutationResponse);
-        createComponent({
-          lockVersion: 1,
-          lineNumberStart: '3',
-          lineNumberEnd: '3',
-          deleteWorkItemFromTaskMutationHandler: mutationMock,
-        });
-        const newDesc = 'updated work item desc';
+    it('emits workItemDeleted and closes modal', async () => {
+      const mutationMock = jest.fn().mockResolvedValue(deleteWorkItemResponse);
+      createComponent({ deleteWorkItemMutationHandler: mutationMock });
 
-        findWorkItemDetail().vm.$emit('deleteWorkItem');
-        await waitForPromises();
+      findWorkItemDetail().vm.$emit('deleteWorkItem');
+      await waitForPromises();
 
-        expect(wrapper.emitted('workItemDeleted')).toEqual([[newDesc]]);
-        expect(hideModal).toHaveBeenCalled();
-        expect(mutationMock).toHaveBeenCalledWith({
-          input: {
-            id: defaultPropsData.issueGid,
-            lockVersion: 1,
-            taskData: { id: defaultPropsData.workItemId, lineNumberEnd: 3, lineNumberStart: 3 },
-          },
-        });
-      });
-
-      it.each`
-        errorType                              | mutationMock                                                                | errorMessage
-        ${'an error in the mutation response'} | ${jest.fn().mockResolvedValue(deleteWorkItemFromTaskMutationErrorResponse)} | ${'Error'}
-        ${'a network error'}                   | ${jest.fn().mockRejectedValue(new Error('GraphQL networkError'))}           | ${'GraphQL networkError'}
-      `(
-        'shows an error message when there is $errorType',
-        async ({ mutationMock, errorMessage }) => {
-          createComponent({
-            lockVersion: 1,
-            lineNumberStart: '3',
-            lineNumberEnd: '3',
-            deleteWorkItemFromTaskMutationHandler: mutationMock,
-          });
-
-          findWorkItemDetail().vm.$emit('deleteWorkItem');
-          await waitForPromises();
-
-          expect(wrapper.emitted('workItemDeleted')).toBeUndefined();
-          expect(hideModal).not.toHaveBeenCalled();
-          expect(findAlert().text()).toBe(errorMessage);
-        },
-      );
+      expect(wrapper.emitted('workItemDeleted')).toEqual([[workItemId]]);
+      expect(hideModal).toHaveBeenCalled();
+      expect(mutationMock).toHaveBeenCalledWith({ input: { id: workItemId } });
     });
 
-    describe('when there is no task data', () => {
-      it('emits workItemDeleted and closes modal', async () => {
-        const mutationMock = jest.fn().mockResolvedValue(deleteWorkItemResponse);
-        createComponent({ deleteWorkItemMutationHandler: mutationMock });
+    it.each`
+      errorType                              | mutationMock                                                        | errorMessage
+      ${'an error in the mutation response'} | ${jest.fn().mockResolvedValue(deleteWorkItemMutationErrorResponse)} | ${'Error'}
+      ${'a network error'}                   | ${jest.fn().mockRejectedValue(new Error('GraphQL networkError'))}   | ${'GraphQL networkError'}
+    `('shows an error message when there is $errorType', async ({ mutationMock, errorMessage }) => {
+      createComponent({ deleteWorkItemMutationHandler: mutationMock });
 
-        findWorkItemDetail().vm.$emit('deleteWorkItem');
-        await waitForPromises();
+      findWorkItemDetail().vm.$emit('deleteWorkItem');
+      await waitForPromises();
 
-        expect(wrapper.emitted('workItemDeleted')).toEqual([[defaultPropsData.workItemId]]);
-        expect(hideModal).toHaveBeenCalled();
-        expect(mutationMock).toHaveBeenCalledWith({ input: { id: defaultPropsData.workItemId } });
-      });
-
-      it.each`
-        errorType                              | mutationMock                                                        | errorMessage
-        ${'an error in the mutation response'} | ${jest.fn().mockResolvedValue(deleteWorkItemMutationErrorResponse)} | ${'Error'}
-        ${'a network error'}                   | ${jest.fn().mockRejectedValue(new Error('GraphQL networkError'))}   | ${'GraphQL networkError'}
-      `(
-        'shows an error message when there is $errorType',
-        async ({ mutationMock, errorMessage }) => {
-          createComponent({ deleteWorkItemMutationHandler: mutationMock });
-
-          findWorkItemDetail().vm.$emit('deleteWorkItem');
-          await waitForPromises();
-
-          expect(wrapper.emitted('workItemDeleted')).toBeUndefined();
-          expect(hideModal).not.toHaveBeenCalled();
-          expect(findAlert().text()).toBe(errorMessage);
-        },
-      );
+      expect(wrapper.emitted('workItemDeleted')).toBeUndefined();
+      expect(hideModal).not.toHaveBeenCalled();
+      expect(findAlert().text()).toBe(errorMessage);
     });
   });
 });

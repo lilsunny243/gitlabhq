@@ -6,7 +6,6 @@ description: Distinct count of creator_id from projects with an active Jira Clou
 product_section: dev
 product_stage: manage
 product_group: integration
-product_category: integrations
 value_type: number
 status: active
 time_frame: 28d
@@ -18,5 +17,6 @@ tier:
 - free
 - premium
 - ultimate
-performance_indicator_type: []
+performance_indicator_type:
+- customer_health_score
 milestone: "<13.9"

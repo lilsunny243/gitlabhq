@@ -6,7 +6,11 @@ Gitlab::Database::Partitioning.register_models(
     WebHookLog,
     LooseForeignKeys::DeletedRecord,
     Gitlab::Database::BackgroundMigration::BatchedJobTransitionLog,
-    Ci::RunnerMachineBuild
+    Ci::RunnerManagerBuild,
+    Ci::JobAnnotation,
+    BatchedGitRefUpdates::Deletion,
+    Users::ProjectVisit,
+    Users::GroupVisit
   ])
 
 if Gitlab.ee?
@@ -14,7 +18,9 @@ if Gitlab.ee?
     [
       IncidentManagement::PendingEscalations::Alert,
       IncidentManagement::PendingEscalations::Issue,
-      Security::Finding
+      Security::Finding,
+      Analytics::ValueStreamDashboard::Count,
+      Ci::FinishedBuildChSyncEvent
     ])
 else
   Gitlab::Database::Partitioning.register_tables(

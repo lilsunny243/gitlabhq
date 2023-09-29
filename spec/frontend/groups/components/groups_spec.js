@@ -3,7 +3,7 @@ import { GlEmptyState } from '@gitlab/ui';
 
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import GroupFolderComponent from '~/groups/components/group_folder.vue';
-import GroupItemComponent from '~/groups/components/group_item.vue';
+import GroupItemComponent from 'jh_else_ce/groups/components/group_item.vue';
 import PaginationLinks from '~/vue_shared/components/pagination_links.vue';
 import GroupsComponent from '~/groups/components/groups.vue';
 import eventHub from '~/groups/event_hub';
@@ -32,13 +32,9 @@ describe('GroupsComponent', () => {
 
   const findPaginationLinks = () => wrapper.findComponent(PaginationLinks);
 
-  beforeEach(async () => {
+  beforeEach(() => {
     Vue.component('GroupFolder', GroupFolderComponent);
     Vue.component('GroupItem', GroupItemComponent);
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   describe('methods', () => {

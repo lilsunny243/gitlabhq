@@ -8,6 +8,7 @@ module QA
           auto_devops_container
           element
           file_content
+          file_name
           assignee
           child_pipeline
           linked_pipeline
@@ -25,6 +26,12 @@ module QA
           tag
           label
           variable
+          system_note
+          alert_with_title
+          incident
+          framework
+          delete_issue_button
+          skipped_job_in_group
         ].each do |predicate|
           RSpec::Matchers.define "have_#{predicate}" do |*args, **kwargs|
             match do |page_object|

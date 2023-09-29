@@ -1,18 +1,18 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: "GitLab's development guidelines for Integrations"
 ---
 
-# Integrations development guide
+# Integration development guidelines
 
 This page provides development guidelines for implementing [GitLab integrations](../../user/project/integrations/index.md),
 which are part of our [main Rails project](https://gitlab.com/gitlab-org/gitlab).
 
-Also see our [direction page](https://about.gitlab.com/direction/manage/integrations/) for an overview of our strategy around integrations.
+Also see our [direction page](https://about.gitlab.com/direction/manage/import_and_integrate/integrations/) for an overview of our strategy around integrations.
 
-This guide is a work in progress. You're welcome to ping `@gitlab-org/manage/integrations`
+This guide is a work in progress. You're welcome to ping `@gitlab-org/manage/import-and-integrate`
 if you need clarification or spot any outdated information.
 
 ## Add a new integration
@@ -23,9 +23,11 @@ if you need clarification or spot any outdated information.
    - For example, `Integrations::FooBar` in `app/models/integrations/foo_bar.rb`.
    - For certain types of integrations, you can also build on these base classes:
      - `Integrations::BaseChatNotification`
+     - `Integrations::BaseCi`
      - `Integrations::BaseIssueTracker`
      - `Integrations::BaseMonitoring`
      - `Integrations::BaseSlashCommands`
+     - `Integrations::BaseThirdPartyWiki`
    - For integrations that primarily trigger HTTP calls to external services, you can
      also use the `Integrations::HasWebHook` concern. This reuses the [webhook functionality](../../user/project/integrations/webhooks.md)
      in GitLab through an associated `ServiceHook` model, and automatically records request logs
@@ -37,12 +39,9 @@ if you need clarification or spot any outdated information.
    has_one :foo_bar_integration, class_name: 'Integrations::FooBar'
    ```
 
-1. TEMPORARY: Accommodate the current migration to [rename "services" to "integrations"](#rename-services-to-integrations):
-   - Add the integration's camel-cased name (`'FooBar'`) to `Gitlab::Integrations::StiType::NAMESPACED_INTEGRATIONS`.
+### Define fields
 
-### Define properties
-
-Integrations can define arbitrary properties to store their configuration with the class method `Integration.prop_accessor`.
+Integrations can define arbitrary fields to store their configuration with the class method `Integration.field`.
 The values are stored as an encrypted JSON hash in the `integrations.encrypted_properties` column.
 
 For example:
@@ -50,25 +49,26 @@ For example:
 ```ruby
 module Integrations
   class FooBar < Integration
-    prop_accessor :url
-    prop_accessor :tags
+    field :url
+    field :tags
   end
 end
 ```
 
-`Integration.prop_accessor` installs accessor methods on the class. Here we would have `#url`, `#url=` and `#url_changed?`, to manage the `url` field. Fields stored in `Integration#properties` should be accessed by these accessors directly on the model, just like other ActiveRecord attributes.
+`Integration.field` installs accessor methods on the class.
+Here we would have `#url`, `#url=`, and `#url_changed?` to manage the `url` field.
+These accessors should access the fields stored in `Integration#properties` directly on the model, just like other `ActiveRecord` attributes.
 
-You should always access the properties through their `getters`, and not interact with the `properties` hash directly.
+You should always access the fields through their `getters` and not interact with the `properties` hash directly.
 You **must not** write to the `properties` hash, you **must** use the generated setter method instead. Direct writes to this
 hash are not persisted.
 
 You should also define validations for all your properties.
+To see how these fields are exposed in the frontend form for the integration,
+see [Customize the frontend form](#customize-the-frontend-form).
 
-Also refer to the section [Customize the frontend form](#customize-the-frontend-form) below to see how these properties
-are exposed in the frontend form for the integration.
-
-There is an alternative approach using `Integration.data_field`, which you may see in other integrations.
-With data fields the values are stored in a separate table per integration. At the moment we don't recommend using this for new integrations.
+Other approaches include using `Integration.prop_accessor` or `Integration.data_field`, which you might see in earlier versions of integrations.
+You should not use these approaches for new integrations.
 
 ### Define trigger events
 
@@ -95,7 +95,7 @@ The following events are supported for integrations:
 | [Pipeline event](../../user/project/integrations/webhook_events.md#pipeline-events)            |         | `pipeline`           | A pipeline status changes.
 | [Push event](../../user/project/integrations/webhook_events.md#push-events)                    | ✓       | `push`               | A push is made to the repository.
 | [Tag push event](../../user/project/integrations/webhook_events.md#tag-events)                 | ✓       | `tag_push`           | New tags are pushed to the repository.
-| Vulnerability event **(ULTIMATE)**                                                             |         | `vulnerability`      | A new, unique vulnerability is recorded.
+| Vulnerability event **(ULTIMATE ALL)**                                                             |         | `vulnerability`      | A new, unique vulnerability is recorded.
 | [Wiki page event](../../user/project/integrations/webhook_events.md#wiki-page-events)          | ✓       | `wiki_page`          | A wiki page is created or updated.
 
 #### Event examples
@@ -121,6 +121,23 @@ module Integrations
       []
     end
   end
+end
+```
+
+### Security enhancement features
+
+#### Masking channel values
+
+Integrations that [inherit from `Integrations::BaseChatNotification`](#define-the-integration) can hide the
+values of their channel input fields. Integrations should hide these values whenever the
+fields contain sensitive information such as auth tokens.
+
+By default, `#mask_configurable_channels?` returns `false`. To mask the channel values, override the `#mask_configurable_channels?` method in the integration to return `true`:
+
+```ruby
+override :mask_configurable_channels?
+def mask_configurable_channels?
+  true
 end
 ```
 
@@ -157,7 +174,7 @@ module Integrations
 end
 ```
 
-### Customize the frontend form
+## Customize the frontend form
 
 The frontend form is generated dynamically based on metadata defined in the model.
 
@@ -175,71 +192,60 @@ This method should return an array of hashes for each field, where the keys can 
 
 | Key            | Type    | Required | Default                      | Description
 |:---------------|:--------|:---------|:-----------------------------|:--
-| `type:`        | string  | true     |                              | The type of the form field. Can be `text`, `textarea`, `password`, `checkbox`, or `select`.
-| `name:`        | string  | true     |                              | The property name for the form field. This must match a `prop_accessor` [defined on the class](#define-properties).
+| `type:`        | symbol  | true     | `:text`                      | The type of the form field. Can be `:text`, `:textarea`, `:password`, `:checkbox`, or `:select`.
+| `name:`        | string  | true     |                              | The property name for the form field.
 | `required:`    | boolean | false    | `false`                      | Specify if the form field is required or optional.
 | `title:`       | string  | false    | Capitalized value of `name:` | The label for the form field.
 | `placeholder:` | string  | false    |                              | A placeholder for the form field.
 | `help:`        | string  | false    |                              | A help text that displays below the form field.
 | `api_only:`    | boolean | false    | `false`                      | Specify if the field should only be available through the API, and excluded from the frontend form.
+| `if:`          | boolean or lambda | false | `true`                | Specify if the field should be available. The value can be a boolean or a lambda.
 
-#### Additional keys for `type: 'checkbox'`
+### Additional keys for `type: :checkbox`
 
 | Key               | Type   | Required | Default           | Description
 |:------------------|:-------|:---------|:------------------|:--
 | `checkbox_label:` | string | false    | Value of `title:` | A custom label that displays next to the checkbox.
 
-#### Additional keys for `type: 'select'`
+### Additional keys for `type: :select`
 
 | Key        | Type  | Required | Default | Description
 |:-----------|:------|:---------|:--------|:--
 | `choices:` | array | true     |         | A nested array of `[label, value]` tuples.
 
-#### Additional keys for `type: 'password'`
+### Additional keys for `type: :password`
 
 | Key                         | Type   | Required | Default           | Description
 |:----------------------------|:-------|:---------|:------------------|:--
 | `non_empty_password_title:` | string | false    | Value of `title:` | An alternative label that displays when a value is already stored.
 | `non_empty_password_help:`  | string | false    | Value of `help:`  | An alternative help text that displays when a value is already stored.
 
-#### Frontend form examples
+### Frontend form examples
 
 This example defines a required `url` field, and optional `username` and `password` fields:
 
 ```ruby
 module Integrations
   class FooBar < Integration
-    prop_accessor :url, :username, :password
+    field :url,
+      type: :text,
+      title: s_('FooBarIntegration|Server URL'),
+      placeholder: 'https://example.com/',
+      required: true
 
-    def fields
-      [
-        {
-          type: 'text',
-          name: 'url',
-          title: s_('FooBarIntegration|Server URL'),
-          placeholder: 'https://example.com/',
-          required: true
-        },
-        {
-          type: 'text',
-          name: 'username',
-          title: s_('FooBarIntegration|Username'),
-        },
-        {
-          type: 'password',
-          name: 'password',
-          title: s_('FoobarIntegration|Password'
-          non_empty_password_title: s_('FooBarIntegration|Enter new password')
-        }
-      ]
-    end
+    field :username,
+      type: :text,
+      title: s_('FooBarIntegration|Username')
+
+    field :password,
+      type: 'password',
+      title: s_('FoobarIntegration|Password'
+      non_empty_password_title: s_('FooBarIntegration|Enter new password')
   end
 end
 ```
 
-### Expose the integration in the API
-
-#### REST API
+## Expose the integration in the REST API
 
 To expose the integration in the [REST API](../../api/integrations.md):
 
@@ -249,45 +255,14 @@ To expose the integration in the [REST API](../../api/integrations.md):
 
 You can also refer to our [REST API style guide](../api_styleguide.md).
 
-#### GraphQL API
+Sensitive fields are not exposed over the API. Sensitive fields are those fields that contain any of the following in their name:
 
-Integrations use the `Types::Projects::ServiceType` type by default,
-which only exposes the `type` and `active` properties.
-
-To expose additional properties, you can write a class implementing `ServiceType`:
-
-```ruby
-# in app/graphql/types/project/services/foo_bar_service_type.rb
-module Types
-  module Projects
-    module Services
-      class FooBarServiceType < BaseObject
-        graphql_name 'FooBarService'
-        implements(Types::Projects::ServiceType)
-        authorize :read_project
-
-        field :frobinity,
-            GraphQL::Types::Float,
-            null: true,
-            description: 'The level of frobinity.'
-
-        field :foo_label,
-            GraphQL::Types::String,
-            null: true,
-            description: 'The foo label to apply.'
-      end
-    end
-  end
-end
-```
-
-Each property you want to expose should have a field defined for it. You can also expose any public instance method of the integration.
-
-Contact a member of the Integrations team to discuss the best authorization.
-
-Reference documentation for GraphQL is automatically generated.
-
-You can also refer to our [GraphQL API style guide](../api_graphql_styleguide.md).
+- `key`
+- `passphrase`
+- `password`
+- `secret`
+- `token`
+- `webhook`
 
 ## Availability of integrations
 
@@ -334,28 +309,43 @@ All UI strings should be prepared for translation by following our [internationa
 
 The strings should use the integration name as [namespace](../i18n/externalization.md#namespaces), for example, `s_('FooBarIntegration|My string')`.
 
+## Deprecate and remove an integration
+
+To remove an integration, you must first deprecate the integration. For more information,
+see the [feature deprecation guidelines](../../development/deprecation_guidelines/index.md).
+
+### Deprecate an integration
+
+You must announce any deprecation [no later than the third milestone preceding intended removal](../../development/deprecation_guidelines/index.md#when-can-a-feature-be-deprecated).
+To deprecate an integration:
+
+- [Add a deprecation entry](../../development/deprecation_guidelines/index.md#update-the-deprecations-and-removals-documentation).
+- [Mark the integration documentation as deprecated](../../development/documentation/versions.md#deprecate-a-page-or-topic).
+- Optional. To prevent any new project-level records from
+  being created, add the integration to `Project#disabled_integrations` (see [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/114835)).
+
+### Remove an integration
+
+To safely remove an integration, you must stage the removal across two milestones.
+
+In the major milestone of intended removal (M.0), disable the integration and delete the records from the database:
+
+- Remove the integration from `Integration::INTEGRATION_NAMES`.
+- Delete the integration model's `#execute` and `#test` methods (if defined), but keep the model.
+- Add a post-migration to delete the integration records from PostgreSQL (see [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/114721)).
+- [Mark the integration documentation as removed](../../development/documentation/versions.md#remove-a-page).
+- [Update the integration API documentation](../../api/integrations.md).
+
+In the next minor release (M.1):
+
+- Remove the integration's model and any remaining code.
+- Close any issues, merge requests, and epics that have the integration's label (`~Integration::<name>`).
+- Delete the integration's label (`~Integration::<name>`) from `gitlab-org`.
+
 ## Ongoing migrations and refactorings
 
-The Integrations team is in the process of some larger migrations that developers should be aware of.
-
-### [Rename "services" to "integrations"](https://gitlab.com/groups/gitlab-org/-/epics/2504)
-
-The "integrations" in GitLab were historically called "services", which frequently caused
-confusion with our "service" classes in `app/services`. We sometimes also called
-them "project services" because they were initially only available on projects, which is
-not the case anymore.
-
-We decided to change the naming from "services" and "project services" to "integrations".
-This refactoring is an ongoing effort, and there are still references to the old names in some places.
-
-Developers should be especially aware that we still use the old class names for the STI column
-`integrations.type`. For example, a class `Integrations::FooBar` still stores
-the old name `FooBarService` in the database. This mapping is handled via `Gitlab::Integrations::StiType`
-and should be mostly transparent to the rest of the app.
-
-### [Consolidate integration settings](https://gitlab.com/groups/gitlab-org/-/epics/3955)
-
-We want to unify the way integration properties are defined.
+Developers should be aware that the Integrations team is in the process of
+[unifying the way integration properties are defined](https://gitlab.com/groups/gitlab-org/-/epics/3955).
 
 ## Integration examples
 

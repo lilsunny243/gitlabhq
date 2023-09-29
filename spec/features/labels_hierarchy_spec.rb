@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe 'Labels Hierarchy', :js, feature_category: :team_planning do
   include FilteredSearchHelpers
 
-  let!(:user) { create(:user) }
+  let!(:user) { create(:user, :no_super_sidebar) }
   let!(:grandparent) { create(:group) }
   let!(:parent) { create(:group, parent: grandparent) }
   let!(:child) { create(:group, parent: parent) }
@@ -166,12 +166,18 @@ RSpec.describe 'Labels Hierarchy', :js, feature_category: :team_planning do
       fill_in 'issue_title', with: 'new created issue'
       fill_in 'issue_description', with: 'new issue description'
 
-      find(".js-label-select").click
-      wait_for_requests
+      click_button _('Select label')
 
-      find('a.label-item', text: grandparent_group_label.title).click
-      find('a.label-item', text: parent_group_label.title).click
-      find('a.label-item', text: project_label_1.title).click
+      wait_for_all_requests
+
+      page.within '[data-testid="sidebar-labels"]' do
+        click_button grandparent_group_label.title
+        click_button parent_group_label.title
+        click_button project_label_1.title
+        click_button _('Close')
+
+        wait_for_requests
+      end
 
       find('.btn-confirm').click
 

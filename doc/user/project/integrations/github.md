@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitHub **(PREMIUM)**
+# GitHub **(PREMIUM ALL)**
 
 You can update GitHub with pipeline status updates from GitLab.
 The GitHub integration can help you if you use GitLab for CI/CD.
@@ -29,8 +29,8 @@ Complete these steps on GitHub:
 
 Complete these steps in GitLab:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **GitHub**.
 1. Ensure the **Active** checkbox is selected.
 1. In **Token**, paste the token you generated on GitHub.

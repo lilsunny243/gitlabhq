@@ -22,6 +22,16 @@ module StubFeatureFlags
 
   def unstub_all_feature_flags
     Feature.stub = false
+    Feature.reset_flipper
+  end
+
+  def stub_with_new_feature_current_request
+    return unless Gitlab::SafeRequestStore.active?
+
+    new_request = Feature::FlipperRequest.new
+    allow(new_request).to receive(:id).and_return(SecureRandom.uuid)
+
+    allow(Feature).to receive(:current_request).and_return(new_request)
   end
 
   # Stub Feature flags with `flag_name: true/false`

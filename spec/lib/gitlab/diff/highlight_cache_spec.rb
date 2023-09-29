@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache do
+RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache, feature_category: :source_code_management do
   let_it_be(:merge_request) { create(:merge_request_with_diffs) }
 
   let(:diff_hash) do
@@ -217,7 +217,7 @@ RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache do
 
   describe '#clear' do
     it 'clears cache' do
-      expect_any_instance_of(Redis).to receive(:del).with(cache_key)
+      Gitlab::Redis::Cache.with { |r| expect(r).to receive(:del).with(cache_key) }
 
       cache.clear
     end
@@ -241,7 +241,8 @@ RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache do
     end
 
     it "uses ActiveSupport::Gzip to compress data when writing to cache" do
-      expect(ActiveSupport::Gzip).to receive(:compress).and_call_original
+      # at least once as Gitlab::Redis::Cache is a multistore
+      expect(ActiveSupport::Gzip).to receive(:compress).at_least(1).and_call_original
 
       cache.send(:write_to_redis_hash, diff_hash)
     end
@@ -282,17 +283,7 @@ RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache do
     end
 
     it 'returns cache key' do
-      is_expected.to eq("highlighted-diff-files:#{cache.diffable.cache_key}:2:#{options_hash([cache.diff_options, true, true])}")
-    end
-
-    context 'when the `use_marker_ranges` feature flag is disabled' do
-      before do
-        stub_feature_flags(use_marker_ranges: false)
-      end
-
-      it 'returns the original version of the cache' do
-        is_expected.to eq("highlighted-diff-files:#{cache.diffable.cache_key}:2:#{options_hash([cache.diff_options, false, true])}")
-      end
+      is_expected.to eq("highlighted-diff-files:#{cache.diffable.cache_key}:2:#{options_hash([cache.diff_options, true])}")
     end
 
     context 'when the `diff_line_syntax_highlighting` feature flag is disabled' do
@@ -301,7 +292,7 @@ RSpec.describe Gitlab::Diff::HighlightCache, :clean_gitlab_redis_cache do
       end
 
       it 'returns the original version of the cache' do
-        is_expected.to eq("highlighted-diff-files:#{cache.diffable.cache_key}:2:#{options_hash([cache.diff_options, true, false])}")
+        is_expected.to eq("highlighted-diff-files:#{cache.diffable.cache_key}:2:#{options_hash([cache.diff_options, false])}")
       end
     end
   end

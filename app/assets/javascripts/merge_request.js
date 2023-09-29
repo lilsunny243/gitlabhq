@@ -1,10 +1,10 @@
 /* eslint-disable func-names, no-underscore-dangle, consistent-return */
 
 import $ from 'jquery';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
+import { TYPE_MERGE_REQUEST } from '~/issues/constants';
 import toast from '~/vue_shared/plugins/global_toast';
 import { __ } from '~/locale';
-import eventHub from '~/vue_merge_request_widget/event_hub';
 import { loadingIconForLegacyJS } from '~/loading_icon_for_legacy_js';
 import axios from './lib/utils/axios_utils';
 import { addDelimiter } from './lib/utils/text_utility';
@@ -27,7 +27,7 @@ function MergeRequest(opts) {
 
   if ($('.description.js-task-list-container').length) {
     this.taskList = new TaskList({
-      dataType: 'merge_request',
+      dataType: TYPE_MERGE_REQUEST,
       fieldName: 'description',
       selector: '.detail-page-description',
       lockVersion: this.$el.data('lockVersion'),
@@ -144,17 +144,7 @@ MergeRequest.decreaseCounter = function (by = 1) {
   $el.text(addDelimiter(count));
 };
 
-MergeRequest.hideCloseButton = function () {
-  const el = document.querySelector('.merge-request .js-issuable-actions');
-  // Dropdown for mobile screen
-  el.querySelector('li.js-close-item').classList.add('hidden');
-};
-
 MergeRequest.toggleDraftStatus = function (title, isReady) {
-  if (!window.gon?.features?.realtimeMrStatusChange) {
-    eventHub.$emit('MRWidgetUpdateRequested');
-  }
-
   if (isReady) {
     toast(__('Marked as ready. Merging is now allowed.'));
   } else {

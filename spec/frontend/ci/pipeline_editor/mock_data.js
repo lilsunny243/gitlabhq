@@ -1,5 +1,42 @@
 import { CI_CONFIG_STATUS_INVALID, CI_CONFIG_STATUS_VALID } from '~/ci/pipeline_editor/constants';
-import { unwrapStagesWithNeeds } from '~/pipelines/components/unwrapping_utils';
+import { unwrapStagesWithNeeds } from '~/ci/pipeline_details/utils/unwrapping_utils';
+import { DOCS_URL_IN_EE_DIR } from 'jh_else_ce/lib/utils/url_utility';
+
+export const commonOptions = {
+  ciConfigPath: '/ci/config',
+  ciExamplesHelpPagePath: 'help/ci/examples',
+  ciHelpPagePath: 'help/ci/',
+  ciLintPath: 'ci/lint',
+  ciTroubleshootingPath: 'help/troubleshoot',
+  defaultBranch: 'main',
+  emptyStateIllustrationPath: 'illustrations/svg',
+  helpPaths: '/ads',
+  includesHelpPagePath: 'help/includes',
+  needsHelpPagePath: 'help/ci/needs',
+  newMergeRequestPath: 'merge_request/new',
+  pipelinePagePath: '/pipelines/1',
+  projectFullPath: 'root/my-project',
+  projectNamespace: 'root',
+  simulatePipelineHelpPagePath: 'help/ci/simulate',
+  totalBranches: '10',
+  usesExternalConfig: 'false',
+  validateTabIllustrationPath: 'illustrations/tab',
+  ymlHelpPagePath: 'help/ci/yml',
+  aiChatAvailable: 'true',
+};
+
+export const editorDatasetOptions = {
+  initialBranchName: 'production',
+  pipelineEtag: 'pipelineEtag',
+  ...commonOptions,
+};
+
+export const expectedInjectValues = {
+  ...commonOptions,
+  aiChatAvailable: true,
+  usesExternalConfig: false,
+  totalBranches: 10,
+};
 
 export const mockProjectNamespace = 'user1';
 export const mockProjectPath = 'project1';
@@ -43,7 +80,7 @@ job_build:
 export const mockCiTemplateQueryResponse = {
   data: {
     project: {
-      id: 'project-1',
+      id: 'gid://gitlab/Project/1',
       ciTemplate: {
         content: mockCiYml,
       },
@@ -54,7 +91,7 @@ export const mockCiTemplateQueryResponse = {
 export const mockBlobContentQueryResponse = {
   data: {
     project: {
-      id: 'project-1',
+      id: 'gid://gitlab/Project/1',
       repository: { blobs: { nodes: [{ id: 'blob-1', rawBlob: mockCiYml }] } },
     },
   },
@@ -62,13 +99,13 @@ export const mockBlobContentQueryResponse = {
 
 export const mockBlobContentQueryResponseNoCiFile = {
   data: {
-    project: { id: 'project-1', repository: { blobs: { nodes: [] } } },
+    project: { id: 'gid://gitlab/Project/1', repository: { blobs: { nodes: [] } } },
   },
 };
 
 export const mockBlobContentQueryResponseEmptyCiFile = {
   data: {
-    project: { id: 'project-1', repository: { blobs: { nodes: [{ rawBlob: '' }] } } },
+    project: { id: 'gid://gitlab/Project/1', repository: { blobs: { nodes: [{ rawBlob: '' }] } } },
   },
 };
 
@@ -259,7 +296,7 @@ export const mockEmptyCommitShaResults = {
   },
 };
 
-export const mockProjectBranches = {
+export const generateMockProjectBranches = (prefix = '') => ({
   data: {
     project: {
       id: '1',
@@ -275,14 +312,14 @@ export const mockProjectBranches = {
           'mock-feature',
           'test-merge-request',
           'staging',
-        ],
+        ].map((branch) => `${prefix}${branch}`),
       },
     },
   },
-};
+});
 
-export const mockTotalBranchResults =
-  mockProjectBranches.data.project.repository.branchNames.length;
+export const mockTotalBranchResults = generateMockProjectBranches().data.project.repository
+  .branchNames.length;
 
 export const mockSearchBranches = {
   data: {
@@ -565,7 +602,7 @@ export const mockErrors = [
 ];
 
 export const mockWarnings = [
-  '"jobs:multi_project_job may allow multiple pipelines to run for a single action due to `rules:when` clause with no `workflow:rules` - read more: https://docs.gitlab.com/ee/ci/troubleshooting.html#pipeline-warnings"',
+  `"jobs:multi_project_job may allow multiple pipelines to run for a single action due to \`rules:when\` clause with no \`workflow:rules\` - read more: ${DOCS_URL_IN_EE_DIR}/ci/troubleshooting.html#pipeline-warnings"`,
 ];
 
 export const mockCommitCreateResponse = {
@@ -583,86 +620,31 @@ export const mockCommitCreateResponse = {
   },
 };
 
-export const mockAllRunnersQueryResponse = {
+export const mockRunnersTagsQueryResponse = {
   data: {
     runners: {
       nodes: [
         {
           id: 'gid://gitlab/Ci::Runner/1',
-          description: 'test',
-          runnerType: 'PROJECT_TYPE',
-          shortSha: 'DdTYMQGS',
-          version: '15.6.1',
-          ipAddress: '127.0.0.1',
-          active: true,
-          locked: true,
-          jobCount: 0,
-          jobExecutionStatus: 'IDLE',
-          tagList: ['tag1', 'tag2', 'tag3'],
-          createdAt: '2022-11-29T09:37:43Z',
-          contactedAt: null,
-          status: 'NEVER_CONTACTED',
-          userPermissions: {
-            updateRunner: true,
-            deleteRunner: true,
-            __typename: 'RunnerPermissions',
-          },
-          groups: null,
-          ownerProject: {
-            id: 'gid://gitlab/Project/1',
-            name: '123',
-            nameWithNamespace: 'Administrator / 123',
-            webUrl: 'http://127.0.0.1:3000/root/test',
-            __typename: 'Project',
-          },
+          tagList: ['tag1', 'tag2'],
           __typename: 'CiRunner',
-          upgradeStatus: 'NOT_AVAILABLE',
-          adminUrl: 'http://127.0.0.1:3000/admin/runners/1',
-          editAdminUrl: 'http://127.0.0.1:3000/admin/runners/1/edit',
         },
         {
           id: 'gid://gitlab/Ci::Runner/2',
-          description: 'test',
-          runnerType: 'PROJECT_TYPE',
-          shortSha: 'DdTYMQGA',
-          version: '15.6.1',
-          ipAddress: '127.0.0.1',
-          active: true,
-          locked: true,
-          jobCount: 0,
-          jobExecutionStatus: 'IDLE',
-          tagList: ['tag3', 'tag4'],
-          createdAt: '2022-11-29T09:37:43Z',
-          contactedAt: null,
-          status: 'NEVER_CONTACTED',
-          userPermissions: {
-            updateRunner: true,
-            deleteRunner: true,
-            __typename: 'RunnerPermissions',
-          },
-          groups: null,
-          ownerProject: {
-            id: 'gid://gitlab/Project/1',
-            name: '123',
-            nameWithNamespace: 'Administrator / 123',
-            webUrl: 'http://127.0.0.1:3000/root/test',
-            __typename: 'Project',
-          },
+          tagList: ['tag2', 'tag3'],
           __typename: 'CiRunner',
-          upgradeStatus: 'NOT_AVAILABLE',
-          adminUrl: 'http://127.0.0.1:3000/admin/runners/2',
-          editAdminUrl: 'http://127.0.0.1:3000/admin/runners/2/edit',
+        },
+        {
+          id: 'gid://gitlab/Ci::Runner/3',
+          tagList: ['tag2', 'tag4'],
+          __typename: 'CiRunner',
+        },
+        {
+          id: 'gid://gitlab/Ci::Runner/4',
+          tagList: [],
+          __typename: 'CiRunner',
         },
       ],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor:
-          'eyJjcmVhdGVkX2F0IjoiMjAyMi0xMS0yOSAwOTozNzo0My40OTEwNTEwMDAgKzAwMDAiLCJpZCI6IjIifQ',
-        endCursor:
-          'eyJjcmVhdGVkX2F0IjoiMjAyMi0xMS0yOSAwOTozNzo0My40OTEwNTEwMDAgKzAwMDAiLCJpZCI6IjIifQ',
-        __typename: 'PageInfo',
-      },
       __typename: 'CiRunnerConnection',
     },
   },

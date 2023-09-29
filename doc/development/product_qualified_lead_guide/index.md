@@ -4,7 +4,7 @@ group: Acquisition
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Product Qualified Lead (PQL) development guide
+# Product Qualified Lead (PQL) development guidelines
 
 The Product Qualified Lead (PQL) funnel connects our users with our team members. Read more about [PQL product principles](https://about.gitlab.com/handbook/product/product-principles/#product-qualified-leads-pqls).
 
@@ -15,7 +15,7 @@ A hand-raise PQL is a user who requests to speak to sales from within the produc
 1. Set up GDK with a connection to your local CustomersDot instance.
 1. Set up CustomersDot to talk to a staging instance of Workato.
 
-1. Set up CustomersDot using the [normal install instructions](https://gitlab.com/gitlab-org/customers-gitlab-com/-/blob/staging/doc/setup/installation_steps.md).
+1. Set up CustomersDot using the [standard install instructions](https://gitlab.com/gitlab-org/customers-gitlab-com/-/blob/staging/doc/setup/installation_steps.md).
 1. Set the `CUSTOMER_PORTAL_URL` environment variable to your local (or ngrok) URL of your CustomersDot instance.
 1. Place `export CUSTOMER_PORTAL_URL='https://XXX.ngrok.io/'` in your shell `rc` script (`~/.zshrc` or `~/.bash_profile` or `~/.bashrc`) and restart GDK.
 1. Enter the credentials on CustomersDot development to Workato in your `/config/secrets.yml` and restart. Credentials for the Workato Staging are in the 1Password Subscription portal vault. The URL for staging is `https://apim.workato.com/gitlab-dev/services/marketo/lead`.
@@ -87,7 +87,7 @@ The hand-raise lead form accepts the following parameters via provide or inject.
     },
 ```
 
-The `ctaTracking` parameters follow [the `data-track` attributes](../snowplow/implementation.md#data-track-attributes) for implementing Snowplow tracking. The provided tracking attributes are attached to the button inside the `HandRaiseLeadButton` component, which triggers the hand-raise lead modal when selected.
+The `ctaTracking` parameters follow [the `data-track` attributes](../internal_analytics/snowplow/implementation.md#data-track-attributes) for implementing Snowplow tracking. The provided tracking attributes are attached to the button inside the `HandRaiseLeadButton` component, which triggers the hand-raise lead modal when selected.
 
 ### Monitor the lead location
 
@@ -117,7 +117,7 @@ expect(wrapper.findComponent(HandRaiseLeadButton).exists()).toBe(true);
 The flow of a PQL lead is as follows:
 
 1. A user triggers a [`HandRaiseLeadButton` component](#embed-a-hand-raise-lead-form) on `gitlab.com`.
-1. The `HandRaiseLeadButton` submits any information to the following API endpoint: `/-/trials/create_hand_raise_lead`.
+1. The `HandRaiseLeadButton` submits any information to the following API endpoint: `/-/subscriptions/hand_raise_leads`.
 1. That endpoint reposts the form to the CustomersDot `trials/create_hand_raise_lead` endpoint.
 1. CustomersDot records the form data to the `leads` table and posts the form to [Workato](https://about.gitlab.com/handbook/marketing/marketing-operations/workato/).
 1. Workato sends the form to Marketo.
@@ -131,8 +131,8 @@ The flow of a PQL lead is as follows:
 ```mermaid
 sequenceDiagram
     Trial Frontend Forms ->>TrialsController#create_lead: GitLab.com frontend sends [lead] to backend
-    TrialsController#create_lead->>CreateLeadService: [lead]
-    TrialsController#create_lead->>ApplyTrialService: [lead] Apply the trial
+    TrialsController#create->>CreateLeadService: [lead]
+    TrialsController#create->>ApplyTrialService: [lead] Apply the trial
     CreateLeadService->>SubscriptionPortalClient#generate_trial(sync_to_gl=false): [lead] Creates customer account on CustomersDot
     ApplyTrialService->>SubscriptionPortalClient#generate_trial(sync_to_gl=true): [lead] Asks CustomersDot to apply the trial on namespace
     SubscriptionPortalClient#generate_trial(sync_to_gl=false)->>CustomersDot|TrialsController#create(sync_to_gl=false): GitLab.com sends [lead] to CustomersDot
@@ -169,8 +169,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    HandRaiseForm Vue Component->>TrialsController#create_hand_raise_lead: GitLab.com frontend sends [lead] to backend
-    TrialsController#create_hand_raise_lead->>CreateHandRaiseLeadService: [lead]
+    HandRaiseForm Vue Component->>HandRaiseLeadsController#create: GitLab.com frontend sends [lead] to backend
+    HandRaiseLeadsController#create->>CreateHandRaiseLeadService: [lead]
     CreateHandRaiseLeadService->>SubscriptionPortalClient: [lead]
     SubscriptionPortalClient->>CustomersDot|TrialsController#create_hand_raise_lead: GitLab.com sends [lead] to CustomersDot
 ```

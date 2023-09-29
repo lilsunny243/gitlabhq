@@ -8,7 +8,7 @@ RSpec.describe Gitlab::Utils::Measuring do
     let(:result) { "result" }
 
     before do
-      allow(ActiveSupport::Logger).to receive(:logger_outputs_to?).with(Gitlab::Utils::Measuring.logger, $stdout).and_return(false)
+      allow(ActiveSupport::Logger).to receive(:logger_outputs_to?).with(described_class.logger, $stdout).and_return(false)
     end
 
     let(:measurement) { described_class.new(base_log_data) }
@@ -17,7 +17,7 @@ RSpec.describe Gitlab::Utils::Measuring do
       measurement.with_measuring { result }
     end
 
-    it 'measures and logs data', :aggregate_failure do
+    it 'measures and logs data', :aggregate_failures do
       expect(measurement).to receive(:with_measure_time).and_call_original
       expect(measurement).to receive(:with_count_queries).and_call_original
       expect(measurement).to receive(:with_gc_stats).and_call_original

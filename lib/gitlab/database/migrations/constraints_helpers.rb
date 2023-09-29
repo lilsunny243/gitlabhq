@@ -10,6 +10,27 @@ module Gitlab
         # https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
         MAX_IDENTIFIER_NAME_LENGTH = 63
 
+        def self.check_constraint_exists?(table, constraint_name, connection:)
+          # Constraint names are unique per table in Postgres, not per schema
+          # Two tables can have constraints with the same name, so we filter by
+          # the table name in addition to using the constraint_name
+
+          check_sql = <<~SQL
+            SELECT COUNT(*)
+            FROM pg_catalog.pg_constraint con
+              INNER JOIN pg_catalog.pg_class rel
+                ON rel.oid = con.conrelid
+              INNER JOIN pg_catalog.pg_namespace nsp
+                ON nsp.oid = con.connamespace
+            WHERE con.contype = 'c'
+            AND con.conname = #{connection.quote(constraint_name)}
+            AND nsp.nspname = #{connection.quote(connection.current_schema)}
+            AND rel.relname = #{connection.quote(table)}
+          SQL
+
+          connection.select_value(check_sql.squish) > 0
+        end
+
         # Returns the name for a check constraint
         #
         # type:
@@ -29,24 +50,7 @@ module Gitlab
         end
 
         def check_constraint_exists?(table, constraint_name)
-          # Constraint names are unique per table in Postgres, not per schema
-          # Two tables can have constraints with the same name, so we filter by
-          # the table name in addition to using the constraint_name
-
-          check_sql = <<~SQL
-            SELECT COUNT(*)
-            FROM pg_catalog.pg_constraint con
-              INNER JOIN pg_catalog.pg_class rel
-                ON rel.oid = con.conrelid
-              INNER JOIN pg_catalog.pg_namespace nsp
-                ON nsp.oid = con.connamespace
-            WHERE con.contype = 'c'
-            AND con.conname = #{connection.quote(constraint_name)}
-            AND nsp.nspname = #{connection.quote(current_schema)}
-            AND rel.relname = #{connection.quote(table)}
-          SQL
-
-          connection.select_value(check_sql) > 0
+          ConstraintsHelpers.check_constraint_exists?(table, constraint_name, connection: connection)
         end
 
         # Adds a check constraint to a table
@@ -256,6 +260,16 @@ module Gitlab
           execute <<~SQL
             ALTER TABLE #{quote_table_name(table_name)} DROP CONSTRAINT #{quote_column_name(constraint_name)} #{cascade_statement(cascade)}
           SQL
+        end
+
+        def switch_constraint_names(table_name, constraint_a, constraint_b)
+          validate_not_in_transaction!(:switch_constraint_names)
+
+          with_lock_retries do
+            rename_constraint(table_name, constraint_a, :temp_name_for_renaming)
+            rename_constraint(table_name, constraint_b, constraint_a)
+            rename_constraint(table_name, :temp_name_for_renaming, constraint_b)
+          end
         end
 
         def validate_check_constraint_name!(constraint_name)

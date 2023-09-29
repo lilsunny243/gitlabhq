@@ -2,81 +2,35 @@
 
 module Resolvers
   class WorkItemsResolver < BaseResolver
+    prepend ::WorkItems::LookAheadPreloads
     include SearchArguments
-    include LooksAhead
+    include ::WorkItems::SharedFilterArguments
+
+    argument :iid,
+      GraphQL::Types::String,
+      required: false,
+      description: 'IID of the work item. For example, "1".'
+    argument :sort,
+      Types::WorkItemSortEnum,
+      description: 'Sort work items by criteria.',
+      required: false,
+      default_value: :created_desc
 
     type Types::WorkItemType.connection_type, null: true
-
-    argument :author_username, GraphQL::Types::String,
-             required: false,
-             description: 'Filter work items by author username.',
-             alpha: { milestone: '15.9' }
-    argument :iid, GraphQL::Types::String,
-             required: false,
-             description: 'IID of the issue. For example, "1".'
-    argument :iids, [GraphQL::Types::String],
-             required: false,
-             description: 'List of IIDs of work items. For example, `["1", "2"]`.'
-    argument :sort, Types::WorkItemSortEnum,
-             description: 'Sort work items by this criteria.',
-             required: false,
-             default_value: :created_desc
-    argument :state, Types::IssuableStateEnum,
-             required: false,
-             description: 'Current state of this work item.'
-    argument :types, [Types::IssueTypeEnum],
-             as: :issue_types,
-             description: 'Filter work items by the given work item types.',
-             required: false
 
     def resolve_with_lookahead(**args)
       return WorkItem.none if resource_parent.nil?
 
-      finder = ::WorkItems::WorkItemsFinder.new(current_user, prepare_finder_params(args))
-
-      Gitlab::Graphql::Loaders::IssuableLoader.new(resource_parent, finder).batching_find_all { |q| apply_lookahead(q) }
+      Gitlab::Graphql::Loaders::IssuableLoader.new(
+        resource_parent,
+        finder(prepare_finder_params(args))
+      ).batching_find_all { |q| apply_lookahead(q) }
     end
 
     private
 
-    def preloads
-      {
-        work_item_type: :work_item_type,
-        web_url: { project: { namespace: :route } },
-        widgets: { work_item_type: :enabled_widget_definitions }
-      }
-    end
-
-    def nested_preloads
-      {
-        widgets: widget_preloads,
-        user_permissions: { update_work_item: :assignees },
-        project: { jira_import_status: { project: :jira_imports } },
-        author: {
-          location: { author: :user_detail },
-          gitpod_enabled: { author: :user_preference }
-        }
-      }
-    end
-
-    def widget_preloads
-      {
-        last_edited_by: :last_edited_by,
-        assignees: :assignees,
-        parent: :work_item_parent,
-        children: { work_item_children_by_relative_position: [:author, { project: :project_feature }] },
-        labels: :labels,
-        milestone: { milestone: [:project, :group] }
-      }
-    end
-
-    def unconditional_includes
-      [
-        {
-          project: [:project_feature, :group]
-        },
-        :author
-      ]
+    def finder(args)
+      ::WorkItems::WorkItemsFinder.new(current_user, args)
     end
 
     def prepare_finder_params(args)
@@ -97,4 +51,4 @@ module Resolvers
   end
 end
 
-Resolvers::WorkItemsResolver.prepend_mod_with('Resolvers::WorkItemsResolver')
+Resolvers::WorkItemsResolver.prepend_mod

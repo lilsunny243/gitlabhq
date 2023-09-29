@@ -33,7 +33,6 @@ module BulkImports
       validate_symlink
 
       extract_archive
-      remove_symlinks
       tmpdir
     end
 
@@ -42,33 +41,19 @@ module BulkImports
     attr_reader :tmpdir, :filename, :filepath
 
     def validate_filepath
-      Gitlab::Utils.check_path_traversal!(filepath)
+      Gitlab::PathTraversal.check_path_traversal!(filepath)
     end
 
     def validate_tmpdir
-      Gitlab::Utils.check_allowed_absolute_path!(tmpdir, [Dir.tmpdir])
+      Gitlab::PathTraversal.check_allowed_absolute_path!(tmpdir, [Dir.tmpdir])
     end
 
     def validate_symlink
-      raise(BulkImports::Error, 'Invalid file') if symlink?(filepath)
-    end
-
-    def symlink?(filepath)
-      File.lstat(filepath).symlink?
+      raise(BulkImports::Error, 'Invalid file') if Gitlab::Utils::FileInfo.linked?(filepath)
     end
 
     def extract_archive
       untar_xf(archive: filepath, dir: tmpdir)
-    end
-
-    def extracted_files
-      Dir.glob(File.join(tmpdir, '**', '*'))
-    end
-
-    def remove_symlinks
-      extracted_files.each do |path|
-        FileUtils.rm(path) if symlink?(path)
-      end
     end
   end
 end

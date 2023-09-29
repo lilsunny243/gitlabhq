@@ -3,230 +3,11 @@
 require 'spec_helper'
 
 RSpec.describe API::Lint, feature_category: :pipeline_composition do
-  describe 'POST /ci/lint' do
-    context 'when signup settings are disabled' do
-      before do
-        Gitlab::CurrentSettings.signup_enabled = false
-      end
-
-      context 'when unauthenticated' do
-        it 'returns authentication error' do
-          post api('/ci/lint'), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:unauthorized)
-        end
-      end
-
-      context 'when authenticated' do
-        let_it_be(:api_user) { create(:user) }
-
-        it 'returns authorized' do
-          post api('/ci/lint', api_user), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:ok)
-        end
-      end
-
-      context 'when authenticated as external user' do
-        let(:project) { create(:project) }
-        let(:api_user) { create(:user, :external) }
-
-        context 'when reporter in a project' do
-          before do
-            project.add_reporter(api_user)
-          end
-
-          it 'returns authorization failure' do
-            post api('/ci/lint', api_user), params: { content: 'content' }
-
-            expect(response).to have_gitlab_http_status(:unauthorized)
-          end
-        end
-
-        context 'when developer in a project' do
-          before do
-            project.add_developer(api_user)
-          end
-
-          it 'returns authorization success' do
-            post api('/ci/lint', api_user), params: { content: 'content' }
-
-            expect(response).to have_gitlab_http_status(:ok)
-          end
-        end
-      end
-    end
-
-    context 'when signup is enabled and not limited' do
-      before do
-        Gitlab::CurrentSettings.signup_enabled = true
-        stub_application_setting(domain_allowlist: [], email_restrictions_enabled: false, require_admin_approval_after_user_signup: false)
-      end
-
-      context 'when unauthenticated' do
-        it 'returns authorized success' do
-          post api('/ci/lint'), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:ok)
-        end
-      end
-
-      context 'when authenticated' do
-        let_it_be(:api_user) { create(:user) }
-
-        it 'returns authentication success' do
-          post api('/ci/lint', api_user), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:ok)
-        end
-      end
-    end
-
-    context 'when limited signup is enabled' do
-      before do
-        stub_application_setting(domain_allowlist: ['www.gitlab.com'])
-        Gitlab::CurrentSettings.signup_enabled = true
-      end
-
-      context 'when unauthenticated' do
-        it 'returns unauthorized' do
-          post api('/ci/lint'), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:unauthorized)
-        end
-      end
-
-      context 'when authenticated' do
-        let_it_be(:api_user) { create(:user) }
-
-        it 'returns authentication success' do
-          post api('/ci/lint', api_user), params: { content: 'content' }
-
-          expect(response).to have_gitlab_http_status(:ok)
-        end
-      end
-    end
-
-    context 'when authenticated' do
-      let_it_be(:api_user) { create(:user) }
-
-      context 'with valid .gitlab-ci.yml content' do
-        let(:yaml_content) do
-          File.read(Rails.root.join('spec/support/gitlab_stubs/gitlab_ci.yml'))
-        end
-
-        it 'passes validation without warnings or errors' do
-          post api('/ci/lint', api_user), params: { content: yaml_content }
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to be_an Hash
-          expect(json_response['status']).to eq('valid')
-          expect(json_response['warnings']).to match_array([])
-          expect(json_response['errors']).to match_array([])
-          expect(json_response['includes']).to eq([])
-        end
-
-        it 'outputs expanded yaml content' do
-          post api('/ci/lint', api_user), params: { content: yaml_content, include_merged_yaml: true }
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to have_key('merged_yaml')
-        end
-
-        it 'outputs jobs' do
-          post api('/ci/lint', api_user), params: { content: yaml_content, include_jobs: true }
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to have_key('jobs')
-        end
-      end
-
-      context 'with valid .gitlab-ci.yml with warnings' do
-        let(:yaml_content) { { job: { script: 'ls', rules: [{ when: 'always' }] } }.to_yaml }
-
-        it 'passes validation but returns warnings' do
-          post api('/ci/lint', api_user), params: { content: yaml_content }
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response['status']).to eq('valid')
-          expect(json_response['warnings']).not_to be_empty
-          expect(json_response['errors']).to match_array([])
-        end
-      end
-
-      context 'with an invalid .gitlab-ci.yml' do
-        context 'with invalid syntax' do
-          let(:yaml_content) { 'invalid content' }
-
-          it 'responds with errors about invalid syntax' do
-            post api('/ci/lint', api_user), params: { content: yaml_content }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response['status']).to eq('invalid')
-            expect(json_response['warnings']).to eq([])
-            expect(json_response['errors']).to eq(['Invalid configuration format'])
-            expect(json_response['includes']).to eq(nil)
-          end
-
-          it 'outputs expanded yaml content' do
-            post api('/ci/lint', api_user), params: { content: yaml_content, include_merged_yaml: true }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response).to have_key('merged_yaml')
-          end
-
-          it 'outputs jobs' do
-            post api('/ci/lint', api_user), params: { content: yaml_content, include_jobs: true }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response).to have_key('jobs')
-          end
-        end
-
-        context 'with invalid configuration' do
-          let(:yaml_content) { '{ image: "image:1.0",  services: ["postgres"] }' }
-
-          it 'responds with errors about invalid configuration' do
-            post api('/ci/lint', api_user), params: { content: yaml_content }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response['status']).to eq('invalid')
-            expect(json_response['warnings']).to eq([])
-            expect(json_response['errors']).to eq(['jobs config should contain at least one visible job'])
-            expect(json_response['includes']).to eq([])
-          end
-
-          it 'outputs expanded yaml content' do
-            post api('/ci/lint', api_user), params: { content: yaml_content, include_merged_yaml: true }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response).to have_key('merged_yaml')
-          end
-
-          it 'outputs jobs' do
-            post api('/ci/lint', api_user), params: { content: yaml_content, include_jobs: true }
-
-            expect(response).to have_gitlab_http_status(:ok)
-            expect(json_response).to have_key('jobs')
-          end
-        end
-      end
-
-      context 'without the content parameter' do
-        it 'responds with validation error about missing content' do
-          post api('/ci/lint', api_user)
-
-          expect(response).to have_gitlab_http_status(:bad_request)
-          expect(json_response['error']).to eq('content is missing')
-        end
-      end
-    end
-  end
-
   describe 'GET /projects/:id/ci/lint' do
-    subject(:ci_lint) { get api("/projects/#{project.id}/ci/lint", api_user), params: { dry_run: dry_run, include_jobs: include_jobs } }
+    subject(:ci_lint) { get api("/projects/#{project.id}/ci/lint", api_user), params: { sha: sha, dry_run: dry_run, include_jobs: include_jobs } }
 
     let(:project) { create(:project, :repository) }
+    let(:sha) { nil }
     let(:dry_run) { nil }
     let(:include_jobs) { nil }
 
@@ -245,8 +26,8 @@ RSpec.describe API::Lint, feature_category: :pipeline_composition do
       it 'passes validation' do
         ci_lint
 
-        included_config = YAML.safe_load(included_content, [Symbol])
-        root_config = YAML.safe_load(yaml_content, [Symbol])
+        included_config = YAML.safe_load(included_content, permitted_classes: [Symbol])
+        root_config = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
         expected_yaml = included_config.merge(root_config).except(:include).deep_stringify_keys.to_yaml
 
         expect(response).to have_gitlab_http_status(:ok)
@@ -511,6 +292,102 @@ RSpec.describe API::Lint, feature_category: :pipeline_composition do
           end
         end
       end
+
+      context 'with different sha values' do
+        let(:original_content) do
+          { test: { stage: 'test', script: 'echo 1' } }.deep_stringify_keys.to_yaml
+        end
+
+        let(:first_edit) do
+          { image: 'image:1.0', services: ['postgres'] }.deep_stringify_keys.to_yaml
+        end
+
+        let(:second_edit) do
+          { new_test: { stage: 'test', script: 'echo 0' } }.deep_stringify_keys.to_yaml
+        end
+
+        before do
+          project.repository.create_file(
+            project.creator,
+            '.gitlab-ci.yml',
+            original_content,
+            message: 'Automatically created .gitlab-ci.yml',
+            branch_name: 'master'
+          )
+
+          project.repository.update_file(
+            project.creator,
+            '.gitlab-ci.yml',
+            first_edit,
+            message: 'Automatically edited .gitlab-ci.yml',
+            branch_name: 'master'
+          )
+
+          project.repository.update_file(
+            project.creator,
+            '.gitlab-ci.yml',
+            second_edit,
+            message: 'Automatically edited .gitlab-ci.yml again',
+            branch_name: 'master'
+          )
+        end
+
+        context 'when latest .gitlab-ci.yml is valid' do
+          # check with explicit sha
+          let(:sha) { project.repository.commit.sha }
+
+          it 'passes validation' do
+            ci_lint
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(json_response).to be_an Hash
+            expect(json_response['merged_yaml']).to eq(second_edit)
+            expect(json_response['valid']).to eq(true)
+            expect(json_response['warnings']).to eq([])
+            expect(json_response['errors']).to eq([])
+          end
+        end
+
+        context 'when previous .gitlab-ci.yml is invalid' do
+          let(:sha) { project.repository.commit.parent.sha }
+
+          it 'fails validation' do
+            ci_lint
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(json_response).to be_an Hash
+            expect(json_response['merged_yaml']).to eq(first_edit)
+            expect(json_response['valid']).to eq(false)
+            expect(json_response['warnings']).to eq([])
+            expect(json_response['errors']).to eq(["jobs config should contain at least one visible job"])
+          end
+        end
+
+        context 'when first .gitlab-ci.yml is valid' do
+          let(:sha) { project.repository.commit.parent.parent.sha }
+
+          it 'passes validation' do
+            ci_lint
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(json_response).to be_an Hash
+            expect(json_response['merged_yaml']).to eq(original_content)
+            expect(json_response['valid']).to eq(true)
+            expect(json_response['warnings']).to eq([])
+            expect(json_response['errors']).to eq([])
+          end
+        end
+
+        context 'when sha is not found' do
+          let(:sha) { "unknown" }
+
+          it 'returns 404 response' do
+            ci_lint
+
+            expect(response).to have_gitlab_http_status(:not_found)
+          end
+        end
+      end
     end
   end
 
@@ -535,8 +412,8 @@ RSpec.describe API::Lint, feature_category: :pipeline_composition do
       it 'passes validation' do
         ci_lint
 
-        included_config = YAML.safe_load(included_content, [Symbol])
-        root_config = YAML.safe_load(yaml_content, [Symbol])
+        included_config = YAML.safe_load(included_content, permitted_classes: [Symbol])
+        root_config = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
         expected_yaml = included_config.merge(root_config).except(:include).deep_stringify_keys.to_yaml
 
         expect(response).to have_gitlab_http_status(:ok)

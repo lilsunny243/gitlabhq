@@ -1,5 +1,3 @@
-// TODO
-
 import { GlAlert, GlBadge, GlLoadingIcon, GlTabs } from '@gitlab/ui';
 import { mount, shallowMount } from '@vue/test-utils';
 import VueApollo from 'vue-apollo';
@@ -21,7 +19,7 @@ import {
   VALIDATE_TAB,
   VALIDATE_TAB_BADGE_DISMISSED_KEY,
 } from '~/ci/pipeline_editor/constants';
-import PipelineGraph from '~/pipelines/components/pipeline_graph/pipeline_graph.vue';
+import PipelineGraph from '~/ci/pipeline_editor/components/graph/pipeline_graph.vue';
 import getBlobContent from '~/ci/pipeline_editor/graphql/queries/blob_content.query.graphql';
 import {
   mockBlobContentQueryResponse,
@@ -55,8 +53,9 @@ describe('Pipeline editor tabs component', () => {
         ciFileContent: mockCiYml,
         currentTab: CREATE_TAB,
         isNewCiConfigFile: true,
-        showDrawer: false,
+        showHelpDrawer: false,
         showJobAssistantDrawer: false,
+        showAiAssistantDrawer: false,
         ...props,
       },
       data() {
@@ -65,6 +64,7 @@ describe('Pipeline editor tabs component', () => {
         };
       },
       provide: {
+        aiChatAvailable: false,
         ciConfigPath: '/path/to/ci-config',
         ciLintPath: mockCiLintPath,
         currentBranch: 'main',
@@ -119,6 +119,7 @@ describe('Pipeline editor tabs component', () => {
   });
 
   afterEach(() => {
+    // eslint-disable-next-line @gitlab/vtu-no-explicit-wrapper-destroy
     wrapper.destroy();
   });
 
@@ -313,13 +314,13 @@ describe('Pipeline editor tabs component', () => {
         createComponent();
       });
 
-      it('shows walkthrough popover', async () => {
+      it('shows walkthrough popover', () => {
         expect(findWalkthroughPopover().exists()).toBe(true);
       });
     });
 
     describe('when isNewCiConfigFile prop is false', () => {
-      it('does not show walkthrough popover', async () => {
+      it('does not show walkthrough popover', () => {
         createComponent({ props: { isNewCiConfigFile: false } });
         expect(findWalkthroughPopover().exists()).toBe(false);
       });

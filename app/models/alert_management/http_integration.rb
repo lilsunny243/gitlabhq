@@ -3,8 +3,8 @@
 module AlertManagement
   class HttpIntegration < ApplicationRecord
     include ::Gitlab::Routing
-    LEGACY_IDENTIFIER = 'legacy'
-    DEFAULT_NAME_SLUG = 'http-endpoint'
+
+    LEGACY_IDENTIFIERS = %w[legacy legacy-prometheus].freeze
 
     belongs_to :project, inverse_of: :alert_management_http_integrations
 
@@ -19,8 +19,9 @@ module AlertManagement
     validates :active, inclusion: { in: [true, false] }
     validates :token, presence: true, format: { with: /\A\h{32}\z/ }
     validates :name, presence: true, length: { maximum: 255 }
-    validates :endpoint_identifier, presence: true, length: { maximum: 255 }, format: { with: /\A[A-Za-z0-9]+\z/ }
-    validates :endpoint_identifier, uniqueness: { scope: [:project_id, :active] }, if: :active?
+    validates :type_identifier, presence: true
+    validates :endpoint_identifier, presence: true, length: { maximum: 255 }, format: { with: /\A[A-Za-z0-9-]+\z/ }
+    validates :endpoint_identifier, uniqueness: { scope: [:project_id] }
     validates :payload_attribute_mapping, json_schema: { filename: 'http_integration_payload_attribute_mapping' }
 
     before_validation :prevent_token_assignment
@@ -29,13 +30,29 @@ module AlertManagement
     before_validation :ensure_payload_example_not_nil
 
     scope :for_endpoint_identifier, ->(endpoint_identifier) { where(endpoint_identifier: endpoint_identifier) }
+    scope :for_type, ->(type) { where(type_identifier: type) }
+    scope :for_project, ->(project_ids) { where(project: project_ids) }
     scope :active, -> { where(active: true) }
-    scope :ordered_by_id, -> { order(:id) }
+    scope :ordered_by_type_and_id, -> { order(:type_identifier, :id) }
+
+    enum type_identifier: {
+      http: 0,
+      prometheus: 1
+    }
 
     def url
-      return project_alerts_notify_url(project, format: :json) if legacy?
+      case endpoint_identifier
+      when 'legacy'
+        project_alerts_notify_url(project, format: :json)
+      when 'legacy-prometheus'
+        notify_project_prometheus_alerts_url(project, format: :json)
+      else
+        project_alert_http_integration_url(project, name_slug, endpoint_identifier, format: :json)
+      end
+    end
 
-      project_alert_http_integration_url(project, name_slug, endpoint_identifier, format: :json)
+    def legacy?
+      LEGACY_IDENTIFIERS.include?(endpoint_identifier)
     end
 
     private
@@ -45,11 +62,7 @@ module AlertManagement
     end
 
     def name_slug
-      (name && Gitlab::Utils.slugify(name)) || DEFAULT_NAME_SLUG
-    end
-
-    def legacy?
-      endpoint_identifier == LEGACY_IDENTIFIER
+      (name && Gitlab::Utils.slugify(name)) || "#{type_identifier}-endpoint"
     end
 
     # Blank token assignment triggers token reset

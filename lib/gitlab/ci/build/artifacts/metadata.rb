@@ -11,14 +11,18 @@ module Gitlab
           ParserError = Class.new(StandardError)
           InvalidStreamError = Class.new(StandardError)
 
-          VERSION_PATTERN = /^[\w\s]+(\d+\.\d+\.\d+)/.freeze
-          INVALID_PATH_PATTERN = %r{(^\.?\.?/)|(/\.?\.?/)}.freeze
+          VERSION_PATTERN = /^[\w\s]+(\d+\.\d+\.\d+)/
+          INVALID_PATH_PATTERN = %r{(^\.?\.?/)|(/\.?\.?/)}
 
           attr_reader :stream, :path, :full_version
 
           def initialize(stream, path, **opts)
             @stream = stream
-            @path = path
+
+            # Ensure to remove any ./ prefix from the path
+            # so that the pattern matching will work as expected
+            @path = path.gsub(%r{^\./}, '')
+
             @opts = opts
             @full_version = read_version
           end
@@ -59,7 +63,7 @@ module Gitlab
             entries = {}
 
             child_pattern = '[^/]*/?$' unless @opts[:recursive]
-            match_pattern = /^#{Regexp.escape(@path)}#{child_pattern}/
+            match_pattern = /^#{Regexp.escape(path)}#{child_pattern}/
 
             until gz.eof?
               begin
@@ -70,8 +74,8 @@ module Gitlab
                 # abort if we don't get any data.
                 next unless path && meta
                 next unless path.valid_encoding? && meta.valid_encoding?
-                next unless path =~ match_pattern
-                next if path =~ INVALID_PATH_PATTERN
+                next unless match_pattern.match?(path)
+                next if INVALID_PATH_PATTERN.match?(path)
 
                 entries[path] = Gitlab::Json.parse(meta, symbolize_names: true)
               rescue JSON::ParserError, Encoding::CompatibilityError
@@ -90,7 +94,7 @@ module Gitlab
                 raise ParserError, 'Artifacts metadata file empty!'
               end
 
-              unless version_string =~ VERSION_PATTERN
+              unless VERSION_PATTERN.match?(version_string)
                 raise ParserError, 'Invalid version!'
               end
 

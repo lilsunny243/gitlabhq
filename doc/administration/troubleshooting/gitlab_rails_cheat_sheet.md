@@ -40,7 +40,7 @@ This content has been converted to a Rake task, see [verify database values can 
 
 ### Transfer mirror users and tokens to a single service account
 
-This content has been moved to [Troubleshooting Repository mirroring](../../user/project/repository/mirror/index.md#transfer-mirror-users-and-tokens-to-a-single-service-account-in-rails-console).
+This content has been moved to [Troubleshooting Repository mirroring](../../user/project/repository/mirror/troubleshooting.md#transfer-mirror-users-and-tokens-to-a-single-service-account-in-rails-console).
 
 ## Merge requests
 
@@ -50,7 +50,7 @@ This content has been moved to [Troubleshooting CI/CD](../../ci/troubleshooting.
 
 ## License
 
-This content has been moved to [Activate GitLab EE with a license file or key](../../user/admin_area/license_file.md).
+This content has been moved to [Activate GitLab EE with a license file or key](../../administration/license_file.md).
 
 ## Registry
 
@@ -92,4 +92,4 @@ Moved to [Geo replication troubleshooting](../geo/replication/troubleshooting.md
 
 ## Generate Service Ping
 
-This content has been moved to [Service Ping Troubleshooting](../../development/service_ping/troubleshooting.md).
+This content has been moved to [Service Ping Troubleshooting](../../development/internal_analytics/service_ping/troubleshooting.md).

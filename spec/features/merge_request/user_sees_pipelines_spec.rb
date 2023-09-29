@@ -3,46 +3,44 @@
 require 'spec_helper'
 
 RSpec.describe 'Merge request > User sees pipelines', :js, feature_category: :code_review_workflow do
-  describe 'pipeline tab' do
-    let(:merge_request) { create(:merge_request) }
-    let(:project) { merge_request.target_project }
-    let(:user) { project.creator }
-
+  context 'with feature flag `mr_pipelines_graphql turned off`' do
     before do
-      project.add_maintainer(user)
-      sign_in(user)
+      stub_feature_flags(mr_pipelines_graphql: false)
     end
 
-    context 'with pipelines' do
-      let!(:pipeline) do
-        create(:ci_empty_pipeline,
-               project: merge_request.source_project,
-               ref: merge_request.source_branch,
-               sha: merge_request.diff_head_sha)
-      end
+    describe 'pipeline tab' do
+      let(:merge_request) { create(:merge_request) }
+      let(:project) { merge_request.target_project }
+      let(:user) { project.creator }
 
       before do
-        merge_request.update_attribute(:head_pipeline_id, pipeline.id)
+        project.add_maintainer(user)
+        sign_in(user)
       end
 
-      it 'user visits merge request pipelines tab' do
-        visit project_merge_request_path(project, merge_request)
-
-        expect(page.find('.ci-widget')).to have_content('pending')
-
-        page.within('.merge-request-tabs') do
-          click_link('Pipelines')
+      context 'with pipelines' do
+        let!(:pipeline) do
+          create(
+            :ci_pipeline,
+            :success,
+            project: merge_request.source_project,
+            ref: merge_request.source_branch,
+            sha: merge_request.diff_head_sha
+          )
         end
-        wait_for_requests
 
-        expect(page).to have_css('[data-testid="pipeline-mini-graph"]')
-      end
+        let!(:manual_job) { create(:ci_build, :manual, name: 'job1', stage: 'deploy', pipeline: pipeline) }
 
-      context 'with a detached merge request pipeline' do
-        let(:merge_request) { create(:merge_request, :with_detached_merge_request_pipeline) }
+        let!(:job) { create(:ci_build, :success, name: 'job2', stage: 'test', pipeline: pipeline) }
 
-        it 'displays the "Run pipeline" button' do
+        before do
+          merge_request.update_attribute(:head_pipeline_id, pipeline.id)
+        end
+
+        it 'pipelines table displays correctly' do
           visit project_merge_request_path(project, merge_request)
+
+          expect(page.find('.ci-widget')).to have_content('passed')
 
           page.within('.merge-request-tabs') do
             click_link('Pipelines')
@@ -50,218 +48,246 @@ RSpec.describe 'Merge request > User sees pipelines', :js, feature_category: :co
 
           wait_for_requests
 
-          expect(page.find('[data-testid="run_pipeline_button"]')).to have_text('Run pipeline')
+          page.within(find('[data-testid="pipeline-table-row"]', match: :first)) do
+            expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Passed')
+            expect(page).to have_content(pipeline.id)
+            expect(page).to have_content('API')
+            expect(page).to have_css('[data-testid="pipeline-mini-graph"]')
+            expect(page).to have_css('[data-testid="pipelines-manual-actions-dropdown"]')
+            expect(page).to have_css('[data-testid="pipeline-multi-actions-dropdown"]')
+          end
+        end
+
+        context 'with a detached merge request pipeline' do
+          let(:merge_request) { create(:merge_request, :with_detached_merge_request_pipeline) }
+
+          it 'displays the "Run pipeline" button' do
+            visit project_merge_request_path(project, merge_request)
+
+            page.within('.merge-request-tabs') do
+              click_link('Pipelines')
+            end
+
+            wait_for_requests
+
+            expect(page.find('[data-testid="run_pipeline_button"]')).to have_text('Run pipeline')
+          end
+        end
+
+        context 'with a merged results pipeline' do
+          let(:merge_request) { create(:merge_request, :with_merge_request_pipeline) }
+
+          it 'displays the "Run pipeline" button' do
+            visit project_merge_request_path(project, merge_request)
+
+            page.within('.merge-request-tabs') do
+              click_link('Pipelines')
+            end
+
+            wait_for_requests
+
+            expect(page.find('[data-testid="run_pipeline_button"]')).to have_text('Run pipeline')
+          end
         end
       end
 
-      context 'with a merged results pipeline' do
-        let(:merge_request) { create(:merge_request, :with_merge_request_pipeline) }
-
-        it 'displays the "Run pipeline" button' do
+      context 'without pipelines' do
+        before do
           visit project_merge_request_path(project, merge_request)
+        end
 
+        it 'user visits merge request page' do
+          page.within('.merge-request-tabs') do
+            expect(page).to have_link('Pipelines')
+          end
+        end
+
+        it 'shows empty state with run pipeline button' do
           page.within('.merge-request-tabs') do
             click_link('Pipelines')
           end
 
-          wait_for_requests
-
+          expect(page).to have_content('There are currently no pipelines.')
           expect(page.find('[data-testid="run_pipeline_button"]')).to have_text('Run pipeline')
         end
       end
     end
 
-    context 'without pipelines' do
+    describe 'fork MRs in parent project', :sidekiq_inline do
+      include ProjectForksHelper
+
+      let_it_be(:parent_project) { create(:project, :public, :repository) }
+      let_it_be(:forked_project) { fork_project(parent_project, developer_in_fork, repository: true, target_project: create(:project, :public, :repository)) }
+      let_it_be(:developer_in_parent) { create(:user) }
+      let_it_be(:developer_in_fork) { create(:user) }
+      let_it_be(:reporter_in_parent_and_developer_in_fork) { create(:user) }
+
+      let(:merge_request) do
+        create(
+          :merge_request,
+          :with_detached_merge_request_pipeline,
+          source_project: forked_project,
+          source_branch: 'feature',
+          target_project: parent_project,
+          target_branch: 'master'
+        )
+      end
+
+      let(:config) do
+        { test: { script: 'test', rules: [{ if: '$CI_MERGE_REQUEST_ID' }] } }
+      end
+
+      before_all do
+        parent_project.add_developer(developer_in_parent)
+        parent_project.add_reporter(reporter_in_parent_and_developer_in_fork)
+        forked_project.add_developer(developer_in_fork)
+        forked_project.add_developer(reporter_in_parent_and_developer_in_fork)
+      end
+
       before do
-        visit project_merge_request_path(project, merge_request)
+        stub_ci_pipeline_yaml_file(YAML.dump(config))
+        sign_in(actor)
       end
 
-      it 'user visits merge request page' do
-        page.within('.merge-request-tabs') do
-          expect(page).to have_link('Pipelines')
+      after do
+        parent_project.all_pipelines.delete_all
+        forked_project.all_pipelines.delete_all
+      end
+
+      context 'when actor is a developer in parent project' do
+        let(:actor) { developer_in_parent }
+
+        it 'creates a pipeline in the parent project when user proceeds with the warning' do
+          visit project_merge_request_path(parent_project, merge_request)
+
+          create_merge_request_pipeline
+          act_on_security_warning(action: 'Run pipeline')
+
+          check_pipeline(expected_project: parent_project)
+          check_head_pipeline(expected_project: parent_project)
+        end
+
+        it 'does not create a pipeline in the parent project when user cancels the action', :clean_gitlab_redis_cache, :clean_gitlab_redis_shared_state do
+          visit project_merge_request_path(parent_project, merge_request)
+
+          create_merge_request_pipeline
+          act_on_security_warning(action: 'Cancel')
+
+          check_no_new_pipeline_created
         end
       end
 
-      it 'shows empty state with run pipeline button' do
-        page.within('.merge-request-tabs') do
-          click_link('Pipelines')
+      context 'when actor is a developer in fork project' do
+        let(:actor) { developer_in_fork }
+
+        it 'creates a pipeline in the fork project' do
+          visit project_merge_request_path(parent_project, merge_request)
+
+          create_merge_request_pipeline
+
+          check_pipeline(expected_project: forked_project)
+          check_head_pipeline(expected_project: forked_project)
         end
-
-        expect(page).to have_content('There are currently no pipelines.')
-        expect(page.find('[data-testid="run_pipeline_button"]')).to have_text('Run pipeline')
-      end
-    end
-  end
-
-  describe 'fork MRs in parent project', :sidekiq_inline do
-    include ProjectForksHelper
-
-    let_it_be(:parent_project) { create(:project, :public, :repository) }
-    let_it_be(:forked_project) { fork_project(parent_project, developer_in_fork, repository: true, target_project: create(:project, :public, :repository)) }
-    let_it_be(:developer_in_parent) { create(:user) }
-    let_it_be(:developer_in_fork) { create(:user) }
-    let_it_be(:reporter_in_parent_and_developer_in_fork) { create(:user) }
-
-    let(:merge_request) do
-      create(:merge_request, :with_detached_merge_request_pipeline,
-                             source_project: forked_project, source_branch: 'feature',
-                             target_project: parent_project, target_branch: 'master')
-    end
-
-    let(:config) do
-      { test: { script: 'test', rules: [{ if: '$CI_MERGE_REQUEST_ID' }] } }
-    end
-
-    before_all do
-      parent_project.add_developer(developer_in_parent)
-      parent_project.add_reporter(reporter_in_parent_and_developer_in_fork)
-      forked_project.add_developer(developer_in_fork)
-      forked_project.add_developer(reporter_in_parent_and_developer_in_fork)
-    end
-
-    before do
-      stub_ci_pipeline_yaml_file(YAML.dump(config))
-      sign_in(actor)
-    end
-
-    after do
-      parent_project.all_pipelines.delete_all
-      forked_project.all_pipelines.delete_all
-    end
-
-    context 'when actor is a developer in parent project' do
-      let(:actor) { developer_in_parent }
-
-      it 'creates a pipeline in the parent project when user proceeds with the warning' do
-        visit project_merge_request_path(parent_project, merge_request)
-
-        create_merge_request_pipeline
-        act_on_security_warning(action: 'Run pipeline')
-
-        check_pipeline(expected_project: parent_project)
-        check_head_pipeline(expected_project: parent_project)
       end
 
-      it 'does not create a pipeline in the parent project when user cancels the action', :clean_gitlab_redis_cache, :clean_gitlab_redis_shared_state do
-        visit project_merge_request_path(parent_project, merge_request)
+      context 'when actor is a reporter in parent project and a developer in fork project' do
+        let(:actor) { reporter_in_parent_and_developer_in_fork }
 
-        create_merge_request_pipeline
-        act_on_security_warning(action: 'Cancel')
+        it 'creates a pipeline in the fork project' do
+          visit project_merge_request_path(parent_project, merge_request)
 
-        check_no_pipelines
+          create_merge_request_pipeline
+
+          check_pipeline(expected_project: forked_project)
+          check_head_pipeline(expected_project: forked_project)
+        end
       end
-    end
 
-    context 'when actor is a developer in fork project' do
-      let(:actor) { developer_in_fork }
-
-      it 'creates a pipeline in the fork project' do
-        visit project_merge_request_path(parent_project, merge_request)
-
-        create_merge_request_pipeline
-
-        check_pipeline(expected_project: forked_project)
-        check_head_pipeline(expected_project: forked_project)
+      def create_merge_request_pipeline
+        page.within('.merge-request-tabs') { click_link('Pipelines') }
+        click_on('Run pipeline')
       end
-    end
 
-    context 'when actor is a reporter in parent project and a developer in fork project' do
-      let(:actor) { reporter_in_parent_and_developer_in_fork }
+      def check_pipeline(expected_project:)
+        page.within('.ci-table') do
+          expect(page).to have_selector('[data-testid="pipeline-table-row"]', count: 4)
 
-      it 'creates a pipeline in the fork project' do
-        visit project_merge_request_path(parent_project, merge_request)
-
-        create_merge_request_pipeline
-
-        check_pipeline(expected_project: forked_project)
-        check_head_pipeline(expected_project: forked_project)
-      end
-    end
-
-    def create_merge_request_pipeline
-      page.within('.merge-request-tabs') { click_link('Pipelines') }
-      click_button('Run pipeline')
-    end
-
-    def check_pipeline(expected_project:)
-      page.within('.ci-table') do
-        expect(page).to have_selector('.commit', count: 2)
-
-        page.within(first('.commit')) do
-          page.within('.pipeline-tags') do
-            expect(page.find('[data-testid="pipeline-url-link"]')[:href]).to include(expected_project.full_path)
-            expect(page).to have_content('merge request')
-          end
-          page.within('.pipeline-triggerer') do
-            expect(page).to have_link(href: user_path(actor))
+          page.within(first('[data-testid="pipeline-table-row"]')) do
+            page.within('.pipeline-tags') do
+              expect(page.find('[data-testid="pipeline-url-link"]')[:href]).to include(expected_project.full_path)
+              expect(page).to have_content('merge request')
+            end
+            page.within('.pipeline-triggerer') do
+              expect(page).to have_link(href: user_path(actor))
+            end
           end
         end
       end
-    end
 
-    def check_head_pipeline(expected_project:)
-      page.within('.merge-request-tabs') { click_link('Overview') }
+      def check_head_pipeline(expected_project:)
+        page.within('.merge-request-tabs') { click_link('Overview') }
 
-      page.within('.ci-widget-content') do
-        expect(page.find('.pipeline-id')[:href]).to include(expected_project.full_path)
+        page.within('.ci-widget-content') do
+          expect(page.find('.pipeline-id')[:href]).to include(expected_project.full_path)
+        end
+      end
+
+      def act_on_security_warning(action:)
+        page.within('#create-pipeline-for-fork-merge-request-modal') do
+          expect(page).to have_content('Are you sure you want to run this pipeline?')
+          click_button(action)
+        end
+      end
+
+      def check_no_new_pipeline_created
+        page.within('.ci-table') do
+          expect(page).to have_selector('[data-testid="pipeline-table-row"]', count: 2)
+        end
       end
     end
 
-    def act_on_security_warning(action:)
-      page.within('#create-pipeline-for-fork-merge-request-modal') do
-        expect(page).to have_content('Are you sure you want to run this pipeline?')
-        click_button(action)
+    describe 'race condition' do
+      let(:project) { create(:project, :repository) }
+      let(:user) { create(:user) }
+      let(:build_push_data) { { ref: 'feature', checkout_sha: TestEnv::BRANCH_SHA['feature'] } }
+
+      let(:merge_request_params) do
+        { "source_branch" => "feature", "source_project_id" => project.id,
+          "target_branch" => "master", "target_project_id" => project.id, "title" => "A" }
       end
-    end
 
-    def check_no_pipelines
-      page.within('.ci-table') do
-        expect(page).to have_selector('.commit', count: 1)
-      end
-    end
-  end
-
-  describe 'race condition' do
-    let(:project) { create(:project, :repository) }
-    let(:user) { create(:user) }
-    let(:build_push_data) { { ref: 'feature', checkout_sha: TestEnv::BRANCH_SHA['feature'] } }
-
-    let(:merge_request_params) do
-      { "source_branch" => "feature", "source_project_id" => project.id,
-        "target_branch" => "master", "target_project_id" => project.id, "title" => "A" }
-    end
-
-    before do
-      project.add_maintainer(user)
-      sign_in user
-    end
-
-    context 'when pipeline and merge request were created simultaneously', :delete do
       before do
-        stub_ci_pipeline_to_return_yaml_file
-
-        threads = []
-
-        threads << Thread.new do
-          Sidekiq::Worker.skipping_transaction_check do
-            @merge_request = MergeRequests::CreateService.new(project: project, current_user: user, params: merge_request_params).execute
-          end
-        end
-
-        threads << Thread.new do
-          Sidekiq::Worker.skipping_transaction_check do
-            @pipeline = Ci::CreatePipelineService.new(project, user, build_push_data).execute(:push).payload
-          end
-        end
-
-        threads.each { |thr| thr.join }
+        project.add_maintainer(user)
+        sign_in user
       end
 
-      it 'user sees pipeline in merge request widget', :sidekiq_might_not_need_inline do
-        visit project_merge_request_path(project, @merge_request)
+      context 'when pipeline and merge request were created simultaneously', :delete do
+        before do
+          stub_ci_pipeline_to_return_yaml_file
 
-        expect(page.find(".ci-widget")).to have_content(TestEnv::BRANCH_SHA['feature'])
-        expect(page.find(".ci-widget")).to have_content("##{@pipeline.id}")
+          threads = []
+
+          threads << Thread.new do
+            Sidekiq::Worker.skipping_transaction_check do
+              @merge_request = MergeRequests::CreateService.new(project: project, current_user: user, params: merge_request_params).execute
+            end
+          end
+
+          threads << Thread.new do
+            Sidekiq::Worker.skipping_transaction_check do
+              @pipeline = Ci::CreatePipelineService.new(project, user, build_push_data).execute(:push).payload
+            end
+          end
+
+          threads.each { |thr| thr.join }
+        end
+
+        it 'user sees pipeline in merge request widget', :sidekiq_might_not_need_inline do
+          visit project_merge_request_path(project, @merge_request)
+
+          expect(page.find(".ci-widget")).to have_content(TestEnv::BRANCH_SHA['feature'])
+          expect(page.find(".ci-widget")).to have_content("##{@pipeline.id}")
+        end
       end
     end
   end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
+RSpec.describe API::GroupVariables, feature_category: :secrets_management do
   let_it_be(:group) { create(:group) }
   let_it_be(:user) { create(:user) }
   let_it_be(:variable) { create(:ci_group_variable, group: group) }
@@ -56,6 +56,7 @@ RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
         expect(json_response['protected']).to eq(variable.protected?)
         expect(json_response['variable_type']).to eq(variable.variable_type)
         expect(json_response['environment_scope']).to eq(variable.environment_scope)
+        expect(json_response['description']).to be_nil
       end
 
       it 'responds with 404 Not Found if requesting non-existing variable' do
@@ -115,7 +116,7 @@ RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
 
         it 'creates variable with optional attributes' do
           expect do
-            post api("/groups/#{group.id}/variables", user), params: { variable_type: 'file', key: 'TEST_VARIABLE_2', value: 'VALUE_2' }
+            post api("/groups/#{group.id}/variables", user), params: { variable_type: 'file', key: 'TEST_VARIABLE_2', value: 'VALUE_2', description: 'description' }
           end.to change { group.variables.count }.by(1)
 
           expect(response).to have_gitlab_http_status(:created)
@@ -126,6 +127,7 @@ RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
           expect(json_response['raw']).to be_falsey
           expect(json_response['variable_type']).to eq('file')
           expect(json_response['environment_scope']).to eq('*')
+          expect(json_response['description']).to eq('description')
         end
 
         it 'does not allow to duplicate variable key' do
@@ -182,7 +184,7 @@ RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
         initial_variable = group.variables.reload.first
         value_before = initial_variable.value
 
-        put api("/groups/#{group.id}/variables/#{variable.key}", user), params: { variable_type: 'file', value: 'VALUE_1_UP', protected: true, masked: true, raw: true }
+        put api("/groups/#{group.id}/variables/#{variable.key}", user), params: { variable_type: 'file', value: 'VALUE_1_UP', protected: true, masked: true, raw: true, description: 'updated' }
 
         updated_variable = group.variables.reload.first
 
@@ -193,6 +195,7 @@ RSpec.describe API::GroupVariables, feature_category: :pipeline_composition do
         expect(json_response['variable_type']).to eq('file')
         expect(json_response['masked']).to be_truthy
         expect(json_response['raw']).to be_truthy
+        expect(json_response['description']).to eq('updated')
       end
 
       it 'masks the new value when logging' do

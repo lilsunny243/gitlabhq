@@ -1,7 +1,8 @@
 <script>
 import { GlAlert, GlLoadingIcon, GlTabs } from '@gitlab/ui';
+import CiEditorHeader from 'ee_else_ce/ci/pipeline_editor/components/editor/ci_editor_header.vue';
 import { s__, __ } from '~/locale';
-import PipelineGraph from '~/pipelines/components/pipeline_graph/pipeline_graph.vue';
+import PipelineGraph from '~/ci/pipeline_editor/components/graph/pipeline_graph.vue';
 import { getParameterValues, setUrlParams, updateHistory } from '~/lib/utils/url_utility';
 import {
   CREATE_TAB,
@@ -19,7 +20,6 @@ import {
 } from '../constants';
 import getAppStatus from '../graphql/queries/client/app_status.query.graphql';
 import CiConfigMergedPreview from './editor/ci_config_merged_preview.vue';
-import CiEditorHeader from './editor/ci_editor_header.vue';
 import CiValidate from './validate/ci_validate.vue';
 import TextEditor from './editor/text_editor.vue';
 import EditorTab from './ui/editor_tab.vue';
@@ -31,7 +31,7 @@ export default {
     tabEdit: s__('Pipelines|Edit'),
     tabGraph: s__('Pipelines|Visualize'),
     tabLint: s__('Pipelines|Lint'),
-    tabMergedYaml: s__('Pipelines|View merged YAML'),
+    tabMergedYaml: s__('Pipelines|Full configuration'),
     tabValidate: s__('Pipelines|Validate'),
     empty: {
       visualization: s__(
@@ -41,12 +41,12 @@ export default {
         'PipelineEditor|The CI/CD configuration is continuously validated. Errors and warnings are displayed when the CI/CD configuration file is not empty.',
       ),
       merge: s__(
-        'PipelineEditor|The merged YAML view is displayed when the CI/CD configuration file has valid syntax.',
+        'PipelineEditor|The full configuration view is displayed when the CI/CD configuration file has valid syntax.',
       ),
     },
   },
   errorTexts: {
-    loadMergedYaml: s__('Pipelines|Could not load merged YAML content'),
+    loadMergedYaml: s__('Pipelines|Could not load full configuration content'),
   },
   query: {
     TAB_QUERY_PARAM,
@@ -87,15 +87,19 @@ export default {
       type: String,
       required: true,
     },
-    isNewCiConfigFile: {
-      type: Boolean,
-      required: true,
-    },
-    showDrawer: {
+    showHelpDrawer: {
       type: Boolean,
       required: true,
     },
     showJobAssistantDrawer: {
+      type: Boolean,
+      required: true,
+    },
+    showAiAssistantDrawer: {
+      type: Boolean,
+      required: true,
+    },
+    isNewCiConfigFile: {
       type: Boolean,
       required: true,
     },
@@ -178,7 +182,7 @@ export default {
 <template>
   <gl-tabs
     class="file-editor gl-mb-3"
-    data-qa-selector="file_editor_container"
+    data-testid="file-editor-container"
     :query-param-name="$options.query.TAB_QUERY_PARAM"
     sync-active-tab-with-query-params
   >
@@ -192,8 +196,9 @@ export default {
     >
       <walkthrough-popover v-if="isNewCiConfigFile" v-on="$listeners" />
       <ci-editor-header
-        :show-drawer="showDrawer"
+        :show-help-drawer="showHelpDrawer"
         :show-job-assistant-drawer="showJobAssistantDrawer"
+        :show-ai-assistant-drawer="showAiAssistantDrawer"
         v-on="$listeners"
       />
       <text-editor :commit-sha="commitSha" :value="ciFileContent" v-on="$listeners" />

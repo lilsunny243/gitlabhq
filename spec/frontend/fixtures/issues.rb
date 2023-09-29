@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe Projects::IssuesController, '(JavaScript fixtures)', :with_license, type: :controller do
   include JavaScriptFixturesHelpers
 
-  let(:user) { create(:user, feed_token: 'feedtoken:coldfeed') }
+  let(:user) { create(:user, :no_super_sidebar, feed_token: 'feedtoken:coldfeed') }
   let(:namespace) { create(:namespace, name: 'frontend-fixtures') }
   let(:project) { create(:project_empty_repo, namespace: namespace, path: 'issues-project') }
 
@@ -18,15 +18,6 @@ RSpec.describe Projects::IssuesController, '(JavaScript fixtures)', :with_licens
 
   after do
     remove_repository(project)
-  end
-
-  it 'issues/new-issue.html' do
-    get :new, params: {
-      namespace_id: project.namespace.to_param,
-      project_id: project
-    }
-
-    expect(response).to be_successful
   end
 
   it 'issues/open-issue.html' do
@@ -114,7 +105,6 @@ RSpec.describe GraphQL::Query, type: :request do
 
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project) }
-  let_it_be(:issue_type) { 'issue' }
 
   before_all do
     project.add_reporter(user)
@@ -137,8 +127,7 @@ RSpec.describe GraphQL::Query, type: :request do
         title: '15.2',
         start_date: Date.new(2020, 7, 1),
         due_date: Date.new(2020, 7, 30)
-      ),
-      issue_type: issue_type
+      )
     )
 
     post_graphql(query, current_user: user, variables: { projectPath: project.full_path, iid: issue.iid.to_s })

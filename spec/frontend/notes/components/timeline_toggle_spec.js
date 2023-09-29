@@ -1,6 +1,7 @@
 import { GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import TimelineToggle, {
   timelineEnabledTooltip,
@@ -35,10 +36,6 @@ describe('Timeline toggle', () => {
   });
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
     store.dispatch.mockReset();
     mockEvent.currentTarget.blur.mockReset();
     Tracking.event.mockReset();

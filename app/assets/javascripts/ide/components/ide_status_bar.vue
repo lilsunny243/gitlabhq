@@ -1,6 +1,7 @@
 <script>
 /* eslint-disable @gitlab/vue-require-i18n-strings */
 import { GlIcon, GlTooltipDirective } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState, mapGetters } from 'vuex';
 import timeAgoMixin from '~/vue_shared/mixins/timeago';
 import CiIcon from '~/vue_shared/components/ci_icon.vue';
@@ -105,6 +106,7 @@ export default {
         :title="lastCommit.message"
         :href="getCommitPath(lastCommit.short_id)"
         class="commit-sha"
+        data-testid="commit-sha-content"
         data-qa-selector="commit_sha_content"
         >{{ lastCommit.short_id }}</a
       >

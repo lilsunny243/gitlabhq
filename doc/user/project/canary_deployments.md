@@ -4,18 +4,16 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Canary Deployments **(FREE)**
+# Canary deployments **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1659) in GitLab 9.1.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/212320) from GitLab Premium to GitLab Free in 13.8.
 
-A popular [Continuous Deployment](https://en.wikipedia.org/wiki/Continuous_deployment)
+Canary deployments are a popular [continuous deployment](https://en.wikipedia.org/wiki/Continuous_deployment)
 strategy, where a small portion of the fleet is updated to the new version of
 your application.
 
-## Overview
-
-When embracing [Continuous Delivery](https://about.gitlab.com/blog/2016/08/05/continuous-integration-delivery-and-deployment-with-gitlab/), a company needs to decide what
+When embracing [continuous delivery](https://about.gitlab.com/blog/2016/08/05/continuous-integration-delivery-and-deployment-with-gitlab/), an organization needs to decide what
 type of deployment strategy to use. One of the most popular strategies is canary
 deployments, where a small portion of the fleet is updated to the new version
 first. This subset, the canaries, then serve as the proverbial
@@ -123,7 +121,7 @@ or by sending requests to the [GraphQL API](../../api/graphql/getting_started.md
 
 To use your [deploy board](../../user/project/deploy_boards.md):
 
-1. Go to **Deployments > Environments** for your project.
+1. Go to **Operate > Environments** for your project.
 1. Set the new weight with the dropdown list on the right side.
 1. Confirm your selection.
 
@@ -136,7 +134,7 @@ Here's an example using [GraphiQL](../../api/graphql/getting_started.md#graphiql
    mutation {
      environmentsCanaryIngressUpdate(input:{
        id: "gid://gitlab/Environment/29",              # Your Environment ID. You can get the ID from the URL of the environment page.
-       weight: 45                                      # The new traffic weight. e.g. If you set `45`, 45% of traffic goes to a canary deployment and 55% of traffic goes to a stable deployment.
+       weight: 45                                      # The new traffic weight. for example, If you set `45`, 45% of traffic goes to a canary deployment and 55% of traffic goes to a stable deployment.
      }) {
        errors
      }

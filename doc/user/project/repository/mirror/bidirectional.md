@@ -2,10 +2,9 @@
 stage: Create
 group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
-# Bidirectional mirroring **(PREMIUM)**
+# Bidirectional mirroring **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -45,7 +44,7 @@ and [pull](pull.md#pull-from-a-remote-repository) mirrors in the upstream GitLab
 To create the webhook in the downstream instance:
 
 1. Create a [personal access token](../../../profile/personal_access_tokens.md) with `API` scope.
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. On the left sidebar, select **Settings > Webhooks**.
 1. Add the webhook **URL**, which (in this case) uses the
    [Pull Mirror API](../../../../api/projects.md#start-the-pull-mirroring-process-for-a-project)
@@ -139,7 +138,7 @@ This sample has a few limitations:
 - The script circumvents the Git hook quarantine environment because the update of `$TARGET_REPO`
   is seen as a ref update, and Git displays warnings about it.
 
-## Mirror with Perforce Helix with Git Fusion **(PREMIUM)**
+## Mirror with Perforce Helix with Git Fusion **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -168,4 +167,5 @@ Read about [Git Fusion settings on Perforce.com](https://www.perforce.com/manual
 
 ## Related topics
 
-- [Configure server hooks](../../../../administration/server_hooks.md) on a GitLab server.
+- [Troubleshooting](troubleshooting.md) for repository mirroring.
+- [Configure server hooks](../../../../administration/server_hooks.md)

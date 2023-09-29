@@ -4,7 +4,7 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Redis guidelines
+# Redis development guidelines
 
 ## Redis instances
 
@@ -56,7 +56,7 @@ the entry, instead of relying on the key changing.
 
 ### Multi-key commands
 
-We don't use Redis Cluster, but support for it is tracked in [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/118820).
+GitLab supports Redis Cluster for [cache-related workloads](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/redis/cache.rb) type, introduced in [epic 878](https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/878).
 
 This imposes an additional constraint on naming: where GitLab is performing
 operations that require several keys to be held on the same Redis server - for
@@ -76,6 +76,16 @@ Currently, we validate this in the development and test environments
 with the [`RedisClusterValidator`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/instrumentation/redis_cluster_validator.rb),
 which is enabled for the `cache` and `shared_state`
 [Redis instances](https://docs.gitlab.com/omnibus/settings/redis.html#running-with-multiple-redis-instances)..
+
+Developers are highly encouraged to use [hash-tags](https://redis.io/docs/reference/cluster-spec/#hash-tags)
+where appropriate to facilitate future adoption of Redis Cluster in more Redis types. For example, the Namespace model uses hash-tags
+for its [config cache keys](https://gitlab.com/gitlab-org/gitlab/-/blob/1a12337058f260d38405886d82da5e8bb5d8da0b/app/models/namespace.rb#L786).
+
+To perform multi-key commands, developers may use the [`Gitlab::Redis::CrossSlot::Pipeline`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/redis/cross_slot.rb) wrapper.
+However, this does not work for [transactions](https://redis.io/docs/interact/transactions/) as Redis Cluster does not support cross-slot transactions.
+
+For `Rails.cache`, we handle the `MGET` command found in `read_multi_get` by [patching it](https://gitlab.com/gitlab-org/gitlab/-/blob/c2bad2aac25e2f2778897bd4759506a72b118b15/lib/gitlab/patch/redis_cache_store.rb#L10) to use the `Gitlab::Redis::CrossSlot::Pipeline` wrapper.
+The minimum size of the pipeline is set to 1000 commands and it can be adjusted by using the `GITLAB_REDIS_CLUSTER_PIPELINE_BATCH_LIMIT` environment variable.
 
 ## Redis in structured logging
 
@@ -188,6 +198,26 @@ it 'avoids N+1 Redis calls to forks_count key' do
 end
 ```
 
+You also can use special matchers `exceed_redis_calls_limit` and
+`exceed_redis_command_calls_limit` to define an upper limit for
+a number of Redis calls:
+
+```ruby
+it 'avoids N+1 Redis calls' do
+  control = RedisCommands::Recorder.new { visit_page }
+
+  expect(control).not_to exceed_redis_calls_limit(1)
+end
+```
+
+```ruby
+it 'avoids N+1 sadd Redis calls' do
+  control = RedisCommands::Recorder.new { visit_page }
+
+  expect(control).not_to exceed_redis_command_calls_limit(:sadd, 1)
+end
+```
+
 These tests can help to identify N+1 problems related to Redis calls,
 and make sure that the fix for them works as expected.
 
@@ -261,3 +291,48 @@ This is used by the
 [`RepositorySetCache`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/repository_set_cache.rb)
 to provide a convenient way to use sets to cache repository data like branch
 names.
+
+## Background migration
+
+Redis-based migrations involve using the `SCAN` command to scan the entire Redis instance for certain key patterns.
+For large Redis instances, the migration might [exceed the time limit](migration_style_guide.md#how-long-a-migration-should-take)
+for regular or post-deployment migrations. [`RedisMigrationWorker`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/workers/redis_migration_worker.rb)
+performs long-running Redis migrations as a background migration.
+
+To perform a background migration by creating a class:
+
+```ruby
+module Gitlab
+  module BackgroundMigration
+    module Redis
+      class BackfillCertainKey
+        def perform(keys)
+        # implement logic to clean up or backfill keys
+        end
+
+        def scan_match_pattern
+        # define the match pattern for the `SCAN` command
+        end
+
+        def redis
+        # define the exact Redis instance
+        end
+      end
+    end
+  end
+end
+```
+
+To trigger the worker through a post-deployment migration:
+
+```ruby
+class ExampleBackfill < Gitlab::Database::Migration[2.1]
+  disable_ddl_transaction!
+
+  MIGRATION='BackfillCertainKey'
+
+  def up
+    queue_redis_migration_job(MIGRATION)
+  end
+end
+```

@@ -13,6 +13,9 @@ module Ci
     include FileStoreMounter
     include EachBatch
     include Gitlab::Utils::StrongMemoize
+    include SafelyChangeColumnDefault
+
+    columns_changing_default :partition_id
 
     enum accessibility: { public: 0, private: 1 }, _suffix: true
 
@@ -57,7 +60,8 @@ module Ci
       requirements_v2: 'requirements_v2.json',
       coverage_fuzzing: 'gl-coverage-fuzzing.json',
       api_fuzzing: 'gl-api-fuzzing-report.json',
-      cyclonedx: 'gl-sbom.cdx.json'
+      cyclonedx: 'gl-sbom.cdx.json',
+      annotations: 'gl-annotations.json'
     }.freeze
 
     INTERNAL_TYPES = {
@@ -76,6 +80,7 @@ module Ci
       cluster_applications: :gzip, # DEPRECATED: https://gitlab.com/gitlab-org/gitlab/-/issues/361094
       lsif: :zip,
       cyclonedx: :gzip,
+      annotations: :gzip,
 
       # Security reports and license scanning reports are raw artifacts
       # because they used to be fetched by the frontend, but this is not the case anymore.
@@ -132,7 +137,7 @@ module Ci
     PLAN_LIMIT_PREFIX = 'ci_max_artifact_size_'
 
     belongs_to :project
-    belongs_to :job, class_name: "Ci::Build", foreign_key: :job_id
+    belongs_to :job, class_name: "Ci::Build", foreign_key: :job_id, inverse_of: :job_artifacts
 
     mount_file_store_uploader JobArtifactUploader, skip_store_file: true
 
@@ -155,7 +160,7 @@ module Ci
     scope :not_expired, -> { where('expire_at IS NULL OR expire_at > ?', Time.current) }
     scope :for_sha, ->(sha, project_id) { joins(job: :pipeline).where(ci_pipelines: { sha: sha, project_id: project_id }) }
     scope :for_job_ids, ->(job_ids) { where(job_id: job_ids) }
-    scope :for_job_name, ->(name) { joins(:job).where(ci_builds: { name: name }) }
+    scope :for_job_name, ->(name) { joins(:job).merge(Ci::Build.by_name(name)) }
     scope :created_at_before, ->(time) { where(arel_table[:created_at].lteq(time)) }
     scope :id_before, ->(id) { where(arel_table[:id].lteq(id)) }
     scope :id_after, ->(id) { where(arel_table[:id].gt(id)) }
@@ -176,6 +181,8 @@ module Ci
     scope :erasable, -> do
       where(file_type: self.erasable_file_types)
     end
+
+    scope :non_trace, -> { where.not(file_type: [:trace]) }
 
     scope :downloadable, -> { where(file_type: DOWNLOADABLE_TYPES) }
     scope :unlocked, -> { joins(job: :pipeline).merge(::Ci::Pipeline.unlocked) }
@@ -216,7 +223,8 @@ module Ci
       api_fuzzing: 26, ## EE-specific
       cluster_image_scanning: 27, ## EE-specific
       cyclonedx: 28, ## EE-specific
-      requirements_v2: 29 ## EE-specific
+      requirements_v2: 29, ## EE-specific
+      annotations: 30
     }
 
     # `file_location` indicates where actual files are stored.
@@ -336,10 +344,16 @@ module Ci
     end
 
     def to_deleted_object_attrs(pick_up_at = nil)
+      final_path_store_dir, final_path_filename = nil
+      if file_final_path.present?
+        final_path_store_dir = File.dirname(file_final_path)
+        final_path_filename = File.basename(file_final_path)
+      end
+
       {
         file_store: file_store,
-        store_dir: file.store_dir.to_s,
-        file: file_identifier,
+        store_dir: final_path_store_dir || file.store_dir.to_s,
+        file: final_path_filename || file_identifier,
         pick_up_at: pick_up_at || expire_at || Time.current
       }
     end
@@ -370,11 +384,11 @@ module Ci
       file_stored_after_transaction_hooks
     end
 
-    # method overriden in EE
+    # method overridden in EE
     def file_stored_after_transaction_hooks
     end
 
-    # method overriden in EE
+    # method overridden in EE
     def file_stored_in_transaction_hooks
     end
 

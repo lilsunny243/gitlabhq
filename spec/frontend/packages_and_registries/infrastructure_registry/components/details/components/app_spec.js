@@ -1,6 +1,7 @@
 import { GlEmptyState } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { useMockLocationHelper } from 'helpers/mock_window_location_helper';
 import stubChildren from 'helpers/stub_children';
@@ -85,10 +86,6 @@ describe('PackagesApp', () => {
   const findPackageHistory = () => wrapper.findComponent(PackageHistory);
   const findTerraformInstallation = () => wrapper.findComponent(TerraformInstallation);
   const findPackageFiles = () => wrapper.findComponent(PackageFiles);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('renders the app and displays the package title', async () => {
     createComponent();

@@ -8,6 +8,7 @@ import {
   GlLink,
   GlSprintf,
 } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapActions, mapGetters } from 'vuex';
 import { isSameOriginUrl, getParameterByName } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
@@ -215,14 +216,13 @@ export default {
       </gl-form-group>
       <gl-form-group data-testid="release-notes">
         <label for="release-notes">{{ __('Release notes') }}</label>
-        <div class="bordered-box pr-3 pl-3">
+        <div class="common-note-form">
           <markdown-field
             :can-attach-file="true"
             :markdown-preview-path="markdownPreviewPath"
             :markdown-docs-path="markdownDocsPath"
             :add-spacing-classes="false"
             :textarea-value="formattedReleaseNotes"
-            class="gl-mt-3 gl-mb-3"
           >
             <template #textarea>
               <textarea

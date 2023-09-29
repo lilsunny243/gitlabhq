@@ -27,8 +27,10 @@ A database review is required for:
   database review.
 - Changes in Service Data metrics that use `count`, `distinct_count`, `estimate_batch_distinct_count` and `sum`.
   These metrics could have complex queries over large tables.
-  See the [Product Intelligence Guide](https://about.gitlab.com/handbook/product/product-intelligence-guide/)
+  See the [Analytics Instrumentation Guide](https://about.gitlab.com/handbook/product/analytics-instrumentation-guide/)
   for implementation details.
+- Changes that use [`update`, `delete`, `update_all`, `delete_all` or `destroy_all`](#preparation-when-using-update-delete-update_all-delete_all-or-destroy_all)
+  methods on an ActiveRecord object.
 
 A database reviewer is expected to look out for overly complex
 queries in the change and review those closer. If the author does not
@@ -125,7 +127,7 @@ the following preparations into account.
   test its execution using `CREATE INDEX CONCURRENTLY` in [Database Lab](database/database_lab.md) and add the execution time to the MR description:
   - Execution time largely varies between Database Lab and GitLab.com, but an elevated execution time from Database Lab
     can give a hint that the execution on GitLab.com is also considerably high.
-  - If the execution from Database Lab is longer than `1h`, the index should be moved to a [post-migration](database/post_deployment_migrations.md).
+  - If the execution from Database Lab is longer than `10 minutes`, the [index](database/adding_database_indexes.md) should be moved to a [post-migration](database/post_deployment_migrations.md).
     Keep in mind that in this case you may need to split the migration and the application changes in separate releases to ensure the index
     is in place when the code that needs it is deployed.
 - Manually trigger the [database testing](database/database_migration_pipeline.md) job (`db:gitlabcom-database-testing`) in the `test` stage.
@@ -151,9 +153,7 @@ Include in the MR description:
 - Write the raw SQL in the MR description. Preferably formatted
   nicely with [pgFormatter](https://sqlformat.darold.net) or
   <https://paste.depesz.com> and using regular quotes
-<!-- vale gitlab.NonStandardQuotes = NO -->
-  (for example, `"projects"."id"`) and avoiding smart quotes (for example, `“projects”.“id”`).
-<!-- vale gitlab.NonStandardQuotes = YES -->
+  (for example, `"projects"."id"`) and avoiding smart quotes (for example, `"projects"."id"`).
 - In case of queries generated dynamically by using parameters, there should be one raw SQL query for each variation.
 
   For example, a finder for issues that may take as a parameter an optional filter on projects,
@@ -173,10 +173,11 @@ Include in the MR description:
 ##### Query Plans
 
 - The query plan for each raw SQL query included in the merge request along with the link to the query plan following each raw SQL snippet.
-- Provide a link to the plan from [postgres.ai](database/database_lab.md), provided by the chatbot.
-  - If it's not possible to get an accurate picture in Database Lab, you may need to seed a development environment, and instead provide links
-    from [explain.depesz.com](https://explain.depesz.com) or [explain.dalibo.com](https://explain.dalibo.com). Be sure to paste both the plan
-    and the query used in the form.
+- Provide a link to the plan generated using the `explain` command in the [postgres.ai](database/database_lab.md) chatbot. The `explain` command runs
+    `EXPLAIN ANALYZE`.
+  - If it's not possible to get an accurate picture in Database Lab, you may need to
+    seed a development environment, and instead provide output
+    from `EXPLAIN ANALYZE`. Create links to the plan using [explain.depesz.com](https://explain.depesz.com) or [explain.dalibo.com](https://explain.dalibo.com). Be sure to paste both the plan and the query used in the form.
 - When providing query plans, make sure it hits enough data:
   - To produce a query plan with enough data, you can use the IDs of:
     - The `gitlab-org` namespace (`namespace_id = 9970`), for queries involving a group.
@@ -192,6 +193,13 @@ Include in the MR description:
   plan _before_ and _after_ the change. This helps spot differences quickly.
 - Include data that shows the performance improvement, preferably in
   the form of a benchmark.
+- When evaluating a query plan, we need the final query to be
+  executed against the database. We don't need to analyze the intermediate
+  queries returned as `ActiveRecord::Relation` from finders and scopes.
+  PostgreSQL query plans are dependent on all the final parameters,
+  including limits and other things that may be added before final execution.
+  One way to be sure of the actual query executed is to check
+  `log/development.log`.
 
 #### Preparation when adding foreign keys to existing tables
 
@@ -217,6 +225,16 @@ Include in the MR description:
   - Exceptions include removing indexes and foreign keys for small tables.
 - If you're adding a composite index, another index might become redundant, so remove that in the same migration.
   For example adding `index(column_A, column_B, column_C)` makes the indexes `index(column_A, column_B)` and `index(column_A)` redundant.
+
+#### Preparation when using `update`, `delete`, `update_all`, `delete_all` or `destroy_all`
+
+Using these ActiveRecord methods requires extra care because they modify data and can perform poorly, or they
+can destroy data if improperly scoped. These methods are also
+[incompatible with Common Table Expression (CTE) statements](sql.md#when-to-use-common-table-expressions).
+Danger will comment on a Merge Request Diff when these methods are used.
+
+Follow documentation for [preparation when adding or modifying queries](#preparation-when-adding-or-modifying-queries)
+to add the raw SQL query and query plan to the Merge Request description, and request a database review.
 
 ### How to review for database
 
@@ -244,7 +262,7 @@ Include in the MR description:
   - Manually trigger the [database testing](database/database_migration_pipeline.md) job (`db:gitlabcom-database-testing`) in the `test` stage.
   - If a single `update` is below than `1s` the query can be placed
       directly in a regular migration (inside `db/migrate`).
-  - Background migrations are normally used, but not limited to:
+  - Background migrations are usually used, but not limited to:
     - Migrating data in larger tables.
     - Making numerous SQL queries per record in a dataset.
   - Review queries (for example, make sure batch sizes are fine)

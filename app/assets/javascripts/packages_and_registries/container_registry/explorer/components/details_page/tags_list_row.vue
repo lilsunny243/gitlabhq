@@ -4,8 +4,7 @@ import {
   GlTooltipDirective,
   GlSprintf,
   GlIcon,
-  GlDropdown,
-  GlDropdownItem,
+  GlDisclosureDropdown,
 } from '@gitlab/ui';
 import { formatDate } from '~/lib/utils/datetime_utility';
 import { numberToHumanSize } from '~/lib/utils/number_utils';
@@ -33,8 +32,7 @@ export default {
     GlSprintf,
     GlFormCheckbox,
     GlIcon,
-    GlDropdown,
-    GlDropdownItem,
+    GlDisclosureDropdown,
     ListItem,
     ClipboardButton,
     TimeAgoTooltip,
@@ -76,6 +74,21 @@ export default {
     COPY_IMAGE_PATH_TITLE,
   },
   computed: {
+    items() {
+      return [
+        {
+          text: this.$options.i18n.REMOVE_TAG_BUTTON_TITLE,
+          extraAttrs: {
+            class: 'gl-text-red-500!',
+            'data-testid': 'single-delete-button',
+          },
+          action: () => {
+            this.$emit('delete');
+          },
+        },
+      ];
+    },
+
     formattedSize() {
       return this.tag.totalSize
         ? numberToHumanSize(Number(this.tag.totalSize))
@@ -109,9 +122,6 @@ export default {
     isInvalidTag() {
       return !this.tag.digest;
     },
-    isDeleteDisabled() {
-      return this.disabled || !this.tag.canDelete;
-    },
   },
 };
 </script>
@@ -132,7 +142,6 @@ export default {
         <div
           v-gl-tooltip="{ title: tag.name }"
           data-testid="name"
-          data-qa-selector="tag_name_content"
           class="gl-text-overflow-ellipsis gl-overflow-hidden gl-white-space-nowrap"
           :class="mobileClasses"
         >
@@ -179,32 +188,23 @@ export default {
         </gl-sprintf>
       </span>
     </template>
-    <template #right-action>
-      <gl-dropdown
-        :disabled="isDeleteDisabled"
+    <template v-if="tag.canDelete" #right-action>
+      <gl-disclosure-dropdown
+        :disabled="disabled"
         icon="ellipsis_v"
-        :text="$options.i18n.MORE_ACTIONS_TEXT"
+        :toggle-text="$options.i18n.MORE_ACTIONS_TEXT"
         :text-sr-only="true"
         category="tertiary"
         no-caret
-        right
-        :class="{ 'gl-opacity-0 gl-pointer-events-none': isDeleteDisabled }"
+        placement="right"
+        :class="{ 'gl-opacity-0 gl-pointer-events-none': disabled }"
         data-testid="additional-actions"
-        data-qa-selector="more_actions_menu"
-      >
-        <gl-dropdown-item
-          variant="danger"
-          data-testid="single-delete-button"
-          data-qa-selector="tag_delete_button"
-          @click="$emit('delete')"
-        >
-          {{ $options.i18n.REMOVE_TAG_BUTTON_TITLE }}
-        </gl-dropdown-item>
-      </gl-dropdown>
+        :items="items"
+      />
     </template>
 
     <template v-if="!isInvalidTag" #details-published>
-      <details-row icon="clock" data-testid="published-date-detail">
+      <details-row icon="clock" padding="gl-py-3" data-testid="published-date-detail">
         <gl-sprintf :message="$options.i18n.PUBLISHED_DETAILS_ROW_TEXT">
           <template #repositoryPath>
             <i>{{ tagLocation }}</i>

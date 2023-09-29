@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Pipeline trigger tokens API **(FREE)**
+# Pipeline trigger tokens API **(FREE ALL)**
 
 You can read more about [triggering pipelines through the API](../ci/triggers/index.md).
 
@@ -16,9 +16,9 @@ Get a list of a project's pipeline trigger tokens.
 GET /projects/:id/triggers
 ```
 
-| Attribute | Type    | required | Description         |
-|-----------|---------|----------|---------------------|
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
+| Attribute | Type           | Required | Description |
+|-----------|----------------|----------|-------------|
+| `id`      | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/triggers"
@@ -43,16 +43,16 @@ user. Trigger tokens created by other users are shortened to four characters.
 
 ## Get trigger token details
 
-Get details of a project's pipeline trigger.
+Get details of a project's pipeline trigger token.
 
 ```plaintext
 GET /projects/:id/triggers/:trigger_id
 ```
 
-| Attribute    | Type    | required | Description              |
-|--------------|---------|----------|--------------------------|
-| `id`         | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
-| `trigger_id` | integer | yes      | The trigger ID           |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `id`         | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `trigger_id` | integer        | Yes      | The trigger ID |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/triggers/5"
@@ -72,16 +72,16 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 
 ## Create a trigger token
 
-Create a pipeline trigger for a project.
+Create a pipeline trigger token for a project.
 
 ```plaintext
 POST /projects/:id/triggers
 ```
 
-| Attribute     | Type    | required | Description              |
-|---------------|---------|----------|--------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
-| `description` | string  | yes      | The trigger name         |
+| Attribute     | Type           | Required | Description |
+|---------------|----------------|----------|-------------|
+| `id`          | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `description` | string         | Yes      | The trigger name |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -100,19 +100,19 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
 }
 ```
 
-## Update a project trigger token
+## Update a pipeline trigger token
 
-Update a pipeline trigger token for a project.
+Update a project's pipeline trigger token.
 
 ```plaintext
 PUT /projects/:id/triggers/:trigger_id
 ```
 
-| Attribute     | Type    | required | Description              |
-|---------------|---------|----------|--------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
-| `trigger_id`  | integer | yes      | The trigger ID           |
-| `description` | string  | no       | The trigger name         |
+| Attribute     | Type           | Required | Description |
+|---------------|----------------|----------|-------------|
+| `id`          | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `trigger_id`  | integer        | Yes      | The trigger ID |
+| `description` | string         | No       | The trigger name |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -131,7 +131,7 @@ curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" \
 }
 ```
 
-## Remove a project trigger token
+## Remove a pipeline trigger token
 
 Remove a project's pipeline trigger token.
 
@@ -139,10 +139,10 @@ Remove a project's pipeline trigger token.
 DELETE /projects/:id/triggers/:trigger_id
 ```
 
-| Attribute      | Type    | required | Description              |
-|----------------|---------|----------|--------------------------|
-| `id`           | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
-| `trigger_id`   | integer | yes      | The trigger ID           |
+| Attribute    | Type           | Required | Description |
+|--------------|----------------|----------|-------------|
+| `id`         | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `trigger_id` | integer        | Yes      | The trigger ID |
 
 ```shell
 curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/triggers/5"
@@ -150,12 +150,12 @@ curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://git
 
 ## Trigger a pipeline with a token
 
-Trigger a pipeline by using a pipeline [trigger token](../ci/triggers/index.md#create-a-trigger-token)
+Trigger a pipeline by using a [pipeline trigger token](../ci/triggers/index.md#create-a-pipeline-trigger-token)
 or a [CI/CD job token](../ci/jobs/ci_job_token.md) for authentication.
 
 With a CI/CD job token, the [triggered pipeline is a multi-project pipeline](../ci/pipelines/downstream_pipelines.md#trigger-a-multi-project-pipeline-by-using-the-api).
 The job that authenticates the request becomes associated with the upstream pipeline,
-which is visible on the [pipeline graph](../ci/pipelines/downstream_pipelines.md#view-multi-project-pipelines-in-pipeline-graphs).
+which is visible on the pipeline graph.
 
 If you use a trigger token in a job, the job is not associated with the upstream pipeline.
 
@@ -165,12 +165,12 @@ POST /projects/:id/trigger/pipeline
 
 Supported attributes:
 
-| Attribute   | Type           | Required               | Description |
-|:------------|:---------------|:-----------------------|:---------------------|
-| `id`        | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `ref`       | string         | **{check-circle}** Yes | The branch or tag to run the pipeline on. |
-| `token`     | string         | **{check-circle}** Yes | The trigger token or CI/CD job token. |
-| `variables` | hash           | **{dotted-circle}** No | A map of key-valued strings containing the pipeline variables. For example: `{ VAR1: "value1", VAR2: "value2" }`. |
+| Attribute   | Type           | Required | Description |
+|-------------|----------------|----------|-------------|
+| `id`        | integer/string | Yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `ref`       | string         | Yes      | The branch or tag to run the pipeline on. |
+| `token`     | string         | Yes      | The trigger token or CI/CD job token. |
+| `variables` | hash           | No       | A map of key-valued strings containing the pipeline variables. For example: `{ VAR1: "value1", VAR2: "value2" }`. |
 
 Example request:
 

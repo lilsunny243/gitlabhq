@@ -11,6 +11,7 @@ import {
 import FormattedStageCount from '~/analytics/cycle_analytics/components/formatted_stage_count.vue';
 import { __ } from '~/locale';
 import Tracking from '~/tracking';
+import { scrollToElement } from '~/lib/utils/common_utils';
 import {
   NOT_ENOUGH_DATA_ERROR,
   FIELD_KEY_TITLE,
@@ -102,9 +103,7 @@ export default {
   },
   data() {
     if (this.pagination) {
-      const {
-        pagination: { sort, direction },
-      } = this;
+      const { sort, direction } = this.pagination;
       return {
         sort,
         direction,
@@ -173,6 +172,7 @@ export default {
       const { sort, direction } = this.pagination;
       this.track('click_button', { label: 'pagination' });
       this.$emit('handleUpdatePagination', { sort, direction, page });
+      this.scrollToTop();
     },
     onSort({ sortBy, sortDesc }) {
       const direction = sortDesc ? PAGINATION_SORT_DIRECTION_DESC : PAGINATION_SORT_DIRECTION_ASC;
@@ -181,11 +181,14 @@ export default {
       this.$emit('handleUpdatePagination', { sort: sortBy, direction });
       this.track('click_button', { label: `sort_${sortBy}_${direction}` });
     },
+    scrollToTop() {
+      scrollToElement(this.$el);
+    },
   },
 };
 </script>
 <template>
-  <div data-testid="vsa-stage-table">
+  <div data-testid="vsa-stage-table" :class="{ 'gl-min-h-100vh': isLoading || !isEmptyStage }">
     <gl-loading-icon v-if="isLoading" class="gl-mt-4" size="lg" />
     <gl-empty-state
       v-else-if="isEmptyStage"
@@ -215,11 +218,11 @@ export default {
         <span data-testid="vsa-stage-header-duration">{{ data.label }}</span>
       </template>
       <template #head(end_event)="data">
-        <span data-testid="vsa-stage-header-last-event">{{ data.label }}</span>
+        <span>{{ data.label }}</span>
       </template>
       <template #cell(title)="{ item }">
         <div data-testid="vsa-stage-event">
-          <div v-if="item.id" data-testid="vsa-stage-content">
+          <div v-if="item.id">
             <p class="gl-m-0">
               <gl-link
                 data-testid="vsa-stage-event-link"
@@ -237,15 +240,10 @@ export default {
               <span class="icon-branch gl-text-gray-400">
                 <gl-icon name="commit" :size="14" />
               </span>
-              <gl-link
-                class="commit-sha"
-                :href="item.commitUrl"
-                data-testid="vsa-stage-event-build-sha"
-                >{{ item.shortSha }}</gl-link
-              >
+              <gl-link class="commit-sha" :href="item.commitUrl">{{ item.shortSha }}</gl-link>
             </p>
             <p class="gl-m-0">
-              <span data-testid="vsa-stage-event-build-author-and-date">
+              <span>
                 <gl-link class="gl-text-black-normal" :href="item.url">{{ item.date }}</gl-link>
                 {{ s__('ByAuthor|by') }}
                 <gl-link
@@ -256,7 +254,7 @@ export default {
               </span>
             </p>
           </div>
-          <div v-else data-testid="vsa-stage-content">
+          <div v-else>
             <h5 class="gl-font-weight-bold gl-my-1" data-testid="vsa-stage-event-title">
               <gl-link class="gl-text-black-normal" :href="item.url">{{ itemTitle(item) }}</gl-link>
             </h5>

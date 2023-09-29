@@ -1,5 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'spec/test_constants';
@@ -57,10 +58,6 @@ describe('IDE TerminalView', () => {
         message: 'bad',
       }),
     };
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('renders empty state', async () => {

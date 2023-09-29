@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe UsersHelper do
   include TermsHelper
 
-  let(:user) { create(:user) }
+  let_it_be(:user) { create(:user, timezone: ActiveSupport::TimeZone::MAPPING['UTC']) }
 
   def filter_ee_badges(badges)
     badges.reject { |badge| badge[:text] == 'Is using seat' }
@@ -34,6 +34,35 @@ RSpec.describe UsersHelper do
 
     it "has the user's email as title" do
       is_expected.to include("title=\"#{user.email}\"")
+    end
+  end
+
+  describe '#user_clear_status_at' do
+    context 'when status exists' do
+      context 'with clear_status_at set' do
+        it 'has the correct iso formatted date', time_travel_to: '2020-01-01 00:00:00 +0000' do
+          clear_status_at = 1.day.from_now
+          status = build_stubbed(:user_status, clear_status_at: clear_status_at)
+
+          expect(user_clear_status_at(status.user)).to eq('2020-01-02T00:00:00Z')
+        end
+      end
+
+      context 'without clear_status_at set' do
+        it 'returns nil' do
+          status = build_stubbed(:user_status, clear_status_at: nil)
+
+          expect(user_clear_status_at(status.user)).to be_nil
+        end
+      end
+    end
+
+    context 'without status' do
+      it 'returns nil' do
+        user = build_stubbed(:user)
+
+        expect(user_clear_status_at(user)).to be_nil
+      end
     end
   end
 
@@ -94,10 +123,6 @@ RSpec.describe UsersHelper do
       allow(helper).to receive(:can?).and_return(false)
     end
 
-    after do
-      expect(items).not_to include(:start_trial)
-    end
-
     it 'includes all default items' do
       expect(items).to include(:help, :sign_out)
     end
@@ -122,6 +147,76 @@ RSpec.describe UsersHelper do
       it 'hides the profile and the settings tab' do
         expect(items).not_to include(:settings, :profile, :help)
       end
+    end
+  end
+
+  describe '#can_impersonate_user' do
+    let(:user) { create(:user) }
+    let(:impersonation_in_progress) { false }
+
+    subject { helper.can_impersonate_user(user, impersonation_in_progress) }
+
+    context 'when password is expired' do
+      let(:user) { create(:user, password_expires_at: 1.minute.ago) }
+
+      it { is_expected.to be false }
+    end
+
+    context 'when impersonation is in progress' do
+      let(:impersonation_in_progress) { true }
+
+      it { is_expected.to be false }
+    end
+
+    context 'when user is blocked' do
+      let(:user) { create(:user, :blocked) }
+
+      it { is_expected.to be false }
+    end
+
+    context 'when user is internal' do
+      let(:user) { create(:user, :bot) }
+
+      it { is_expected.to be false }
+    end
+
+    it { is_expected.to be true }
+  end
+
+  describe '#impersonation_error_text' do
+    let(:user) { create(:user) }
+    let(:impersonation_in_progress) { false }
+
+    subject { helper.impersonation_error_text(user, impersonation_in_progress) }
+
+    context 'when password is expired' do
+      let(:user) { create(:user, password_expires_at: 1.minute.ago) }
+
+      it { is_expected.to eq(_("You cannot impersonate a user with an expired password")) }
+    end
+
+    context 'when impersonation is in progress' do
+      let(:impersonation_in_progress) { true }
+
+      it { is_expected.to eq(_("You are already impersonating another user")) }
+    end
+
+    context 'when user is blocked' do
+      let(:user) { create(:user, :blocked) }
+
+      it { is_expected.to eq(_("You cannot impersonate a blocked user")) }
+    end
+
+    context 'when user is internal' do
+      let(:user) { create(:user, :bot) }
+
+      it { is_expected.to eq(_("You cannot impersonate an internal user")) }
+    end
+
+    context 'when user is inactive' do
+      let(:user) { create(:user, :deactivated) }
+
+      it { is_expected.to eq(_("You cannot impersonate a user who cannot log in")) }
     end
   end
 
@@ -469,13 +564,176 @@ RSpec.describe UsersHelper do
     end
   end
 
-  describe '#trials_link_url' do
-    it 'returns the correct URL' do
-      if Gitlab.ee?
-        expect(trials_link_url).to eq('/-/trial_registrations/new?glm_content=top-right-dropdown&glm_source=gitlab.com')
-      else
-        expect(trials_link_url).to eq('https://about.gitlab.com/free-trial/')
+  describe '#user_profile_tabs_app_data' do
+    before do
+      allow(helper).to receive(:current_user).and_return(user)
+      allow(helper).to receive(:user_calendar_path).with(user, :json).and_return('/users/root/calendar.json')
+      allow(helper).to receive(:user_activity_path).with(user, :json).and_return('/users/root/activity.json')
+      allow(helper).to receive(:new_snippet_path).and_return('/-/snippets/new')
+      allow(user).to receive_message_chain(:followers, :count).and_return(2)
+      allow(user).to receive_message_chain(:followees, :count).and_return(3)
+    end
+
+    it 'returns expected hash' do
+      allow(helper).to receive(:can?).with(user, :create_snippet).and_return(true)
+
+      expect(helper.user_profile_tabs_app_data(user)).to match({
+        followees_count: 3,
+        followers_count: 2,
+        user_calendar_path: '/users/root/calendar.json',
+        user_activity_path: '/users/root/activity.json',
+        utc_offset: 0,
+        user_id: user.id,
+        new_snippet_path: '/-/snippets/new',
+        snippets_empty_state: match_asset_path('illustrations/empty-state/empty-snippets-md.svg'),
+        follow_empty_state: match_asset_path('illustrations/empty-state/empty-friends-md.svg')
+      })
+    end
+
+    context 'when user does not have create_snippet permissions' do
+      before do
+        allow(helper).to receive(:can?).with(user, :create_snippet).and_return(false)
       end
+
+      it 'returns nil for new_snippet_path property' do
+        expect(helper.user_profile_tabs_app_data(user)[:new_snippet_path]).to be_nil
+      end
+    end
+  end
+
+  describe '#load_max_project_member_accesses' do
+    let_it_be(:projects) { create_list(:project, 3) }
+
+    before_all do
+      projects.first.add_developer(user)
+    end
+
+    context 'without current_user' do
+      before do
+        allow(helper).to receive(:current_user).and_return(nil)
+      end
+
+      it 'executes no queries' do
+        sample = ActiveRecord::QueryRecorder.new do
+          helper.load_max_project_member_accesses(projects)
+        end
+
+        expect(sample).not_to exceed_query_limit(0)
+      end
+    end
+
+    context 'when current_user is present', :request_store do
+      before do
+        allow(helper).to receive(:current_user).and_return(user)
+      end
+
+      it 'preloads ProjectPolicy#lookup_access_level! and UsersHelper#max_member_project_member_access for current_user in two queries', :aggregate_failures do
+        preload_queries = ActiveRecord::QueryRecorder.new do
+          helper.load_max_project_member_accesses(projects)
+        end
+
+        helper_queries = ActiveRecord::QueryRecorder.new do
+          projects.each do |project|
+            helper.max_project_member_access(project)
+          end
+        end
+
+        access_queries = ActiveRecord::QueryRecorder.new do
+          projects.each do |project|
+            user.can?(:read_code, project)
+          end
+        end
+
+        expect(preload_queries).not_to exceed_query_limit(2)
+        expect(helper_queries).not_to exceed_query_limit(0)
+        expect(access_queries).not_to exceed_query_limit(0)
+      end
+    end
+  end
+
+  describe '#moderation_status', feature_category: :instance_resiliency do
+    let(:user) { create(:user) }
+
+    subject { moderation_status(user) }
+
+    context 'when user is nil' do
+      let(:user) { nil }
+
+      it { is_expected.to be_nil }
+    end
+
+    context 'when a user is banned' do
+      before do
+        user.ban!
+      end
+
+      it { is_expected.to eq('Banned') }
+    end
+
+    context 'when a user is blocked' do
+      before do
+        user.block!
+      end
+
+      it { is_expected.to eq('Blocked') }
+    end
+
+    context 'when a user is active' do
+      it { is_expected.to eq('Active') }
+    end
+  end
+
+  describe '#user_profile_actions_data' do
+    let(:user_1) { create(:user) }
+    let(:user_2) { create(:user) }
+    let(:user_path) { '/users/root' }
+
+    subject { helper.user_profile_actions_data(user_1) }
+
+    before do
+      allow(helper).to receive(:user_path).and_return(user_path)
+      allow(helper).to receive(:user_url).and_return(user_path)
+    end
+
+    shared_examples 'user cannot report' do
+      it 'returns data without reporting related data' do
+        is_expected.to match({
+          user_id: user_1.id,
+          rss_subscription_path: user_path
+        })
+      end
+    end
+
+    context 'user is current user' do
+      before do
+        allow(helper).to receive(:current_user).and_return(user_1)
+      end
+
+      it_behaves_like 'user cannot report'
+    end
+
+    context 'user is not current user' do
+      before do
+        allow(helper).to receive(:current_user).and_return(user_2)
+      end
+
+      it 'returns data for reporting related data' do
+        is_expected.to match({
+          user_id: user_1.id,
+          rss_subscription_path: user_path,
+          report_abuse_path: add_category_abuse_reports_path,
+          reported_user_id: user_1.id,
+          reported_from_url: user_path
+        })
+      end
+    end
+
+    context 'when logged out' do
+      before do
+        allow(helper).to receive(:current_user).and_return(nil)
+      end
+
+      it_behaves_like 'user cannot report'
     end
   end
 end

@@ -31,13 +31,14 @@ class Projects::BlobController < Projects::ApplicationController
   before_action :authorize_edit_tree!, only: [:new, :create, :update, :destroy]
 
   before_action :commit, except: [:new, :create]
+  before_action :check_for_ambiguous_ref, only: [:show]
   before_action :blob, except: [:new, :create]
   before_action :require_branch_head, only: [:edit, :update]
   before_action :editor_variables, except: [:show, :preview, :diff]
   before_action :validate_diff_params, only: :diff
   before_action :set_last_commit_sha, only: [:edit, :update]
 
-  track_custom_event :create, :update,
+  track_event :create, :update,
     name: 'g_edit_by_sfe',
     action: 'perform_sfe_action',
     label: 'usage_activity_by_stage_monthly.create.action_monthly_active_users_sfe_edit',
@@ -47,8 +48,8 @@ class Projects::BlobController < Projects::ApplicationController
   urgency :low, [:create, :show, :edit, :update, :diff]
 
   before_action do
-    push_frontend_feature_flag(:highlight_js, @project)
-    push_frontend_feature_flag(:file_line_blame, @project)
+    push_frontend_feature_flag(:highlight_js_worker, @project)
+    push_frontend_feature_flag(:explain_code_chat, current_user)
     push_licensed_feature(:file_locks) if @project.licensed_feature_available?(:file_locks)
   end
 
@@ -100,7 +101,9 @@ class Projects::BlobController < Projects::ApplicationController
     )
   rescue Files::UpdateService::FileChangedError
     @conflict = true
-    render :edit
+    render "edit", locals: {
+      commit_to_fork: @different_project
+    }
   end
 
   def preview
@@ -157,8 +160,29 @@ class Projects::BlobController < Projects::ApplicationController
     end
   end
 
+  def check_for_ambiguous_ref
+    return if Feature.enabled?(:redirect_with_ref_type, @project)
+
+    @ref_type = ref_type
+
+    if @ref_type == ExtractsRef::RefExtractor::BRANCH_REF_TYPE && ambiguous_ref?(@project, @ref)
+      branch = @project.repository.find_branch(@ref)
+      redirect_to project_blob_path(@project, File.join(branch.target, @path))
+    end
+  end
+
   def commit
-    @commit ||= @repository.commit(@ref)
+    if Feature.enabled?(:redirect_with_ref_type, @project)
+      response = ::ExtractsRef::RequestedRef.new(@repository, ref_type: ref_type, ref: @ref).find
+      @commit = response[:commit]
+      @ref_type = response[:ref_type]
+
+      if response[:ambiguous]
+        return redirect_to(project_blob_path(@project, File.join(@ref_type ? @ref : @commit.id, @path), ref_type: @ref_type))
+      end
+    else
+      @commit ||= @repository.commit(@ref)
+    end
 
     return render_404 unless @commit
   end
@@ -251,8 +275,6 @@ class Projects::BlobController < Projects::ApplicationController
     @last_commit = @repository.last_commit_for_path(@commit.id, @blob.path, literal_pathspec: true)
     @code_navigation_path = Gitlab::CodeNavigationPath.new(@project, @blob.commit_id).full_json_path_for(@blob.path)
 
-    allow_lfs_direct_download
-
     render 'show'
   end
 
@@ -295,30 +317,6 @@ class Projects::BlobController < Projects::ApplicationController
   override :visitor_id
   def visitor_id
     current_user&.id
-  end
-
-  def allow_lfs_direct_download
-    return unless directly_downloading_lfs_object? && content_security_policy_enabled?
-    return unless (lfs_object = @project.lfs_objects.find_by_oid(@blob.lfs_oid))
-
-    request.content_security_policy.directives['connect-src'] ||= []
-    request.content_security_policy.directives['connect-src'] << lfs_src(lfs_object)
-  end
-
-  def directly_downloading_lfs_object?
-    Gitlab.config.lfs.enabled &&
-      !Gitlab.config.lfs.object_store.proxy_download &&
-      @blob&.stored_externally?
-  end
-
-  def content_security_policy_enabled?
-    Gitlab.config.gitlab.content_security_policy.enabled
-  end
-
-  def lfs_src(lfs_object)
-    file = lfs_object.file
-    file = file.cdn_enabled_url(request.remote_ip) if file.respond_to?(:cdn_enabled_url)
-    file.url
   end
 
   alias_method :tracking_project_source, :project

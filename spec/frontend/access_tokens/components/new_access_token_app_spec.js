@@ -4,12 +4,12 @@ import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import NewAccessTokenApp from '~/access_tokens/components/new_access_token_app.vue';
 import { EVENT_ERROR, EVENT_SUCCESS, FORM_SELECTOR } from '~/access_tokens/components/constants';
-import { createAlert, VARIANT_INFO } from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/alert';
 import { __, sprintf } from '~/locale';
 import DomElementListener from '~/vue_shared/components/dom_element_listener.vue';
 import InputCopyToggleVisibility from '~/vue_shared/components/form/input_copy_toggle_visibility.vue';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('~/access_tokens/components/new_access_token_app', () => {
   let wrapper;
@@ -23,6 +23,8 @@ describe('~/access_tokens/components/new_access_token_app', () => {
   };
 
   const findButtonEl = () => document.querySelector('[type=submit]');
+  const findGlAlertError = () => wrapper.findByTestId('error-message');
+  const findGlAlertSuccess = () => wrapper.findByTestId('success-message');
 
   const triggerSuccess = async (newToken = 'new token') => {
     wrapper
@@ -52,13 +54,12 @@ describe('~/access_tokens/components/new_access_token_app', () => {
 
   afterEach(() => {
     resetHTMLFixture();
-    wrapper.destroy();
     createAlert.mockClear();
   });
 
   it('should render nothing', () => {
     expect(wrapper.findComponent(InputCopyToggleVisibility).exists()).toBe(false);
-    expect(wrapper.findComponent(GlAlert).exists()).toBe(false);
+    expect(findGlAlertError().exists()).toBe(false);
   });
 
   describe('on success', () => {
@@ -66,10 +67,12 @@ describe('~/access_tokens/components/new_access_token_app', () => {
       const newToken = '12345';
       await triggerSuccess(newToken);
 
-      expect(wrapper.findComponent(GlAlert).exists()).toBe(false);
+      expect(findGlAlertError().exists()).toBe(false);
+      expect(findGlAlertSuccess().exists()).toBe(true);
 
       const InputCopyToggleVisibilityComponent = wrapper.findComponent(InputCopyToggleVisibility);
       expect(InputCopyToggleVisibilityComponent.props('value')).toBe(newToken);
+      expect(InputCopyToggleVisibilityComponent.props('readonly')).toBe(true);
       expect(InputCopyToggleVisibilityComponent.props('copyButtonTitle')).toBe(
         sprintf(__('Copy %{accessTokenType}'), { accessTokenType }),
       );
@@ -82,7 +85,7 @@ describe('~/access_tokens/components/new_access_token_app', () => {
       const newToken = '12345';
       await triggerSuccess(newToken);
 
-      expect(wrapper.findComponent(GlAlert).exists()).toBe(false);
+      expect(findGlAlertError().exists()).toBe(false);
 
       const inputAttributes = wrapper
         .findByLabelText(sprintf(__('Your new %{accessTokenType}'), { accessTokenType }))
@@ -135,7 +138,7 @@ describe('~/access_tokens/components/new_access_token_app', () => {
 
       expect(wrapper.findComponent(InputCopyToggleVisibility).exists()).toBe(false);
 
-      let GlAlertComponent = wrapper.findComponent(GlAlert);
+      let GlAlertComponent = findGlAlertError();
       expect(GlAlertComponent.props('title')).toBe(__('The form contains the following errors:'));
       expect(GlAlertComponent.props('variant')).toBe('danger');
       let itemEls = wrapper.findAll('li');

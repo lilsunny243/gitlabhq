@@ -2,20 +2,14 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'Gitlab migration', product_group: :import do
+    describe 'Gitlab migration', product_group: :import_and_integrate do
       include_context 'with gitlab project migration'
 
       context 'with release' do
         let!(:tag) { 'v0.0.1' }
         let!(:source_project_with_readme) { true }
 
-        let!(:milestone) do
-          Resource::ProjectMilestone.fabricate_via_api! do |resource|
-            resource.project = source_project
-            resource.api_client = source_admin_api_client
-          end
-        end
-
+        let!(:milestone) { create(:project_milestone, project: source_project, api_client: source_admin_api_client) }
         let(:source_release) { comparable_release(source_project.releases.find { |r| r[:tag_name] == tag }) }
         let(:imported_release) { comparable_release(imported_releases.find { |r| r[:tag_name] == tag }) }
         let(:imported_releases) { imported_project.releases }
@@ -34,10 +28,10 @@ module QA
               commit_path: release[:commit_path].split("/-/").last,
               tag_path: release[:tag_path].split("/-/").last,
               assets: release[:assets].merge({
-                                               sources: release.dig(:assets, :sources).map do |source|
-                                                 source.merge({ url: source[:url].split("/-/").last })
-                                               end
-                                             }),
+                sources: release.dig(:assets, :sources).map do |source|
+                  source.merge({ url: source[:url].split("/-/").last })
+                end
+              }),
               milestones: release[:milestones].map do |milestone|
                 milestone.except(:id, :project_id).merge({ web_url: milestone[:web_url].split("/-/").last })
               end,

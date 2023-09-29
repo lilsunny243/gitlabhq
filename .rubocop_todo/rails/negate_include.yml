@@ -1,7 +1,6 @@
 ---
 # Cop supports --autocorrect.
 Rails/NegateInclude:
-  Details: grace period
   Exclude:
     - 'app/finders/projects_finder.rb'
     - 'app/helpers/application_settings_helper.rb'
@@ -13,7 +12,6 @@ Rails/NegateInclude:
     - 'app/models/merge_request.rb'
     - 'app/models/milestone.rb'
     - 'app/services/todo_service.rb'
-    - 'app/services/work_items/parent_links/create_service.rb'
     - 'config/application.rb'
     - 'config/initializers/1_settings.rb'
     - 'ee/app/finders/security/pipeline_vulnerabilities_finder.rb'
@@ -31,7 +29,6 @@ Rails/NegateInclude:
     - 'lib/gitlab/email/handler/service_desk_handler.rb'
     - 'lib/gitlab/graphql/queries.rb'
     - 'lib/gitlab/import_export/attributes_permitter.rb'
-    - 'lib/gitlab/search_results.rb'
     - 'lib/gitlab/task_helpers.rb'
     - 'qa/qa/tools/delete_test_users.rb'
     - 'spec/lib/container_registry/blob_spec.rb'

@@ -24,11 +24,6 @@ describe('PackagePath', () => {
   const findItem = (name) => wrapper.find(`[data-testid="${name}"]`);
   const findTooltip = (w) => getBinding(w.element, 'gl-tooltip');
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   describe.each`
     path                       | rootUrl       | shouldExist                                                   | shouldNotExist
     ${'foo/bar'}               | ${'/foo/bar'} | ${[]}                                                         | ${[ROOT_CHEVRON, ELLIPSIS_ICON, ELLIPSIS_CHEVRON, LEAF_LINK]}
@@ -91,12 +86,12 @@ describe('PackagePath', () => {
       });
 
       it('root link is disabled', () => {
-        expect(findItem(ROOT_LINK).attributes('disabled')).toBe('true');
+        expect(findItem(ROOT_LINK).attributes('disabled')).toBeDefined();
       });
 
       if (shouldExist.includes(LEAF_LINK)) {
         it('the last link is disabled', () => {
-          expect(findItem(LEAF_LINK).attributes('disabled')).toBe('true');
+          expect(findItem(LEAF_LINK).attributes('disabled')).toBeDefined();
         });
       }
     });

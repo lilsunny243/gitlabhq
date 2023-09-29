@@ -13,6 +13,11 @@ export default {
     GlCollapsibleListbox,
   },
   props: {
+    block: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     label: {
       type: String,
       required: true,
@@ -73,6 +78,10 @@ export default {
         this.selectedValue = value;
         this.selectedText =
           value === null ? null : this.items.find((item) => item.value === value).text;
+        this.$emit('input', {
+          value: this.selectedValue,
+          text: this.selectedText,
+        });
       },
       get() {
         return this.selectedValue;
@@ -155,6 +164,7 @@ export default {
     },
     onReset() {
       this.selected = null;
+      this.$emit('input', {});
     },
     onBottomReached() {
       this.fetchEntities(this.page + 1);
@@ -176,6 +186,7 @@ export default {
     <gl-collapsible-listbox
       ref="listbox"
       v-model="selected"
+      :block="block"
       :header-text="headerText"
       :reset-button-label="resetButtonLabel"
       :toggle-text="toggleText"

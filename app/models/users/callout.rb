@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Users
-  class Callout < ApplicationRecord
+  class Callout < MainClusterwide::ApplicationRecord
     include Users::Calloutable
 
     self.table_name = 'user_callouts'
@@ -43,10 +43,9 @@ module Users
       verification_reminder: 40, # EE-only
       ci_deprecation_warning_for_types_keyword: 41,
       security_training_feature_promotion: 42, # EE-only
-      storage_enforcement_banner_first_enforcement_threshold: 43, # EE-only
-      storage_enforcement_banner_second_enforcement_threshold: 44, # EE-only
-      storage_enforcement_banner_third_enforcement_threshold: 45, # EE-only
-      storage_enforcement_banner_fourth_enforcement_threshold: 46, # EE-only
+      namespace_storage_pre_enforcement_banner: 43, # EE-only
+      # 44, 45, 46 were unused and removed with https://gitlab.com/gitlab-org/gitlab/-/merge_requests/118330,
+      # they can be replaced.
       # 47 and 48 were removed with https://gitlab.com/gitlab-org/gitlab/-/merge_requests/95446
       # 49 was removed with https://gitlab.com/gitlab-org/gitlab/-/merge_requests/91533
       # because the banner was no longer relevant.
@@ -56,16 +55,27 @@ module Users
       submit_license_usage_data_banner: 52, # EE-only
       personal_project_limitations_banner: 53, # EE-only
       mr_experience_survey: 54,
-      namespace_storage_limit_banner_info_threshold: 55, # EE-only
-      namespace_storage_limit_banner_warning_threshold: 56, # EE-only
-      namespace_storage_limit_banner_alert_threshold: 57, # EE-only
-      namespace_storage_limit_banner_error_threshold: 58, # EE-only
-      project_quality_summary_feedback: 59,       # EE-only
+      # 55 removed in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/121920
+      namespace_storage_limit_alert_warning_threshold: 56, # EE-only
+      namespace_storage_limit_alert_alert_threshold: 57, # EE-only
+      namespace_storage_limit_alert_error_threshold: 58, # EE-only
+      project_quality_summary_feedback: 59, # EE-only
       merge_request_settings_moved_callout: 60,
       new_top_level_group_alert: 61,
-      artifacts_management_page_feedback_banner: 62,
-      vscode_web_ide: 63,
-      vscode_web_ide_callout: 64
+      # 62, removed in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/131314
+      # 63 and 64 were removed with https://gitlab.com/gitlab-org/gitlab/-/merge_requests/120233
+      branch_rules_info_callout: 65,
+      create_runner_workflow_banner: 66,
+      # 67 removed in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/121920
+      project_repository_limit_alert_warning_threshold: 68, # EE-only
+      project_repository_limit_alert_alert_threshold: 69, # EE-only
+      project_repository_limit_alert_error_threshold: 70, # EE-only
+      new_navigation_callout: 71,
+      # 72 removed in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/129022
+      namespace_over_storage_users_combined_alert: 73, # EE-only
+      # 74 removed in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/132751
+      vsd_feedback_banner: 75, # EE-only
+      security_policy_protected_branch_modification: 76 # EE-only
     }
 
     validates :feature_name,

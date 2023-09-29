@@ -11,7 +11,9 @@ require File.expand_path('config/application', __dir__)
 relative_url_conf = File.expand_path('config/initializers/relative_url', __dir__)
 require relative_url_conf if File.exist?("#{relative_url_conf}.rb")
 
-require File.expand_path('config/initializers/01_active_record_database_tasks_configuration_flag.rb', __dir__)
+# This is the only way to change how vite_ruby works for rake tasks
+# See https://github.com/ElMassimo/vite_ruby/blob/vite_ruby%403.3.4/vite_ruby/lib/tasks/vite.rake#L58
+ENV['VITE_RUBY_SKIP_ASSETS_PRECOMPILE_EXTENSION'] = 'true'
 
 Gitlab::Application.load_tasks
 

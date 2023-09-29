@@ -1,6 +1,4 @@
 import { DEFAULT_PER_PAGE } from '~/api';
-import { createAlert } from '~/flash';
-import { __ } from '~/locale';
 import axios from '../lib/utils/axios_utils';
 import { buildApiUrl } from './api_utils';
 
@@ -12,6 +10,8 @@ const USER_PROJECTS_PATH = '/api/:version/users/:id/projects';
 const USER_POST_STATUS_PATH = '/api/:version/user/status';
 const USER_FOLLOW_PATH = '/api/:version/users/:id/follow';
 const USER_UNFOLLOW_PATH = '/api/:version/users/:id/unfollow';
+const USER_FOLLOWERS_PATH = '/api/:version/users/:id/followers';
+const USER_FOLLOWING_PATH = '/api/:version/users/:id/following';
 const USER_ASSOCIATIONS_COUNT_PATH = '/api/:version/users/:id/associations_count';
 
 export function getUsers(query, options) {
@@ -44,22 +44,12 @@ export function getUserStatus(id, options) {
   });
 }
 
-export function getUserProjects(userId, query, options, callback) {
+export function getUserProjects(userId, options) {
   const url = buildApiUrl(USER_PROJECTS_PATH).replace(':id', userId);
-  const defaults = {
-    search: query,
-    per_page: DEFAULT_PER_PAGE,
-  };
-  return axios
-    .get(url, {
-      params: { ...defaults, ...options },
-    })
-    .then(({ data }) => callback(data))
-    .catch(() =>
-      createAlert({
-        message: __('Something went wrong while fetching projects'),
-      }),
-    );
+
+  return axios.get(url, {
+    params: options,
+  });
 }
 
 export function updateUserStatus({ emoji, message, availability, clearStatusAfter }) {
@@ -81,6 +71,26 @@ export function followUser(userId) {
 export function unfollowUser(userId) {
   const url = buildApiUrl(USER_UNFOLLOW_PATH).replace(':id', encodeURIComponent(userId));
   return axios.post(url);
+}
+
+export function getUserFollowers(userId, params) {
+  const url = buildApiUrl(USER_FOLLOWERS_PATH).replace(':id', encodeURIComponent(userId));
+  return axios.get(url, {
+    params: {
+      per_page: DEFAULT_PER_PAGE,
+      ...params,
+    },
+  });
+}
+
+export function getUserFollowing(userId, params) {
+  const url = buildApiUrl(USER_FOLLOWING_PATH).replace(':id', encodeURIComponent(userId));
+  return axios.get(url, {
+    params: {
+      per_page: DEFAULT_PER_PAGE,
+      ...params,
+    },
+  });
 }
 
 export function associationsCount(userId) {

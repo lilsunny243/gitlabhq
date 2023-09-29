@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Group, feature_category: :subgroups do
+RSpec.describe Group, feature_category: :groups_and_projects do
   include ReloadHelpers
   include StubGitlabCalls
 
@@ -10,10 +10,11 @@ RSpec.describe Group, feature_category: :subgroups do
 
   describe 'associations' do
     it { is_expected.to have_many :projects }
+    it { is_expected.to have_many(:all_group_members).dependent(:destroy) }
     it { is_expected.to have_many(:group_members).dependent(:destroy) }
     it { is_expected.to have_many(:namespace_members) }
     it { is_expected.to have_many(:users).through(:group_members) }
-    it { is_expected.to have_many(:owners).through(:group_members) }
+    it { is_expected.to have_many(:owners).through(:all_group_members) }
     it { is_expected.to have_many(:requesters).dependent(:destroy) }
     it { is_expected.to have_many(:namespace_requesters) }
     it { is_expected.to have_many(:members_and_requesters) }
@@ -41,11 +42,6 @@ RSpec.describe Group, feature_category: :subgroups do
     it { is_expected.to have_many(:daily_build_group_report_results).class_name('Ci::DailyBuildGroupReportResult') }
     it { is_expected.to have_many(:group_callouts).class_name('Users::GroupCallout').with_foreign_key(:group_id) }
 
-    it do
-      is_expected.to have_many(:application_setting)
-        .with_foreign_key(:instance_administrators_group_id).inverse_of(:instance_group)
-    end
-
     it { is_expected.to have_many(:bulk_import_exports).class_name('BulkImports::Export') }
 
     it do
@@ -54,7 +50,7 @@ RSpec.describe Group, feature_category: :subgroups do
     end
 
     it { is_expected.to have_many(:contacts).class_name('CustomerRelations::Contact') }
-    it { is_expected.to have_many(:organizations).class_name('CustomerRelations::Organization') }
+    it { is_expected.to have_many(:crm_organizations).class_name('CustomerRelations::Organization') }
     it { is_expected.to have_many(:protected_branches).inverse_of(:group).with_foreign_key(:namespace_id) }
     it { is_expected.to have_one(:crm_settings) }
     it { is_expected.to have_one(:group_feature) }
@@ -394,6 +390,13 @@ RSpec.describe Group, feature_category: :subgroups do
           expect(internal_group).to be_invalid
           expect(internal_group.errors[:visibility_level]).to include('private is not allowed since this group contains projects with higher visibility.')
         end
+
+        it 'is valid if higher visibility project is deleted' do
+          internal_project.update_attribute(:pending_delete, true)
+          internal_group.visibility_level = Gitlab::VisibilityLevel::PRIVATE
+
+          expect(internal_group).to be_valid
+        end
       end
 
       context 'when group has a higher visibility' do
@@ -459,6 +462,8 @@ RSpec.describe Group, feature_category: :subgroups do
   end
 
   it_behaves_like 'a BulkUsersByEmailLoad model'
+
+  it_behaves_like 'ensures runners_token is prefixed', :group
 
   context 'after initialized' do
     it 'has a group_feature' do
@@ -705,10 +710,6 @@ RSpec.describe Group, feature_category: :subgroups do
         it { expect(group.ancestors.to_sql).not_to include 'traversal_ids <@' }
       end
 
-      describe '#ancestors_upto' do
-        it { expect(group.ancestors_upto.to_sql).not_to include "WITH ORDINALITY" }
-      end
-
       describe '.shortest_traversal_ids_prefixes' do
         it { expect { described_class.shortest_traversal_ids_prefixes }.to raise_error /Feature not supported since the `:use_traversal_ids` is disabled/ }
       end
@@ -738,14 +739,6 @@ RSpec.describe Group, feature_category: :subgroups do
 
         it 'hierarchy order' do
           expect(group.ancestors(hierarchy_order: :asc).to_sql).to include 'ORDER BY "depth" ASC'
-        end
-
-        context 'ancestor linear queries feature flag disabled' do
-          before do
-            stub_feature_flags(use_traversal_ids_for_ancestors: false)
-          end
-
-          it { expect(group.ancestors.to_sql).not_to include 'traversal_ids <@' }
         end
       end
 
@@ -858,7 +851,29 @@ RSpec.describe Group, feature_category: :subgroups do
     end
 
     it 'returns groups without integration' do
-      expect(Group.without_integration(instance_integration)).to contain_exactly(another_group)
+      expect(described_class.without_integration(instance_integration)).to contain_exactly(another_group)
+    end
+  end
+
+  describe '.execute_integrations' do
+    let(:integration) { create(:integrations_slack, :group, group: group) }
+    let(:test_data) { { 'foo' => 'bar' } }
+
+    before do
+      allow(group.integrations).to receive(:public_send).and_return([])
+      allow(group.integrations).to receive(:public_send).with(:push_hooks).and_return([integration])
+    end
+
+    it 'executes integrations with a matching scope' do
+      expect(integration).to receive(:async_execute).with(test_data)
+
+      group.execute_integrations(test_data, :push_hooks)
+    end
+
+    it 'ignores integrations without a matching scope' do
+      expect(integration).not_to receive(:async_execute).with(test_data)
+
+      group.execute_integrations(test_data, :note_hooks)
     end
   end
 
@@ -903,6 +918,143 @@ RSpec.describe Group, feature_category: :subgroups do
 
         it { is_expected.to match_array([private_subgroup, internal_group, group]) }
       end
+    end
+  end
+
+  describe '.sort_by_attribute' do
+    before do
+      group.destroy!
+    end
+
+    let!(:group_1) { create(:group, name: 'Y group') }
+    let!(:group_2) { create(:group, name: 'J group', created_at: 2.days.ago, updated_at: 1.day.ago) }
+    let!(:group_3) { create(:group, name: 'A group') }
+    let!(:group_4) { create(:group, name: 'F group', created_at: 1.day.ago, updated_at: 1.day.ago) }
+
+    subject { described_class.with_statistics.with_route.sort_by_attribute(sort) }
+
+    context 'when sort by is not provided (id desc by default)' do
+      let(:sort) { nil }
+
+      it { is_expected.to eq([group_1, group_2, group_3, group_4]) }
+    end
+
+    context 'when sort by name_asc' do
+      let(:sort) { 'name_asc' }
+
+      it { is_expected.to eq([group_3, group_4, group_2, group_1]) }
+    end
+
+    context 'when sort by name_desc' do
+      let(:sort) { 'name_desc' }
+
+      it { is_expected.to eq([group_1, group_2, group_4, group_3]) }
+    end
+
+    context 'when sort by recently_created' do
+      let(:sort) { 'created_desc' }
+
+      it { is_expected.to eq([group_3, group_1, group_4, group_2]) }
+    end
+
+    context 'when sort by oldest_created' do
+      let(:sort) { 'created_asc' }
+
+      it { is_expected.to eq([group_2, group_4, group_1, group_3]) }
+    end
+
+    context 'when sort by latest_activity' do
+      let(:sort) { 'latest_activity_desc' }
+
+      it { is_expected.to eq([group_1, group_2, group_3, group_4]) }
+    end
+
+    context 'when sort by oldest_activity' do
+      let(:sort) { 'latest_activity_asc' }
+
+      it { is_expected.to eq([group_1, group_2, group_3, group_4]) }
+    end
+
+    context 'when sort by storage_size_desc' do
+      let!(:project_1) do
+        create(:project,
+          namespace: group_1,
+          statistics: build(
+            :project_statistics,
+            namespace: group_1,
+            repository_size: 2178370,
+            storage_size: 1278370,
+            wiki_size: 505,
+            lfs_objects_size: 202,
+            build_artifacts_size: 303,
+            pipeline_artifacts_size: 707,
+            packages_size: 404,
+            snippets_size: 605,
+            uploads_size: 808
+          )
+        )
+      end
+
+      let!(:project_2) do
+        create(:project,
+          namespace: group_2,
+          statistics: build(
+            :project_statistics,
+            namespace: group_2,
+            repository_size: 3178370,
+            storage_size: 3178370,
+            wiki_size: 505,
+            lfs_objects_size: 202,
+            build_artifacts_size: 303,
+            pipeline_artifacts_size: 707,
+            packages_size: 404,
+            snippets_size: 605,
+            uploads_size: 808
+          )
+        )
+      end
+
+      let!(:project_3) do
+        create(:project,
+          namespace: group_3,
+          statistics: build(
+            :project_statistics,
+            namespace: group_3,
+            repository_size: 1278370,
+            storage_size: 1178370,
+            wiki_size: 505,
+            lfs_objects_size: 202,
+            build_artifacts_size: 303,
+            pipeline_artifacts_size: 707,
+            packages_size: 404,
+            snippets_size: 605,
+            uploads_size: 808
+          )
+        )
+      end
+
+      let!(:project_4) do
+        create(:project,
+          namespace: group_4,
+          statistics: build(
+            :project_statistics,
+            namespace: group_4,
+            repository_size: 2178370,
+            storage_size: 2278370,
+            wiki_size: 505,
+            lfs_objects_size: 202,
+            build_artifacts_size: 303,
+            pipeline_artifacts_size: 707,
+            packages_size: 404,
+            snippets_size: 605,
+            uploads_size: 808
+          )
+        )
+      end
+
+      let(:sort) { 'storage_size_desc' }
+
+      it { is_expected.to eq([group_2, group_4, group_1, group_3]) }
     end
   end
 
@@ -967,6 +1119,23 @@ RSpec.describe Group, feature_category: :subgroups do
       end
     end
 
+    describe '.with_project_creation_levels' do
+      let_it_be(:group_1) { create(:group, project_creation_level: Gitlab::Access::NO_ONE_PROJECT_ACCESS) }
+      let_it_be(:group_2) { create(:group, project_creation_level: Gitlab::Access::DEVELOPER_MAINTAINER_PROJECT_ACCESS) }
+      let_it_be(:group_3) { create(:group, project_creation_level: Gitlab::Access::MAINTAINER_PROJECT_ACCESS) }
+      let_it_be(:group_4) { create(:group, project_creation_level: nil) }
+
+      it 'returns groups with the specified project creation levels' do
+        result = described_class.with_project_creation_levels([
+          Gitlab::Access::NO_ONE_PROJECT_ACCESS,
+          Gitlab::Access::MAINTAINER_PROJECT_ACCESS
+        ])
+
+        expect(result).to include(group_1, group_3)
+        expect(result).not_to include(group_2, group_4)
+      end
+    end
+
     describe '.project_creation_allowed' do
       let_it_be(:group_1) { create(:group, project_creation_level: Gitlab::Access::NO_ONE_PROJECT_ACCESS) }
       let_it_be(:group_2) { create(:group, project_creation_level: Gitlab::Access::DEVELOPER_MAINTAINER_PROJECT_ACCESS) }
@@ -978,6 +1147,22 @@ RSpec.describe Group, feature_category: :subgroups do
 
         expect(result).to include(group_2, group_3, group_4)
         expect(result).not_to include(group_1)
+      end
+
+      context 'when the application_setting is set to `NO_ONE_PROJECT_ACCESS`' do
+        before do
+          stub_application_setting(default_project_creation: Gitlab::Access::NO_ONE_PROJECT_ACCESS)
+        end
+
+        it 'only includes groups where project creation is allowed' do
+          result = described_class.project_creation_allowed
+
+          expect(result).to include(group_2, group_3)
+
+          # group_4 won't be included because it has `project_creation_level: nil`,
+          # and that means it behaves like the value of the application_setting will inherited.
+          expect(result).not_to include(group_1, group_4)
+        end
       end
     end
 
@@ -1007,6 +1192,28 @@ RSpec.describe Group, feature_category: :subgroups do
 
         expect(described_class.by_ids_or_paths(nil, [new_group.full_path])).to match_array([new_group])
         expect(described_class.by_ids_or_paths(nil, [new_group.full_path.upcase])).to match_array([new_group])
+      end
+    end
+
+    describe 'excluding_groups' do
+      let!(:another_group) { create(:group) }
+
+      subject { described_class.excluding_groups(excluded_groups) }
+
+      context 'when passing a single group' do
+        let(:excluded_groups) { group }
+
+        it 'does not return excluded group' do
+          expect(subject).not_to include(group)
+        end
+      end
+
+      context 'when passing an array with groups' do
+        let(:excluded_groups) { [group, another_group] }
+
+        it 'does not return excluded groups' do
+          expect(subject).not_to include(group, another_group)
+        end
       end
     end
 
@@ -1246,124 +1453,8 @@ RSpec.describe Group, feature_category: :subgroups do
     end
   end
 
-  describe '#member_last_blocked_owner?' do
-    let!(:blocked_user) { create(:user, :blocked) }
-
-    let!(:member) { group.add_member(blocked_user, GroupMember::OWNER) }
-
-    context 'when last_blocked_owner is set' do
-      before do
-        expect(group).not_to receive(:member_owners_excluding_project_bots)
-      end
-
-      it 'returns true' do
-        member.last_blocked_owner = true
-
-        expect(group.member_last_blocked_owner?(member)).to be(true)
-      end
-
-      it 'returns false' do
-        member.last_blocked_owner = false
-
-        expect(group.member_last_blocked_owner?(member)).to be(false)
-      end
-    end
-
-    context 'when last_blocked_owner is not set' do
-      it { expect(group.member_last_blocked_owner?(member)).to be(true) }
-
-      context 'with another active owner' do
-        before do
-          group.add_member(create(:user), GroupMember::OWNER)
-        end
-
-        it { expect(group.member_last_blocked_owner?(member)).to be(false) }
-      end
-
-      context 'with another active project_bot owner' do
-        before do
-          group.add_member(create(:user, :project_bot), GroupMember::OWNER)
-        end
-
-        it { expect(group.member_last_blocked_owner?(member)).to be(true) }
-      end
-
-      context 'with 2 blocked owners' do
-        before do
-          group.add_member(create(:user, :blocked), GroupMember::OWNER)
-        end
-
-        it { expect(group.member_last_blocked_owner?(member)).to be(false) }
-      end
-
-      context 'with owners from a parent' do
-        context 'when top-level group' do
-          it { expect(group.member_last_blocked_owner?(member)).to be(true) }
-
-          context 'with group sharing' do
-            let!(:subgroup) { create(:group, parent: group) }
-
-            before do
-              create(:group_group_link, :owner, shared_group: group, shared_with_group: subgroup)
-              create(:group_member, :owner, group: subgroup)
-            end
-
-            it { expect(group.member_last_blocked_owner?(member)).to be(true) }
-          end
-        end
-
-        context 'when subgroup' do
-          let!(:subgroup) { create(:group, :nested) }
-
-          let!(:member) { subgroup.add_member(blocked_user, GroupMember::OWNER) }
-
-          it { expect(subgroup.member_last_blocked_owner?(member)).to be(true) }
-
-          context 'with two owners' do
-            before do
-              create(:group_member, :owner, group: subgroup.parent)
-            end
-
-            it { expect(subgroup.member_last_blocked_owner?(member)).to be(false) }
-          end
-        end
-      end
-    end
-  end
-
   context 'when analyzing blocked owners' do
     let_it_be(:blocked_user) { create(:user, :blocked) }
-
-    describe '#single_blocked_owner?' do
-      context 'when there is only one blocked owner' do
-        before do
-          group.add_member(blocked_user, GroupMember::OWNER)
-        end
-
-        it 'returns true' do
-          expect(group.single_blocked_owner?).to eq(true)
-        end
-      end
-
-      context 'when there are multiple blocked owners' do
-        let_it_be(:blocked_user_2) { create(:user, :blocked) }
-
-        before do
-          group.add_member(blocked_user, GroupMember::OWNER)
-          group.add_member(blocked_user_2, GroupMember::OWNER)
-        end
-
-        it 'returns true' do
-          expect(group.single_blocked_owner?).to eq(false)
-        end
-      end
-
-      context 'when there are no blocked owners' do
-        it 'returns false' do
-          expect(group.single_blocked_owner?).to eq(false)
-        end
-      end
-    end
 
     describe '#blocked_owners' do
       let_it_be(:user) { create(:user) }
@@ -1438,40 +1529,25 @@ RSpec.describe Group, feature_category: :subgroups do
         expect(empty_group.member_owners_excluding_project_bots).to be_empty
       end
     end
-  end
 
-  describe '#member_last_owner?' do
-    let_it_be(:user) { create(:user) }
-
-    let(:member) { group.members.last }
-
-    before do
-      group.add_member(user, GroupMember::OWNER)
-    end
-
-    context 'when last_owner is set' do
-      before do
-        expect(group).not_to receive(:last_owner?)
+    context 'when user is blocked' do
+      let(:blocked_user) { create(:user, :blocked) }
+      let!(:blocked_member) do
+        group.add_member(blocked_user, GroupMember::OWNER)
       end
 
-      it 'returns true' do
-        member.last_owner = true
-
-        expect(group.member_last_owner?(member)).to be(true)
+      context 'and it is a direct member' do
+        it 'does include blocked user' do
+          expect(group.member_owners_excluding_project_bots).to include(blocked_member)
+        end
       end
 
-      it 'returns false' do
-        member.last_owner = false
+      context 'and it is a member of a parent' do
+        let!(:subgroup) { create(:group, parent: group) }
 
-        expect(group.member_last_owner?(member)).to be(false)
-      end
-    end
-
-    context 'when last_owner is not set' do
-      it 'returns true' do
-        expect(group).to receive(:last_owner?).and_call_original
-
-        expect(group.member_last_owner?(member)).to be(true)
+        it 'does include blocked user' do
+          expect(subgroup.member_owners_excluding_project_bots).to include(blocked_member)
+        end
       end
     end
   end
@@ -1527,10 +1603,9 @@ RSpec.describe Group, feature_category: :subgroups do
     let(:developer) { create(:user) }
 
     it 'returns the owners of a Group' do
-      group.add_owner(owner)
-      group.add_developer(developer)
+      members = setup_group_members(group)
 
-      expect(group.owners).to eq([owner])
+      expect(group.owners).to eq([members[:owner]])
     end
   end
 
@@ -1571,6 +1646,45 @@ RSpec.describe Group, feature_category: :subgroups do
 
     it { is_expected.to be_valid }
     it { expect(subject.parent).to be_kind_of(described_class) }
+  end
+
+  describe '#member?' do
+    let_it_be(:group) { create(:group) }
+    let_it_be(:user) { create(:user) }
+
+    before_all do
+      group.add_developer(user)
+    end
+
+    subject { group.member?(user) }
+
+    context 'when user is a developer' do
+      it 'returns true' do
+        expect(group.member?(user)).to be_truthy
+      end
+
+      it 'returns false with maintainer as min_access_level param' do
+        expect(group.member?(user, Gitlab::Access::MAINTAINER)).to be_falsey
+      end
+    end
+
+    context 'in shared group' do
+      let(:shared_group) { create(:group) }
+      let(:member_shared) { create(:user) }
+
+      before do
+        create(:group_group_link, shared_group: group, shared_with_group: shared_group)
+        shared_group.add_developer(member_shared)
+      end
+
+      it 'return true for shared group member' do
+        expect(group.member?(member_shared)).to be_truthy
+      end
+
+      it 'returns false with maintainer as min_access_level param' do
+        expect(group.member?(member_shared, Gitlab::Access::MAINTAINER)).to be_falsey
+      end
+    end
   end
 
   describe '#max_member_access_for_user' do
@@ -1755,12 +1869,14 @@ RSpec.describe Group, feature_category: :subgroups do
     let!(:developer) { group.add_member(create(:user), GroupMember::DEVELOPER) }
     let!(:pending_maintainer) { create(:group_member, :awaiting, :maintainer, group: group.parent) }
     let!(:pending_developer) { create(:group_member, :awaiting, :developer, group: group) }
+    let!(:inactive_developer) { group.add_member(create(:user, :deactivated), GroupMember::DEVELOPER) }
 
     it 'returns parents active members' do
       expect(group.members_with_parents).to include(developer)
       expect(group.members_with_parents).to include(maintainer)
       expect(group.members_with_parents).not_to include(pending_developer)
       expect(group.members_with_parents).not_to include(pending_maintainer)
+      expect(group.members_with_parents).not_to include(inactive_developer)
     end
 
     context 'group sharing' do
@@ -1775,6 +1891,18 @@ RSpec.describe Group, feature_category: :subgroups do
           include(developer))
         expect(shared_group.members_with_parents).not_to(
           include(pending_developer))
+      end
+    end
+
+    context 'when only_active_users is false' do
+      subject { group.members_with_parents(only_active_users: false) }
+
+      it 'returns parents all members' do
+        expect(subject).to include(developer)
+        expect(subject).to include(maintainer)
+        expect(subject).not_to include(pending_developer)
+        expect(subject).not_to include(pending_maintainer)
+        expect(subject).to include(inactive_developer)
       end
     end
   end
@@ -1861,34 +1989,48 @@ RSpec.describe Group, feature_category: :subgroups do
   end
 
   context 'members-related methods' do
-    let!(:group) { create(:group, :nested) }
-    let!(:sub_group) { create(:group, parent: group) }
-    let!(:maintainer) { group.parent.add_member(create(:user), GroupMember::MAINTAINER) }
-    let!(:developer) { group.add_member(create(:user), GroupMember::DEVELOPER) }
-    let!(:other_developer) { group.add_member(create(:user), GroupMember::DEVELOPER) }
+    let_it_be(:group) { create(:group, :nested) }
+    let_it_be(:sub_group) { create(:group, parent: group) }
 
-    describe '#direct_and_indirect_members' do
+    let_it_be(:maintainer) { group.parent.add_member(create(:user), GroupMember::MAINTAINER) }
+    let_it_be(:developer) { group.add_member(create(:user), GroupMember::DEVELOPER) }
+    let_it_be(:other_developer) { group.add_member(create(:user), GroupMember::DEVELOPER) }
+
+    describe '#hierarchy_members' do
       it 'returns parents members' do
-        expect(group.direct_and_indirect_members).to include(developer)
-        expect(group.direct_and_indirect_members).to include(maintainer)
+        expect(group.hierarchy_members).to include(developer)
+        expect(group.hierarchy_members).to include(maintainer)
       end
 
       it 'returns descendant members' do
-        expect(group.direct_and_indirect_members).to include(other_developer)
+        expect(group.hierarchy_members).to include(other_developer)
       end
     end
 
-    describe '#direct_and_indirect_members_with_inactive' do
-      let!(:maintainer_blocked) { group.parent.add_member(create(:user, :blocked), GroupMember::MAINTAINER) }
+    describe '#hierarchy_members_with_inactive' do
+      let_it_be(:maintainer_blocked) { group.parent.add_member(create(:user, :blocked), GroupMember::MAINTAINER) }
 
       it 'returns parents members' do
-        expect(group.direct_and_indirect_members_with_inactive).to include(developer)
-        expect(group.direct_and_indirect_members_with_inactive).to include(maintainer)
-        expect(group.direct_and_indirect_members_with_inactive).to include(maintainer_blocked)
+        expect(group.hierarchy_members_with_inactive).to include(developer)
+        expect(group.hierarchy_members_with_inactive).to include(maintainer)
+        expect(group.hierarchy_members_with_inactive).to include(maintainer_blocked)
       end
 
       it 'returns descendant members' do
-        expect(group.direct_and_indirect_members_with_inactive).to include(other_developer)
+        expect(group.hierarchy_members_with_inactive).to include(other_developer)
+      end
+    end
+
+    describe '#descendant_project_members_with_inactive' do
+      let_it_be(:ancestor_group_project) { create(:project, group: group) }
+      let_it_be(:ancestor_group_project_member) { ancestor_group_project.add_maintainer(create(:user)) }
+
+      let_it_be(:project) { create(:project, group: sub_group) }
+      let_it_be(:project_member) { project.add_maintainer(create(:user)) }
+      let_it_be(:blocked_project_member) { project.add_maintainer(create(:user, :blocked)) }
+
+      it 'returns members of descendant projects' do
+        expect(sub_group.descendant_project_members_with_inactive).to contain_exactly(project_member, blocked_project_member)
       end
     end
   end
@@ -1909,62 +2051,6 @@ RSpec.describe Group, feature_category: :subgroups do
       expect(group.users_with_descendants).to contain_exactly(user_a, user_b)
       expect(nested_group.users_with_descendants).to contain_exactly(user_a, user_b)
       expect(deep_nested_group.users_with_descendants).to contain_exactly(user_a)
-    end
-  end
-
-  context 'user-related methods' do
-    let(:user_a) { create(:user) }
-    let(:user_b) { create(:user) }
-    let(:user_c) { create(:user) }
-    let(:user_d) { create(:user) }
-
-    let(:group) { create(:group) }
-    let(:nested_group) { create(:group, parent: group) }
-    let(:deep_nested_group) { create(:group, parent: nested_group) }
-    let(:project) { create(:project, namespace: group) }
-
-    before do
-      group.add_developer(user_a)
-      group.add_developer(user_c)
-      nested_group.add_developer(user_b)
-      deep_nested_group.add_developer(user_a)
-      project.add_developer(user_d)
-    end
-
-    describe '#direct_and_indirect_users' do
-      it 'returns member users on every nest level without duplication' do
-        expect(group.direct_and_indirect_users).to contain_exactly(user_a, user_b, user_c, user_d)
-        expect(nested_group.direct_and_indirect_users).to contain_exactly(user_a, user_b, user_c)
-        expect(deep_nested_group.direct_and_indirect_users).to contain_exactly(user_a, user_b, user_c)
-      end
-
-      it 'does not return members of projects belonging to ancestor groups' do
-        expect(nested_group.direct_and_indirect_users).not_to include(user_d)
-      end
-    end
-
-    describe '#direct_and_indirect_users_with_inactive' do
-      let(:user_blocked_1) { create(:user, :blocked) }
-      let(:user_blocked_2) { create(:user, :blocked) }
-      let(:user_blocked_3) { create(:user, :blocked) }
-      let(:project_in_group) { create(:project, namespace: nested_group) }
-
-      before do
-        group.add_developer(user_blocked_1)
-        nested_group.add_developer(user_blocked_1)
-        deep_nested_group.add_developer(user_blocked_2)
-        project_in_group.add_developer(user_blocked_3)
-      end
-
-      it 'returns member users on every nest level without duplication' do
-        expect(group.direct_and_indirect_users_with_inactive).to contain_exactly(user_a, user_b, user_c, user_d, user_blocked_1, user_blocked_2, user_blocked_3)
-        expect(nested_group.direct_and_indirect_users_with_inactive).to contain_exactly(user_a, user_b, user_c, user_blocked_1, user_blocked_2, user_blocked_3)
-        expect(deep_nested_group.direct_and_indirect_users_with_inactive).to contain_exactly(user_a, user_b, user_c, user_blocked_1, user_blocked_2)
-      end
-
-      it 'returns members of projects belonging to group' do
-        expect(nested_group.direct_and_indirect_users_with_inactive).to include(user_blocked_3)
-      end
     end
   end
 
@@ -2421,8 +2507,7 @@ RSpec.describe Group, feature_category: :subgroups do
     let(:shared_with_group) { create(:group, parent: group) }
 
     before do
-      create(:group_group_link, shared_group: nested_group,
-                                shared_with_group: shared_with_group)
+      create(:group_group_link, shared_group: nested_group, shared_with_group: shared_with_group)
     end
 
     subject(:related_group_ids) { nested_group.related_group_ids }
@@ -2709,232 +2794,6 @@ RSpec.describe Group, feature_category: :subgroups do
     end
   end
 
-  describe '#update_shared_runners_setting!' do
-    context 'enabled' do
-      subject { group.update_shared_runners_setting!('enabled') }
-
-      context 'group that its ancestors have shared runners disabled' do
-        let_it_be(:parent, reload: true) { create(:group, :shared_runners_disabled) }
-        let_it_be(:group, reload: true) { create(:group, :shared_runners_disabled, parent: parent) }
-        let_it_be(:project, reload: true) { create(:project, shared_runners_enabled: false, group: group) }
-
-        it 'raises exception' do
-          expect { subject }
-            .to raise_error(ActiveRecord::RecordInvalid, 'Validation failed: Shared runners enabled cannot be enabled because parent group has shared Runners disabled')
-        end
-
-        it 'does not enable shared runners' do
-          expect do
-            begin
-              subject
-            rescue StandardError
-              nil
-            end
-
-            parent.reload
-            group.reload
-            project.reload
-          end.to not_change { parent.shared_runners_enabled }
-            .and not_change { group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-
-      context 'root group with shared runners disabled' do
-        let_it_be(:group) { create(:group, :shared_runners_disabled) }
-        let_it_be(:sub_group) { create(:group, :shared_runners_disabled, parent: group) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: false, group: sub_group) }
-
-        it 'enables shared Runners only for itself' do
-          expect { subject_and_reload(group, sub_group, project) }
-            .to change { group.shared_runners_enabled }.from(false).to(true)
-            .and not_change { sub_group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-    end
-
-    context 'disabled_and_unoverridable' do
-      let_it_be(:group) { create(:group) }
-      let_it_be(:sub_group) { create(:group, :shared_runners_disabled, :allow_descendants_override_disabled_shared_runners, parent: group) }
-      let_it_be(:sub_group_2) { create(:group, parent: group) }
-      let_it_be(:project) { create(:project, group: group, shared_runners_enabled: true) }
-      let_it_be(:project_2) { create(:project, group: sub_group_2, shared_runners_enabled: true) }
-
-      subject { group.update_shared_runners_setting!(Namespace::SR_DISABLED_AND_UNOVERRIDABLE) }
-
-      it 'disables shared Runners for all descendant groups and projects' do
-        expect { subject_and_reload(group, sub_group, sub_group_2, project, project_2) }
-          .to change { group.shared_runners_enabled }.from(true).to(false)
-          .and not_change { group.allow_descendants_override_disabled_shared_runners }
-          .and not_change { sub_group.shared_runners_enabled }
-          .and change { sub_group.allow_descendants_override_disabled_shared_runners }.from(true).to(false)
-          .and change { sub_group_2.shared_runners_enabled }.from(true).to(false)
-          .and not_change { sub_group_2.allow_descendants_override_disabled_shared_runners }
-          .and change { project.shared_runners_enabled }.from(true).to(false)
-          .and change { project_2.shared_runners_enabled }.from(true).to(false)
-      end
-
-      context 'with override on self' do
-        let_it_be(:group) { create(:group, :shared_runners_disabled, :allow_descendants_override_disabled_shared_runners) }
-
-        it 'disables it' do
-          expect { subject_and_reload(group) }
-            .to not_change { group.shared_runners_enabled }
-            .and change { group.allow_descendants_override_disabled_shared_runners }.from(true).to(false)
-        end
-      end
-    end
-
-    context 'disabled_and_overridable' do
-      subject { group.update_shared_runners_setting!(Namespace::SR_DISABLED_AND_OVERRIDABLE) }
-
-      context 'top level group' do
-        let_it_be(:group) { create(:group, :shared_runners_disabled) }
-        let_it_be(:sub_group) { create(:group, :shared_runners_disabled, parent: group) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: false, group: sub_group) }
-
-        it 'enables allow descendants to override only for itself' do
-          expect { subject_and_reload(group, sub_group, project) }
-            .to change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and not_change { group.shared_runners_enabled }
-            .and not_change { sub_group.allow_descendants_override_disabled_shared_runners }
-            .and not_change { sub_group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-
-      context 'group that its ancestors have shared Runners disabled but allows to override' do
-        let_it_be(:parent) { create(:group, :shared_runners_disabled, :allow_descendants_override_disabled_shared_runners) }
-        let_it_be(:group) { create(:group, :shared_runners_disabled, parent: parent) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: false, group: group) }
-
-        it 'enables allow descendants to override' do
-          expect { subject_and_reload(parent, group, project) }
-            .to not_change { parent.allow_descendants_override_disabled_shared_runners }
-            .and not_change { parent.shared_runners_enabled }
-            .and change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and not_change { group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-
-      context 'when parent does not allow' do
-        let_it_be(:parent, reload: true) { create(:group, :shared_runners_disabled, allow_descendants_override_disabled_shared_runners: false) }
-        let_it_be(:group, reload: true) { create(:group, :shared_runners_disabled, allow_descendants_override_disabled_shared_runners: false, parent: parent) }
-
-        it 'raises exception' do
-          expect { subject }
-            .to raise_error(ActiveRecord::RecordInvalid, 'Validation failed: Allow descendants override disabled shared runners cannot be enabled because parent group does not allow it')
-        end
-
-        it 'does not allow descendants to override' do
-          expect do
-            begin
-              subject
-            rescue StandardError
-              nil
-            end
-
-            parent.reload
-            group.reload
-          end.to not_change { parent.allow_descendants_override_disabled_shared_runners }
-            .and not_change { parent.shared_runners_enabled }
-            .and not_change { group.allow_descendants_override_disabled_shared_runners }
-            .and not_change { group.shared_runners_enabled }
-        end
-      end
-
-      context 'top level group that has shared Runners enabled' do
-        let_it_be(:group) { create(:group, shared_runners_enabled: true) }
-        let_it_be(:sub_group) { create(:group, shared_runners_enabled: true, parent: group) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: true, group: sub_group) }
-
-        it 'enables allow descendants to override & disables shared runners everywhere' do
-          expect { subject_and_reload(group, sub_group, project) }
-            .to change { group.shared_runners_enabled }.from(true).to(false)
-            .and change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and change { sub_group.shared_runners_enabled }.from(true).to(false)
-            .and change { project.shared_runners_enabled }.from(true).to(false)
-        end
-      end
-    end
-
-    context 'disabled_with_override (deprecated)' do
-      subject { group.update_shared_runners_setting!(Namespace::SR_DISABLED_WITH_OVERRIDE) }
-
-      context 'top level group' do
-        let_it_be(:group) { create(:group, :shared_runners_disabled) }
-        let_it_be(:sub_group) { create(:group, :shared_runners_disabled, parent: group) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: false, group: sub_group) }
-
-        it 'enables allow descendants to override only for itself' do
-          expect { subject_and_reload(group, sub_group, project) }
-            .to change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and not_change { group.shared_runners_enabled }
-            .and not_change { sub_group.allow_descendants_override_disabled_shared_runners }
-            .and not_change { sub_group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-
-      context 'group that its ancestors have shared Runners disabled but allows to override' do
-        let_it_be(:parent) { create(:group, :shared_runners_disabled, :allow_descendants_override_disabled_shared_runners) }
-        let_it_be(:group) { create(:group, :shared_runners_disabled, parent: parent) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: false, group: group) }
-
-        it 'enables allow descendants to override' do
-          expect { subject_and_reload(parent, group, project) }
-            .to not_change { parent.allow_descendants_override_disabled_shared_runners }
-            .and not_change { parent.shared_runners_enabled }
-            .and change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and not_change { group.shared_runners_enabled }
-            .and not_change { project.shared_runners_enabled }
-        end
-      end
-
-      context 'when parent does not allow' do
-        let_it_be(:parent, reload: true) { create(:group, :shared_runners_disabled, allow_descendants_override_disabled_shared_runners: false) }
-        let_it_be(:group, reload: true) { create(:group, :shared_runners_disabled, allow_descendants_override_disabled_shared_runners: false, parent: parent) }
-
-        it 'raises exception' do
-          expect { subject }
-            .to raise_error(ActiveRecord::RecordInvalid, 'Validation failed: Allow descendants override disabled shared runners cannot be enabled because parent group does not allow it')
-        end
-
-        it 'does not allow descendants to override' do
-          expect do
-            begin
-              subject
-            rescue StandardError
-              nil
-            end
-
-            parent.reload
-            group.reload
-          end.to not_change { parent.allow_descendants_override_disabled_shared_runners }
-            .and not_change { parent.shared_runners_enabled }
-            .and not_change { group.allow_descendants_override_disabled_shared_runners }
-            .and not_change { group.shared_runners_enabled }
-        end
-      end
-
-      context 'top level group that has shared Runners enabled' do
-        let_it_be(:group) { create(:group, shared_runners_enabled: true) }
-        let_it_be(:sub_group) { create(:group, shared_runners_enabled: true, parent: group) }
-        let_it_be(:project) { create(:project, shared_runners_enabled: true, group: sub_group) }
-
-        it 'enables allow descendants to override & disables shared runners everywhere' do
-          expect { subject_and_reload(group, sub_group, project) }
-            .to change { group.shared_runners_enabled }.from(true).to(false)
-            .and change { group.allow_descendants_override_disabled_shared_runners }.from(false).to(true)
-            .and change { sub_group.shared_runners_enabled }.from(true).to(false)
-            .and change { project.shared_runners_enabled }.from(true).to(false)
-        end
-      end
-    end
-  end
-
   describe "#default_branch_name" do
     context "when group.namespace_settings does not have a default branch name" do
       it "returns nil" do
@@ -2983,14 +2842,16 @@ RSpec.describe Group, feature_category: :subgroups do
     let(:group) { build(:group) }
 
     context 'the group has owners' do
-      before do
-        group.add_owner(create(:user))
-        group.add_owner(create(:user))
-      end
-
       it 'is the first owner' do
+        user_1 = create(:user)
+        user_2 = create(:user)
+        group.add_owner(user_2)
+        group.add_owner(user_1)
+
+        # The senior-most user (not member) who is an OWNER in the group
+        # is always treated as the first owner
         expect(group.first_owner)
-          .to eq(group.owners.first)
+          .to eq(user_1)
           .and be_a(User)
       end
     end
@@ -3125,13 +2986,13 @@ RSpec.describe Group, feature_category: :subgroups do
     end
   end
 
-  describe '.organizations' do
-    it 'returns organizations belonging to the group' do
-      organization1 = create(:organization, group: group)
-      create(:organization)
-      organization3 = create(:organization, group: group)
+  describe '.crm_organizations' do
+    it 'returns crm_organizations belonging to the group' do
+      crm_organization1 = create(:crm_organization, group: group)
+      create(:crm_organization)
+      crm_organization3 = create(:crm_organization, group: group)
 
-      expect(group.organizations).to contain_exactly(organization1, organization3)
+      expect(group.crm_organizations).to contain_exactly(crm_organization1, crm_organization3)
     end
   end
 
@@ -3596,6 +3457,13 @@ RSpec.describe Group, feature_category: :subgroups do
     end
   end
 
+  describe '#content_editor_on_issues_feature_flag_enabled?' do
+    it_behaves_like 'checks self and root ancestor feature flag' do
+      let(:feature_flag) { :content_editor_on_issues }
+      let(:feature_flag_method) { :content_editor_on_issues_feature_flag_enabled? }
+    end
+  end
+
   describe '#work_items_feature_flag_enabled?' do
     it_behaves_like 'checks self and root ancestor feature flag' do
       let(:feature_flag) { :work_items }
@@ -3614,6 +3482,13 @@ RSpec.describe Group, feature_category: :subgroups do
     it_behaves_like 'checks self and root ancestor feature flag' do
       let(:feature_flag) { :work_items_mvc_2 }
       let(:feature_flag_method) { :work_items_mvc_2_feature_flag_enabled? }
+    end
+  end
+
+  describe '#supports_lock_on_merge?' do
+    it_behaves_like 'checks self and root ancestor feature flag' do
+      let(:feature_flag) { :enforce_locked_labels_on_merge }
+      let(:feature_flag_method) { :supports_lock_on_merge? }
     end
   end
 
@@ -3708,7 +3583,7 @@ RSpec.describe Group, feature_category: :subgroups do
     end
   end
 
-  describe '#usage_quotas_enabled?', feature_category: :subscription_cost_management, unless: Gitlab.ee? do
+  describe '#usage_quotas_enabled?', feature_category: :consumables_cost_management, unless: Gitlab.ee? do
     using RSpec::Parameterized::TableSyntax
 
     where(:feature_enabled, :root_group, :result) do

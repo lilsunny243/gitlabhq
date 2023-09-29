@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Member, feature_category: :subgroups do
+RSpec.describe Member, feature_category: :groups_and_projects do
   include ExclusiveLeaseHelpers
 
   using RSpec::Parameterized::TableSyntax
@@ -16,7 +16,6 @@ RSpec.describe Member, feature_category: :subgroups do
   describe 'Associations' do
     it { is_expected.to belong_to(:user) }
     it { is_expected.to belong_to(:member_namespace) }
-    it { is_expected.to belong_to(:member_role) }
     it { is_expected.to have_one(:member_task) }
   end
 
@@ -173,96 +172,6 @@ RSpec.describe Member, feature_category: :subgroups do
         end
       end
     end
-
-    context 'member role access level' do
-      let_it_be_with_reload(:member) { create(:group_member, access_level: Gitlab::Access::DEVELOPER) }
-
-      context 'when no member role is associated' do
-        it 'is valid' do
-          expect(member).to be_valid
-        end
-      end
-
-      context 'when member role is associated' do
-        let!(:member_role) do
-          create(
-            :member_role,
-            members: [member],
-            base_access_level: Gitlab::Access::DEVELOPER,
-            namespace: member.member_namespace
-          )
-        end
-
-        context 'when member role matches access level' do
-          it 'is valid' do
-            expect(member).to be_valid
-          end
-        end
-
-        context 'when member role does not match access level' do
-          it 'is invalid' do
-            member_role.base_access_level = Gitlab::Access::MAINTAINER
-
-            expect(member).not_to be_valid
-          end
-        end
-
-        context 'when access_level is changed' do
-          it 'is invalid' do
-            member.access_level = Gitlab::Access::MAINTAINER
-
-            expect(member).not_to be_valid
-            expect(member.errors[:access_level]).to include(
-              _("cannot be changed since member is associated with a custom role")
-            )
-          end
-        end
-      end
-    end
-
-    context 'member role namespace' do
-      let_it_be_with_reload(:member) { create(:group_member) }
-
-      context 'when no member role is associated' do
-        it 'is valid' do
-          expect(member).to be_valid
-        end
-      end
-
-      context 'when member role is associated' do
-        let_it_be(:member_role) do
-          create(:member_role, members: [member], namespace: member.group, base_access_level: member.access_level)
-        end
-
-        context 'when member#member_namespace is a group within hierarchy of member_role#namespace' do
-          it 'is valid' do
-            member.member_namespace = create(:group, parent: member_role.namespace)
-
-            expect(member).to be_valid
-          end
-        end
-
-        context 'when member#member_namespace is a project within hierarchy of member_role#namespace' do
-          it 'is valid' do
-            project = create(:project, group: member_role.namespace)
-            member.member_namespace = Namespace.find(project.parent_id)
-
-            expect(member).to be_valid
-          end
-        end
-
-        context 'when member#member_namespace is outside hierarchy of member_role#namespace' do
-          it 'is invalid' do
-            member.member_namespace = create(:group)
-
-            expect(member).not_to be_valid
-            expect(member.errors[:member_namespace]).to include(
-              _("must be in same hierarchy as custom role's namespace")
-            )
-          end
-        end
-      end
-    end
   end
 
   describe 'Scopes & finders' do
@@ -276,6 +185,12 @@ RSpec.describe Member, feature_category: :subgroups do
     before_all do
       @owner_user = create(:user).tap { |u| group.add_owner(u) }
       @owner = group.members.find_by(user_id: @owner_user.id)
+      @blocked_owner_user = create(:user).tap do |u|
+        group.add_owner(u)
+
+        u.block!
+      end
+      @blocked_owner = group.members.find_by(user_id: @blocked_owner_user.id)
 
       @maintainer_user = create(:user).tap { |u| project.add_maintainer(u) }
       @maintainer = project.members.find_by(user_id: @maintainer_user.id)
@@ -339,18 +254,18 @@ RSpec.describe Member, feature_category: :subgroups do
         ]
       end
 
-      subject { Member.in_hierarchy(project) }
+      subject { described_class.in_hierarchy(project) }
 
       it { is_expected.to contain_exactly(*hierarchy_members) }
 
       context 'with scope prefix' do
-        subject { Member.where.not(source: project).in_hierarchy(subgroup) }
+        subject { described_class.where.not(source: project).in_hierarchy(subgroup) }
 
         it { is_expected.to contain_exactly(root_ancestor_member, subgroup_member, subgroup_project_member) }
       end
 
       context 'with scope suffix' do
-        subject { Member.in_hierarchy(project).where.not(source: project) }
+        subject { described_class.in_hierarchy(project).where.not(source: project) }
 
         it { is_expected.to contain_exactly(root_ancestor_member, subgroup_member, subgroup_project_member) }
       end
@@ -434,6 +349,19 @@ RSpec.describe Member, feature_category: :subgroups do
 
       it { is_expected.not_to include(expiring_yesterday, expiring_today) }
       it { is_expected.to include(expiring_tomorrow, not_expiring) }
+    end
+
+    describe '.expiring_and_not_notified' do
+      let_it_be(:expiring_in_5_days) { create(:group_member, expires_at: 5.days.from_now) }
+      let_it_be(:expiring_in_5_days_with_notified) { create(:group_member, expires_at: 5.days.from_now, expiry_notified_at: Date.today) }
+      let_it_be(:expiring_in_7_days) { create(:group_member, expires_at: 7.days.from_now) }
+      let_it_be(:expiring_in_10_days) { create(:group_member, expires_at: 10.days.from_now) }
+      let_it_be(:not_expiring) { create(:group_member) }
+
+      subject { described_class.expiring_and_not_notified(7.days.from_now.to_date) }
+
+      it { is_expected.not_to include(expiring_in_5_days_with_notified, expiring_in_10_days, not_expiring) }
+      it { is_expected.to include(expiring_in_5_days, expiring_in_7_days) }
     end
 
     describe '.created_today' do
@@ -564,12 +492,35 @@ RSpec.describe Member, feature_category: :subgroups do
 
     describe '.owners_and_maintainers' do
       it { expect(described_class.owners_and_maintainers).to include @owner }
+      it { expect(described_class.owners_and_maintainers).not_to include @blocked_owner }
       it { expect(described_class.owners_and_maintainers).to include @maintainer }
       it { expect(described_class.owners_and_maintainers).not_to include @invited_member }
       it { expect(described_class.owners_and_maintainers).not_to include @accepted_invite_member }
       it { expect(described_class.owners_and_maintainers).not_to include @requested_member }
       it { expect(described_class.owners_and_maintainers).not_to include @accepted_request_member }
       it { expect(described_class.owners_and_maintainers).not_to include @blocked_maintainer }
+    end
+
+    describe '.owners' do
+      it { expect(described_class.owners).to include @owner }
+      it { expect(described_class.owners).not_to include @blocked_owner }
+      it { expect(described_class.owners).not_to include @maintainer }
+      it { expect(described_class.owners).not_to include @invited_member }
+      it { expect(described_class.owners).not_to include @accepted_invite_member }
+      it { expect(described_class.owners).not_to include @requested_member }
+      it { expect(described_class.owners).not_to include @accepted_request_member }
+      it { expect(described_class.owners).not_to include @blocked_maintainer }
+    end
+
+    describe '.all_owners' do
+      it { expect(described_class.all_owners).to include @owner }
+      it { expect(described_class.all_owners).to include @blocked_owner }
+      it { expect(described_class.all_owners).not_to include @maintainer }
+      it { expect(described_class.all_owners).not_to include @invited_member }
+      it { expect(described_class.all_owners).not_to include @accepted_invite_member }
+      it { expect(described_class.all_owners).not_to include @requested_member }
+      it { expect(described_class.all_owners).not_to include @accepted_request_member }
+      it { expect(described_class.all_owners).not_to include @blocked_maintainer }
     end
 
     describe '.has_access' do
@@ -660,15 +611,11 @@ RSpec.describe Member, feature_category: :subgroups do
     describe '.authorizable' do
       subject { described_class.authorizable.to_a }
 
-      it 'includes the member who has an associated user record,'\
-        'but also having an invite_token' do
-          member = create(:project_member,
-                          :developer,
-                          :invited,
-                          user: create(:user))
+      it 'includes the member who has an associated user record, but also having an invite_token' do
+        member = create(:project_member, :developer, :invited, user: create(:user))
 
-          expect(subject).to include(member)
-        end
+        expect(subject).to include(member)
+      end
 
       it { is_expected.to include @owner }
       it { is_expected.to include @maintainer }
@@ -734,6 +681,15 @@ RSpec.describe Member, feature_category: :subgroups do
       end
     end
 
+    describe '.with_user' do
+      it 'returns the member' do
+        not_a_member = create(:user)
+
+        expect(described_class.with_user(@owner_user)).to eq([@owner])
+        expect(described_class.with_user(not_a_member)).to be_empty
+      end
+    end
+
     describe '.active_state' do
       let_it_be(:active_group_member) { create(:group_member, group: group) }
       let_it_be(:active_project_member) { create(:project_member, project: project) }
@@ -771,6 +727,24 @@ RSpec.describe Member, feature_category: :subgroups do
 
     it 'is not a valid email format' do
       expect(described_class.valid_email?('foo@example.com')).to eq(true)
+    end
+  end
+
+  describe '.filter_by_user_type' do
+    let_it_be(:service_account) { create(:user, :service_account) }
+    let_it_be(:service_account_member) { create(:group_member, user: service_account) }
+    let_it_be(:other_member) { create(:group_member) }
+
+    context 'when the user type is valid' do
+      it 'returns service accounts' do
+        expect(described_class.filter_by_user_type('service_account')).to match_array([service_account_member])
+      end
+    end
+
+    context 'when the user type is invalid' do
+      it 'returns nil' do
+        expect(described_class.filter_by_user_type('invalid_type')).to eq(nil)
+      end
     end
   end
 
@@ -907,7 +881,7 @@ RSpec.describe Member, feature_category: :subgroups do
 
       expect(member.invite_accepted_at).to be_nil
       expect(member.invite_token).not_to be_nil
-      expect_any_instance_of(Member).not_to receive(:after_accept_invite)
+      expect_any_instance_of(described_class).not_to receive(:after_accept_invite)
     end
 
     it 'schedules a TasksToBeDone::CreateWorker task' do
@@ -968,6 +942,14 @@ RSpec.describe Member, feature_category: :subgroups do
 
     it 'finds the member' do
       expect(described_class.find_by_invite_token(member.raw_invite_token)).to eq member
+    end
+  end
+
+  describe '.pluck_user_ids' do
+    let(:member) { create(:group_member) }
+
+    it 'plucks the user ids' do
+      expect(described_class.where(id: member).pluck_user_ids).to match([member.user_id])
     end
   end
 
@@ -1193,6 +1175,13 @@ RSpec.describe Member, feature_category: :subgroups do
 
     it 'sort users by oldest last activity' do
       expect(described_class.sort_by_attribute('oldest_last_activity')).to eq([member3, member2, member1])
+    end
+  end
+
+  context 'with loose foreign key on members.user_id' do
+    it_behaves_like 'cleanup by a loose foreign key' do
+      let!(:parent) { create(:user) }
+      let!(:model) { create(:group_member, user: parent) }
     end
   end
 end

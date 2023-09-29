@@ -8,7 +8,7 @@ module Gitlab
       include ActionView::Helpers::TagHelper
       include ActionController::HttpAuthentication::Basic
 
-      PROJECT_PATH_REGEX = %r{\A(#{Gitlab::PathRegex.full_namespace_route_regex}/#{Gitlab::PathRegex.project_route_regex})/}.freeze
+      PROJECT_PATH_REGEX = %r{\A(#{Gitlab::PathRegex.full_namespace_route_regex}/#{Gitlab::PathRegex.project_route_regex})/}
 
       def initialize(app)
         @app = app
@@ -18,7 +18,7 @@ module Gitlab
         request = ActionDispatch::Request.new(env)
 
         render_go_doc(request) || @app.call(env)
-      rescue Gitlab::Auth::IpBlacklisted
+      rescue Gitlab::Auth::IpBlocked
         Gitlab::AuthLogger.error(
           message: 'Rack_Attack',
           status: 403,

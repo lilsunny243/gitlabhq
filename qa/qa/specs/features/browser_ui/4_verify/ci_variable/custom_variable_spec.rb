@@ -1,18 +1,12 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner do
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_security do
     describe 'Pipeline with customizable variable' do
       let(:executor) { "qa-runner-#{Time.now.to_i}" }
       let(:pipeline_job_name) { 'customizable-variable' }
       let(:variable_custom_value) { 'Custom Foo' }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-customizable-variable-pipeline'
-        end
-      end
-
+      let(:project) { create(:project, name: 'project-with-customizable-variable-pipeline') }
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
@@ -49,7 +43,7 @@ module QA
         Flow::Login.sign_in
 
         project.visit!
-        Page::Project::Menu.perform(&:click_ci_cd_pipelines)
+        Page::Project::Menu.perform(&:go_to_pipelines)
         Page::Project::Pipeline::Index.perform(&:click_run_pipeline_button)
       end
 
@@ -66,15 +60,9 @@ module QA
 
         Page::Project::Pipeline::Show.perform do |show|
           Support::Waiter.wait_until { show.passed? }
-        end
 
-        job = Resource::Job.fabricate_via_api! do |job|
-          job.id = project.job_by_name(pipeline_job_name)[:id]
-          job.name = pipeline_job_name
-          job.project = project
+          show.click_job(pipeline_job_name)
         end
-
-        job.visit!
 
         Page::Project::Job::Show.perform do |show|
           expect(show.output).to have_content(variable_custom_value)

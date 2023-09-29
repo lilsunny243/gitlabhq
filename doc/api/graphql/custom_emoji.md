@@ -4,25 +4,25 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Use custom emojis with GraphQL **(FREE)**
+# Use custom emoji with GraphQL **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/37911) in GitLab 13.6 [with a flag](../../administration/feature_flags.md) named `custom_emoji`. Disabled by default.
 > - Enabled on GitLab.com in GitLab 14.0.
 
 FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `custom_emoji`.
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../../administration/feature_flags.md) named `custom_emoji`.
 On GitLab.com, this feature is available.
 This feature is ready for production use.
 
-To use custom emojis in comments and descriptions, you can add them to a group using the GraphQL API.
+To use [custom emoji](../../user/emoji_reactions.md) in comments and descriptions, you can add them to a top-level group using the GraphQL API.
 
 Parameters:
 
 | Attribute    | Type           | Required               | Description                                                               |
 | :----------- | :------------- | :--------------------- | :------------------------------------------------------------------------ |
-| `group_path` | integer/string | **{check-circle}** Yes | ID or [URL-encoded path of the group](../rest/index.md#namespaced-path-encoding) |
-| `name`       | string         | **{check-circle}** Yes | Name of the custom emoji.                                                 |
-| `file`       | string         | **{check-circle}** Yes | URL of the custom emoji image.                                            |
+| `group_path` | integer/string | Yes | ID or [URL-encoded path of the top-level group](../rest/index.md#namespaced-path-encoding) |
+| `name`       | string         | Yes | Name of the custom emoji.                                                 |
+| `file`       | string         | Yes | URL of the custom emoji image.                                            |
 
 ## Create a custom emoji
 
@@ -38,7 +38,7 @@ mutation CreateCustomEmoji($groupPath: ID!) {
 }
 ```
 
-After adding a custom emoji to the group, members can use it in the same way as other emojis in the comments.
+After adding a custom emoji to the group, members can use it in the same way as other emoji in the comments.
 
 ## Get custom emoji for a group
 

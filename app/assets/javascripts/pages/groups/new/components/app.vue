@@ -1,6 +1,6 @@
 <script>
-import importGroupIllustration from '@gitlab/svgs/dist/illustrations/group-import.svg';
-import newGroupIllustration from '@gitlab/svgs/dist/illustrations/group-new.svg';
+import GROUP_IMPORT_SVG_URL from '@gitlab/svgs/dist/illustrations/group-import.svg?url';
+import GROUP_NEW_SVG_URL from '@gitlab/svgs/dist/illustrations/group-new.svg?url';
 
 import { s__ } from '~/locale';
 import NewNamespacePage from '~/vue_shared/new_namespace/new_namespace_page.vue';
@@ -11,6 +11,14 @@ export default {
     NewNamespacePage,
   },
   props: {
+    rootPath: {
+      type: String,
+      required: true,
+    },
+    groupsUrl: {
+      type: String,
+      required: true,
+    },
     parentGroupUrl: {
       type: String,
       required: false,
@@ -31,6 +39,11 @@ export default {
       required: false,
       default: false,
     },
+    isSaas: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   computed: {
     initialBreadcrumbs() {
@@ -39,7 +52,11 @@ export default {
             { text: this.parentGroupName, href: this.parentGroupUrl },
             { text: s__('GroupsNew|New subgroup'), href: '#' },
           ]
-        : [{ text: s__('GroupsNew|New group'), href: '#' }];
+        : [
+            { text: s__('Navigation|Your work'), href: this.rootPath },
+            { text: s__('GroupsNew|Groups'), href: this.groupsUrl },
+            { text: s__('GroupsNew|New group'), href: '#' },
+          ];
     },
     panels() {
       return [
@@ -52,12 +69,12 @@ export default {
           description: s__(
             'GroupsNew|Assemble related projects together and grant members access to several projects at once.',
           ),
-          illustration: newGroupIllustration,
           details: createGroupDescriptionDetails,
           detailProps: {
             parentGroupName: this.parentGroupName,
             importExistingGroupPath: this.importExistingGroupPath,
           },
+          imageSrc: GROUP_NEW_SVG_URL,
         },
         {
           name: 'import-group-pane',
@@ -66,8 +83,8 @@ export default {
           description: s__(
             'GroupsNew|Import a group and related data from another GitLab instance.',
           ),
-          illustration: importGroupIllustration,
           details: 'Migrate your existing groups from another instance of GitLab.',
+          imageSrc: GROUP_IMPORT_SVG_URL,
         },
       ];
     },
@@ -81,6 +98,7 @@ export default {
     :initial-breadcrumbs="initialBreadcrumbs"
     :panels="panels"
     :title="s__('GroupsNew|Create new group')"
+    :is-saas="isSaas"
     persistence-key="new_group_last_active_tab"
   />
 </template>

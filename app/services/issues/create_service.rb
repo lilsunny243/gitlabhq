@@ -7,27 +7,26 @@ module Issues
     include ::Services::ReturnServiceResponses
 
     rate_limit key: :issues_create,
-               opts: { scope: [:project, :current_user, :external_author] }
+      opts: { scope: [:project, :current_user, :external_author] }
 
-    # NOTE: For Issues::CreateService, we require the spam_params and do not default it to nil, because
-    # spam_checking is likely to be necessary.  However, if there is not a request available in scope
-    # in the caller (for example, an issue created via email) and the required arguments to the
-    # SpamParams constructor are not otherwise available, spam_params: must be explicitly passed as nil.
-    def initialize(container:, spam_params:, current_user: nil, params: {}, build_service: nil)
+    def initialize(container:, current_user: nil, params: {}, build_service: nil, perform_spam_check: true)
       @extra_params = params.delete(:extra_params) || {}
       super(container: container, current_user: current_user, params: params)
-      @spam_params = spam_params
+      @perform_spam_check = perform_spam_check
       @build_service = build_service ||
         BuildService.new(container: project, current_user: current_user, params: params)
     end
 
     def execute(skip_system_notes: false)
-      return error(_('Operation not allowed'), 403) unless @current_user.can?(authorization_action, @project)
+      return error(_('Operation not allowed'), 403) unless @current_user.can?(authorization_action, container)
 
-      @issue = @build_service.execute
-      # issue_type is set in BuildService, so we can delete it from params, in later phase
-      # it can be set also from quick actions - in that case work_item_id is synced later again
-      params.delete(:issue_type)
+      # We should not initialize the callback classes during the build service execution because these will be
+      # initialized when we call #create below
+      @issue = @build_service.execute(initialize_callbacks: false)
+
+      # issue_type and work_item_type are set in BuildService, so we can delete it from params, in later phase
+      # it can be set also from quick actions
+      [:issue_type, :work_item_type, :work_item_type_id].each { |attribute| params.delete(attribute) }
 
       handle_move_between_ids(@issue)
 
@@ -48,19 +47,16 @@ module Issues
     end
 
     def before_create(issue)
-      Spam::SpamActionService.new(
-        spammable: issue,
-        spam_params: spam_params,
-        user: current_user,
-        action: :create
-      ).execute
+      issue.check_for_spam(user: current_user, action: :create) if perform_spam_check
 
       # current_user (defined in BaseService) is not available within run_after_commit block
       user = current_user
+      assign_description_from_template(issue)
       issue.run_after_commit do
         NewIssueWorker.perform_async(issue.id, user.id, issue.class.to_s)
         Issues::PlacementWorker.perform_async(nil, issue.project_id)
-        Onboarding::IssueCreatedWorker.perform_async(issue.project.namespace_id)
+        # issue.namespace_id can point to either a project through project namespace or a group.
+        Onboarding::IssueCreatedWorker.perform_async(issue.namespace_id)
       end
     end
 
@@ -72,7 +68,6 @@ module Issues
       handle_escalation_status_change(issue)
       create_timeline_event(issue)
       try_to_associate_contacts(issue)
-      change_additional_attributes(issue)
 
       super
     end
@@ -89,40 +84,36 @@ module Issues
       return if issue.assignees == old_assignees
 
       create_assignee_note(issue, old_assignees)
+      Gitlab::ResourceEvents::AssignmentEventRecorder.new(parent: issue, old_assignees: old_assignees).record
     end
 
     def resolve_discussions_with_issue(issue)
       return if discussions_to_resolve.empty?
 
-      Discussions::ResolveService.new(project, current_user,
-                                      one_or_more_discussions: discussions_to_resolve,
-                                      follow_up_issue: issue).execute
+      Discussions::ResolveService.new(
+        project,
+        current_user,
+        one_or_more_discussions: discussions_to_resolve,
+        follow_up_issue: issue
+      ).execute
     end
 
     private
-
-    def handle_quick_actions(issue)
-      # Do not handle quick actions unless the work item is the default Issue.
-      # The available quick actions for a work item depend on its type and widgets.
-      return if @params[:work_item_type].present? && @params[:work_item_type] != WorkItems::Type.default_by_type(:issue)
-
-      super
-    end
 
     def authorization_action
       :create_issue
     end
 
-    attr_reader :spam_params, :extra_params
+    attr_reader :perform_spam_check, :extra_params
 
     def create_timeline_event(issue)
-      return unless issue.incident?
+      return unless issue.work_item_type&.incident?
 
       IncidentManagement::TimelineEvents::CreateService.create_incident(issue, current_user)
     end
 
     def user_agent_detail_service
-      UserAgentDetailService.new(spammable: @issue, spam_params: spam_params)
+      UserAgentDetailService.new(spammable: @issue, perform_spam_check: perform_spam_check)
     end
 
     def handle_add_related_issue(issue)
@@ -141,13 +132,33 @@ module Issues
       set_crm_contacts(issue, contacts)
     end
 
-    override :change_additional_attributes
-    def change_additional_attributes(issue)
-      super
+    def assign_description_from_template(issue)
+      return if issue.description.present?
 
-      # issue_type can be still set through quick actions, in that case
-      # we have to make sure to re-sync work_item_type with it
-      issue.work_item_type_id = find_work_item_type_id(params[:issue_type]) if params[:issue_type]
+      # Find the exact name for the default template (if the project has one).
+      # Since there are multiple possibilities regarding the capitalization(s) that the
+      # default template file name can have, getting the exact template name here will
+      # allow us to extract the contents later, and bail early if the project does not have
+      # a default template
+      templates = TemplateFinder.all_template_names(project, :issues)
+      template = templates.values.flatten.find { |tmpl| tmpl[:name].casecmp?('default') }
+
+      return unless template
+
+      begin
+        default_template = TemplateFinder.build(
+          :issues,
+          issue.project,
+          {
+            name: template[:name],
+            source_template_project_id: issue.project.id
+          }
+        ).execute
+      rescue ::Gitlab::Template::Finders::RepoTemplateFinder::FileNotFoundError
+        nil
+      end
+
+      issue.description = default_template.content if default_template.present?
     end
   end
 end

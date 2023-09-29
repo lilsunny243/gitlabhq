@@ -39,7 +39,7 @@ To use a different name for the replacement node for a Gitaly Cluster that has [
   For example:
 
   ```shell
-  $ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml set-replication-factor -virtual-storage default -repository @hashed/3f/db/3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278.git -replication-factor 2
+  $ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml set-replication-factor -virtual-storage default -relative-path @hashed/3f/db/3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278.git -replication-factor 2
 
   current assignments: gitaly-1, gitaly-2
   ```
@@ -74,7 +74,7 @@ Cluster:
 ### Unavailable repositories
 
 > - From GitLab 13.0 through 14.0, repositories became read-only if they were outdated on the primary but fully up to date on a healthy secondary. `dataloss` sub-command displays read-only repositories by default through these versions.
-> - Since GitLab 14.1, Praefect contains more responsive failover logic which immediately fails over to one of the fully up to date secondaries rather than placing the repository in read-only mode. Since GitLab 14.1, the `dataloss` sub-command displays repositories which are unavailable due to having no fully up to date copies on healthy Gitaly nodes.
+> - From GitLab 14.1, Praefect contains more responsive failover logic which immediately fails over to one of the fully up to date secondaries rather than placing the repository in read-only mode. From GitLab 14.1, the `dataloss` sub-command displays repositories which are unavailable due to having no fully up to date copies on healthy Gitaly nodes.
 
 A repository is unavailable if all of its up to date replicas are unavailable. Unavailable repositories are
 not accessible through Praefect to prevent serving stale data that may break automated tooling.
@@ -100,7 +100,7 @@ The following parameters are available:
   some assigned copies that are not available.
 
 NOTE:
-`dataloss` is still in [Beta](../../policy/alpha-beta-support.md#beta-features) and the output format is subject to change.
+`dataloss` is still in [Beta](../../policy/experiment-beta-support.md#beta) and the output format is subject to change.
 
 To check for repositories with outdated primaries or for unavailable repositories, run:
 
@@ -224,7 +224,7 @@ repository so care must be taken.
 
 ```shell
 sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml accept-dataloss
--virtual-storage <virtual-storage> -repository <relative-path> -authoritative-storage <storage-name>
+-virtual-storage <virtual-storage> -relative-path <relative-path> -authoritative-storage <storage-name>
 ```
 
 ### Enable writes or accept data loss
@@ -237,7 +237,7 @@ Praefect provides the following subcommands to re-enable writes or accept data l
 of the up-to-date nodes back online, you might have to accept data loss:
 
 ```shell
-sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml accept-dataloss -virtual-storage <virtual-storage> -repository <relative-path> -authoritative-storage <storage-name>
+sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml accept-dataloss -virtual-storage <virtual-storage> -relative-path <relative-path> -authoritative-storage <storage-name>
 ```
 
 When accepting data loss, Praefect:
@@ -338,7 +338,7 @@ The `remove-repository` Praefect sub-command removes a repository from a Gitaly 
 In GitLab 14.6 and later, by default, the command operates in dry-run mode. In earlier versions, the command didn't support dry-run mode. For example:
 
 ```shell
-sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml remove-repository -virtual-storage <virtual-storage> -repository <repository>
+sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml remove-repository -virtual-storage <virtual-storage> -relative-path <repository>
 ```
 
 - Replace `<virtual-storage>` with the name of the virtual storage containing the repository.
@@ -349,7 +349,7 @@ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.t
 - In GitLab 14.6 and later, add `-apply` to run the command outside of dry-run mode and remove the repository. For example:
 
   ```shell
-  sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml remove-repository -virtual-storage <virtual-storage> -repository <repository> -apply
+  sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml remove-repository -virtual-storage <virtual-storage> -relative-path <repository> -apply
   ```
 
 - `-virtual-storage` is the virtual storage the repository is located in. Virtual storages are configured in `/etc/gitlab/gitlab.rb` under `praefect['configuration']['virtual_storage]` and looks like the following:
@@ -372,7 +372,7 @@ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.t
 
   In this example, the virtual storage to specify is `default` or `storage-1`.
 
-- `-repository` is the repository's relative path in the storage [beginning with `@hashed`](../repository_storage_types.md#hashed-storage).
+- `-repository` is the repository's relative path in the storage [beginning with `@hashed`](../repository_storage_paths.md#hashed-storage).
   For example:
 
   ```plaintext
@@ -432,10 +432,15 @@ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.t
 > - [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5658) in GitLab 14.4.
 > - [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5789) in GitLab 14.6, support for immediate replication.
 
+WARNING:
+Because of a [known issue](https://gitlab.com/gitlab-org/gitaly/-/issues/5402), you can't add repositories to the
+Praefect tracking database with Praefect-generated replica paths (`@cluster`). These repositories are not associated with the repository path used by GitLab and are
+inaccessible.
+
 The `track-repository` Praefect sub-command adds repositories on disk to the Praefect tracking database to be tracked.
 
 ```shell
-sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml track-repository -virtual-storage <virtual-storage> -authoritative-storage <storage-name> -repository <repository> -replicate-immediately
+sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml track-repository -virtual-storage <virtual-storage> -authoritative-storage <storage-name> -relative-path <repository> -replica-path <disk_path> -replicate-immediately
 ```
 
 - `-virtual-storage` is the virtual storage the repository is located in. Virtual storages are configured in `/etc/gitlab/gitlab.rb` under `praefect['configuration'][:virtual_storage]` and looks like the following:
@@ -458,13 +463,14 @@ sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.t
 
   In this example, the virtual storage to specify is `default` or `storage-1`.
 
-- `-repository` is the repository's relative path in the storage [beginning with `@hashed`](../repository_storage_types.md#hashed-storage).
+- `-relative-path` is the relative path in the virtual storage. Usually [beginning with `@hashed`](../repository_storage_paths.md#hashed-storage).
   For example:
 
   ```plaintext
   @hashed/f5/ca/f5ca38f748a1d6eaf726b8a42fb575c3c71f1864a8143301782de13da2d9202b.git
   ```
 
+- `-replica-path` is the relative path on physical storage. Can start with [`@cluster` or match `relative_path`](../repository_storage_paths.md#gitaly-cluster-storage).
 - `-authoritative-storage` is the storage we want Praefect to treat as the primary. Required if
   [per-repository replication](praefect.md#configure-replication-factor) is set as the replication strategy.
 - `-replicate-immediately`, available in GitLab 14.6 and later, causes the command to replicate the repository to its secondaries immediately.
@@ -484,6 +490,11 @@ This command fails if:
 
 > [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/6319) in GitLab 15.4.
 
+WARNING:
+Because of a [known issue](https://gitlab.com/gitlab-org/gitaly/-/issues/5402), you can't add repositories to the
+Praefect tracking database with Praefect-generated replica paths (`@cluster`). These repositories are not associated with the repository path used by GitLab and are
+inaccessible.
+
 Migrations using the API automatically add repositories to the Praefect tracking database.
 
 If you are instead manually copying repositories over from existing infrastructure, you can use the `track-repositories`
@@ -501,7 +512,7 @@ The command validates that all entries:
 
 - Are formatted correctly and contain required fields.
 - Correspond to a valid Git repository on disk.
-- Are not currently tracked in the Praefect tracking database.
+- Are not tracked in the Praefect tracking database.
 
 If any entry fails these checks, the command aborts prior to attempting to track a repository.
 
@@ -513,8 +524,8 @@ If any entry fails these checks, the command aborts prior to attempting to track
     For example:
 
     ```json
-    {"relative_path":"@hashed/f5/ca/f5ca38f748a1d6eaf726b8a42fb575c3c71f1864a8143301782de13da2d9202b.git","authoritative_storage":"gitaly-1","virtual_storage":"default"}
-    {"relative_path":"@hashed/f8/9f/f89f8d0e735a91c5269ab08d72fa27670d000e7561698d6e664e7b603f5c4e40.git","authoritative_storage":"gitaly-2","virtual_storage":"default"}
+    {"relative_path":"@hashed/f5/ca/f5ca38f748a1d6eaf726b8a42fb575c3c71f1864a8143301782de13da2d9202b.git","replica_path":"@cluster/fe/d3/1","authoritative_storage":"gitaly-1","virtual_storage":"default"}
+    {"relative_path":"@hashed/f8/9f/f89f8d0e735a91c5269ab08d72fa27670d000e7561698d6e664e7b603f5c4e40.git","replica_path":"@cluster/7b/28/2","authoritative_storage":"gitaly-2","virtual_storage":"default"}
     ```
 
 - `-replicate-immediately`, causes the command to replicate the repository to its secondaries immediately.

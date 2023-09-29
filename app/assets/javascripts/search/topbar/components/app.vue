@@ -1,5 +1,6 @@
 <script>
 import { GlSearchBoxByClick, GlButton } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapActions } from 'vuex';
 import { s__ } from '~/locale';
 import { parseBoolean } from '~/lib/utils/common_utils';
@@ -86,7 +87,7 @@ export default {
 </script>
 
 <template>
-  <section class="gl-p-5 gl-bg-gray-10 gl-border-b">
+  <section class="gl-p-5 gl-bg-gray-10 gl-border-b gl-border-t">
     <div class="search-page-form gl-lg-display-flex gl-flex-direction-column">
       <div class="gl-lg-display-flex gl-flex-direction-row gl-align-items-flex-end">
         <div class="gl-flex-grow-1 gl-mb-4 gl-lg-mb-0 gl-lg-mr-2">

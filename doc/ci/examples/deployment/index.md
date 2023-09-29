@@ -1,11 +1,11 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: tutorial
 ---
 
-# Using Dpl as a deployment tool **(FREE)**
+# Using Dpl as a deployment tool **(FREE ALL)**
 
 [Dpl](https://github.com/travis-ci/dpl) (pronounced like the letters D-P-L) is a deploy tool made for
 continuous deployment that's developed and used by Travis CI, but can also be
@@ -13,7 +13,7 @@ used with GitLab CI/CD.
 
 Dpl can be used to deploy to any of the [supported providers](https://github.com/travis-ci/dpl#supported-providers).
 
-## Requirements
+## Prerequisite
 
 To use Dpl you need at least Ruby 1.9.3 with ability to install gems.
 
@@ -69,8 +69,8 @@ staging:
     - apt-get install -y ruby-dev
     - gem install dpl
     - dpl heroku api --app=my-app-staging --api_key=$HEROKU_STAGING_API_KEY
-  only:
-    - main
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
   environment: staging
 ```
 
@@ -93,8 +93,8 @@ staging:
   script:
     - gem install dpl
     - dpl heroku api --app=my-app-staging --api_key=$HEROKU_STAGING_API_KEY
-  only:
-    - main
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
   environment: staging
 
 production:
@@ -102,8 +102,8 @@ production:
   script:
     - gem install dpl
     - dpl heroku api --app=my-app-production --api_key=$HEROKU_PRODUCTION_API_KEY
-  only:
-    - tags
+  rules:
+    - if: $CI_COMMIT_TAG
   environment: production
 ```
 
@@ -121,8 +121,8 @@ We also use two secure variables:
 
 To store API keys as secure variables:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Variables**.
 
 The variables defined in the project settings are sent along with the build script to the runner.

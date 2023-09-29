@@ -1,19 +1,32 @@
 <script>
-import { GlBadge, GlButton, GlDisclosureDropdown, GlDisclosureDropdownGroup } from '@gitlab/ui';
+import {
+  GlBadge,
+  GlButton,
+  GlIcon,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownGroup,
+} from '@gitlab/ui';
 import GitlabVersionCheckBadge from '~/gitlab_version_check/components/gitlab_version_check_badge.vue';
 import { helpPagePath } from '~/helpers/help_page_helper';
-import { PROMO_URL } from 'jh_else_ce/lib/utils/url_utility';
-import { __ } from '~/locale';
+import { FORUM_URL, DOCS_URL, PROMO_URL } from 'jh_else_ce/lib/utils/url_utility';
+import { __, s__ } from '~/locale';
 import { STORAGE_KEY } from '~/whats_new/utils/notification';
+import Tracking from '~/tracking';
+import { DROPDOWN_Y_OFFSET, HELP_MENU_TRACKING_DEFAULTS, helpCenterState } from '../constants';
+
+// Left offset required for the dropdown to be aligned with the super sidebar
+const DROPDOWN_X_OFFSET = -4;
 
 export default {
   components: {
     GlBadge,
     GlButton,
+    GlIcon,
     GlDisclosureDropdown,
     GlDisclosureDropdownGroup,
     GitlabVersionCheckBadge,
   },
+  mixins: [Tracking.mixin({ property: 'nav_help_menu' })],
   i18n: {
     help: __('Help'),
     support: __('Support'),
@@ -25,6 +38,7 @@ export default {
     shortcuts: __('Keyboard shortcuts'),
     version: __('Your GitLab version'),
     whatsnew: __("What's new"),
+    chat: s__('TanukiBot|GitLab Duo Chat'),
   },
   props: {
     sidebarData: {
@@ -35,6 +49,7 @@ export default {
   data() {
     return {
       showWhatsNewNotification: this.shouldShowWhatsNewNotification(),
+      helpCenterState,
     };
   },
   computed: {
@@ -46,30 +61,83 @@ export default {
               text: this.$options.i18n.version,
               href: helpPagePath('update/index'),
               version: `${this.sidebarData.gitlab_version.major}.${this.sidebarData.gitlab_version.minor}`,
+              extraAttrs: {
+                ...this.trackingAttrs('version_help_dropdown'),
+              },
             },
           ],
         },
         helpLinks: {
           items: [
-            { text: this.$options.i18n.help, href: helpPagePath() },
-            { text: this.$options.i18n.support, href: this.sidebarData.support_path },
-            { text: this.$options.i18n.docs, href: 'https://docs.gitlab.com' },
-            { text: this.$options.i18n.plans, href: `${PROMO_URL}/pricing` },
-            { text: this.$options.i18n.forum, href: 'https://forum.gitlab.com/' },
+            this.sidebarData.show_tanuki_bot && {
+              icon: 'tanuki-ai',
+              text: this.$options.i18n.chat,
+              action: this.showTanukiBotChat,
+              extraAttrs: {
+                ...this.trackingAttrs('tanuki_bot_help_dropdown'),
+              },
+            },
+            {
+              text: this.$options.i18n.help,
+              href: helpPagePath(),
+              extraAttrs: {
+                ...this.trackingAttrs('help'),
+              },
+            },
+            {
+              text: this.$options.i18n.support,
+              href: this.sidebarData.support_path,
+              extraAttrs: {
+                ...this.trackingAttrs('support'),
+              },
+            },
+            {
+              text: this.$options.i18n.docs,
+              href: DOCS_URL,
+              extraAttrs: {
+                ...this.trackingAttrs('gitlab_documentation'),
+              },
+            },
+            {
+              text: this.$options.i18n.plans,
+              href: `${PROMO_URL}/pricing`,
+              extraAttrs: {
+                ...this.trackingAttrs('compare_gitlab_plans'),
+              },
+            },
+            {
+              text: this.$options.i18n.forum,
+              href: FORUM_URL,
+              extraAttrs: {
+                ...this.trackingAttrs('community_forum'),
+              },
+            },
             {
               text: this.$options.i18n.contribute,
               href: helpPagePath('', { anchor: 'contributing-to-gitlab' }),
+              extraAttrs: {
+                ...this.trackingAttrs('contribute_to_gitlab'),
+              },
             },
-            { text: this.$options.i18n.feedback, href: 'https://about.gitlab.com/submit-feedback' },
-          ],
+            {
+              text: this.$options.i18n.feedback,
+              href: `${PROMO_URL}/submit-feedback`,
+              extraAttrs: {
+                ...this.trackingAttrs('submit_feedback'),
+              },
+            },
+          ].filter(Boolean),
         },
         helpActions: {
           items: [
             {
               text: this.$options.i18n.shortcuts,
-              action: this.showKeyboardShortcuts,
+              action: () => {},
               extraAttrs: {
                 class: 'js-shortcuts-modal-trigger',
+                'data-track-action': 'click_button',
+                'data-track-label': 'keyboard_shortcuts_help',
+                'data-track-property': HELP_MENU_TRACKING_DEFAULTS['data-track-property'],
               },
               shortcut: '?',
             },
@@ -79,6 +147,11 @@ export default {
               count:
                 this.showWhatsNewNotification &&
                 this.sidebarData.whats_new_most_recent_release_items_count,
+              extraAttrs: {
+                'data-track-action': 'click_button',
+                'data-track-label': 'whats_new',
+                'data-track-property': HELP_MENU_TRACKING_DEFAULTS['data-track-property'],
+              },
             },
           ].filter(Boolean),
         },
@@ -99,12 +172,11 @@ export default {
       return true;
     },
 
-    showKeyboardShortcuts() {
-      this.$refs.dropdown.close();
+    showTanukiBotChat() {
+      this.helpCenterState.showTanukiBotChatDrawer = true;
     },
 
     async showWhatsNew() {
-      this.$refs.dropdown.close();
       this.showWhatsNewNotification = false;
 
       if (!this.toggleWhatsNewDrawer) {
@@ -118,15 +190,37 @@ export default {
         this.toggleWhatsNewDrawer();
       }
     },
+
+    trackingAttrs(label) {
+      return {
+        ...HELP_MENU_TRACKING_DEFAULTS,
+        'data-track-label': label,
+      };
+    },
+
+    trackDropdownToggle(show) {
+      this.track('click_toggle', {
+        label: show ? 'show_help_dropdown' : 'hide_help_dropdown',
+      });
+    },
   },
+  dropdownOffset: { mainAxis: DROPDOWN_Y_OFFSET, crossAxis: DROPDOWN_X_OFFSET },
 };
 </script>
 
 <template>
-  <gl-disclosure-dropdown ref="dropdown">
+  <gl-disclosure-dropdown
+    :dropdown-offset="$options.dropdownOffset"
+    @shown="trackDropdownToggle(true)"
+    @hidden="trackDropdownToggle(false)"
+  >
     <template #toggle>
       <gl-button category="tertiary" icon="question-o" class="btn-with-notification">
-        <span v-if="showWhatsNewNotification" class="notification-dot-info"></span>
+        <span
+          v-if="showWhatsNewNotification"
+          data-testid="notification-dot"
+          class="notification-dot-info"
+        ></span>
         {{ $options.i18n.help }}
       </gl-button>
     </template>
@@ -152,7 +246,14 @@ export default {
     <gl-disclosure-dropdown-group
       :group="itemGroups.helpLinks"
       :bordered="sidebarData.show_version_check"
-    />
+    >
+      <template #list-item="{ item }">
+        <span class="gl-display-flex gl-justify-content-space-between gl-align-items-center">
+          {{ item.text }}
+          <gl-icon v-if="item.icon" :name="item.icon" class="gl-text-purple-600" />
+        </span>
+      </template>
+    </gl-disclosure-dropdown-group>
 
     <gl-disclosure-dropdown-group :group="itemGroups.helpActions" bordered>
       <template #list-item="{ item }">

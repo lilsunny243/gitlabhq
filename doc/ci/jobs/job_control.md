@@ -4,17 +4,13 @@ group: Pipeline Authoring
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Choose when to run jobs **(FREE)**
+# Choose when to run jobs **(FREE ALL)**
 
 When a new pipeline starts, GitLab checks the pipeline configuration to determine
 which jobs should run in that pipeline. You can configure jobs to run depending on
 factors like the status of variables, or the pipeline type.
 
-To configure a job to be included or excluded from certain pipelines, you can use:
-
-- [`rules`](../yaml/index.md#rules)
-- [`only`](../yaml/index.md#only--except)
-- [`except`](../yaml/index.md#only--except)
+To configure a job to be included or excluded from certain pipelines, use [`rules`](../yaml/index.md#rules).
 
 Use [`needs`](../yaml/index.md#needs) to configure a job to run as soon as the
 earlier jobs it depends on finish running.
@@ -263,20 +259,20 @@ runs in all cases except merge requests.
 For behavior similar to the [`only`/`except` keywords](../yaml/index.md#only--except), you can
 check the value of the `$CI_PIPELINE_SOURCE` variable:
 
-| Value                         | Description                                                                                                                                                                                                                      |
-|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api`                         | For pipelines triggered by the [pipelines API](../../api/pipelines.md#create-a-new-pipeline).                                                                                                                                    |
-| `chat`                        | For pipelines created by using a [GitLab ChatOps](../chatops/index.md) command.                                                                                                                                                 |
-| `external`                    | When you use CI services other than GitLab.                                                                                                                                                                                        |
-| `external_pull_request_event` | When an external pull request on GitHub is created or updated. See [Pipelines for external pull requests](../ci_cd_for_external_repos/index.md#pipelines-for-external-pull-requests).                                            |
+| Value                         | Description |
+|-------------------------------|-------------|
+| `api`                         | For pipelines triggered by the [pipelines API](../../api/pipelines.md#create-a-new-pipeline). |
+| `chat`                        | For pipelines created by using a [GitLab ChatOps](../chatops/index.md) command. |
+| `external`                    | When you use CI services other than GitLab. |
+| `external_pull_request_event` | When an external pull request on GitHub is created or updated. See [Pipelines for external pull requests](../ci_cd_for_external_repos/index.md#pipelines-for-external-pull-requests). |
 | `merge_request_event`         | For pipelines created when a merge request is created or updated. Required to enable [merge request pipelines](../pipelines/merge_request_pipelines.md), [merged results pipelines](../pipelines/merged_results_pipelines.md), and [merge trains](../pipelines/merge_trains.md). |
-| `parent_pipeline`             | For pipelines triggered by a [parent/child pipeline](../pipelines/downstream_pipelines.md#parent-child-pipelines) with `rules`. Use this pipeline source in the child pipeline configuration so that it can be triggered by the parent pipeline.                |
+| `parent_pipeline`             | For pipelines triggered by a [parent/child pipeline](../pipelines/downstream_pipelines.md#parent-child-pipelines) with `rules`. Use this pipeline source in the child pipeline configuration so that it can be triggered by the parent pipeline. |
 | `pipeline`                    | For [multi-project pipelines](../pipelines/downstream_pipelines.md#multi-project-pipelines) created by [using the API with `CI_JOB_TOKEN`](../pipelines/downstream_pipelines.md#trigger-a-multi-project-pipeline-by-using-the-api), or the [`trigger`](../yaml/index.md#trigger) keyword. |
-| `push`                        | For pipelines triggered by a `git push` event, including for branches and tags.                                                                                                                                                  |
-| `schedule`                    | For [scheduled pipelines](../pipelines/schedules.md).                                                                                                                                                                            |
-| `trigger`                     | For pipelines created by using a [trigger token](../triggers/index.md#configure-cicd-jobs-to-run-in-triggered-pipelines).                                                                                                                                           |
-| `web`                         | For pipelines created by using **Run pipeline** button in the GitLab UI, from the project's **CI/CD > Pipelines** section.                                                                                                       |
-| `webide`                      | For pipelines created by using the [WebIDE](../../user/project/web_ide/index.md).                                                                                                                                                |
+| `push`                        | For pipelines triggered by a `git push` event, including for branches and tags. |
+| `schedule`                    | For [scheduled pipelines](../pipelines/schedules.md). |
+| `trigger`                     | For pipelines created by using a [trigger token](../triggers/index.md#configure-cicd-jobs-to-run-in-triggered-pipelines). |
+| `web`                         | For pipelines created by using **Run pipeline** button in the GitLab UI, from the project's **Build > Pipelines** section. |
+| `webide`                      | For pipelines created by using the [WebIDE](../../user/project/web_ide/index.md). |
 
 The following example runs the job as a manual job in scheduled pipelines or in push
 pipelines (to branches or tags), with `when: on_success` (default). It does not
@@ -342,7 +338,7 @@ You can use the `$` character for both variables and paths. For example, if the
 `$DOCKERFILES_DIR` variable exists, its value is used. If it does not exist, the
 `$` is interpreted as being part of a path.
 
-## Reuse rules in different jobs
+### Reuse rules in different jobs
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322992) in GitLab 14.3.
 
@@ -373,6 +369,10 @@ job2:
 
 ## Specify when jobs run with `only` and `except`
 
+NOTE:
+`only` and `except` are not being actively developed. [`rules`](#specify-when-jobs-run-with-rules)
+is the preferred keyword to control when to add jobs to pipelines.
+
 You can use [`only`](../yaml/index.md#only--except) and [`except`](../yaml/index.md#only--except)
 to control when to add jobs to pipelines.
 
@@ -381,14 +381,18 @@ to control when to add jobs to pipelines.
 
 ### `only:refs` / `except:refs` examples
 
-`only` or `except` used without `refs` is the same as
-[`only:refs` / `except/refs`](../yaml/index.md#onlyrefs--exceptrefs)
+You can use `only` or `except` with:
 
-In the following example, `job` runs only for:
+- Specific keywords. See the full list in the [`only`/`except` syntax reference](../yaml/index.md#onlyrefs--exceptrefs).
+- Branch names. Avoid branch names that are exactly the same as a specific keyword.
+  For example, jobs configured to run for the `tags` keyword (tag pipelines)
+  would also run for a branch named `tags`.
+- Regex patterns to specify a range of branch names.
 
-- Git tags
-- [Triggers](../triggers/index.md#configure-cicd-jobs-to-run-in-triggered-pipelines)
-- [Scheduled pipelines](../pipelines/schedules.md)
+The following examples omit `refs` because `only` or `except` used without `refs`
+is the same as [`only:refs` / `except/refs`](../yaml/index.md#onlyrefs--exceptrefs).
+
+For example:
 
 ```yaml
 job:
@@ -398,6 +402,12 @@ job:
     - triggers
     - schedules
 ```
+
+In this example, `job` runs only for:
+
+- Git tags
+- [Triggers](../triggers/index.md#configure-cicd-jobs-to-run-in-triggered-pipelines)
+- [Scheduled pipelines](../pipelines/schedules.md)
 
 To execute jobs only for the parent repository and not forks:
 
@@ -590,7 +600,7 @@ In blocking manual jobs:
   defined inside [`rules`](../yaml/index.md#rules).
 - The pipeline stops at the stage where the job is defined. To let the pipeline
   continue running, [run the manual job](#run-a-manual-job).
-- Merge requests in projects with [merge when pipeline succeeds](../../user/project/merge_requests/merge_when_pipeline_succeeds.md)
+- Merge requests in projects with [**Pipelines must succeed**](../../user/project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge)
   enabled can't be merged with a blocked pipeline.
 - The pipeline shows a status of **blocked**.
 
@@ -607,7 +617,7 @@ To run a manual job, you must have permission to merge to the assigned branch:
 
 You can also [add custom CI/CD variables when running a manual job](index.md#specifying-variables-when-running-manual-jobs).
 
-### Protect manual jobs **(PREMIUM)**
+### Protect manual jobs **(PREMIUM ALL)**
 
 Use [protected environments](../environments/protected_environments.md)
 to define a list of users authorized to run a manual job. You can authorize only
@@ -821,6 +831,83 @@ deploy:
 ```
 
 Quotes around the `dependencies` entry are required.
+
+## Specify a parallelized job using needs with multiple parallelized jobs
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/254821) in GitLab 16.3.
+
+You can use variables defined in [`needs:parallel:matrix`](../yaml/index.md#needsparallelmatrix) with multiple parallelized jobs.
+
+For example:
+
+```yaml
+linux:build:
+  stage: build
+  script: echo "Building linux..."
+  parallel:
+    matrix:
+      - PROVIDER: aws
+        STACK:
+          - monitoring
+          - app1
+          - app2
+
+mac:build:
+  stage: build
+  script: echo "Building mac..."
+  parallel:
+    matrix:
+      - PROVIDER: [gcp, vultr]
+        STACK: [data, processing]
+
+linux:rspec:
+  stage: test
+  needs:
+    - job: linux:build
+      parallel:
+        matrix:
+          - PROVIDER: aws
+            STACK: app1
+  script: echo "Running rspec on linux..."
+
+mac:rspec:
+  stage: test
+  needs:
+    - job: mac:build
+      parallel:
+        matrix:
+          - PROVIDER: [gcp, vultr]
+            STACK: [data]
+  script: echo "Running rspec on mac..."
+
+production:
+  stage: deploy
+  script: echo "Running production..."
+  environment: production
+```
+
+This example generates several jobs. The parallel jobs each have different values
+for `PROVIDER` and `STACK`.
+
+- 3 parallel `linux:build` jobs:
+  - `linux:build: [aws, monitoring]`
+  - `linux:build: [aws, app1]`
+  - `linux:build: [aws, app2]`
+- 4 parallel `mac:build` jobs:
+  - `mac:build: [gcp, data]`
+  - `mac:build: [gcp, processing]`
+  - `mac:build: [vultr, data]`
+  - `mac:build: [vultr, processing]`
+- A `linux:rspec` job.
+- A `production` job.
+
+The jobs have three paths of execution:
+
+- Linux path: The `linux:rspec` job runs as soon as the `linux:build: [aws, app1]`
+  job finishes, without waiting for `mac:build` to finish.
+- macOS path: The `mac:rspec` job runs as soon as the `mac:build: [gcp, data]` and
+  `mac:build: [vultr, data]` jobs finish, without waiting for `linux:build` to finish.
+- The `production` job runs as soon as all previous jobs finish.
 
 ## Use predefined CI/CD variables to run jobs only in specific pipeline types
 
@@ -1105,5 +1192,5 @@ to change this behavior.
 To run protected manual jobs:
 
 - Add the administrator as a direct member of the private project (any role)
-- [Impersonate a user](../../user/admin_area/index.md#user-impersonation) who is a
+- [Impersonate a user](../../administration/admin_area.md#user-impersonation) who is a
   direct member of the project.

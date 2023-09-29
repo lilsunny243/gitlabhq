@@ -4,7 +4,6 @@ module Ci
   class RunnersFinder < UnionFinder
     include Gitlab::Allowable
 
-    ALLOWED_SORTS = %w[contacted_asc contacted_desc created_at_asc created_at_desc created_date token_expires_at_asc token_expires_at_desc].freeze
     DEFAULT_SORT = 'created_at_desc'
 
     def initialize(current_user:, params:)
@@ -25,16 +24,19 @@ module Ci
       request_tag_list!
 
       @runners
-
-    rescue Gitlab::Access::AccessDeniedError
-      Ci::Runner.none
     end
 
     def sort_key
-      ALLOWED_SORTS.include?(@params[:sort]) ? @params[:sort] : DEFAULT_SORT
+      allowed_sorts.include?(@params[:sort]) ? @params[:sort] : DEFAULT_SORT
     end
 
     private
+
+    attr_reader :group, :project
+
+    def allowed_sorts
+      %w[contacted_asc contacted_desc created_at_asc created_at_desc created_date token_expires_at_asc token_expires_at_desc]
+    end
 
     def search!
       if @project
@@ -74,7 +76,7 @@ module Ci
     end
 
     def project_runners
-      raise Gitlab::Access::AccessDeniedError unless can?(@current_user, :admin_project, @project)
+      raise Gitlab::Access::AccessDeniedError unless can?(@current_user, :read_project_runners, @project)
 
       @runners = ::Ci::Runner.owned_or_instance_wide(@project.id)
     end
@@ -128,3 +130,5 @@ module Ci
     end
   end
 end
+
+Ci::RunnersFinder.prepend_mod

@@ -80,11 +80,9 @@ Third party images such as `node:latest` or `node:current` do not have direct ac
 to the `CI_JOB_TOKEN` when operating in a shared runner. You must configure an
 authentication token or use a private runner.
 
-To create a authentication token:
+To create an authentication token for your project or group:
 
-1. On the top bar, select **Main menu**, and:
-   - For a project, select **Projects** and find your project.
-   - For a group, select **Groups** and find your group.
+1. On the left sidebar, select **Search or go to** and find your project or group.
 1. On the left sidebar, select **Settings > Repository > Deploy Tokens**.
 1. Create a deployment token with `read_package_registry` and `write_package_registry` scopes and copy the generated token.
 1. On the left sidebar, select **Settings > CI/CD > Variables**.
@@ -302,10 +300,8 @@ Then you can use `yarn add` to install your packages.
 
 ## Related topics
 
-- For full helpful hints information, see the
-  [npm documentation](../npm_registry/index.md#helpful-hints).
-- For Yarn 1 to Yarn 2+ migration information see the
-  [Yarn Migration Guide](https://yarnpkg.com/getting-started/migration).
+- [npm documentation](../npm_registry/index.md#helpful-hints)
+- [Yarn Migration Guide](https://yarnpkg.com/migration/guide/)
 
 ## Troubleshooting
 

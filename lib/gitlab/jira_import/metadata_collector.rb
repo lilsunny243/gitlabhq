@@ -11,8 +11,8 @@ module Gitlab
       end
 
       def execute
-        add_field(%w(issuetype name), 'Issue type')
-        add_field(%w(priority name), 'Priority')
+        add_field(%w[issuetype name], 'Issue type')
+        add_field(%w[priority name], 'Priority')
         add_field('environment', 'Environment')
         add_field('duedate', 'Due date')
         add_parent
@@ -45,7 +45,7 @@ module Gitlab
       def add_versions
         return if fields['fixVersions'].blank? || !fields['fixVersions'].is_a?(Array)
 
-        versions = fields['fixVersions'].map { |version| version['name'] }.compact.join(', ')
+        versions = fields['fixVersions'].filter_map { |version| version['name'] }.join(', ')
         metadata << "- Fix versions: #{versions}"
       end
 

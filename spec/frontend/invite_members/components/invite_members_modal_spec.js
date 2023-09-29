@@ -1,4 +1,4 @@
-import { GlLink, GlModal, GlSprintf, GlFormGroup, GlCollapse, GlIcon } from '@gitlab/ui';
+import { GlModal, GlSprintf, GlFormGroup, GlCollapse, GlIcon } from '@gitlab/ui';
 import MockAdapter from 'axios-mock-adapter';
 import { nextTick } from 'vue';
 import { stubComponent } from 'helpers/stub_component';
@@ -6,23 +6,21 @@ import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import Api from '~/api';
-import ExperimentTracking from '~/experimentation/experiment_tracking';
 import InviteMembersModal from '~/invite_members/components/invite_members_modal.vue';
 import InviteModalBase from '~/invite_members/components/invite_modal_base.vue';
 import ModalConfetti from '~/invite_members/components/confetti.vue';
 import MembersTokenSelect from '~/invite_members/components/members_token_select.vue';
 import UserLimitNotification from '~/invite_members/components/user_limit_notification.vue';
 import {
-  INVITE_MEMBERS_FOR_TASK,
   MEMBERS_MODAL_CELEBRATE_INTRO,
   MEMBERS_MODAL_CELEBRATE_TITLE,
   MEMBERS_PLACEHOLDER,
   MEMBERS_TO_PROJECT_CELEBRATE_INTRO_TEXT,
-  LEARN_GITLAB,
   EXPANDED_ERRORS,
   EMPTY_INVITES_ALERT_TEXT,
   ON_CELEBRATION_TRACK_LABEL,
   INVITE_MEMBER_MODAL_TRACKING_CATEGORY,
+  INVALID_FEEDBACK_MESSAGE_DEFAULT,
 } from '~/invite_members/constants';
 import eventHub from '~/invite_members/event_hub';
 import ContentTransition from '~/vue_shared/components/content_transition.vue';
@@ -32,7 +30,6 @@ import {
   HTTP_STATUS_CREATED,
   HTTP_STATUS_INTERNAL_SERVER_ERROR,
 } from '~/lib/utils/http_status';
-import { getParameterValues } from '~/lib/utils/url_utility';
 import {
   displaySuccessfulInvitationAlert,
   reloadOnInvitationSuccess,
@@ -40,7 +37,9 @@ import {
 import { GROUPS_INVITATIONS_PATH, invitationsApiResponse } from '../mock_data/api_responses';
 import {
   propsData,
-  inviteSource,
+  emailPostData,
+  postData,
+  singleUserPostData,
   newProjectPath,
   user1,
   user2,
@@ -53,26 +52,25 @@ import {
 
 jest.mock('~/invite_members/utils/trigger_successful_invite_alert');
 jest.mock('~/experimentation/experiment_tracking');
-jest.mock('~/lib/utils/url_utility', () => ({
-  ...jest.requireActual('~/lib/utils/url_utility'),
-  getParameterValues: jest.fn(() => []),
-}));
 
 describe('InviteMembersModal', () => {
   let wrapper;
   let mock;
   let trackingSpy;
+  const showToast = jest.fn();
 
-  const expectTracking = (
-    action,
-    label = undefined,
-    category = INVITE_MEMBER_MODAL_TRACKING_CATEGORY,
-  ) => expect(trackingSpy).toHaveBeenCalledWith(category, action, { label, category });
+  const expectTracking = (action, label = undefined, property = undefined) =>
+    expect(trackingSpy).toHaveBeenCalledWith(INVITE_MEMBER_MODAL_TRACKING_CATEGORY, action, {
+      label,
+      category: INVITE_MEMBER_MODAL_TRACKING_CATEGORY,
+      property,
+    });
 
   const createComponent = (props = {}, stubs = {}) => {
     wrapper = shallowMountExtended(InviteMembersModal, {
       provide: {
         newProjectPath,
+        name: propsData.name,
       },
       propsData: {
         usersLimitDataset: {},
@@ -90,6 +88,11 @@ describe('InviteMembersModal', () => {
         }),
         GlEmoji,
         ...stubs,
+      },
+      mocks: {
+        $toast: {
+          show: showToast,
+        },
       },
     });
   };
@@ -116,13 +119,10 @@ describe('InviteMembersModal', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     mock.restore();
   });
 
   const findModal = () => wrapper.findComponent(GlModal);
-  const findBase = () => wrapper.findComponent(InviteModalBase);
   const findIntroText = () => wrapper.findByTestId('modal-base-intro-text').text();
   const findEmptyInvitesAlert = () => wrapper.findByTestId('empty-invites-alert');
   const findMemberErrorAlert = () => wrapper.findByTestId('alert-member-error');
@@ -134,19 +134,20 @@ describe('InviteMembersModal', () => {
     `${Object.keys(invitationsApiResponse.EXPANDED_RESTRICTED.message)[element]}: ${
       Object.values(invitationsApiResponse.EXPANDED_RESTRICTED.message)[element]
     }`;
-  const emitEventFromModal = (eventName) => () =>
-    findModal().vm.$emit(eventName, { preventDefault: jest.fn() });
-  const clickInviteButton = emitEventFromModal('primary');
-  const clickCancelButton = emitEventFromModal('cancel');
+  const findActionButton = () => wrapper.findByTestId('invite-modal-submit');
+  const findCancelButton = () => wrapper.findByTestId('invite-modal-cancel');
+
+  const emitClickFromModal = (findButton) => () =>
+    findButton().vm.$emit('click', { preventDefault: jest.fn() });
+
+  const clickInviteButton = emitClickFromModal(findActionButton);
+  const clickCancelButton = emitClickFromModal(findCancelButton);
+
   const findMembersFormGroup = () => wrapper.findByTestId('members-form-group');
   const membersFormGroupInvalidFeedback = () =>
     findMembersFormGroup().attributes('invalid-feedback');
   const membersFormGroupDescription = () => findMembersFormGroup().attributes('description');
   const findMembersSelect = () => wrapper.findComponent(MembersTokenSelect);
-  const findTasksToBeDone = () => wrapper.findByTestId('invite-members-modal-tasks-to-be-done');
-  const findTasks = () => wrapper.findByTestId('invite-members-modal-tasks');
-  const findProjectSelect = () => wrapper.findByTestId('invite-members-modal-project-select');
-  const findNoProjectsAlert = () => wrapper.findByTestId('invite-members-modal-no-projects-alert');
   const findCelebrationEmoji = () => wrapper.findComponent(GlEmoji);
   const triggerOpenModal = async ({ mode = 'default', source } = {}) => {
     eventHub.$emit('openModal', { mode, source });
@@ -156,159 +157,10 @@ describe('InviteMembersModal', () => {
     findMembersSelect().vm.$emit('input', val);
     await nextTick();
   };
-  const triggerTasks = async (val) => {
-    findTasks().vm.$emit('input', val);
-    await nextTick();
-  };
-  const triggerAccessLevel = async (val) => {
-    findBase().vm.$emit('access-level', val);
-    await nextTick();
-  };
   const removeMembersToken = async (val) => {
     findMembersSelect().vm.$emit('token-remove', val);
     await nextTick();
   };
-
-  describe('rendering the tasks to be done', () => {
-    const setupComponent = async (props = {}, urlParameter = ['invite_members_for_task']) => {
-      getParameterValues.mockImplementation(() => urlParameter);
-      createComponent(props);
-
-      await triggerAccessLevel(30);
-    };
-
-    const setupComponentWithTasks = async (...args) => {
-      await setupComponent(...args);
-      await triggerTasks(['ci', 'code']);
-    };
-
-    afterAll(() => {
-      getParameterValues.mockImplementation(() => []);
-    });
-
-    it('renders the tasks to be done', async () => {
-      await setupComponent();
-
-      expect(findTasksToBeDone().exists()).toBe(true);
-    });
-
-    describe('when the selected access level is lower than 30', () => {
-      it('does not render the tasks to be done', async () => {
-        await setupComponent();
-        await triggerAccessLevel(20);
-
-        expect(findTasksToBeDone().exists()).toBe(false);
-      });
-    });
-
-    describe('when the url does not contain the parameter `open_modal=invite_members_for_task`', () => {
-      it('does not render the tasks to be done', async () => {
-        await setupComponent({}, []);
-
-        expect(findTasksToBeDone().exists()).toBe(false);
-      });
-
-      describe('when opened from the Learn GitLab page', () => {
-        it('does render the tasks to be done', async () => {
-          await setupComponent({}, []);
-          await triggerOpenModal({ source: LEARN_GITLAB });
-
-          expect(findTasksToBeDone().exists()).toBe(true);
-        });
-      });
-    });
-
-    describe('rendering the tasks', () => {
-      it('renders the tasks', async () => {
-        await setupComponent();
-
-        expect(findTasks().exists()).toBe(true);
-      });
-
-      it('does not render an alert', async () => {
-        await setupComponent();
-
-        expect(findNoProjectsAlert().exists()).toBe(false);
-      });
-
-      describe('when there are no projects passed in the data', () => {
-        it('does not render the tasks', async () => {
-          await setupComponent({ projects: [] });
-
-          expect(findTasks().exists()).toBe(false);
-        });
-
-        it('renders an alert with a link to the new projects path', async () => {
-          await setupComponent({ projects: [] });
-
-          expect(findNoProjectsAlert().exists()).toBe(true);
-          expect(findNoProjectsAlert().findComponent(GlLink).attributes('href')).toBe(
-            newProjectPath,
-          );
-        });
-      });
-    });
-
-    describe('rendering the project dropdown', () => {
-      it('renders the project select', async () => {
-        await setupComponentWithTasks();
-
-        expect(findProjectSelect().exists()).toBe(true);
-      });
-
-      describe('when the modal is shown for a project', () => {
-        it('does not render the project select', async () => {
-          await setupComponentWithTasks({ isProject: true });
-
-          expect(findProjectSelect().exists()).toBe(false);
-        });
-      });
-
-      describe('when no tasks are selected', () => {
-        it('does not render the project select', async () => {
-          await setupComponent();
-
-          expect(findProjectSelect().exists()).toBe(false);
-        });
-      });
-    });
-
-    describe('tracking events', () => {
-      it('tracks the view for invite_members_for_task', async () => {
-        await setupComponentWithTasks();
-
-        expect(ExperimentTracking).toHaveBeenCalledWith(INVITE_MEMBERS_FOR_TASK.name);
-        expect(ExperimentTracking.prototype.event).toHaveBeenCalledWith(
-          INVITE_MEMBERS_FOR_TASK.view,
-        );
-      });
-
-      it('tracks the submit for invite_members_for_task', async () => {
-        await setupComponentWithTasks();
-        await triggerMembersTokenSelect([user1]);
-
-        clickInviteButton();
-
-        expect(ExperimentTracking).toHaveBeenCalledWith(INVITE_MEMBERS_FOR_TASK.name, {
-          label: 'selected_tasks_to_be_done',
-          property: 'ci,code',
-        });
-        expect(ExperimentTracking.prototype.event).toHaveBeenCalledWith(
-          INVITE_MEMBERS_FOR_TASK.submit,
-        );
-      });
-
-      it('does not track the submit for invite_members_for_task when invites have not been entered', async () => {
-        await setupComponentWithTasks();
-        clickInviteButton();
-
-        expect(ExperimentTracking).not.toHaveBeenCalledWith(
-          INVITE_MEMBERS_FOR_TASK.name,
-          expect.any,
-        );
-      });
-    });
-  });
 
   describe('rendering with tracking considerations', () => {
     describe('when inviting to a project', () => {
@@ -368,13 +220,11 @@ describe('InviteMembersModal', () => {
           it('tracks actions', async () => {
             trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
-            const mockEvent = { preventDefault: jest.fn() };
-
             await triggerOpenModal({ mode: 'celebrate', source: ON_CELEBRATION_TRACK_LABEL });
 
             expectTracking('render', ON_CELEBRATION_TRACK_LABEL);
 
-            findModal().vm.$emit('cancel', mockEvent);
+            clickCancelButton();
             expectTracking('click_cancel', ON_CELEBRATION_TRACK_LABEL);
 
             findModal().vm.$emit('close');
@@ -411,13 +261,11 @@ describe('InviteMembersModal', () => {
 
         trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
-        const mockEvent = { preventDefault: jest.fn() };
-
         await triggerOpenModal(source);
 
         expectTracking('render', label);
 
-        findModal().vm.$emit('cancel', mockEvent);
+        clickCancelButton();
         expectTracking('click_cancel', label);
 
         findModal().vm.$emit('close');
@@ -472,7 +320,7 @@ describe('InviteMembersModal', () => {
     const expectedSyntaxError = 'email contains an invalid email address';
 
     describe('when no invites have been entered in the form and then some are entered', () => {
-      beforeEach(async () => {
+      beforeEach(() => {
         createInviteMembersToGroupWrapper();
       });
 
@@ -492,22 +340,11 @@ describe('InviteMembersModal', () => {
     });
 
     describe('when inviting an existing user to group by user ID', () => {
-      const postData = {
-        user_id: '1,2',
-        access_level: propsData.defaultAccessLevel,
-        expires_at: undefined,
-        invite_source: inviteSource,
-        format: 'json',
-        tasks_to_be_done: [],
-        tasks_project_id: '',
-      };
-
       describe('when reloadOnSubmit is true', () => {
         beforeEach(async () => {
           createComponent({ reloadPageOnSubmit: true });
           await triggerMembersTokenSelect([user1, user2]);
 
-          wrapper.vm.$toast = { show: jest.fn() };
           jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
           clickInviteButton();
         });
@@ -521,7 +358,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('does not show the toast message', () => {
-          expect(wrapper.vm.$toast.show).not.toHaveBeenCalled();
+          expect(showToast).not.toHaveBeenCalled();
         });
       });
 
@@ -530,7 +367,6 @@ describe('InviteMembersModal', () => {
           createComponent();
           await triggerMembersTokenSelect([user1, user2]);
 
-          wrapper.vm.$toast = { show: jest.fn() };
           jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
         });
 
@@ -544,7 +380,7 @@ describe('InviteMembersModal', () => {
           });
 
           it('displays the successful toastMessage', () => {
-            expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
+            expect(showToast).toHaveBeenCalledWith('Members were successfully added');
           });
 
           it('does not call displaySuccessfulInvitationAlert on mount', () => {
@@ -553,20 +389,6 @@ describe('InviteMembersModal', () => {
 
           it('does not call reloadOnInvitationSuccess', () => {
             expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
-          });
-        });
-
-        describe('when opened from a Learn GitLab page', () => {
-          it('emits the `showSuccessfulInvitationsAlert` event', async () => {
-            await triggerOpenModal({ source: LEARN_GITLAB });
-
-            jest.spyOn(eventHub, '$emit').mockImplementation();
-
-            clickInviteButton();
-
-            await waitForPromises();
-
-            expect(eventHub.$emit).toHaveBeenCalledWith('showSuccessfulInvitationsAlert');
           });
         });
       });
@@ -671,28 +493,29 @@ describe('InviteMembersModal', () => {
           expect(membersFormGroupInvalidFeedback()).toBe('');
           expect(findMembersSelect().props('exceptionState')).not.toBe(false);
         });
+
+        it('displays invite limit error message', async () => {
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.INVITE_LIMIT);
+
+          clickInviteButton();
+
+          await waitForPromises();
+
+          expect(membersFormGroupInvalidFeedback()).toBe(
+            invitationsApiResponse.INVITE_LIMIT.message,
+          );
+        });
       });
     });
 
     describe('when inviting a new user by email address', () => {
-      const postData = {
-        access_level: propsData.defaultAccessLevel,
-        expires_at: undefined,
-        email: 'email@example.com',
-        invite_source: inviteSource,
-        tasks_to_be_done: [],
-        tasks_project_id: '',
-        format: 'json',
-      };
-
       describe('when invites are sent successfully', () => {
         beforeEach(async () => {
           createComponent();
           await triggerMembersTokenSelect([user3]);
 
           trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
-          wrapper.vm.$toast = { show: jest.fn() };
-          jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
+          jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: emailPostData });
         });
 
         describe('when triggered from regular mounting', () => {
@@ -701,11 +524,11 @@ describe('InviteMembersModal', () => {
           });
 
           it('calls Api inviteGroupMembers with the correct params', () => {
-            expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, postData);
+            expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, emailPostData);
           });
 
           it('displays the successful toastMessage', () => {
-            expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
+            expect(showToast).toHaveBeenCalledWith('Members were successfully added');
           });
 
           it('does not call displaySuccessfulInvitationAlert on mount', () => {
@@ -719,96 +542,117 @@ describe('InviteMembersModal', () => {
       });
 
       describe('when invites are not sent successfully', () => {
-        beforeEach(async () => {
-          createInviteMembersToGroupWrapper();
+        describe('when api throws error', () => {
+          beforeEach(async () => {
+            jest.spyOn(axios, 'post').mockImplementation(() => {
+              throw new Error();
+            });
 
-          await triggerMembersTokenSelect([user3]);
+            createInviteMembersToGroupWrapper();
+
+            await triggerMembersTokenSelect([user3]);
+            clickInviteButton();
+          });
+
+          it('displays the default error message', () => {
+            expect(membersFormGroupInvalidFeedback()).toBe(INVALID_FEEDBACK_MESSAGE_DEFAULT);
+            expect(findMembersSelect().props('exceptionState')).toBe(false);
+            expect(findActionButton().props('loading')).toBe(false);
+          });
         });
 
-        it('displays the api error for invalid email syntax', async () => {
-          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
+        describe('when api rejects promise', () => {
+          beforeEach(async () => {
+            createInviteMembersToGroupWrapper();
 
-          clickInviteButton();
+            await triggerMembersTokenSelect([user3]);
+          });
 
-          await waitForPromises();
+          it('displays the api error for invalid email syntax', async () => {
+            mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
 
-          expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
-          expect(findMembersSelect().props('exceptionState')).toBe(false);
-          expect(findModal().props('actionPrimary').attributes.loading).toBe(false);
-        });
+            clickInviteButton();
 
-        it('clears the error when the modal is hidden', async () => {
-          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
+            await waitForPromises();
 
-          clickInviteButton();
+            expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
+            expect(findMembersSelect().props('exceptionState')).toBe(false);
+            expect(findActionButton().props('loading')).toBe(false);
+          });
 
-          await waitForPromises();
+          it('clears the error when the modal is hidden', async () => {
+            mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
 
-          expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
-          expect(findMembersSelect().props('exceptionState')).toBe(false);
-          expect(findModal().props('actionPrimary').attributes.loading).toBe(false);
+            clickInviteButton();
 
-          findModal().vm.$emit('hidden');
+            await waitForPromises();
 
-          await nextTick();
+            expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
+            expect(findMembersSelect().props('exceptionState')).toBe(false);
+            expect(findActionButton().props('loading')).toBe(false);
 
-          expect(findMemberErrorAlert().exists()).toBe(false);
-          expect(membersFormGroupInvalidFeedback()).toBe('');
-          expect(findMembersSelect().props('exceptionState')).not.toBe(false);
-        });
+            findModal().vm.$emit('hidden');
 
-        it('displays the restricted email error when restricted email is invited', async () => {
-          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
+            await nextTick();
 
-          clickInviteButton();
+            expect(findMemberErrorAlert().exists()).toBe(false);
+            expect(membersFormGroupInvalidFeedback()).toBe('');
+            expect(findMembersSelect().props('exceptionState')).not.toBe(false);
+          });
 
-          await waitForPromises();
+          it('displays the restricted email error when restricted email is invited', async () => {
+            mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
 
-          expect(findMemberErrorAlert().exists()).toBe(true);
-          expect(findMemberErrorAlert().text()).toContain(expectedEmailRestrictedError);
-          expect(membersFormGroupInvalidFeedback()).toBe('');
-          expect(findMembersSelect().props('exceptionState')).not.toBe(false);
-          expect(findModal().props('actionPrimary').attributes.loading).toBe(false);
-        });
+            clickInviteButton();
 
-        it('displays all errors when there are multiple emails that return a restricted error message', async () => {
-          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
+            await waitForPromises();
 
-          clickInviteButton();
+            expect(findMemberErrorAlert().exists()).toBe(true);
+            expect(findMemberErrorAlert().text()).toContain(expectedEmailRestrictedError);
+            expect(membersFormGroupInvalidFeedback()).toBe('');
+            expect(findMembersSelect().props('exceptionState')).not.toBe(false);
+            expect(findActionButton().props('loading')).toBe(false);
+          });
 
-          await waitForPromises();
+          it('displays all errors when there are multiple emails that return a restricted error message', async () => {
+            mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
 
-          expect(findMemberErrorAlert().exists()).toBe(true);
-          expect(findMemberErrorAlert().text()).toContain(
-            Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[0],
-          );
-          expect(findMemberErrorAlert().text()).toContain(
-            Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[1],
-          );
-          expect(findMemberErrorAlert().text()).toContain(
-            Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[2],
-          );
-          expect(membersFormGroupInvalidFeedback()).toBe('');
-          expect(findMembersSelect().props('exceptionState')).not.toBe(false);
-        });
+            clickInviteButton();
 
-        it('displays the invalid syntax error for bad request', async () => {
-          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
+            await waitForPromises();
 
-          clickInviteButton();
+            expect(findMemberErrorAlert().exists()).toBe(true);
+            expect(findMemberErrorAlert().text()).toContain(
+              Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[0],
+            );
+            expect(findMemberErrorAlert().text()).toContain(
+              Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[1],
+            );
+            expect(findMemberErrorAlert().text()).toContain(
+              Object.values(invitationsApiResponse.MULTIPLE_RESTRICTED.message)[2],
+            );
+            expect(membersFormGroupInvalidFeedback()).toBe('');
+            expect(findMembersSelect().props('exceptionState')).not.toBe(false);
+          });
 
-          await waitForPromises();
+          it('displays the invalid syntax error for bad request', async () => {
+            mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
 
-          expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
-          expect(findMembersSelect().props('exceptionState')).toBe(false);
-        });
+            clickInviteButton();
 
-        it('does not call displaySuccessfulInvitationAlert on mount', () => {
-          expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
-        });
+            await waitForPromises();
 
-        it('does not call reloadOnInvitationSuccess', () => {
-          expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
+            expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
+            expect(findMembersSelect().props('exceptionState')).toBe(false);
+          });
+
+          it('does not call displaySuccessfulInvitationAlert on mount', () => {
+            expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
+          });
+
+          it('does not call reloadOnInvitationSuccess', () => {
+            expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
+          });
         });
       });
 
@@ -892,25 +736,13 @@ describe('InviteMembersModal', () => {
     });
 
     describe('when inviting members and non-members in same click', () => {
-      const postData = {
-        access_level: propsData.defaultAccessLevel,
-        expires_at: undefined,
-        invite_source: inviteSource,
-        format: 'json',
-        tasks_to_be_done: [],
-        tasks_project_id: '',
-        user_id: '1',
-        email: 'email@example.com',
-      };
-
       describe('when invites are sent successfully', () => {
         beforeEach(async () => {
           createComponent();
           await triggerMembersTokenSelect([user1, user3]);
 
           trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
-          wrapper.vm.$toast = { show: jest.fn() };
-          jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
+          jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: singleUserPostData });
         });
 
         describe('when triggered from regular mounting', () => {
@@ -922,13 +754,13 @@ describe('InviteMembersModal', () => {
 
           it('calls Api inviteGroupMembers with the correct params and invite source', () => {
             expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, {
-              ...postData,
+              ...singleUserPostData,
               invite_source: '_invite_source_',
             });
           });
 
           it('displays the successful toastMessage', () => {
-            expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
+            expect(showToast).toHaveBeenCalledWith('Members were successfully added');
           });
 
           it('does not call displaySuccessfulInvitationAlert on mount', () => {
@@ -951,25 +783,8 @@ describe('InviteMembersModal', () => {
 
           clickInviteButton();
 
-          expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, postData);
+          expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, singleUserPostData);
         });
-      });
-    });
-
-    describe('tracking', () => {
-      beforeEach(async () => {
-        createComponent();
-        await triggerMembersTokenSelect([user3]);
-
-        wrapper.vm.$toast = { show: jest.fn() };
-        jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({});
-      });
-
-      it('tracks the view for learn_gitlab source', () => {
-        eventHub.$emit('openModal', { source: LEARN_GITLAB });
-
-        expect(ExperimentTracking).toHaveBeenCalledWith(INVITE_MEMBERS_FOR_TASK.name);
-        expect(ExperimentTracking.prototype.event).toHaveBeenCalledWith(LEARN_GITLAB);
       });
     });
   });

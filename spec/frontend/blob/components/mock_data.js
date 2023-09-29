@@ -30,6 +30,10 @@ export const Blob = {
   richViewer: {
     ...RichViewerMock,
   },
+  ideEditPath: 'ide/edit',
+  editBlobPath: 'edit/blob',
+  gitpodBlobUrl: 'gitpod/blob/url',
+  pipelineEditorPath: 'pipeline/editor/path',
 };
 
 export const BinaryBlob = {
@@ -47,14 +51,27 @@ export const BinaryBlob = {
 };
 
 export const RichBlobContentMock = {
+  __typename: 'Blob',
   path: 'foo.md',
   richData: '<h1>Rich</h1>',
 };
 
 export const SimpleBlobContentMock = {
+  __typename: 'Blob',
   path: 'foo.js',
   plainData: 'Plain',
 };
 
 export const mockEnvironmentName = 'my.testing.environment';
 export const mockEnvironmentPath = 'https://my.testing.environment';
+
+export const userInfoMock = {
+  currentUser: {
+    id: '123',
+    gitpodEnabled: true,
+    preferencesGitpodPath: '/-/profile/preferences#user_gitpod_enabled',
+    profileEnableGitpodPath: '/-/profile?user%5Bgitpod_enabled%5D=true',
+  },
+};
+
+export const applicationInfoMock = { gitpodEnabled: true };

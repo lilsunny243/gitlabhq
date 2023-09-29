@@ -6,9 +6,12 @@ class Packages::Package < ApplicationRecord
   include UsageStatistics
   include Gitlab::Utils::StrongMemoize
   include Packages::Installable
+  include Packages::Downloadable
+  include EnumInheritance
 
   DISPLAYABLE_STATUSES = [:default, :error].freeze
   INSTALLABLE_STATUSES = [:default, :hidden].freeze
+  STATUS_MESSAGE_MAX_LENGTH = 255
 
   enum package_type: {
     maven: 1,
@@ -23,13 +26,16 @@ class Packages::Package < ApplicationRecord
     rubygems: 10,
     helm: 11,
     terraform_module: 12,
-    rpm: 13
+    rpm: 13,
+    ml_model: 14
   }
 
   enum status: { default: 0, hidden: 1, processing: 2, error: 3, pending_destruction: 4 }
 
   belongs_to :project
   belongs_to :creator, class_name: 'User'
+
+  after_create_commit :publish_creation_event, if: :generic?
 
   # package_files must be destroyed by ruby code in order to properly remove carrierwave uploads and update project statistics
   has_many :package_files, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
@@ -43,6 +49,7 @@ class Packages::Package < ApplicationRecord
   has_one :pypi_metadatum, inverse_of: :package, class_name: 'Packages::Pypi::Metadatum'
   has_one :maven_metadatum, inverse_of: :package, class_name: 'Packages::Maven::Metadatum'
   has_one :nuget_metadatum, inverse_of: :package, class_name: 'Packages::Nuget::Metadatum'
+  has_many :nuget_symbols, inverse_of: :package, class_name: 'Packages::Nuget::Symbol'
   has_one :composer_metadatum, inverse_of: :package, class_name: 'Packages::Composer::Metadatum'
   has_one :rubygems_metadatum, inverse_of: :package, class_name: 'Packages::Rubygems::Metadatum'
   has_one :rpm_metadatum, inverse_of: :package, class_name: 'Packages::Rpm::Metadatum'
@@ -66,13 +73,12 @@ class Packages::Package < ApplicationRecord
   validates :name, format: { with: Gitlab::Regex.package_name_regex }, unless: -> { conan? || generic? || debian? }
 
   validates :name,
-            uniqueness: {
-              scope: %i[project_id version package_type],
-              conditions: -> { not_pending_destruction }
-            },
-            unless: -> { pending_destruction? || conan? || debian_package? }
+    uniqueness: {
+      scope: %i[project_id version package_type],
+      conditions: -> { not_pending_destruction }
+    },
+    unless: -> { pending_destruction? || conan? }
 
-  validate :unique_debian_package_name, if: :debian_package?
   validate :valid_conan_package_recipe, if: :conan?
   validate :valid_composer_global_name, if: :composer?
   validate :npm_package_already_taken, if: :npm?
@@ -80,18 +86,19 @@ class Packages::Package < ApplicationRecord
   validates :name, format: { with: Gitlab::Regex.conan_recipe_component_regex }, if: :conan?
   validates :name, format: { with: Gitlab::Regex.generic_package_name_regex }, if: :generic?
   validates :name, format: { with: Gitlab::Regex.helm_package_regex }, if: :helm?
-  validates :name, format: { with: Gitlab::Regex.npm_package_name_regex }, if: :npm?
+  validates :name, format: { with: Gitlab::Regex.npm_package_name_regex, message: Gitlab::Regex.npm_package_name_regex_message }, if: :npm?
   validates :name, format: { with: Gitlab::Regex.nuget_package_name_regex }, if: :nuget?
   validates :name, format: { with: Gitlab::Regex.terraform_module_package_name_regex }, if: :terraform_module?
   validates :name, format: { with: Gitlab::Regex.debian_package_name_regex }, if: :debian_package?
-  validates :name, inclusion: { in: %w[incoming] }, if: :debian_incoming?
+  validates :name, inclusion: { in: [Packages::Debian::INCOMING_PACKAGE_NAME] }, if: :debian_incoming?
   validates :version, format: { with: Gitlab::Regex.nuget_version_regex }, if: :nuget?
   validates :version, format: { with: Gitlab::Regex.conan_recipe_component_regex }, if: :conan?
   validates :version, format: { with: Gitlab::Regex.maven_version_regex }, if: -> { version? && maven? }
   validates :version, format: { with: Gitlab::Regex.pypi_version_regex }, if: :pypi?
   validates :version, format: { with: Gitlab::Regex.prefixed_semver_regex }, if: :golang?
   validates :version, format: { with: Gitlab::Regex.helm_version_regex }, if: :helm?
-  validates :version, format: { with: Gitlab::Regex.semver_regex }, if: -> { composer_tag_version? || npm? || terraform_module? }
+  validates :version, format: { with: Gitlab::Regex.semver_regex, message: Gitlab::Regex.semver_regex_message },
+    if: -> { composer_tag_version? || npm? || terraform_module? }
 
   validates :version,
     presence: true,
@@ -117,6 +124,22 @@ class Packages::Package < ApplicationRecord
 
   scope :with_case_insensitive_version, ->(version) do
     where('LOWER(version) = ?', version.downcase)
+  end
+
+  scope :with_case_insensitive_name, ->(name) do
+    where(arel_table[:name].lower.eq(name.downcase))
+  end
+
+  scope :with_nuget_version_or_normalized_version, ->(version, with_normalized: true) do
+    relation = with_case_insensitive_version(version)
+
+    return relation unless with_normalized
+
+    relation
+      .left_joins(:nuget_metadatum)
+      .or(
+        merge(Packages::Nuget::Metadatum.normalized_version_in(version))
+      )
   end
 
   scope :search_by_name, ->(query) { fuzzy_search(query, [:name], use_minimum_char_limit: false) }
@@ -155,6 +178,11 @@ class Packages::Package < ApplicationRecord
   scope :preload_npm_metadatum, -> { preload(:npm_metadatum) }
   scope :preload_nuget_metadatum, -> { preload(:nuget_metadatum) }
   scope :preload_pypi_metadatum, -> { preload(:pypi_metadatum) }
+  scope :preload_conan_metadatum, -> { preload(:conan_metadatum) }
+
+  scope :with_npm_scope, ->(scope) do
+    npm.where("position('/' in packages_packages.name) > 0 AND split_part(packages_packages.name, '/', 1) = :package_scope", package_scope: "@#{sanitize_sql_like(scope)}")
+  end
 
   scope :without_nuget_temporary_name, -> { where.not(name: Packages::Nuget::TEMPORARY_PACKAGE_NAME) }
 
@@ -162,8 +190,6 @@ class Packages::Package < ApplicationRecord
   scope :preload_files, -> { preload(:installable_package_files) }
   scope :preload_nuget_files, -> { preload(:installable_nuget_package_files) }
   scope :preload_pipelines, -> { preload(pipelines: :user) }
-  scope :last_of_each_version, -> { where(id: all.last_of_each_version_ids) }
-  scope :last_of_each_version_ids, -> { select('MAX(id) AS id').unscope(where: :id).group(:version) }
   scope :limit_recent, ->(limit) { order_created_desc.limit(limit) }
   scope :select_distinct_name, -> { select(:name).distinct }
 
@@ -191,6 +217,12 @@ class Packages::Package < ApplicationRecord
 
     joins(:project).reorder(keyset_order)
   end
+
+  def self.inheritance_column = 'package_type'
+
+  def self.inheritance_column_to_class_map = {
+    ml_model: 'Packages::MlModel::Package'
+  }.freeze
 
   def self.only_maven_packages_with_path(path, use_cte: false)
     if use_cte
@@ -220,6 +252,16 @@ class Packages::Package < ApplicationRecord
 
   def self.by_name_and_version!(name, version)
     find_by!(name: name, version: version)
+  end
+
+  def self.debian_incoming_package!
+    find_by!(name: Packages::Debian::INCOMING_PACKAGE_NAME, version: nil, package_type: :debian, status: :default)
+  end
+
+  def self.existing_debian_packages_with(name:, version:)
+    debian.with_name(name)
+          .with_version(version)
+          .not_pending_destruction
   end
 
   def self.pluck_names
@@ -288,15 +330,14 @@ class Packages::Package < ApplicationRecord
   end
 
   # Technical debt: to be removed in https://gitlab.com/gitlab-org/gitlab/-/issues/281937
-  def original_build_info
-    strong_memoize(:original_build_info) do
-      build_infos.first
-    end
+  def last_build_info
+    build_infos.last
   end
+  strong_memoize_attr :last_build_info
 
   # Technical debt: to be removed in https://gitlab.com/gitlab-org/gitlab/-/issues/281937
   def pipeline
-    original_build_info&.pipeline
+    last_build_info&.pipeline
   end
 
   def tag_names
@@ -316,10 +357,9 @@ class Packages::Package < ApplicationRecord
   end
 
   def package_settings
-    strong_memoize(:package_settings) do
-      project.namespace.package_settings
-    end
+    project.namespace.package_settings
   end
+  strong_memoize_attr :package_settings
 
   def sync_maven_metadata(user)
     return unless maven? && version? && user
@@ -347,10 +387,22 @@ class Packages::Package < ApplicationRecord
     name.gsub(/#{Gitlab::Regex::Packages::PYPI_NORMALIZED_NAME_REGEX_STRING}/o, '-').downcase
   end
 
-  def touch_last_downloaded_at
-    ::Gitlab::Database::LoadBalancing::Session.without_sticky_writes do
-      update_column(:last_downloaded_at, Time.zone.now)
-    end
+  def normalized_nuget_version
+    return unless nuget?
+
+    nuget_metadatum&.normalized_version
+  end
+
+  def publish_creation_event
+    ::Gitlab::EventStore.publish(
+      ::Packages::PackageCreatedEvent.new(data: {
+        project_id: project_id,
+        id: id,
+        name: name,
+        version: version,
+        package_type: package_type
+      })
+    )
   end
 
   private
@@ -402,19 +454,6 @@ class Packages::Package < ApplicationRecord
     return false unless project&.root_namespace&.path
 
     project.root_namespace.path == ::Packages::Npm.scope_of(name)
-  end
-
-  def unique_debian_package_name
-    return unless debian_publication&.distribution
-
-    package_exists = debian_publication.distribution.packages
-                            .with_name(name)
-                            .with_version(version)
-                            .not_pending_destruction
-                            .id_not_in(id)
-                            .exists?
-
-    errors.add(:base, _('Debian package already exists in Distribution')) if package_exists
   end
 
   def forbidden_debian_changes

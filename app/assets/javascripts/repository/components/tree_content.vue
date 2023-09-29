@@ -1,10 +1,8 @@
 <script>
 import paginatedTreeQuery from 'shared_queries/repository/paginated_tree.query.graphql';
-import { createAlert } from '~/flash';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { createAlert } from '~/alert';
 import {
   TREE_PAGE_SIZE,
-  TREE_INITIAL_FETCH_COUNT,
   TREE_PAGE_LIMIT,
   COMMIT_BATCH_SIZE,
   GITALY_UNAVAILABLE_CODE,
@@ -23,12 +21,13 @@ export default {
     FileTable,
     FilePreview,
   },
-  mixins: [getRefMixin, glFeatureFlagMixin()],
+  mixins: [getRefMixin],
   apollo: {
     projectPath: {
       query: projectPathQuery,
     },
   },
+  inject: ['refType'],
   props: {
     path: {
       type: String,
@@ -59,13 +58,6 @@ export default {
     };
   },
   computed: {
-    pageSize() {
-      // we want to exponentially increase the page size to reduce the load on the frontend
-      const exponentialSize = (TREE_PAGE_SIZE / TREE_INITIAL_FETCH_COUNT) * (this.fetchCounter + 1);
-      return exponentialSize < TREE_PAGE_SIZE && this.glFeatures.increasePageSizeExponentially
-        ? exponentialSize
-        : TREE_PAGE_SIZE;
-    },
     totalEntries() {
       return Object.values(this.entries).flat().length;
     },
@@ -108,9 +100,10 @@ export default {
           variables: {
             projectPath: this.projectPath,
             ref: this.ref,
+            refType: this.refType?.toUpperCase(),
             path: originalPath,
             nextPageCursor: this.nextPageCursor,
-            pageSize: this.pageSize,
+            pageSize: TREE_PAGE_SIZE,
           },
         })
         .then(({ data }) => {
@@ -180,7 +173,7 @@ export default {
       }
     },
     loadCommitData(rowNumber) {
-      loadCommits(this.projectPath, this.path, this.ref, rowNumber)
+      loadCommits(this.projectPath, this.path, this.ref, rowNumber, this.refType)
         .then(this.setCommitData)
         .catch(() => {});
     },

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe LooseForeignKeys::ProcessDeletedRecordsService do
+RSpec.describe LooseForeignKeys::ProcessDeletedRecordsService, feature_category: :database do
   include MigrationsHelpers
 
   def create_table_structure
@@ -71,7 +71,7 @@ RSpec.describe LooseForeignKeys::ProcessDeletedRecordsService do
   let(:loose_fk_child_table_1_2) { table(:_test_loose_fk_child_table_1_2) }
   let(:loose_fk_child_table_2_1) { table(:_test_loose_fk_child_table_2_1) }
 
-  before(:all) do
+  before_all do
     create_table_structure
   end
 
@@ -162,7 +162,9 @@ RSpec.describe LooseForeignKeys::ProcessDeletedRecordsService do
       end
 
       before do
-        stub_const('LooseForeignKeys::ModificationTracker::MAX_DELETES', 2)
+        allow_next_instance_of(LooseForeignKeys::ModificationTracker) do |instance|
+          allow(instance).to receive(:max_deletes).and_return(2)
+        end
         stub_const('LooseForeignKeys::CleanerService::DELETE_LIMIT', 1)
       end
 

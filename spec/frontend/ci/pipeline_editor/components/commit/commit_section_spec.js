@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils';
 import Vue from 'vue';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
+import { mockTracking } from 'helpers/tracking_helper';
 import CommitForm from '~/ci/pipeline_editor/components/commit/commit_form.vue';
 import CommitSection from '~/ci/pipeline_editor/components/commit/commit_section.vue';
 import {
@@ -11,11 +12,12 @@ import {
   COMMIT_ACTION_UPDATE,
   COMMIT_SUCCESS,
   COMMIT_SUCCESS_WITH_REDIRECT,
+  pipelineEditorTrackingOptions,
 } from '~/ci/pipeline_editor/constants';
 import { resolvers } from '~/ci/pipeline_editor/graphql/resolvers';
 import commitCreate from '~/ci/pipeline_editor/graphql/mutations/commit_ci_file.mutation.graphql';
 import getCurrentBranch from '~/ci/pipeline_editor/graphql/queries/client/current_branch.query.graphql';
-import updatePipelineEtag from '~/ci/pipeline_editor/graphql/mutations/client/update_pipeline_etag.mutation.graphql';
+import getPipelineEtag from '~/ci/pipeline_editor/graphql/queries/client/pipeline_etag.query.graphql';
 
 import {
   mockCiConfigPath,
@@ -112,10 +114,6 @@ describe('Pipeline Editor | Commit section', () => {
     await findCommitForm().find('[type="submit"]').trigger('click');
     await waitForPromises();
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('when the user commits a new file', () => {
     beforeEach(async () => {
@@ -256,18 +254,20 @@ describe('Pipeline Editor | Commit section', () => {
   describe('when the commit returns a different etag path', () => {
     beforeEach(async () => {
       createComponentWithApollo();
-      jest.spyOn(wrapper.vm.$apollo, 'mutate');
+      jest.spyOn(mockApollo.clients.defaultClient.cache, 'writeQuery');
+
       mockMutateCommitData.mockResolvedValue(mockCommitCreateResponseNewEtag);
       await submitCommit();
     });
 
-    it('calls the client mutation to update the etag', () => {
-      // 1:Commit submission, 2:etag update, 3:currentBranch update, 4:lastCommit update
-      expect(wrapper.vm.$apollo.mutate).toHaveBeenCalledTimes(4);
-      expect(wrapper.vm.$apollo.mutate).toHaveBeenNthCalledWith(2, {
-        mutation: updatePipelineEtag,
-        variables: {
-          pipelineEtag: mockCommitCreateResponseNewEtag.data.commitCreate.commitPipelinePath,
+    it('calls the client mutation to update the etag in the cache', () => {
+      expect(mockApollo.clients.defaultClient.cache.writeQuery).toHaveBeenCalledWith({
+        query: getPipelineEtag,
+        data: {
+          etags: {
+            __typename: 'EtagValues',
+            pipeline: mockCommitCreateResponseNewEtag.data.commitCreate.commitPipelinePath,
+          },
         },
       });
     });
@@ -283,5 +283,44 @@ describe('Pipeline Editor | Commit section', () => {
   it('passes down scroll-to-commit-form prop to commit form', () => {
     createComponent({ props: { 'scroll-to-commit-form': true } });
     expect(findCommitForm().props('scrollToCommitForm')).toBe(true);
+  });
+
+  describe('tracking', () => {
+    let trackingSpy;
+    const { actions, label } = pipelineEditorTrackingOptions;
+
+    beforeEach(() => {
+      trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+    });
+
+    describe('when user commit a new file', () => {
+      beforeEach(async () => {
+        mockMutateCommitData.mockResolvedValue(mockCommitCreateResponse);
+        createComponentWithApollo({ props: { isNewCiConfigFile: true } });
+        await submitCommit();
+      });
+
+      it('calls tracking event with the CREATE property', () => {
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, actions.commitCiConfig, {
+          label,
+          property: COMMIT_ACTION_CREATE,
+        });
+      });
+    });
+
+    describe('when user commit an update to the CI file', () => {
+      beforeEach(async () => {
+        mockMutateCommitData.mockResolvedValue(mockCommitCreateResponse);
+        createComponentWithApollo({ props: { isNewCiConfigFile: false } });
+        await submitCommit();
+      });
+
+      it('calls the tracking event with the UPDATE property', () => {
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, actions.commitCiConfig, {
+          label,
+          property: COMMIT_ACTION_UPDATE,
+        });
+      });
+    });
   });
 });

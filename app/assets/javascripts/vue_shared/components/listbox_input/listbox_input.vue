@@ -1,5 +1,5 @@
 <script>
-import { GlFormGroup, GlListbox } from '@gitlab/ui';
+import { GlFormGroup, GlCollapsibleListbox } from '@gitlab/ui';
 import { __ } from '~/locale';
 
 const MIN_ITEMS_COUNT_FOR_SEARCHING = 10;
@@ -10,9 +10,9 @@ export default {
   },
   components: {
     GlFormGroup,
-    GlListbox,
+    GlCollapsibleListbox,
   },
-  model: GlListbox.model,
+  model: GlCollapsibleListbox.model,
   props: {
     label: {
       type: String,
@@ -39,13 +39,33 @@ export default {
       default: null,
     },
     items: {
-      type: GlListbox.props.items.type,
+      type: GlCollapsibleListbox.props.items.type,
       required: true,
     },
     disabled: {
       type: Boolean,
       required: false,
       default: false,
+    },
+    fluidWidth: {
+      type: GlCollapsibleListbox.props.fluidWidth.type,
+      required: false,
+      default: GlCollapsibleListbox.props.fluidWidth.default,
+    },
+    placement: {
+      type: GlCollapsibleListbox.props.placement.type,
+      required: false,
+      default: GlCollapsibleListbox.props.placement.default,
+    },
+    block: {
+      type: GlCollapsibleListbox.props.block.type,
+      required: false,
+      default: GlCollapsibleListbox.props.block.default,
+    },
+    toggleClass: {
+      type: [Array, String, Object],
+      required: false,
+      default: null,
     },
   },
   data() {
@@ -102,7 +122,7 @@ export default {
     },
     toggleText() {
       return this.selected
-        ? this.allOptions.find((option) => option.value === this.selected).text
+        ? this.allOptions.find((option) => option.value === this.selected)?.text
         : this.defaultToggleText;
     },
   },
@@ -116,13 +136,17 @@ export default {
 
 <template>
   <component :is="wrapperComponent" :label="label" :description="description" v-bind="$attrs">
-    <gl-listbox
+    <gl-collapsible-listbox
       :selected="selected"
       :toggle-text="toggleText"
+      :toggle-class="toggleClass"
       :items="filteredItems"
       :searchable="isSearchable"
       :no-results-text="$options.i18n.noResultsText"
       :disabled="disabled"
+      :fluid-width="fluidWidth"
+      :placement="placement"
+      :block="block"
       @search="search"
       @select="$emit($options.model.event, $event)"
     />

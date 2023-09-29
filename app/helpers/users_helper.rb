@@ -8,10 +8,15 @@ module UsersHelper
     }
   end
 
+  def user_clear_status_at(user)
+    # The user.status can be nil when the user has no status, so we need to protect against that case.
+    # iso8601 is the official RFC supported format for frontend parsing of date:
+    # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/Date
+    user.status&.clear_status_at&.to_fs(:iso8601)
+  end
+
   def user_link(user)
-    link_to(user.name, user_path(user),
-            title: user.email,
-            class: 'has-tooltip commit-committer-link')
+    link_to(user.name, user_path(user), title: user.email, class: 'has-tooltip commit-committer-link')
   end
 
   def user_email_help_text(user)
@@ -53,12 +58,23 @@ module UsersHelper
   end
 
   # Used to preload when you are rendering many projects and checking access
-  #
-  # rubocop: disable CodeReuse/ActiveRecord: `projects` can be array which also responds to pluck
   def load_max_project_member_accesses(projects)
-    current_user&.max_member_access_for_project_ids(projects.pluck(:id))
+    # There are two different request store paradigms for max member access and
+    # we need to preload both of them. One is keyed User the other is keyed by
+    # Project. See https://gitlab.com/gitlab-org/gitlab/-/issues/396822
+
+    # rubocop: disable CodeReuse/ActiveRecord: `projects` can be array which also responds to pluck
+    project_ids = projects.pluck(:id)
+    # rubocop: enable CodeReuse/ActiveRecord
+
+    preload_project_associations(projects)
+
+    Preloaders::UserMaxAccessLevelInProjectsPreloader
+      .new(project_ids, current_user)
+      .execute
+
+    current_user&.max_member_access_for_project_ids(project_ids)
   end
-  # rubocop: enable CodeReuse/ActiveRecord
 
   def max_project_member_access(project)
     current_user&.max_member_access_for_project(project.id) || Gitlab::Access::NO_ACCESS
@@ -79,15 +95,33 @@ module UsersHelper
     return unless user.status
 
     content_tag :span,
-                class: 'user-status-emoji has-tooltip',
-                title: user.status.message_html,
-                data: { html: true, placement: 'top' } do
+      class: 'user-status-emoji has-tooltip',
+      title: user.status.message_html,
+      data: { html: true, placement: 'top' } do
       emoji_icon user.status.emoji
     end
   end
 
   def impersonation_enabled?
     Gitlab.config.gitlab.impersonation_enabled
+  end
+
+  def can_impersonate_user(user, impersonation_in_progress)
+    can?(user, :log_in) && !user.password_expired? && !impersonation_in_progress
+  end
+
+  def impersonation_error_text(user, impersonation_in_progress)
+    if impersonation_in_progress
+      _("You are already impersonating another user")
+    elsif user.blocked?
+      _("You cannot impersonate a blocked user")
+    elsif user.password_expired?
+      _("You cannot impersonate a user with an expired password")
+    elsif user.internal?
+      _("You cannot impersonate an internal user")
+    else
+      _("You cannot impersonate a user who cannot log in")
+    end
   end
 
   def user_badges_in_admin_section(user)
@@ -122,7 +156,7 @@ module UsersHelper
 
   def confirm_user_data(user)
     message = if user.unconfirmed_email.present?
-                _('This user has an unconfirmed email address (%{email}). You may force a confirmation.') % { email: user.unconfirmed_email }
+                safe_format(_('This user has an unconfirmed email address (%{email}). You may force a confirmation.'), email: user.unconfirmed_email)
               else
                 _('This user has an unconfirmed email address. You may force a confirmation.')
               end
@@ -132,7 +166,7 @@ module UsersHelper
       messageHtml: message,
       actionPrimary: {
         text: s_('AdminUsers|Confirm user'),
-        attributes: [{ variant: 'confirm', 'data-qa-selector': 'confirm_user_confirm_button' }]
+        attributes: [{ variant: 'confirm', 'data-testid': 'confirm-user-confirm-button' }]
       },
       actionSecondary: {
         text: _('Cancel'),
@@ -144,7 +178,7 @@ module UsersHelper
       path: confirm_admin_user_path(user),
       method: 'put',
       modal_attributes: modal_attributes,
-      qa_selector: 'confirm_user_button'
+      testid: 'confirm-user-button'
     }
   end
 
@@ -168,8 +202,48 @@ module UsersHelper
     user.public_email.present?
   end
 
-  def trials_link_url
-    'https://about.gitlab.com/free-trial/'
+  def user_profile_tabs_app_data(user)
+    {
+      followees_count: user.followees.count,
+      followers_count: user.followers.count,
+      user_calendar_path: user_calendar_path(user, :json),
+      user_activity_path: user_activity_path(user, :json),
+      utc_offset: local_timezone_instance(user.timezone).now.utc_offset,
+      user_id: user.id,
+      snippets_empty_state: image_path('illustrations/empty-state/empty-snippets-md.svg'),
+      new_snippet_path: (new_snippet_path if can?(current_user, :create_snippet)),
+      follow_empty_state: image_path('illustrations/empty-state/empty-friends-md.svg')
+    }
+  end
+
+  def moderation_status(user)
+    return unless user.present?
+
+    if user.banned?
+      _('Banned')
+    elsif user.blocked?
+      _('Blocked')
+    else
+      _('Active')
+    end
+  end
+
+  def user_profile_actions_data(user)
+    basic_actions_data = {
+      user_id: user.id
+    }
+
+    if can?(current_user, :read_user_profile, user)
+      basic_actions_data[:rss_subscription_path] = user_path(user, rss_url_options)
+    end
+
+    return basic_actions_data if !current_user || current_user == user
+
+    basic_actions_data.merge(
+      report_abuse_path: add_category_abuse_reports_path,
+      reported_user_id: user.id,
+      reported_from_url: user_url(user)
+    )
   end
 
   private
@@ -215,10 +289,6 @@ module UsersHelper
     tabs
   end
 
-  def trials_allowed?(user)
-    false
-  end
-
   def get_current_user_menu_items
     items = []
 
@@ -229,7 +299,6 @@ module UsersHelper
     items << :help
     items << :profile if can?(current_user, :read_user, current_user)
     items << :settings if can?(current_user, :update_user, current_user)
-    items << :start_trial if trials_allowed?(current_user)
 
     items
   end
@@ -303,6 +372,10 @@ module UsersHelper
 
   def saved_replies_enabled?
     Feature.enabled?(:saved_replies, current_user)
+  end
+
+  def preload_project_associations(_)
+    # Overridden in EE
   end
 end
 

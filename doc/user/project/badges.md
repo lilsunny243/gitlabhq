@@ -1,10 +1,10 @@
 ---
-stage: Manage
-group: Organization
+stage: Data Stores
+group: Tenant Scale
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Badges **(FREE)**
+# Badges **(FREE ALL)**
 
 Badges are a unified way to present condensed pieces of information about your projects.
 A badge consists of a small image and a URL that the image points to.
@@ -62,7 +62,7 @@ You can access a test coverage report badge image by using the following link:
 https://gitlab.example.com/<namespace>/<project>/badges/<branch>/coverage.svg
 ```
 
-You can define the regular expression for the [coverage report](../../ci/pipelines/settings.md#merge-request-test-coverage-results)
+You can define the regular expression for the [coverage report](../../ci/testing/code_coverage.md#view-code-coverage-results-in-the-mr)
 that each job log is matched against.
 This means that each job in the pipeline can have the test coverage percentage value defined.
 
@@ -107,7 +107,7 @@ If there is no release, it shows `none`.
 You can access a latest release badge image by using the following link:
 
 ```plaintext
-https://gitlab.example.com/<namespace>/<project>/badges/<branch>/release.svg
+https://gitlab.example.com/<namespace>/<project>/-/badges/release.svg
 ```
 
 By default, the badge fetches the release sorted using the [`released_at`](../../api/releases/index.md#create-a-release)
@@ -116,6 +116,10 @@ time with the `?order_by` query parameter.
 ```plaintext
 https://gitlab.example.com/<namespace>/<project>/-/badges/release.svg?order_by=release_at
 ```
+
+You can change the width of the release name field by using the `value_width` parameter ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/113615) in GitLab 15.10).
+The value must be between 1 and 200, and the default value is 54.
+If you set an out of range value, GitLab automatically adjusts it to the default value.
 
 ## Project badges
 
@@ -126,9 +130,10 @@ If you find that you have to add the same badges to several projects, you may wa
 
 To add a new badge to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Badges**.
+1. Select **Add badge**.
 1. Under **Link**, enter the URL that the badges should point to.
 1. Under **Badge image URL**, enter the URL of the image that should be displayed.
 1. Select **Add badge**.
@@ -147,8 +152,8 @@ A common project badge presents the GitLab CI pipeline status.
 
 To add this badge to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Badges**.
 1. Under **Name**, enter _Pipeline Status_.
 1. Under **Link**, enter the following URL:
@@ -176,8 +181,8 @@ If you need individual badges for each project, either:
 
 To add a new badge to a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand **Badges**.
 1. Under "Link", enter the URL that the badges should point to and under
    "Badge image URL" the URL of the image that should be displayed.
@@ -198,8 +203,8 @@ Badges associated with a group can be edited or deleted only at the [group level
 You can view the exact link for your badges.
 Then you can use the link to embed the badge in your HTML or Markdown pages.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. In the **Pipeline status**, **Coverage report**, or **Latest release** sections, view the URLs for the images.
 
@@ -265,8 +270,9 @@ https://gitlab.example.com/<project_path>/-/raw/<default_branch>/my-image.svg
 
 To add a new badge with a custom image to a group or project:
 
-1. On the top bar, select **Main menu** and find your group or project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project or
+   group.
+1. Select **Settings > General**.
 1. Expand **Badges**.
 1. Under **Name**, enter the name for the badge.
 1. Under **Link**, enter the URL that the badge should point to.
@@ -275,7 +281,7 @@ To add a new badge with a custom image to a group or project:
 1. Select **Add badge**.
 
 To learn how to use custom images generated through a pipeline, see the documentation on
-[accessing the latest job artifacts by URL](../../ci/pipelines/job_artifacts.md#access-the-latest-job-artifacts).
+[accessing the latest job artifacts by URL](../../ci/jobs/job_artifacts.md#from-a-url).
 
 ## Placeholders
 

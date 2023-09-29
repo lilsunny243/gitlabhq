@@ -35,10 +35,14 @@ module Groups
         @group.build_chat_team(name: response['name'], team_id: response['id'])
       end
 
-      Group.transaction do
-        if @group.save
-          @group.add_owner(current_user)
-          Integration.create_from_active_default_integrations(@group, :group_id)
+      Gitlab::Database::QueryAnalyzers::PreventCrossDatabaseModification.temporary_ignore_tables_in_transaction(
+        %w[routes redirect_routes], url: 'https://gitlab.com/gitlab-org/gitlab/-/issues/424281'
+      ) do
+        Group.transaction do
+          if @group.save
+            @group.add_owner(current_user)
+            Integration.create_from_active_default_integrations(@group, :group_id)
+          end
         end
       end
 
@@ -60,7 +64,11 @@ module Groups
     end
 
     def remove_unallowed_params
-      params.delete(:default_branch_protection) unless can?(current_user, :create_group_with_default_branch_protection)
+      unless can?(current_user, :create_group_with_default_branch_protection)
+        params.delete(:default_branch_protection)
+        params.delete(:default_branch_protection_defaults)
+      end
+
       params.delete(:allow_mfa_for_subgroups)
     end
 

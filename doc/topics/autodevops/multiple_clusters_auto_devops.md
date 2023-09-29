@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Multiple Kubernetes clusters for Auto DevOps **(FREE)**
+# Multiple Kubernetes clusters for Auto DevOps **(FREE ALL)**
 
 When using Auto DevOps, you can deploy different environments to different Kubernetes clusters.
 
@@ -32,7 +32,7 @@ To deploy your environments to different Kubernetes clusters:
 
 For deprecated, [certificate-based clusters](../../user/infrastructure/clusters/index.md#certificate-based-kubernetes-integration-deprecated):
 
-1. Go to the project and select **Infrastructure > Kubernetes clusters** from the left sidebar.
+1. Go to the project and select **Operate > Kubernetes clusters** from the left sidebar.
 1. [Set the environment scope of each cluster](../../user/project/clusters/multiple_kubernetes_clusters.md#setting-the-environment-scope).
 1. For each cluster, [add a domain based on its Ingress IP address](../../user/project/clusters/gitlab_managed_clusters.md#base-domain).
 

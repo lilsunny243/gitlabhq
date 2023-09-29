@@ -29,10 +29,11 @@ class Commit
   delegate :project, to: :repository, allow_nil: true
 
   MIN_SHA_LENGTH = Gitlab::Git::Commit::MIN_SHA_LENGTH
-  COMMIT_SHA_PATTERN = /\h{#{MIN_SHA_LENGTH},40}/.freeze
-  EXACT_COMMIT_SHA_PATTERN = /\A#{COMMIT_SHA_PATTERN}\z/.freeze
+  MAX_SHA_LENGTH = Gitlab::Git::Commit::MAX_SHA_LENGTH
+  COMMIT_SHA_PATTERN = Gitlab::Git::Commit::SHA_PATTERN
+  EXACT_COMMIT_SHA_PATTERN = /\A#{COMMIT_SHA_PATTERN}\z/
   # Used by GFM to match and present link extensions on node texts and hrefs.
-  LINK_EXTENSION_PATTERN = /(patch)/.freeze
+  LINK_EXTENSION_PATTERN = /(patch)/
 
   DEFAULT_MAX_DIFF_LINES_SETTING = 50_000
   DEFAULT_MAX_DIFF_FILES_SETTING = 1_000
@@ -149,6 +150,10 @@ class Commit
 
       from_hash(hash, project)
     end
+
+    def underscore
+      'commit'
+    end
   end
 
   attr_accessor :raw
@@ -206,7 +211,8 @@ class Commit
 
   def self.link_reference_pattern
     @link_reference_pattern ||=
-      super("commit", /(?<commit>#{COMMIT_SHA_PATTERN})?(\.(?<extension>#{LINK_EXTENSION_PATTERN}))?/o)
+      compose_link_reference_pattern('commit',
+        /(?<commit>#{COMMIT_SHA_PATTERN})?(\.(?<extension>#{LINK_EXTENSION_PATTERN}))?/o)
   end
 
   def to_reference(from = nil, full: false)
@@ -387,8 +393,6 @@ class Commit
         Gitlab::X509::Commit.new(self).signature
       when :SSH
         Gitlab::Ssh::Commit.new(self).signature
-      else
-        nil
       end
     end
   end
@@ -428,7 +432,7 @@ class Commit
   end
 
   def cherry_pick_message(user)
-    %Q{#{message}\n\n#{cherry_pick_description(user)}}
+    %(#{message}\n\n#{cherry_pick_description(user)})
   end
 
   def revert_description(user)
@@ -440,7 +444,7 @@ class Commit
   end
 
   def revert_message(user)
-    %Q{Revert "#{title.strip}"\n\n#{revert_description(user)}}
+    %(Revert "#{title.strip}"\n\n#{revert_description(user)})
   end
 
   def reverts_commit?(commit, user)
@@ -535,7 +539,7 @@ class Commit
   #   added by `git commit --fixup` which is used by some community members.
   #   https://gitlab.com/gitlab-org/gitlab/-/issues/342937#note_892065311
   #
-  DRAFT_REGEX = /\A\s*#{Gitlab::Regex.merge_request_draft}|(fixup!|squash!)\s/.freeze
+  DRAFT_REGEX = /\A\s*#{Gitlab::Regex.merge_request_draft}|(fixup!|squash!)\s/
 
   def draft?
     !!(title =~ DRAFT_REGEX)
@@ -550,10 +554,10 @@ class Commit
     "commit:#{sha}"
   end
 
-  def expire_note_etag_cache
+  def broadcast_notes_changed
     super
 
-    expire_note_etag_cache_for_related_mrs
+    broadcast_notes_changed_for_related_mrs
   end
 
   def readable_by?(user)
@@ -573,10 +577,45 @@ class Commit
     }
   end
 
+  def tipping_branches(limit: 0)
+    tipping_refs(Gitlab::Git::BRANCH_REF_PREFIX, limit: limit)
+  end
+
+  def tipping_tags(limit: 0)
+    tipping_refs(Gitlab::Git::TAG_REF_PREFIX, limit: limit)
+  end
+
+  def branches_containing(limit: 0, exclude_tipped: false)
+    # WARNING: This argument can be confusing, if there is a limit.
+    # for example set the limit to 5 and in the 5 out a total of 25 refs there is 2 tipped refs,
+    # then the method will only 3 refs, even though there is more.
+    excluded = exclude_tipped ? tipping_branches : []
+
+    refs = repository.branch_names_contains(id, limit: limit) || []
+    refs - excluded
+  end
+
+  def tags_containing(limit: 0, exclude_tipped: false)
+    # WARNING: This argument can be confusing, if there is a limit.
+    # for example set the limit to 5 and in the 5 out a total of 25 refs there is 2 tipped refs,
+    # then the method will only 3 refs, even though there is more.
+    excluded = exclude_tipped ? tipping_tags : []
+
+    refs = repository.tag_names_contains(id, limit: limit) || []
+    refs - excluded
+  end
+
   private
 
-  def expire_note_etag_cache_for_related_mrs
-    MergeRequest.includes(target_project: :namespace).by_commit_sha(id).find_each(&:expire_note_etag_cache)
+  def tipping_refs(ref_prefix, limit: 0)
+    strong_memoize_with(:tipping_tags, ref_prefix, limit) do
+      refs = repository.refs_by_oid(oid: id, ref_patterns: [ref_prefix], limit: limit)
+      refs.map { |n| n.delete_prefix(ref_prefix) }
+    end
+  end
+
+  def broadcast_notes_changed_for_related_mrs
+    MergeRequest.includes(target_project: :namespace).by_commit_sha(id).find_each(&:broadcast_notes_changed)
   end
 
   def commit_reference(from, referable_commit_id, full: false)

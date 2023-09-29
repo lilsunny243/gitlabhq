@@ -43,14 +43,13 @@ module Routing
     end
 
     def work_item_url(entity, *args)
-      unless Feature.enabled?(:use_iid_in_work_items_path, entity.project.group)
-        return project_work_items_url(entity.project, entity.id, *args)
+      return group_work_item_url(entity.namespace, entity.iid, *args) unless entity.project.present?
+
+      if use_issue_path?(entity)
+        project_issue_url(entity.project, entity.iid, *args)
+      else
+        project_work_items_url(entity.project, entity.iid, *args)
       end
-
-      options = args.first || {}
-      options[:iid_path] = true
-
-      project_work_items_url(entity.project, entity.iid, **options)
     end
 
     def merge_request_url(entity, *args)
@@ -96,7 +95,13 @@ module Routing
     private
 
     def use_work_items_path?(issue)
+      return true if issue.project.blank? && issue.namespace.present?
+
       issue.issue_type == 'task'
+    end
+
+    def use_issue_path?(work_item)
+      work_item.issue_type == 'issue'
     end
   end
 end

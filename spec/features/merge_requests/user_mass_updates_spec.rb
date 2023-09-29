@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe 'Merge requests > User mass updates', :js, feature_category: :code_review_workflow do
+  include ListboxHelpers
+
   let(:project) { create(:project, :repository) }
   let(:user)    { project.creator }
   let(:user2) { create(:user) }
@@ -44,7 +46,7 @@ RSpec.describe 'Merge requests > User mass updates', :js, feature_category: :cod
       merge_request.close
       visit project_merge_requests_path(project, state: 'merged')
 
-      click_button 'Edit merge requests'
+      click_button 'Bulk edit'
 
       expect(page).not_to have_button 'Select status'
     end
@@ -108,15 +110,14 @@ RSpec.describe 'Merge requests > User mass updates', :js, feature_category: :cod
   end
 
   def change_status(text)
-    click_button 'Edit merge requests'
+    click_button 'Bulk edit'
     check 'Select all'
-    click_button 'Select status'
-    click_button text
+    select_from_listbox(text, from: 'Select status')
     click_update_merge_requests_button
   end
 
   def change_assignee(text)
-    click_button 'Edit merge requests'
+    click_button 'Bulk edit'
     check 'Select all'
     within 'aside[aria-label="Bulk update"]' do
       click_button 'Select assignee'
@@ -127,7 +128,7 @@ RSpec.describe 'Merge requests > User mass updates', :js, feature_category: :cod
   end
 
   def change_milestone(text)
-    click_button 'Edit merge requests'
+    click_button 'Bulk edit'
     check 'Select all'
     click_button 'Select milestone'
     click_button text

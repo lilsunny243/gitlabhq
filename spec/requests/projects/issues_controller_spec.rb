@@ -17,6 +17,11 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
   describe 'GET #new' do
     include_context 'group project issue'
 
+    before do
+      group.add_developer(user)
+      login_as(user)
+    end
+
     it_behaves_like "observability csp policy", described_class do
       let(:tested_path) do
         new_project_issue_path(project)
@@ -26,11 +31,13 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
 
   describe 'GET #show' do
     before do
+      group.add_developer(user)
       login_as(user)
     end
 
     it_behaves_like "observability csp policy", described_class do
       include_context 'group project issue'
+
       let(:tested_path) do
         project_issue_path(project, issue)
       end
@@ -114,8 +121,9 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
     context 'when private project' do
       let_it_be(:private_project) { create(:project, :private) }
 
-      it_behaves_like 'authenticates sessionless user for the request spec', 'index atom', public_resource: false,
-ignore_metrics: true do
+      it_behaves_like 'authenticates sessionless user for the request spec', 'index atom',
+        public_resource: false,
+        ignore_metrics: true do
         let(:url) { project_issues_url(private_project, format: :atom) }
 
         before do
@@ -123,8 +131,9 @@ ignore_metrics: true do
         end
       end
 
-      it_behaves_like 'authenticates sessionless user for the request spec', 'calendar ics', public_resource: false,
-ignore_metrics: true do
+      it_behaves_like 'authenticates sessionless user for the request spec', 'calendar ics',
+        public_resource: false,
+        ignore_metrics: true do
         let(:url) { project_issues_url(private_project, format: :ics) }
 
         before do

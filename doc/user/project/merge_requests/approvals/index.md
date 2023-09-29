@@ -3,10 +3,9 @@ stage: Create
 group: Source Code
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, concepts
-disqus_identifier: 'https://docs.gitlab.com/ee/user/project/merge_requests/approvals/index.html'
 ---
 
-# Merge request approvals **(FREE)**
+# Merge request approvals **(FREE ALL)**
 
 You can configure your merge requests so that they must be approved before
 they can be merged. While [GitLab Free](https://about.gitlab.com/pricing/) allows
@@ -17,7 +16,7 @@ approve merge requests, these approvals are [optional](#optional-approvals).
 flexibility:
 
 - Create required [rules](rules.md) about the number and type of approvers before work can merge.
-- Specify a list of users who act as [code owners](../../code_owners.md) for specific files,
+- Specify a list of users who act as [code owners](../../codeowners/index.md) for specific files,
   and require their approval before work can merge.
 
 You can configure merge request approvals on a per-project basis, and some approvals can be configured
@@ -36,7 +35,7 @@ required approvals before work can merge into your project. You can also extend 
 rules to define what types of users can approve work. Some examples of rules you can create include:
 
 - Users with specific permissions can always approve work.
-- [Code owners](../../code_owners.md) can approve work for files they own.
+- [Code owners](../../codeowners/index.md) can approve work for files they own.
 - Users with specific permissions can approve work,
   [even if they don't have merge rights](rules.md#merge-request-approval-segregation-of-duties)
   to the repository.
@@ -68,7 +67,7 @@ if a user approves a merge request and is shown in the reviewer list, a green ch
 
 After a merge request receives the [number and type of approvals](rules.md) you configure, it can merge
 unless it's blocked for another reason. Merge requests can be blocked by other problems,
-such as merge conflicts, [unresolved threads](../../../discussions/index.md#prevent-merge-unless-all-threads-are-resolved),
+such as merge conflicts, [unresolved threads](../index.md#prevent-merge-unless-all-threads-are-resolved),
 or a [failed CI/CD pipeline](../merge_when_pipeline_succeeds.md).
 
 To prevent merge request authors from approving their own merge requests,
@@ -88,7 +87,7 @@ GitLab allows all users with Developer or greater [permissions](../../../permiss
 to approve merge requests. Approvals in GitLab Free are optional, and don't prevent
 a merge request from merging without approval.
 
-## Required approvals **(PREMIUM)**
+## Required approvals **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -102,20 +101,30 @@ Without the approvals, the work cannot merge. Required approvals enable multiple
   database, for all proposed code changes.
 - Use the [code owners of changed files](rules.md#code-owners-as-eligible-approvers),
   to determine who should review the work.
-- Require an [approval before merging code that causes test coverage to decline](../../../../ci/pipelines/settings.md#coverage-check-approval-rule)
+- Require an [approval before merging code that causes test coverage to decline](../../../../ci/testing/code_coverage.md#coverage-check-approval-rule).
 - Users on GitLab Ultimate can also [require approval from a security team](../../../application_security/index.md#security-approvals-in-merge-requests)
   before merging code that could introduce a vulnerability.
 
 ## Invalid rules
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/334698) in GitLab 15.1.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/334698) in GitLab 15.1.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/389905) in GitLab 15.11 [with a flag](../../../../administration/feature_flags.md) named `invalid_scan_result_policy_prevents_merge`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/405023) in GitLab 16.2. Feature flag `invalid_scan_result_policy_prevents_merge` removed.
 
-Whenever an approval rule cannot be satisfied, the rule will be displayed as `Invalid`. This applies to the following conditions:
+FLAG:
+On self-managed GitLab, by default this feature is available. To hide the feature,
+an administrator can [disable the feature flag](../../../../administration/feature_flags.md) named `invalid_scan_result_policy_prevents_merge`.
+
+Whenever an approval rule cannot be satisfied, the rule is displayed as **Auto approved**. This applies to the following conditions:
 
 - The only eligible approver is the author of the merge request.
 - No eligible approvers (either groups or users) have been assigned to the approval rule.
+- The number of required approvals is more than the number of eligible approvers.
 
-These rules will be automatically approved to unblock their respective merge requests.
+These rules are automatically approved to unblock their respective merge requests, unless they were
+created through a [scan result policy](../../../application_security/policies/scan-result-policies.md).
+Invalid approval rules created through a scan result policy are presented with
+**Action required** and are not automatically approved, blocking their respective merge requests.
 
 ## Related topics
 

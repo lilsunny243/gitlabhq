@@ -1,13 +1,17 @@
 <script>
 import { GlLoadingIcon, GlIntersectionObserver } from '@gitlab/ui';
 import Draggable from 'vuedraggable';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
-import { sprintf, __ } from '~/locale';
+import { STATUS_CLOSED } from '~/issues/constants';
+import { sprintf, __, s__ } from '~/locale';
 import { defaultSortableOptions } from '~/sortable/constants';
 import { sortableStart, sortableEnd } from '~/sortable/utils';
 import Tracking from '~/tracking';
 import listQuery from 'ee_else_ce/boards/graphql/board_lists_deferred.query.graphql';
+import setActiveBoardItemMutation from 'ee_else_ce/boards/graphql/client/set_active_board_item.mutation.graphql';
 import BoardCardMoveToPosition from '~/boards/components/board_card_move_to_position.vue';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import {
   DEFAULT_BOARD_LIST_ITEMS_SIZE,
   toggleFormEventPrefix,
@@ -15,6 +19,14 @@ import {
   listIssuablesQueries,
   ListType,
 } from 'ee_else_ce/boards/constants';
+import {
+  addItemToList,
+  removeItemFromList,
+  updateEpicsCount,
+  updateIssueCountAndWeight,
+  setError,
+} from '../graphql/cache_updates';
+import { shouldCloneCard, moveItemVariables } from '../boards_util';
 import eventHub from '../eventhub';
 import BoardCard from './board_card.vue';
 import BoardNewIssue from './board_new_issue.vue';
@@ -24,7 +36,7 @@ export default {
   name: 'BoardList',
   i18n: {
     loading: __('Loading'),
-    loadingMoreboardItems: __('Loading more'),
+    loadingMoreBoardItems: __('Loading more'),
     showingAllIssues: __('Showing all issues'),
     showingAllEpics: __('Showing all epics'),
   },
@@ -36,9 +48,10 @@ export default {
     GlIntersectionObserver,
     BoardCardMoveToPosition,
   },
-  mixins: [Tracking.mixin()],
+  mixins: [Tracking.mixin(), glFeatureFlagMixin()],
   inject: [
     'isEpicBoard',
+    'isIssueBoard',
     'isGroupBoard',
     'disabled',
     'fullPath',
@@ -72,6 +85,10 @@ export default {
       showEpicForm: false,
       currentList: null,
       isLoadingMore: false,
+      toListId: null,
+      toList: {},
+      addItemToListInProgress: false,
+      updateIssueOrderInProgress: false,
     };
   },
   apollo: {
@@ -109,6 +126,43 @@ export default {
       context: {
         isSingleRequest: true,
       },
+      error(error) {
+        setError({
+          error,
+          message: s__('Boards|An error occurred while fetching a list. Please try again.'),
+        });
+      },
+    },
+    toList: {
+      query() {
+        return listIssuablesQueries[this.issuableType].query;
+      },
+      variables() {
+        return {
+          id: this.toListId,
+          ...this.listQueryVariables,
+        };
+      },
+      skip() {
+        return !this.toListId;
+      },
+      update(data) {
+        return data[this.boardType].board.lists.nodes[0];
+      },
+      context: {
+        isSingleRequest: true,
+      },
+      error(error) {
+        setError({
+          error,
+          message: sprintf(
+            s__('Boards|An error occurred while moving the %{issuableType}. Please try again.'),
+            {
+              issuableType: this.isEpicBoard ? 'epic' : 'issue',
+            },
+          ),
+        });
+      },
     },
   },
   computed: {
@@ -129,7 +183,7 @@ export default {
       };
     },
     listItemsCount() {
-      return this.isEpicBoard ? this.list.epicsCount : this.boardList?.issuesCount;
+      return this.isEpicBoard ? this.list.metadata.epicsCount : this.boardList?.issuesCount;
     },
     paginatedIssueText() {
       return sprintf(__('Showing %{pageSize} of %{total} %{issuableType}'), {
@@ -158,10 +212,10 @@ export default {
       return this.isApolloBoard ? this.isLoadingMore : this.listsFlags[this.list.id]?.isLoadingMore;
     },
     epicCreateFormVisible() {
-      return this.isEpicBoard && this.list.listType !== 'closed' && this.showEpicForm;
+      return this.isEpicBoard && this.list.listType !== STATUS_CLOSED && this.showEpicForm;
     },
     issueCreateFormVisible() {
-      return !this.isEpicBoard && this.list.listType !== 'closed' && this.showIssueForm;
+      return !this.isEpicBoard && this.list.listType !== STATUS_CLOSED && this.showIssueForm;
     },
     listRef() {
       // When list is draggable, the reference to the list needs to be accessed differently
@@ -179,7 +233,8 @@ export default {
       return !this.disabled;
     },
     treeRootWrapper() {
-      return this.canMoveIssue && !this.listsFlags[this.list.id]?.addItemToListInProgress
+      return this.canMoveIssue &&
+        (!this.listsFlags[this.list.id]?.addItemToListInProgress || this.addItemToListInProgress)
         ? Draggable
         : 'ul';
     },
@@ -199,10 +254,15 @@ export default {
       return this.canMoveIssue ? options : {};
     },
     disableScrollingWhenMutationInProgress() {
-      return this.hasNextPage && this.isUpdateIssueOrderInProgress;
+      return (
+        this.hasNextPage && (this.isUpdateIssueOrderInProgress || this.updateIssueOrderInProgress)
+      );
     },
     showMoveToPosition() {
       return !this.disabled && this.list.listType !== ListType.closed;
+    },
+    shouldCloneCard() {
+      return shouldCloneCard(this.list.listType, this.toList.listType);
     },
   },
   watch: {
@@ -286,7 +346,7 @@ export default {
       sortableStart();
       this.track('drag_card', { label: 'board' });
     },
-    handleDragOnEnd({
+    async handleDragOnEnd({
       newIndex: originalNewIndex,
       oldIndex,
       from,
@@ -336,15 +396,254 @@ export default {
         }
       }
 
-      this.moveItem({
-        itemId,
-        itemIid,
-        itemPath,
-        fromListId: from.dataset.listId,
-        toListId: to.dataset.listId,
-        moveBeforeId,
-        moveAfterId,
+      if (this.isApolloBoard) {
+        this.updateIssueOrderInProgress = true;
+        await this.moveBoardItem(
+          {
+            epicId: itemId,
+            iid: itemIid,
+            fromListId: from.dataset.listId,
+            toListId: to.dataset.listId,
+            moveBeforeId,
+            moveAfterId,
+          },
+          newIndex,
+        ).finally(() => {
+          this.updateIssueOrderInProgress = false;
+        });
+      } else {
+        this.moveItem({
+          itemId,
+          itemIid,
+          itemPath,
+          fromListId: from.dataset.listId,
+          toListId: to.dataset.listId,
+          moveBeforeId,
+          moveAfterId,
+        });
+      }
+    },
+    isItemInTheList(itemIid) {
+      const items = this.toList?.[`${this.issuableType}s`]?.nodes || [];
+      return items.some((item) => item.iid === itemIid);
+    },
+    async moveBoardItem(variables, newIndex) {
+      const { fromListId, toListId, iid } = variables;
+      this.toListId = toListId;
+      await this.$nextTick(); // we need this next tick to retrieve `toList` from Apollo cache
+
+      const itemToMove = this.boardListItems.find((item) => item.iid === iid);
+
+      if (this.shouldCloneCard && this.isItemInTheList(iid)) {
+        return;
+      }
+
+      try {
+        await this.$apollo.mutate({
+          mutation: listIssuablesQueries[this.issuableType].moveMutation,
+          variables: {
+            ...moveItemVariables({
+              ...variables,
+              isIssue: !this.isEpicBoard,
+              boardId: this.boardId,
+              itemToMove,
+            }),
+            withColor: this.isEpicBoard && this.glFeatures.epicColorHighlight,
+          },
+          update: (cache, { data: { issuableMoveList } }) =>
+            this.updateCacheAfterMovingItem({
+              issuableMoveList,
+              fromListId,
+              toListId,
+              newIndex,
+              cache,
+            }),
+          optimisticResponse: {
+            issuableMoveList: {
+              issuable: itemToMove,
+              errors: [],
+            },
+          },
+        });
+      } catch (error) {
+        setError({
+          error,
+          message: sprintf(
+            s__('Boards|An error occurred while moving the %{issuableType}. Please try again.'),
+            {
+              issuableType: this.isEpicBoard ? 'epic' : 'issue',
+            },
+          ),
+        });
+      }
+    },
+    updateCacheAfterMovingItem({ issuableMoveList, fromListId, toListId, newIndex, cache }) {
+      const { issuable } = issuableMoveList;
+      if (!this.shouldCloneCard) {
+        removeItemFromList({
+          query: listIssuablesQueries[this.issuableType].query,
+          variables: { ...this.listQueryVariables, id: fromListId },
+          boardType: this.boardType,
+          id: issuable.id,
+          issuableType: this.issuableType,
+          cache,
+        });
+      }
+
+      addItemToList({
+        query: listIssuablesQueries[this.issuableType].query,
+        variables: { ...this.listQueryVariables, id: toListId },
+        issuable,
+        newIndex,
+        boardType: this.boardType,
+        issuableType: this.issuableType,
+        cache,
       });
+
+      this.updateCountAndWeight({ fromListId, toListId, issuable, cache });
+    },
+    updateCountAndWeight({ fromListId, toListId, issuable, isAddingItem, cache }) {
+      if (!this.isEpicBoard) {
+        updateIssueCountAndWeight({
+          fromListId,
+          toListId,
+          filterParams: this.filterParams,
+          issuable,
+          shouldClone: isAddingItem || this.shouldCloneCard,
+          cache,
+        });
+      } else {
+        const { issuableType, filterParams } = this;
+        updateEpicsCount({
+          issuableType,
+          toListId,
+          fromListId,
+          filterParams,
+          issuable,
+          shouldClone: isAddingItem || this.shouldCloneCard,
+          cache,
+        });
+      }
+    },
+    async moveToPosition(positionInList, oldIndex, item) {
+      try {
+        await this.$apollo.mutate({
+          mutation: listIssuablesQueries[this.issuableType].moveMutation,
+          variables: {
+            ...moveItemVariables({
+              iid: item.iid,
+              epicId: item.id,
+              fromListId: this.currentList.id,
+              toListId: this.currentList.id,
+              isIssue: !this.isEpicBoard,
+              boardId: this.boardId,
+              itemToMove: item,
+            }),
+            positionInList,
+            withColor: this.isEpicBoard && this.glFeatures.epicColorHighlight,
+          },
+          optimisticResponse: {
+            issuableMoveList: {
+              issuable: item,
+              errors: [],
+            },
+          },
+          update: (cache, { data: { issuableMoveList } }) => {
+            const { issuable } = issuableMoveList;
+            removeItemFromList({
+              query: listIssuablesQueries[this.issuableType].query,
+              variables: { ...this.listQueryVariables, id: this.currentList.id },
+              boardType: this.boardType,
+              id: issuable.id,
+              issuableType: this.issuableType,
+              cache,
+            });
+            if (positionInList === 0 || this.listItemsCount <= this.boardListItems.length) {
+              const newIndex = positionInList === 0 ? 0 : this.boardListItems.length - 1;
+              addItemToList({
+                query: listIssuablesQueries[this.issuableType].query,
+                variables: { ...this.listQueryVariables, id: this.currentList.id },
+                issuable,
+                newIndex,
+                boardType: this.boardType,
+                issuableType: this.issuableType,
+                cache,
+              });
+            }
+          },
+        });
+      } catch (error) {
+        setError({
+          error,
+          message: sprintf(
+            s__('Boards|An error occurred while moving the %{issuableType}. Please try again.'),
+            {
+              issuableType: this.isEpicBoard ? 'epic' : 'issue',
+            },
+          ),
+        });
+      }
+    },
+    async addListItem(input) {
+      this.toggleForm();
+      this.addItemToListInProgress = true;
+      let issuable;
+      try {
+        await this.$apollo.mutate({
+          mutation: listIssuablesQueries[this.issuableType].createMutation,
+          variables: {
+            input: this.isEpicBoard ? input : { ...input, moveAfterId: this.boardListItems[0]?.id },
+            withColor: this.isEpicBoard && this.glFeatures.epicColorHighlight,
+          },
+          update: (cache, { data: { createIssuable } }) => {
+            issuable = createIssuable.issuable;
+            addItemToList({
+              query: listIssuablesQueries[this.issuableType].query,
+              variables: { ...this.listQueryVariables, id: this.currentList.id },
+              issuable,
+              newIndex: 0,
+              boardType: this.boardType,
+              issuableType: this.issuableType,
+              cache,
+            });
+            this.updateCountAndWeight({
+              fromListId: null,
+              toListId: this.list.id,
+              issuable,
+              isAddingItem: true,
+              cache,
+            });
+          },
+          optimisticResponse: {
+            createIssuable: {
+              errors: [],
+              issuable: {
+                ...listIssuablesQueries[this.issuableType].optimisticResponse,
+                title: input.title,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        setError({
+          message: sprintf(
+            s__('Boards|An error occurred while creating the %{issuableType}. Please try again.'),
+            {
+              issuableType: this.isEpicBoard ? 'epic' : 'issue',
+            },
+          ),
+          error,
+        });
+      } finally {
+        this.addItemToListInProgress = false;
+        this.$apollo.mutate({
+          mutation: setActiveBoardItemMutation,
+          variables: {
+            boardItem: issuable,
+            isIssue: this.isIssueBoard,
+          },
+        });
+      }
     },
   },
 };
@@ -364,8 +663,18 @@ export default {
     >
       <gl-loading-icon size="sm" />
     </div>
-    <board-new-issue v-if="issueCreateFormVisible" :list="list" />
-    <board-new-epic v-if="epicCreateFormVisible" :list="list" />
+    <board-new-issue
+      v-if="issueCreateFormVisible"
+      :list="list"
+      :board-id="boardId"
+      @addNewIssue="addListItem"
+    />
+    <board-new-epic
+      v-if="epicCreateFormVisible"
+      :list="list"
+      :board-id="boardId"
+      @addNewEpic="addListItem"
+    />
     <component
       :is="treeRootWrapper"
       v-show="!loading"
@@ -400,6 +709,7 @@ export default {
           :index="index"
           :list="list"
           :list-items-length="boardListItems.length"
+          @moveToPosition="moveToPosition($event, index, item)"
         />
         <gl-intersection-observer
           v-if="isObservableItem(index)"
@@ -417,8 +727,7 @@ export default {
           <gl-loading-icon
             v-if="loadingMore"
             size="sm"
-            :label="$options.i18n.loadingMoreboardItems"
-            data-testid="count-loading-icon"
+            :label="$options.i18n.loadingMoreBoardItems"
           />
           <span v-if="showingAllItems">{{ showingAllItemsText }}</span>
           <span v-else>{{ paginatedIssueText }}</span>

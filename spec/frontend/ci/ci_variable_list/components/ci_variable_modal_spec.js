@@ -1,4 +1,4 @@
-import { GlButton, GlFormInput } from '@gitlab/ui';
+import { GlButton, GlFormInput, GlSprintf } from '@gitlab/ui';
 import { mockTracking } from 'helpers/tracking_helper';
 import { shallowMountExtended, mountExtended } from 'helpers/vue_test_utils_helper';
 import CiEnvironmentsDropdown from '~/ci/ci_variable_list/components/ci_environments_dropdown.vue';
@@ -10,10 +10,14 @@ import {
   EVENT_LABEL,
   EVENT_ACTION,
   ENVIRONMENT_SCOPE_LINK_TITLE,
+  AWS_TIP_TITLE,
+  AWS_TIP_MESSAGE,
+  groupString,
   instanceString,
+  projectString,
   variableOptions,
 } from '~/ci/ci_variable_list/constants';
-import { mockVariablesWithScopes } from '../mocks';
+import { mockEnvs, mockVariablesWithScopes, mockVariablesWithUniqueScopes } from '../mocks';
 import ModalStub from '../stubs';
 
 describe('Ci variable modal', () => {
@@ -26,10 +30,6 @@ describe('Ci variable modal', () => {
   const mockVariables = mockVariablesWithScopes(instanceString);
 
   const defaultProvide = {
-    awsLogoSvgPath: '/logo',
-    awsTipCommandsLink: '/tips',
-    awsTipDeployLink: '/deploy',
-    awsTipLearnLink: '/learn-link',
     containsVariableReferenceLink: '/reference',
     environmentScopeLink: '/help/environments',
     glFeatures: {
@@ -42,12 +42,14 @@ describe('Ci variable modal', () => {
   };
 
   const defaultProps = {
+    areEnvironmentsLoading: false,
     areScopedVariablesAvailable: true,
     environments: [],
     hideEnvironmentScope: false,
+    hasEnvScopeQuery: false,
     mode: ADD_VARIABLE_ACTION,
     selectedVariable: {},
-    variable: [],
+    variables: [],
   };
 
   const createComponent = ({ mountFn = shallowMountExtended, props = {}, provide = {} } = {}) => {
@@ -85,10 +87,6 @@ describe('Ci variable modal', () => {
   const findVariableTypeDropdown = () => wrapper.find('#ci-variable-type');
   const findEnvironmentScopeText = () => wrapper.findByText('Environment scope');
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('Adding a variable', () => {
     describe('when no key/value pair are present', () => {
       beforeEach(() => {
@@ -96,7 +94,7 @@ describe('Ci variable modal', () => {
       });
 
       it('shows the submit button as disabled', () => {
-        expect(findAddorUpdateButton().attributes('disabled')).toBe('true');
+        expect(findAddorUpdateButton().attributes('disabled')).toBeDefined();
       });
     });
 
@@ -115,7 +113,6 @@ describe('Ci variable modal', () => {
 
       beforeEach(() => {
         createComponent({ props: { selectedVariable: currentVariable } });
-        jest.spyOn(wrapper.vm, '$emit');
       });
 
       it('Dispatches `add-variable` action on submit', () => {
@@ -123,9 +120,9 @@ describe('Ci variable modal', () => {
         expect(wrapper.emitted('add-variable')).toEqual([[currentVariable]]);
       });
 
-      it('Dispatches the `hideModal` event when dismissing', () => {
+      it('Dispatches the `close-form` event when dismissing', () => {
         findModal().vm.$emit('hidden');
-        expect(wrapper.emitted('hideModal')).toEqual([[]]);
+        expect(wrapper.emitted('close-form')).toEqual([[]]);
       });
     });
   });
@@ -156,7 +153,7 @@ describe('Ci variable modal', () => {
         findModal().vm.$emit('shown');
       });
 
-      it('keeps the value as false', async () => {
+      it('keeps the value as false', () => {
         expect(
           findProtectedVariableCheckbox().attributes('data-is-protected-checked'),
         ).toBeUndefined();
@@ -172,7 +169,7 @@ describe('Ci variable modal', () => {
 
     it('does not show AWS guidance tip', () => {
       const tip = findAWSTip();
-      expect(tip.exists()).toBe(true);
+
       expect(tip.isVisible()).toBe(false);
     });
   });
@@ -185,13 +182,18 @@ describe('Ci variable modal', () => {
         key: AWS_ACCESS_KEY_ID,
         value: 'AKIAIOSFODNN7EXAMPLEjdhy',
       };
-      createComponent({ mountFn: mountExtended, props: { selectedVariable: AWSKeyVariable } });
+      createComponent({
+        mountFn: shallowMountExtended,
+        props: { selectedVariable: AWSKeyVariable },
+      });
     });
 
     it('shows AWS guidance tip', () => {
       const tip = findAWSTip();
-      expect(tip.exists()).toBe(true);
+
       expect(tip.isVisible()).toBe(true);
+      expect(tip.props('title')).toBe(AWS_TIP_TITLE);
+      expect(tip.findComponent(GlSprintf).attributes('message')).toBe(AWS_TIP_MESSAGE);
     });
   });
 
@@ -241,7 +243,6 @@ describe('Ci variable modal', () => {
 
       it('defaults to expanded and raw:false when adding a variable', () => {
         createComponent({ props: { selectedVariable: variable } });
-        jest.spyOn(wrapper.vm, '$emit');
 
         findModal().vm.$emit('shown');
 
@@ -266,7 +267,6 @@ describe('Ci variable modal', () => {
             mode: EDIT_VARIABLE_ACTION,
           },
         });
-        jest.spyOn(wrapper.vm, '$emit');
 
         findModal().vm.$emit('shown');
         await findExpandedVariableCheckbox().vm.$emit('change');
@@ -305,7 +305,6 @@ describe('Ci variable modal', () => {
 
     beforeEach(() => {
       createComponent({ props: { selectedVariable: variable, mode: EDIT_VARIABLE_ACTION } });
-      jest.spyOn(wrapper.vm, '$emit');
     });
 
     it('button text is Update variable when updating', () => {
@@ -317,9 +316,9 @@ describe('Ci variable modal', () => {
       expect(wrapper.emitted('update-variable')).toEqual([[variable]]);
     });
 
-    it('Propagates the `hideModal` event', () => {
+    it('Propagates the `close-form` event', () => {
       findModal().vm.$emit('hidden');
-      expect(wrapper.emitted('hideModal')).toEqual([[]]);
+      expect(wrapper.emitted('close-form')).toEqual([[]]);
     });
 
     it('dispatches `delete-variable` with correct variable to delete', () => {
@@ -352,6 +351,42 @@ describe('Ci variable modal', () => {
 
           expect(link.attributes('title')).toBe(ENVIRONMENT_SCOPE_LINK_TITLE);
           expect(link.attributes('href')).toBe(defaultProvide.environmentScopeLink);
+        });
+
+        describe('when query for envioronment scope exists', () => {
+          beforeEach(() => {
+            createComponent({
+              props: {
+                environments: mockEnvs,
+                hasEnvScopeQuery: true,
+                variables: mockVariablesWithUniqueScopes(projectString),
+              },
+            });
+          });
+
+          it('does not merge environment scope sources', () => {
+            const expectedLength = mockEnvs.length;
+
+            expect(findCiEnvironmentsDropdown().props('environments')).toHaveLength(expectedLength);
+          });
+        });
+
+        describe('when feature flag is disabled', () => {
+          const mockGroupVariables = mockVariablesWithUniqueScopes(groupString);
+          beforeEach(() => {
+            createComponent({
+              props: {
+                environments: mockEnvs,
+                variables: mockGroupVariables,
+              },
+            });
+          });
+
+          it('merges environment scope sources', () => {
+            const expectedLength = mockGroupVariables.length + mockEnvs.length;
+
+            expect(findCiEnvironmentsDropdown().props('environments')).toHaveLength(expectedLength);
+          });
         });
       });
 
@@ -427,7 +462,8 @@ describe('Ci variable modal', () => {
   });
 
   describe('Validations', () => {
-    const maskError = 'This variable can not be masked.';
+    const maskError = 'This variable value does not meet the masking requirements.';
+    const helpText = 'Value must meet regular expression requirements to be masked.';
 
     describe('when the variable is raw', () => {
       const [variable] = mockVariables;
@@ -457,6 +493,25 @@ describe('Ci variable modal', () => {
 
         expect(findModal().text()).toContain(maskError);
       });
+
+      it('does not show the masked variable help text', () => {
+        expect(findModal().text()).not.toContain(helpText);
+      });
+    });
+
+    describe('when the value is empty', () => {
+      beforeEach(() => {
+        const [variable] = mockVariables;
+        const emptyValueVariable = { ...variable, value: '' };
+        createComponent({
+          mountFn: mountExtended,
+          props: { selectedVariable: emptyValueVariable },
+        });
+      });
+
+      it('allows user to submit', () => {
+        expect(findAddorUpdateButton().attributes('disabled')).toBeUndefined();
+      });
     });
 
     describe('when the mask state is invalid', () => {
@@ -476,11 +531,12 @@ describe('Ci variable modal', () => {
       });
 
       it('disables the submit button', () => {
-        expect(findAddorUpdateButton().attributes('disabled')).toBe('disabled');
+        expect(findAddorUpdateButton().attributes('disabled')).toBeDefined();
       });
 
-      it('shows the correct error text', () => {
+      it('shows the correct error text and help text', () => {
         expect(findModal().text()).toContain(maskError);
+        expect(findModal().text()).toContain(helpText);
       });
 
       it('sends the correct tracking event', () => {
@@ -545,6 +601,10 @@ describe('Ci variable modal', () => {
           mountFn: mountExtended,
           props: { selectedVariable: validMaskandKeyVariable },
         });
+      });
+
+      it('shows the help text', () => {
+        expect(findModal().text()).toContain(helpText);
       });
 
       it('does not disable the submit button', () => {

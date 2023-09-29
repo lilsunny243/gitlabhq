@@ -26,7 +26,7 @@ module QA
       ) do
         issue = Resource::Issue.fabricate_via_browser_ui! { |issue| issue.project = project }
 
-        Page::Project::Menu.perform(&:click_issues)
+        Page::Project::Menu.perform(&:go_to_issues)
 
         Page::Project::Issue::Index.perform do |index|
           expect(index).to have_issue(issue)
@@ -46,7 +46,7 @@ module QA
           expect(issue_page).to have_reopen_issue_button
         end
 
-        Page::Project::Menu.perform(&:click_issues)
+        Page::Project::Menu.perform(&:go_to_issues)
 
         Page::Project::Issue::Index.perform do |index|
           expect(index).not_to have_issue(closed_issue)
@@ -59,9 +59,7 @@ module QA
 
       context 'when using attachments in comments', :object_storage do
         let(:png_file_name) { 'testfile.png' }
-        let(:file_to_attach) do
-          File.join(Runtime::Path.fixtures_path, 'designs', png_file_name)
-        end
+        let(:file_to_attach) { Runtime::Path.fixture('designs', png_file_name) }
 
         before do
           Resource::Issue.fabricate_via_api_unless_fips! { |issue| issue.project = project }.visit!

@@ -10,7 +10,7 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
     let_it_be(:content_type) { 'application/octet-stream' }
     let_it_be(:content_disposition) { nil }
     let_it_be(:filename) { 'file_download_service_spec' }
-    let_it_be(:tmpdir) { Dir.tmpdir }
+    let_it_be(:tmpdir) { Dir.mktmpdir }
     let_it_be(:filepath) { File.join(tmpdir, filename) }
     let_it_be(:content_length) { 1000 }
 
@@ -76,14 +76,26 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
           allowed_content_types: allowed_content_types
         )
 
-        expect { service.execute }.to raise_error(Gitlab::UrlBlocker::BlockedUrlError)
+        expect { service.execute }.to raise_error(Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError)
       end
     end
 
     context 'when content-type is not valid' do
       let(:content_type) { 'invalid' }
+      let(:import_logger) { instance_double(Gitlab::Import::Logger) }
 
-      it 'raises an error' do
+      before do
+        allow(Gitlab::Import::Logger).to receive(:build).and_return(import_logger)
+        allow(import_logger).to receive(:warn)
+      end
+
+      it 'logs and raises an error' do
+        expect(import_logger).to receive(:warn).once.with(
+          message: 'Invalid content type',
+          response_headers: headers,
+          importer: 'gitlab_migration'
+        )
+
         expect { subject.execute }.to raise_error(described_class::ServiceError, 'Invalid content type')
       end
     end
@@ -95,7 +107,7 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
         it 'raises an error' do
           expect { subject.execute }.to raise_error(
             described_class::ServiceError,
-            'File size 1000 Bytes exceeds limit of 1 Byte'
+            'File size 1000 B exceeds limit of 1 B'
           )
         end
       end
@@ -128,7 +140,7 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
       it 'raises an error' do
         expect { subject.execute }.to raise_error(
           described_class::ServiceError,
-          'File size 151 Bytes exceeds limit of 150 Bytes'
+          'File size 151 B exceeds limit of 150 B'
         )
       end
     end
@@ -247,6 +259,36 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
       end
     end
 
+    context 'when file shares multiple hard links' do
+      let_it_be(:hard_link) { File.join(tmpdir, 'hard_link') }
+
+      before do
+        existing_file = File.join(Dir.mktmpdir, filename)
+        FileUtils.touch(existing_file)
+        FileUtils.link(existing_file, hard_link)
+      end
+
+      subject do
+        described_class.new(
+          configuration: config,
+          relative_url: '/test',
+          tmpdir: tmpdir,
+          filename: 'hard_link',
+          file_size_limit: file_size_limit,
+          allowed_content_types: allowed_content_types
+        )
+      end
+
+      it 'raises an error and removes the file' do
+        expect { subject.execute }.to raise_error(
+          described_class::ServiceError,
+          'Invalid downloaded file'
+        )
+
+        expect(File.exist?(hard_link)).to eq(false)
+      end
+    end
+
     context 'when dir is not in tmpdir' do
       subject do
         described_class.new(
@@ -281,7 +323,7 @@ RSpec.describe BulkImports::FileDownloadService, feature_category: :importers do
 
       it 'raises an error' do
         expect { subject.execute }.to raise_error(
-          Gitlab::Utils::PathTraversalAttackError,
+          Gitlab::PathTraversal::PathTraversalAttackError,
           'Invalid path'
         )
       end

@@ -7,7 +7,8 @@ module API
     before do
       authenticate!
 
-      check_rate_limit!(:search_rate_limit, scope: [current_user])
+      check_rate_limit!(:search_rate_limit, scope: [current_user],
+        users_allowlist: Gitlab::CurrentSettings.current_application_settings.search_rate_limit_allowlist)
     end
 
     feature_category :global_search
@@ -59,6 +60,8 @@ module API
       end
 
       def search(additional_params = {})
+        return Kaminari.paginate_array([]) if @project.present? && !project_scope_allowed?
+
         search_service = search_service(additional_params)
         if search_service.global_search? && !search_service.global_search_enabled_for_scope?
           forbidden!('Global Search is disabled for this scope')
@@ -67,6 +70,9 @@ module API
         @search_duration_s = Benchmark.realtime do
           @results = search_service.search_objects(preload_method)
         end
+
+        search_results = search_service.search_results
+        bad_request!(search_results.error) if search_results.respond_to?(:failed?) && search_results.failed?
 
         set_global_search_log_information(additional_params)
 
@@ -92,8 +98,12 @@ module API
         )
       end
 
+      def project_scope_allowed?
+        ::Search::Navigation.new(user: current_user, project: @project).tab_enabled_for_project?(params[:scope].to_sym)
+      end
+
       def snippets?
-        %w(snippet_titles).include?(params[:scope]).to_s
+        %w[snippet_titles].include?(params[:scope]).to_s
       end
 
       def entity
@@ -105,9 +115,7 @@ module API
       end
 
       def verify_search_scope!(resource:)
-        # In EE we have additional validation requirements for searches.
-        # Defining this method here as a noop allows us to easily extend it in
-        # EE, without having to modify this file directly.
+        # no-op
       end
 
       def search_type(additional_params = {})

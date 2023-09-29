@@ -4,7 +4,7 @@ group: Container Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Dependency Proxy **(FREE)**
+# Dependency Proxy **(FREE ALL)**
 
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/273655) from GitLab Premium to GitLab Free in 13.6.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/11582) support for private groups in GitLab 13.7.
@@ -35,10 +35,12 @@ For a list of planned additions, view the
 
 ## Enable or turn off the Dependency Proxy for a group
 
+> Required role [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/350682) from Developer to Maintainer in GitLab 15.0.
+
 To enable or turn off the Dependency Proxy for a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > Packages and registries**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > Packages and registries**.
 1. Expand the **Dependency Proxy** section.
 1. To enable the proxy, turn on **Enable Proxy**. To turn it off, turn the toggle off.
 
@@ -50,8 +52,8 @@ for the entire GitLab instance.
 
 To view the Dependency Proxy:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Packages and registries > Dependency Proxy**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Operate > Dependency Proxy**.
 
 The Dependency Proxy is not available for projects.
 
@@ -67,6 +69,7 @@ Prerequisites:
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/11582) in GitLab 13.7 [with a flag](../../../administration/feature_flags.md) named `dependency_proxy_for_private_groups`. Enabled by default.
 > - [Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/276777) the feature flag `dependency_proxy_for_private_groups` in GitLab 15.0.
+> - Support for group access tokens [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/362991) in GitLab 16.3.
 
 Because the Dependency Proxy is storing Docker images in a space associated with your group,
 you must authenticate against the Dependency Proxy.
@@ -85,6 +88,7 @@ You can authenticate using:
 - Your GitLab username and password.
 - A [personal access token](../../../user/profile/personal_access_tokens.md) with the scope set to `read_registry` and `write_registry`.
 - A [group deploy token](../../../user/project/deploy_tokens/index.md) with the scope set to `read_registry` and `write_registry`.
+- A [group access token](../../../user/group/settings/group_access_tokens.md) for the group, with the scope set to `read_registry` and `write_registry`.
 
 Users accessing the Dependency Proxy with a personal access token or username and password must
 have at least the Guest role for the group they pull images from.
@@ -175,8 +179,8 @@ You can also use [custom CI/CD variables](../../../ci/variables/index.md#for-a-p
 
 To store a Docker image in Dependency Proxy storage:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Packages and registries > Dependency Proxy**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Operate > Dependency Proxy**.
 1. Copy the **Dependency Proxy image prefix**.
 1. Use one of these commands. In these examples, the image is `alpine:latest`.
 1. You can also pull images by digest to specify exactly which version of an image to pull.
@@ -342,13 +346,40 @@ Authenticating with credentials from job payload (GitLab Registry)
 
 Make sure you are using the expected authentication mechanism.
 
-### "Not Found" error when pulling image
+### `Not Found` or `404` error when pulling image
 
-Docker errors similar to the following may indicate that the user running the build job doesn't have
-a minimum of the Guest role in the specified Dependency Proxy group:
+Errors like these might indicate that the user running the job doesn't have
+a minimum of the Guest role in the Dependency Proxy group:
 
-```plaintext
-ERROR: gitlab.example.com:443/group1/dependency_proxy/containers/alpine:latest: not found
+- ```plaintext
+  ERROR: gitlab.example.com:443/group1/dependency_proxy/containers/alpine:latest: not found
 
-failed to solve with frontend dockerfile.v0: failed to create LLB definition: gitlab.example.com:443/group1/dependency_proxy/containers/alpine:latest: not found
+  failed to solve with frontend dockerfile.v0: failed to create LLB definition: gitlab.example.com:443/group1/dependency_proxy/containers/alpine:latest: not found
+  ```
+
+- ```plaintext
+  ERROR: Job failed: failed to pull image "gitlab.example.com:443/group1/dependency_proxy/containers/alpine:latest" with specified policies [always]:
+  Error response from daemon: error parsing HTTP 404 response body: unexpected end of JSON input: "" (manager.go:237:1s)
+  ```
+
+For more information about the work to improve the error messages in similar cases to `Access denied`,
+see [issue 354826](https://gitlab.com/gitlab-org/gitlab/-/issues/354826).
+
+### `exec format error` when running images from the dependency proxy
+
+NOTE:
+This issue was [resolved](https://gitlab.com/gitlab-org/gitlab/-/issues/325669) in GitLab 16.3.
+For self managed instances that are 16.2 or earlier, you can update your instance to 16.3
+or use the workaround documented below.
+
+This error occurs if you try to use the dependency proxy on an ARM-based Docker install in GitLab 16.2 or earlier.
+The dependency proxy only supports the x86_64 architecture when pulling an image with a specific tag.
+
+As a workaround, you can specify the SHA256 of the image to force the dependency proxy
+to pull a different architecture:
+
+```shell
+docker pull ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/library/docker:20.10.3@sha256:bc9dcf5c8e5908845acc6d34ab8824bca496d6d47d1b08af3baf4b3adb1bd8fe
 ```
+
+In this example, `bc9dcf5c8e5908845acc6d34ab8824bca496d6d47d1b08af3baf4b3adb1bd8fe` is the SHA256 of the ARM based image.

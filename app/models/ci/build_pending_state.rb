@@ -2,8 +2,11 @@
 
 class Ci::BuildPendingState < Ci::ApplicationRecord
   include Ci::Partitionable
+  include SafelyChangeColumnDefault
 
-  belongs_to :build, class_name: 'Ci::Build', foreign_key: :build_id
+  columns_changing_default :partition_id
+
+  belongs_to :build, class_name: 'Ci::Build', foreign_key: :build_id, inverse_of: :pending_state
 
   partitionable scope: :build
 

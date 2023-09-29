@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Member < ApplicationRecord
+  extend ::Gitlab::Utils::Override
   include EachBatch
   include AfterCommitQueue
   include Sortable
@@ -65,6 +66,7 @@ class Member < ApplicationRecord
   scope :with_invited_user_state, -> do
     joins('LEFT JOIN users as invited_user ON invited_user.email = members.invite_email')
     .select('members.*', 'invited_user.state as invited_user_state')
+    .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/417456")
   end
 
   scope :in_hierarchy, ->(source) do
@@ -151,6 +153,7 @@ class Member < ApplicationRecord
   scope :not_accepted_invitations, -> { invite.where(invite_accepted_at: nil) }
   scope :not_accepted_invitations_by_user, -> (user) { not_accepted_invitations.where(created_by: user) }
   scope :not_expired, -> (today = Date.current) { where(arel_table[:expires_at].gt(today).or(arel_table[:expires_at].eq(nil))) }
+  scope :expiring_and_not_notified, ->(date) { where("expiry_notified_at is null AND expires_at >= ? AND expires_at <= ?", Date.current, date) }
 
   scope :created_today, -> do
     now = Date.current
@@ -167,12 +170,16 @@ class Member < ApplicationRecord
   scope :non_guests, -> { where('members.access_level > ?', GUEST) }
   scope :non_minimal_access, -> { where('members.access_level > ?', MINIMAL_ACCESS) }
   scope :owners, -> { active.where(access_level: OWNER) }
+  scope :all_owners, -> { where(access_level: OWNER) }
   scope :owners_and_maintainers, -> { active.where(access_level: [OWNER, MAINTAINER]) }
   scope :with_user, -> (user) { where(user: user) }
   scope :by_access_level, -> (access_level) { active.where(access_level: access_level) }
   scope :all_by_access_level, -> (access_level) { where(access_level: access_level) }
 
-  scope :preload_user_and_notification_settings, -> { preload(user: :notification_settings) }
+  scope :preload_user_and_notification_settings, -> do
+    preload(user: :notification_settings)
+      .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/417456")
+  end
 
   scope :with_source_id, ->(source_id) { where(source_id: source_id) }
   scope :including_source, -> { includes(:source) }
@@ -286,7 +293,9 @@ class Member < ApplicationRecord
 
   class << self
     def search(query)
-      scope = joins(:user).merge(User.search(query, use_minimum_char_limit: false))
+      scope = joins(:user)
+                .merge(User.search(query, use_minimum_char_limit: false))
+                .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/417456")
 
       return scope unless Gitlab::Pagination::Keyset::Order.keyset_aware?(scope)
 
@@ -320,6 +329,12 @@ class Member < ApplicationRecord
       end
     end
 
+    def filter_by_user_type(value)
+      return unless ::User.user_types.key?(value)
+
+      left_join_users.merge(::User.where(user_type: value))
+    end
+
     def sort_by_attribute(method)
       case method.to_s
       when 'access_level_asc' then reorder(access_level: :asc)
@@ -339,6 +354,7 @@ class Member < ApplicationRecord
 
     def left_join_users
       left_outer_joins(:user)
+        .allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/417456")
     end
 
     def access_for_user_ids(user_ids)
@@ -352,6 +368,10 @@ class Member < ApplicationRecord
 
     def valid_email?(email)
       Devise.email_regexp.match?(email)
+    end
+
+    def pluck_user_ids
+      pluck(:user_id)
     end
   end
 
@@ -566,7 +586,7 @@ class Member < ApplicationRecord
   end
 
   def after_decline_invite
-    # override in subclass
+    notification_service.decline_invite(self)
   end
 
   def after_accept_request

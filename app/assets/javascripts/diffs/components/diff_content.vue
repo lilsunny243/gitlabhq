@@ -1,6 +1,9 @@
 <script>
-import { GlLoadingIcon } from '@gitlab/ui';
+import { GlLoadingIcon, GlButton } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
+import { sprintf } from '~/locale';
+import { createAlert } from '~/alert';
 import { mapParallel } from 'ee_else_ce/diffs/components/diff_row_utils';
 import DiffFileDrafts from '~/batch_comments/components/diff_file_drafts.vue';
 import draftCommentsMixin from '~/diffs/mixins/draft_comments';
@@ -13,6 +16,7 @@ import NoteForm from '~/notes/components/note_form.vue';
 import eventHub from '~/notes/event_hub';
 import UserAvatarLink from '~/vue_shared/components/user_avatar/user_avatar_link.vue';
 import { IMAGE_DIFF_POSITION_TYPE } from '../constants';
+import { SAVING_THE_COMMENT_FAILED, SOMETHING_WENT_WRONG } from '../i18n';
 import { getDiffMode } from '../store/utils';
 import DiffDiscussions from './diff_discussions.vue';
 import DiffView from './diff_view.vue';
@@ -21,6 +25,7 @@ import ImageDiffOverlay from './image_diff_overlay.vue';
 export default {
   components: {
     GlLoadingIcon,
+    GlButton,
     DiffView,
     DiffViewer,
     NoteForm,
@@ -50,6 +55,7 @@ export default {
       'getCommentFormForDiffFile',
       'diffLines',
       'fileLineCodequality',
+      'fileLineSast',
     ]),
     ...mapGetters(['getNoteableData', 'noteableType', 'getUserData']),
     diffMode() {
@@ -59,7 +65,10 @@ export default {
       return this.diffFile.viewer.name;
     },
     isTextFile() {
-      return this.diffViewerMode === diffViewerModes.text;
+      return this.diffViewerMode === diffViewerModes.text && !this.diffFile.viewer.whitespace_only;
+    },
+    isWhitespaceOnly() {
+      return this.diffFile.viewer.whitespace_only;
     },
     noPreview() {
       return this.diffViewerMode === diffViewerModes.no_preview;
@@ -71,7 +80,10 @@ export default {
       return this.getCommentFormForDiffFile(this.diffFileHash);
     },
     showNotesContainer() {
-      return this.imageDiscussions.length || this.diffFileCommentForm;
+      return (
+        this.diffViewerMode === diffViewerModes.image &&
+        (this.imageDiscussionsWithDrafts.length || this.diffFileCommentForm)
+      );
     },
     diffFileHash() {
       return this.diffFile.file_hash;
@@ -80,8 +92,12 @@ export default {
       return this.getUserData;
     },
     mappedLines() {
-      // TODO: Do this data generation when we receive a response to save a computed property being created
       return this.diffLines(this.diffFile).map(mapParallel(this)) || [];
+    },
+    imageDiscussions() {
+      return this.diffFile.discussions.filter(
+        (f) => f.position?.position_type === IMAGE_DIFF_POSITION_TYPE,
+      );
     },
   },
   updated() {
@@ -91,7 +107,7 @@ export default {
   },
   methods: {
     ...mapActions('diffs', ['saveDiffDiscussion', 'closeDiffFileCommentForm']),
-    handleSaveNote(note) {
+    handleSaveNote(note, parentElement, errorCallback) {
       this.saveDiffDiscussion({
         note,
         formData: {
@@ -104,9 +120,22 @@ export default {
           width: this.diffFileCommentForm.width,
           height: this.diffFileCommentForm.height,
         },
+      }).catch((e) => {
+        const reason = e.response?.data?.errors;
+        const errorMessage = reason
+          ? sprintf(SAVING_THE_COMMENT_FAILED, { reason })
+          : SOMETHING_WENT_WRONG;
+
+        createAlert({
+          message: errorMessage,
+          parent: parentElement,
+        });
+
+        errorCallback();
       });
     },
   },
+  IMAGE_DIFF_POSITION_TYPE,
 };
 </script>
 
@@ -122,6 +151,23 @@ export default {
         />
         <gl-loading-icon v-if="diffFile.renderingLines" size="lg" class="mt-3" />
       </template>
+      <div
+        v-else-if="isWhitespaceOnly"
+        class="gl-bg-gray-10 gl--flex-center gl-h-13"
+        data-testid="diff-whitespace-only-state"
+      >
+        {{ __('Contains only whitespace changes.') }}
+        <gl-button
+          category="tertiary"
+          variant="confirm"
+          size="small"
+          class="gl-ml-3"
+          data-testid="diff-load-file-button"
+          @click="$emit('load-file', { w: '0' })"
+        >
+          {{ __('Show changes') }}
+        </gl-button>
+      </div>
       <not-diffable-viewer v-else-if="notDiffable" />
       <no-preview-viewer v-else-if="noPreview" />
       <diff-viewer
@@ -160,13 +206,17 @@ export default {
             class="d-none d-sm-block new-comment"
           />
           <diff-discussions
-            v-if="diffFile.discussions.length"
+            v-if="imageDiscussions.length"
             class="diff-file-discussions"
-            :discussions="diffFile.discussions"
+            :discussions="imageDiscussions"
             should-collapse-discussions
             render-avatar-badge
           />
-          <diff-file-drafts :file-hash="diffFileHash" class="diff-file-discussions" />
+          <diff-file-drafts
+            :file-hash="diffFileHash"
+            :position-type="$options.IMAGE_DIFF_POSITION_TYPE"
+            class="diff-file-discussions"
+          />
           <note-form
             v-if="diffFileCommentForm"
             ref="noteForm"

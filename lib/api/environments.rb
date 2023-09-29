@@ -38,10 +38,11 @@ module API
           desc: 'List all environments that match a specific state. Accepted values: `available`, `stopping`, or `stopped`. If no state value given, returns all environments'
         mutually_exclusive :name, :search, message: 'cannot be used together'
       end
+      route_setting :authentication, job_token_allowed: true
       get ':id/environments' do
         authorize! :read_environment, user_project
 
-        if Feature.enabled?(:environment_search_api_min_chars, user_project) && params[:search].present? && params[:search].length < MIN_SEARCH_LENGTH
+        if params[:search].present? && params[:search].length < MIN_SEARCH_LENGTH
           bad_request!("Search query is less than #{MIN_SEARCH_LENGTH} characters")
         end
 
@@ -66,6 +67,7 @@ module API
         optional :slug, absence: { message: "is automatically generated and cannot be changed" }, documentation: { hidden: true }
         optional :tier, type: String, values: Environment.tiers.keys, desc: 'The tier of the new environment. Allowed values are `production`, `staging`, `testing`, `development`, and `other`'
       end
+      route_setting :authentication, job_token_allowed: true
       post ':id/environments' do
         authorize! :create_environment, user_project
 
@@ -90,19 +92,21 @@ module API
       end
       params do
         requires :environment_id, type: Integer,  desc: 'The ID of the environment'
-        # TODO: disallow renaming via the API https://gitlab.com/gitlab-org/gitlab/-/issues/338897
-        optional :name,           type: String,   desc: 'DEPRECATED: Renaming environment can lead to errors, this will be removed in 15.0'
         optional :external_url,   type: String,   desc: 'The new URL on which this deployment is viewable'
         optional :slug, absence: { message: "is automatically generated and cannot be changed" }, documentation: { hidden: true }
         optional :tier, type: String, values: Environment.tiers.keys, desc: 'The tier of the new environment. Allowed values are `production`, `staging`, `testing`, `development`, and `other`'
       end
+      route_setting :authentication, job_token_allowed: true
       put ':id/environments/:environment_id' do
         authorize! :update_environment, user_project
 
         environment = user_project.environments.find(params[:environment_id])
 
-        update_params = declared_params(include_missing: false).extract!(:name, :external_url, :tier)
-        if environment.update(update_params)
+        update_params = declared_params(include_missing: false).extract!(:external_url, :tier)
+
+        environment.assign_attributes(update_params)
+
+        if environment.save
           present environment, with: Entities::Environment, current_user: current_user
         else
           render_validation_error!(environment)
@@ -125,6 +129,7 @@ module API
         optional :limit, type: Integer, desc: "Maximum number of environments to delete. Defaults to 100", default: 100, values: 1..1000
         optional :dry_run, type: Boolean, desc: "Defaults to true for safety reasons. It performs a dry run where no actual deletion will be performed. Set to false to actually delete the environment", default: true
       end
+      route_setting :authentication, job_token_allowed: true
       delete ":id/environments/review_apps" do
         authorize! :read_environment, user_project
 
@@ -155,6 +160,7 @@ module API
       params do
         requires :environment_id, type: Integer, desc: 'The ID of the environment'
       end
+      route_setting :authentication, job_token_allowed: true
       delete ':id/environments/:environment_id' do
         authorize! :read_environment, user_project
 
@@ -177,6 +183,7 @@ module API
         requires :environment_id, type: Integer, desc: 'The ID of the environment'
         optional :force, type: Boolean, default: false, desc: 'Force environment to stop without executing `on_stop` actions'
       end
+      route_setting :authentication, job_token_allowed: true
       post ':id/environments/:environment_id/stop' do
         authorize! :read_environment, user_project
 
@@ -201,6 +208,7 @@ module API
                  type: DateTime,
                  desc: 'Stop all environments that were last modified or deployed to before this date.'
       end
+      route_setting :authentication, job_token_allowed: true
       post ':id/environments/stop_stale' do
         authorize! :stop_environment, user_project
 
@@ -228,6 +236,7 @@ module API
       params do
         requires :environment_id, type: Integer, desc: 'The ID of the environment'
       end
+      route_setting :authentication, job_token_allowed: true
       get ':id/environments/:environment_id' do
         authorize! :read_environment, user_project
 

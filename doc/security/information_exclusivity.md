@@ -1,11 +1,11 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts
 ---
 
-# Information exclusivity **(FREE)**
+# Information exclusivity **(FREE ALL)**
 
 Git is a distributed version control system (DVCS). This means that everyone
 who works with the source code has a local copy of the complete repository.

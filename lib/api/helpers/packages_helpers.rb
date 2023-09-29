@@ -4,6 +4,7 @@ module API
   module Helpers
     module PackagesHelpers
       extend ::Gitlab::Utils::Override
+      include ::Gitlab::Utils::StrongMemoize
 
       MAX_PACKAGE_FILE_SIZE = 50.megabytes.freeze
       ALLOWED_REQUIRED_PERMISSIONS = %i[read_package read_group].freeze
@@ -71,25 +72,25 @@ module API
 
       # This function is similar to the `find_project!` function, but it considers the `read_package` ability.
       def user_project_with_read_package
-        strong_memoize(:user_project_with_read_package) do
-          project = find_project(params[:id])
+        project = find_project(params[:id])
 
-          next forbidden! unless authorized_project_scope?(project)
+        return forbidden! unless authorized_project_scope?(project)
 
-          next project if can?(current_user, :read_package, project&.packages_policy_subject)
-          # guest users can have :read_project but not :read_package
-          next forbidden! if can?(current_user, :read_project, project)
-          next unauthorized! if authenticate_non_public?
+        return project if can?(current_user, :read_package, project&.packages_policy_subject)
+        # guest users can have :read_project but not :read_package
+        return forbidden! if can?(current_user, :read_project, project)
+        return unauthorized! if authenticate_non_public?
 
-          not_found!('Project')
-        end
+        not_found!('Project')
       end
+      strong_memoize_attr :user_project_with_read_package
 
       def track_package_event(action, scope, **args)
         service = ::Packages::CreateEventService.new(nil, current_user, event_name: action, scope: scope)
         service.execute
 
         category = args.delete(:category) || self.options[:for].name
+        args[:user] = current_user if current_user
         event_name = "i_package_#{scope}_user"
         ::Gitlab::Tracking.event(
           category,
@@ -99,8 +100,6 @@ module API
           context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name).to_context],
           **args
         )
-
-        return unless Feature.enabled?(:route_hll_to_snowplow_phase3)
 
         if action.to_s == 'push_package' && service.originator_type == :deploy_token
           track_snowplow_event("push_package_by_deploy_token", category, args)
@@ -119,10 +118,7 @@ module API
       def track_snowplow_event(action_name, category, args)
         event_name = "i_package_#{action_name}"
         key_path = "counts.package_events_i_package_#{action_name}"
-        service_ping_context = Gitlab::Tracking::ServicePingContext.new(
-          data_source: :redis,
-          key_path: key_path
-        ).to_context
+        service_ping_context = Gitlab::Usage::MetricDefinition.context_for(key_path).to_context
 
         Gitlab::Tracking.event(
           category,

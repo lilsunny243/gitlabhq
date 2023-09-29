@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'webauthn/fake_client'
 
-RSpec.describe Webauthn::AuthenticateService do
+RSpec.describe Webauthn::AuthenticateService, feature_category: :system_access do
   let(:client) { WebAuthn::FakeClient.new(origin) }
   let(:user) { create(:user) }
   let(:challenge) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
@@ -15,11 +15,13 @@ RSpec.describe Webauthn::AuthenticateService do
 
     webauthn_credential = WebAuthn::Credential.from_create(create_result)
 
-    registration = WebauthnRegistration.new(credential_xid: Base64.strict_encode64(webauthn_credential.raw_id),
-                                            public_key: webauthn_credential.public_key,
-                                            counter: 0,
-                                            name: 'name',
-                                            user_id: user.id)
+    registration = WebauthnRegistration.new(
+      credential_xid: Base64.strict_encode64(webauthn_credential.raw_id),
+      public_key: webauthn_credential.public_key,
+      counter: 0,
+      name: 'name',
+      user_id: user.id
+    )
     registration.save!
   end
 
@@ -28,7 +30,7 @@ RSpec.describe Webauthn::AuthenticateService do
       get_result = client.get(challenge: challenge)
 
       get_result['clientExtensionResults'] = {}
-      service = Webauthn::AuthenticateService.new(user, get_result.to_json, challenge)
+      service = described_class.new(user, get_result.to_json, challenge)
 
       expect(service.execute).to eq true
     end
@@ -41,7 +43,7 @@ RSpec.describe Webauthn::AuthenticateService do
         get_result = other_client.get(challenge: challenge)
 
         get_result['clientExtensionResults'] = {}
-        service = Webauthn::AuthenticateService.new(user, get_result.to_json, challenge)
+        service = described_class.new(user, get_result.to_json, challenge)
 
         expect(service.execute).to eq false
       end
@@ -49,7 +51,7 @@ RSpec.describe Webauthn::AuthenticateService do
 
     context 'when device response includes invalid json' do
       it 'returns false' do
-        service = Webauthn::AuthenticateService.new(user, 'invalid JSON', '')
+        service = described_class.new(user, 'invalid JSON', '')
         expect(service.execute).to eq false
       end
     end

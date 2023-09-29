@@ -7,6 +7,7 @@ RSpec.shared_context 'with FOSS query type fields' do
       :board_list,
       :ci_application_settings,
       :ci_config,
+      :ci_pipeline_stage,
       :ci_variables,
       :container_repository,
       :current_user,
@@ -39,7 +40,10 @@ RSpec.shared_context 'with FOSS query type fields' do
       :usage_trends_measurements,
       :user,
       :users,
-      :work_item
+      :work_item,
+      :audit_event_definitions,
+      :abuse_report,
+      :abuse_report_labels
     ]
   end
 end

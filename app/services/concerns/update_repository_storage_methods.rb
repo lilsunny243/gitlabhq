@@ -14,13 +14,23 @@ module UpdateRepositoryStorageMethods
   end
 
   def execute
-    repository_storage_move.with_lock do
-      return ServiceResponse.success unless repository_storage_move.scheduled? # rubocop:disable Cop/AvoidReturnFromBlocks
+    response = repository_storage_move.with_lock do
+      next ServiceResponse.success unless repository_storage_move.scheduled?
 
       repository_storage_move.start!
+
+      nil
     end
 
-    mirror_repositories unless same_filesystem?
+    return response if response
+
+    unless same_filesystem?
+      mirror_repositories
+
+      repository_storage_move.transaction do
+        mirror_object_pool(destination_storage_name)
+      end
+    end
 
     repository_storage_move.transaction do
       repository_storage_move.finish_replication!
@@ -28,10 +38,7 @@ module UpdateRepositoryStorageMethods
       track_repository(destination_storage_name)
     end
 
-    unless same_filesystem?
-      remove_old_paths
-      enqueue_housekeeping
-    end
+    remove_old_paths unless same_filesystem?
 
     repository_storage_move.finish_cleanup!
 
@@ -52,12 +59,27 @@ module UpdateRepositoryStorageMethods
     raise NotImplementedError
   end
 
+  def mirror_object_pool(_destination_shard)
+    # no-op, redefined for Projects::UpdateRepositoryStorageService
+    nil
+  end
+
   def mirror_repository(type:)
     unless wait_for_pushes(type)
       raise Error, s_('UpdateRepositoryStorage|Timeout waiting for %{type} repository pushes') % { type: type.name }
     end
 
-    repository = type.repository_for(container)
+    # `Projects::UpdateRepositoryStorageService`` expects the repository it is
+    # moving to have a `Project` as a container.
+    # This hack allows design repos to also be moved as part of a project move
+    # as before.
+    # The alternative to this hack is to setup a service like
+    # `Snippets::UpdateRepositoryStorageService' and a corresponding worker like
+    # `Snippets::UpdateRepositoryStorageWorker` for snippets.
+    #
+    # Gitlab issue: https://gitlab.com/gitlab-org/gitlab/-/issues/423429
+
+    repository = type.repository_for(type.design? ? container.design_management_repository : container)
     full_path = repository.full_path
     raw_repository = repository.raw
     checksum = repository.checksum
@@ -93,10 +115,6 @@ module UpdateRepositoryStorageMethods
         nil
       ).remove
     end
-  end
-
-  def enqueue_housekeeping
-    # no-op
   end
 
   def wait_for_pushes(type)

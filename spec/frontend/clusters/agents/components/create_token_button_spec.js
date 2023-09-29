@@ -29,10 +29,6 @@ describe('CreateTokenButton', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('when user can create token', () => {
     beforeEach(() => {
       createWrapper();
@@ -59,7 +55,7 @@ describe('CreateTokenButton', () => {
     });
 
     it('disabled the button', () => {
-      expect(findButton().attributes('disabled')).toBe('true');
+      expect(findButton().attributes('disabled')).toBeDefined();
     });
 
     it('shows a disabled tooltip', () => {

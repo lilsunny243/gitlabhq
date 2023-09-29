@@ -1,6 +1,7 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 
 import BoardCard from '~/boards/components/board_card.vue';
@@ -39,7 +40,7 @@ export default function createComponent({
   Vue.use(Vuex);
 
   const fakeApollo = createMockApollo([
-    [listQuery, jest.fn().mockResolvedValue(boardListQueryResponse(issuesCount))],
+    [listQuery, jest.fn().mockResolvedValue(boardListQueryResponse({ issuesCount }))],
     ...apolloQueryHandlers,
   ]);
 
@@ -120,6 +121,8 @@ export default function createComponent({
       };
     },
   });
+
+  jest.spyOn(store, 'dispatch').mockImplementation(() => {});
 
   return component;
 }

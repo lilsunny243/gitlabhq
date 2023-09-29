@@ -51,35 +51,19 @@ gitlab_git_test:
   script:
     - spec/support/prepare-gitlab-git-test-for-commit --check-for-changes
 
-no-ee-check:
-  extends:
-    - .predictive-job
-    - .setup:rules:no-ee-check
-  stage: test
-  script:
-    - scripts/no-dir-check ee
-
-no-jh-check:
-  extends:
-    - .predictive-job
-    - .setup:rules:no-jh-check
-  stage: test
-  script:
-    - scripts/no-dir-check jh
-
 verify-ruby-3.0:
   extends:
     - .absolutely-predictive-job
     - .setup:rules:verify-ruby-3.0
   stage: prepare
   script:
-    - echo 'Please remove label ~"pipeline:run-in-ruby2" so we do test against Ruby 3.0 (default version) before merging the merge request'
+    - echo 'Please remove label ~"pipeline:run-in-ruby3_1" so we do test against Ruby 3.0 (default version) before merging the merge request'
     - exit 1
 
 verify-tests-yml:
   extends:
     - .setup:rules:verify-tests-yml
-  image: ${GITLAB_DEPENDENCY_PROXY_ADDRESS}ruby:${RUBY_VERSION}-alpine3.13
+  image: ${GITLAB_DEPENDENCY_PROXY_ADDRESS}ruby:${RUBY_VERSION}-alpine3.16
   stage: test
   needs: []
   script:
@@ -99,14 +83,14 @@ verify-approvals:
 generate-frontend-fixtures-mapping:
   extends:
     - .setup:rules:generate-frontend-fixtures-mapping
-    - .use-pg12
-    - .rails-cache
+    - .use-pg14
+    - .ruby-cache
   needs: ["setup-test-env"]
   stage: prepare
   before_script:
     - !reference [.default-before_script, before_script]
     - source ./scripts/rspec_helpers.sh
-    - run_timed_command "scripts/gitaly-test-spawn"
+    - section_start "gitaly-test-spawn" "Spawning Gitaly"; scripts/gitaly-test-spawn; section_end "gitaly-test-spawn";  # Do not use 'bundle exec' here
   script:
     - generate_frontend_fixtures_mapping
   artifacts:
@@ -122,7 +106,7 @@ detect-tests:
   variables:
     RSPEC_TESTS_MAPPING_ENABLED: "true"
   before_script:
-    - apt-get update && apt-get install -y curl # Not present in ruby-slim, so we add it manually
+    - apt-get update && apt-get install -y curl  # Not present in ruby-slim, so we add it manually
   script:
     - source ./scripts/utils.sh
     - source ./scripts/rspec_helpers.sh
@@ -134,13 +118,12 @@ detect-tests:
     - |
       if [ -n "$CI_MERGE_REQUEST_IID" ]; then
         mkdir -p $(dirname "$RSPEC_CHANGED_FILES_PATH")
-        tooling/bin/find_changes ${RSPEC_CHANGED_FILES_PATH};
-        tooling/bin/find_tests ${RSPEC_CHANGED_FILES_PATH} ${RSPEC_MATCHING_TESTS_PATH};
-        tooling/bin/js_to_system_specs_mappings ${RSPEC_CHANGED_FILES_PATH} ${RSPEC_MATCHING_TESTS_PATH};
-        tooling/bin/find_changes ${RSPEC_CHANGED_FILES_PATH} ${RSPEC_MATCHING_TESTS_PATH} ${FRONTEND_FIXTURES_MAPPING_PATH};
+
+        tooling/bin/predictive_tests
+
         filter_rspec_matched_foss_tests ${RSPEC_MATCHING_TESTS_PATH} ${RSPEC_MATCHING_TESTS_FOSS_PATH};
         filter_rspec_matched_ee_tests ${RSPEC_MATCHING_TESTS_PATH} ${RSPEC_MATCHING_TESTS_EE_PATH};
-        tooling/bin/view_to_js_mappings ${RSPEC_CHANGED_FILES_PATH} ${RSPEC_MATCHING_JS_FILES_PATH};
+
         echoinfo "Changed files: $(cat $RSPEC_CHANGED_FILES_PATH)";
         echoinfo "Related FOSS RSpec tests: $(cat $RSPEC_MATCHING_TESTS_FOSS_PATH)";
         echoinfo "Related EE RSpec tests: $(cat $RSPEC_MATCHING_TESTS_EE_PATH)";
@@ -152,9 +135,10 @@ detect-tests:
       - ${FRONTEND_FIXTURES_MAPPING_PATH}
       - ${RSPEC_CHANGED_FILES_PATH}
       - ${RSPEC_MATCHING_JS_FILES_PATH}
-      - ${RSPEC_MATCHING_TESTS_PATH}
-      - ${RSPEC_MATCHING_TESTS_FOSS_PATH}
       - ${RSPEC_MATCHING_TESTS_EE_PATH}
+      - ${RSPEC_MATCHING_TESTS_FOSS_PATH}
+      - ${RSPEC_MATCHING_TESTS_PATH}
+      - ${RSPEC_VIEWS_INCLUDING_PARTIALS_PATH}
 
 detect-previous-failed-tests:
   extends:
@@ -179,8 +163,6 @@ e2e-test-pipeline-generate:
   stage: prepare
   variables:
     ENV_FILE: $CI_PROJECT_DIR/qa_tests_vars.env
-    OMNIBUS_PIPELINE_YML: package-and-test-pipeline.yml
-    REVIEW_PIPELINE_YML: review-app-pipeline.yml
     COLORIZED_LOGS: "true"
   script:
     - bundle exec rake "ci:detect_changes[$ENV_FILE]"
@@ -188,5 +170,49 @@ e2e-test-pipeline-generate:
   artifacts:
     expire_in: 1 day
     paths:
-      - $OMNIBUS_PIPELINE_YML
-      - $REVIEW_PIPELINE_YML
+      - '*-pipeline.yml'
+      - "${CI_PROJECT_DIR}/qa_tests_vars.env"
+
+trigger-omnibus-env:
+  stage: prepare
+  extends:
+    - .qa:rules:trigger-omnibus-env
+  needs:
+    # We need this job because we need its `cached-assets-hash.txt` artifact, so that we can pass the assets image tag to the downstream omnibus-gitlab pipeline.
+    - compile-production-assets
+  variables:
+    BUILD_ENV: build.env
+  before_script:
+    - source scripts/utils.sh
+  script:
+    # Note that OMNIBUS_GITLAB_CACHE_UPDATE is not used in the code, but it is actually used in the 2-hourly maintenance pipeline schedule.
+    - |
+      SECURITY_SOURCES=$([[ ! "$CI_PROJECT_NAMESPACE" =~ ^gitlab-org\/security ]] || echo "true")
+      echo "SECURITY_SOURCES=${SECURITY_SOURCES:-false}" > $BUILD_ENV
+      echo "OMNIBUS_GITLAB_CACHE_UPDATE=${OMNIBUS_GITLAB_CACHE_UPDATE:-false}" >> $BUILD_ENV
+      for version_file in *_VERSION; do echo "$version_file=$(cat $version_file)" >> $BUILD_ENV; done
+      echo "OMNIBUS_GITLAB_BUILD_ON_ALL_OS=${OMNIBUS_GITLAB_BUILD_ON_ALL_OS:-false}" >> $BUILD_ENV
+      echo "USE_OLD_RUBY_VERSION=${USE_OLD_RUBY_VERSION:-false}" >> $BUILD_ENV
+      echo "NEXT_RUBY_VERSION=${NEXT_RUBY_VERSION}" >> $BUILD_ENV
+      echo "GITLAB_ASSETS_TAG=$(assets_image_tag)" >> $BUILD_ENV
+      echo "EE=$([[ $FOSS_ONLY == '1' ]] && echo 'false' || echo 'true')" >> $BUILD_ENV
+      target_branch_name="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_COMMIT_REF_NAME}}"
+      echo "TRIGGER_BRANCH=$([[ "${target_branch_name}" =~ ^[0-9-]+-stable(-ee)?$ ]] && echo ${target_branch_name%-ee} || echo 'master')" >> $BUILD_ENV
+    - |
+      echo "Built environment file for omnibus build:"
+      cat $BUILD_ENV
+  artifacts:
+    expire_in: 3 days
+    reports:
+      dotenv: $BUILD_ENV
+    paths:
+      - $BUILD_ENV
+
+trigger-omnibus-env as-if-foss:
+  extends:
+    - trigger-omnibus-env
+    - .qa:rules:package-and-test-ce
+  needs:
+    - compile-production-assets as-if-foss
+  variables:
+    FOSS_ONLY: "1"

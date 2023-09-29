@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'tempfile'
 
-RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :projects do
+RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :groups_and_projects do
   include Gitlab::Routing
   include ProjectForksHelper
 
@@ -66,7 +66,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
 
         wait_for_requests
 
-        expect(page).to have_css('.ci-status.ci-success', text: 'passed')
+        expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Passed')
       end
 
       it 'shows commit`s data', :js do
@@ -93,7 +93,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
         visit project_job_path(project, job)
 
         within '.js-pipeline-info' do
-          expect(page).to have_content("Pipeline ##{pipeline.id} for #{pipeline.ref}")
+          expect(page).to have_content("Pipeline ##{pipeline.id} Pending for #{pipeline.ref}")
         end
       end
 
@@ -232,14 +232,14 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
           expect(page).to have_link('New issue')
         end
 
-        it 'links to issues/new with the title and description filled in' do
+        it 'links to issues/new with the title and description filled in', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408222' do
           button_title = "Job Failed ##{job.id}"
           job_url = project_job_url(project, job, host: page.server.host, port: page.server.port)
           options = { issue: { title: button_title, description: "Job [##{job.id}](#{job_url}) failed for #{job.sha}:\n" } }
 
           href = new_project_issue_path(project, options)
 
-          page.within('.build-sidebar') do
+          page.within('aside.right-sidebar') do
             expect(find('[data-testid="job-new-issue"]')['href']).to include(href)
           end
         end
@@ -269,13 +269,15 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
       let(:resource_group) { create(:ci_resource_group, project: project) }
 
       before do
+        resource_group.assign_resource_to(create(:ci_build))
+
         visit project_job_path(project, job)
         wait_for_requests
       end
 
       it 'shows correct UI components' do
         expect(page).to have_content("This job is waiting for resource: #{resource_group.key}")
-        expect(page).to have_link("Cancel this job")
+        expect(page).to have_link("View job currently using resource")
       end
     end
 
@@ -304,7 +306,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
 
         artifact_request = requests.find { |req| req.url.include?('artifacts/download') }
 
-        expect(artifact_request.response_headers['Content-Disposition']).to eq(%Q{attachment; filename="#{job.artifacts_file.filename}"; filename*=UTF-8''#{job.artifacts_file.filename}})
+        expect(artifact_request.response_headers['Content-Disposition']).to eq(%{attachment; filename="#{job.artifacts_file.filename}"; filename*=UTF-8''#{job.artifacts_file.filename}})
         expect(artifact_request.response_headers['Content-Transfer-Encoding']).to eq("binary")
         expect(artifact_request.response_headers['Content-Type']).to eq("image/gif")
         expect(artifact_request.body).to eq(job.artifacts_file.file.read.b)
@@ -546,24 +548,24 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
         end
 
         context 'when there is a cluster used for the deployment' do
-          let(:cluster) { create(:cluster, name: 'the-cluster') }
-          let(:deployment) { create(:deployment, :success, cluster: cluster, environment: environment, project: environment.project) }
+          let(:deployment) { create(:deployment, :success, :on_cluster, environment: environment) }
           let(:user_access_level) { :maintainer }
+          let(:cluster) { deployment.cluster }
 
           it 'shows a link to the cluster' do
-            expect(page).to have_link 'the-cluster'
+            expect(page).to have_link cluster.name
           end
 
           it 'shows the name of the cluster' do
-            expect(page).to have_content 'using cluster the-cluster'
+            expect(page).to have_content "using cluster #{cluster.name}"
           end
 
           context 'when the user is not able to view the cluster' do
             let(:user_access_level) { :reporter }
 
             it 'includes only the name of the cluster without a link' do
-              expect(page).to have_content 'using cluster the-cluster'
-              expect(page).not_to have_link 'the-cluster'
+              expect(page).to have_content "using cluster #{cluster.name}"
+              expect(page).not_to have_link cluster.name
             end
           end
         end
@@ -1049,8 +1051,8 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
       it 'retries the job' do
         find('[data-testid="retry-button-modal"]').click
 
-        within '[data-testid="ci-header-content"]' do
-          expect(page).to have_content('pending')
+        within '[data-testid="job-header-content"]' do
+          expect(page).to have_content('Pending')
         end
       end
     end
@@ -1071,7 +1073,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :proj
         create(:ci_job_artifact, :archive, file: artifacts_file, job: job2)
       end
 
-      it do
+      it 'receive 404 from download request', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391632' do
         requests = inspect_requests { visit other_job_download_path }
 
         request = requests.find { |request| request.url == other_job_download_path }

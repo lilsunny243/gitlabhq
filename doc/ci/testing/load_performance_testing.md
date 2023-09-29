@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Load Performance Testing **(PREMIUM)**
+# Load Performance Testing **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/10683) in GitLab 13.2.
 
@@ -59,7 +59,7 @@ Configuring your Load Performance Testing job can be broken down into several di
 
 ### Determine the test parameters
 
-The first thing you need to do is determine the [type of load test](https://k6.io/docs/test-types/introduction)
+The first thing you need to do is determine the [type of load test](https://k6.io/docs/test-types/load-test-types/)
 you want to run, and how you want it to run (for example, the number of users, throughput, and so on).
 
 Refer to the [k6 docs](https://k6.io/docs/), especially the [k6 testing guides](https://k6.io/docs/testing-guides),
@@ -79,7 +79,7 @@ We strongly recommend [not running these tests against a production environment]
 ### Write the load performance test
 
 After the environment is prepared, you can write the k6 test itself. k6 is a flexible
-tool and can be used to run [many kinds of performance tests](https://k6.io/docs/test-types/introduction).
+tool and can be used to run [many kinds of performance tests](https://k6.io/docs/test-types/load-test-types/).
 Refer to the [k6 documentation](https://k6.io/docs/) for detailed information on how to write tests.
 
 ### Configure the test in GitLab CI/CD
@@ -151,7 +151,7 @@ The CI/CD YAML configuration example above works for testing against static envi
 but it can be extended to work with [review apps](../review_apps/index.md) or
 [dynamic environments](../environments/index.md) with a few extra steps.
 
-The best approach is to capture the dynamic URL in a [`.env` file](https://docs.docker.com/compose/env-file/)
+The best approach is to capture the dynamic URL in a [`.env` file](https://docs.docker.com/compose/environment-variables/env-file/)
 as a job artifact to be shared, then use a custom CI/CD variable we've provided named `K6_DOCKER_OPTIONS`
 to configure the k6 Docker container to use the file. With this, k6 can then use any
 environment variables from the `.env` file in scripts using standard JavaScript,
@@ -161,7 +161,7 @@ For example:
 
 1. In the `review` job:
    1. Capture the dynamic URL and save it into a `.env` file, for example, `echo "ENVIRONMENT_URL=$CI_ENVIRONMENT_URL" >> review.env`.
-   1. Set the `.env` file to be a [job artifact](../pipelines/job_artifacts.md).
+   1. Set the `.env` file to be a [job artifact](../jobs/job_artifacts.md).
 1. In the `load_performance` job:
    1. Set it to depend on the review job, so it inherits the environment file.
    1. Set the `K6_DOCKER_OPTIONS` variable with the [Docker CLI option for environment files](https://docs.docker.com/engine/reference/commandline/run/#set-environment-variables--e---env---env-file), for example `--env-file review.env`.

@@ -5,26 +5,26 @@ module QA
     module Project
       module Settings
         class Alerts < Page::Base
+          include ::QA::Page::Component::Dropdown
+
           view 'app/assets/javascripts/alerts_settings/components/alerts_form.vue' do
-            element :create_incident_checkbox
-            element :incident_templates_dropdown
-            element :save_changes_button
-            element :incident_templates_item
-            element :enable_email_notification_checkbox
+            element 'create-incident-checkbox'
+            element 'incident-templates-dropdown'
+            element 'save-changes-button'
+            element 'enable-email-notification-checkbox'
           end
 
           view 'app/assets/javascripts/alerts_settings/components/alerts_settings_wrapper.vue' do
-            element :add_integration_button
+            element 'add-integration-button'
           end
 
           view 'app/assets/javascripts/alerts_settings/components/alerts_settings_form.vue' do
-            element :integration_type_dropdown
-            element :integration_name_field
-            element :active_toggle_container
-            element :save_and_create_alert_button
-            element :test_payload_field
-            element :send_test_alert_button
-            element :prometheus_url_field
+            element 'integration-type-dropdown'
+            element 'integration-name-field'
+            element 'active-toggle-container'
+            element 'save-and-create-alert-button'
+            element 'test-payload-field'
+            element 'send-test-alert'
           end
 
           def go_to_alert_settings
@@ -32,61 +32,54 @@ module QA
           end
 
           def enable_incident_for_alert
-            check_element(:create_incident_checkbox, true)
+            check_element('create-incident-checkbox', true)
           end
 
           def enable_email_notification
-            check_element(:enable_email_notification_checkbox, true)
+            check_element('enable-email-notification-checkbox', true)
           end
 
           def select_issue_template(template)
-            click_element(:incident_templates_dropdown)
-            within_element :incident_templates_dropdown do
-              find_element(:incident_templates_item, text: template).click
+            click_element('incident-templates-dropdown')
+            within_element 'incident-templates-dropdown' do
+              select_item(template)
             end
           end
 
           def save_alert_settings
-            click_element :save_changes_button
+            click_element 'save-changes-button'
           end
 
           def has_template?(template)
-            within_element :incident_templates_dropdown do
+            within_element 'incident-templates-dropdown' do
               has_text?(template)
             end
           end
 
           def add_new_integration
             wait_for_requests
-            click_element(:add_integration_button)
+            click_element('add-integration-button')
           end
 
           def select_http_endpoint
-            click_element(:integration_type_dropdown)
+            click_element('integration-type-dropdown')
             find("option[value='HTTP']").click
 
             # Click outside of the list to close it
-            click_element(:integration_name_field)
+            click_element('integration-name-field')
           end
 
           def select_prometheus
-            click_element(:integration_type_dropdown)
+            click_element('integration-type-dropdown')
             find("option[value='PROMETHEUS']").click
-
-            # Click outside of the list to close it
-            click_element(:prometheus_url_field)
           end
 
           def enter_integration_name(name)
-            fill_element(:integration_name_field, name)
-          end
-
-          def fill_in_prometheus_url(url = Runtime::Scenario.gitlab_address)
-            fill_element(:prometheus_url_field, url)
+            fill_element('integration-name-field', name)
           end
 
           def activate_integration
-            within_element(:active_toggle_container) do
+            within_element('active-toggle-container') do
               find('.gl-toggle').click
             end
 
@@ -94,15 +87,15 @@ module QA
           end
 
           def save_and_create_alert
-            click_element(:save_and_create_alert_button)
+            click_element('save-and-create-alert-button')
           end
 
           def fill_in_test_payload(payload)
-            fill_element(:test_payload_field, payload)
+            fill_element('test-payload-field', payload)
           end
 
           def send_test_alert
-            click_element(:send_test_alert_button)
+            click_element('send-test-alert')
           end
 
           def go_to_view_credentials

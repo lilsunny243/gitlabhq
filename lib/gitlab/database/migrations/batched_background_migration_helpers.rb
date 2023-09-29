@@ -12,6 +12,7 @@ module Gitlab
       # For now, these migrations are not considered ready for general use, for more information see the tracking epic:
       # https://gitlab.com/groups/gitlab-org/-/epics/6751
       module BatchedBackgroundMigrationHelpers
+        NonExistentMigrationError = Class.new(StandardError)
         BATCH_SIZE = 1_000 # Number of rows to process per job
         SUB_BATCH_SIZE = 100 # Number of rows to process per sub-batch
         BATCH_CLASS_NAME = 'PrimaryKeyBatchingStrategy' # Default batch class for batched migrations
@@ -37,6 +38,10 @@ module Gitlab
         # batch_class_name - The name of the class that will be called to find the range of each next batch
         # batch_size - The maximum number of rows per job
         # sub_batch_size - The maximum number of rows processed per "iteration" within the job
+        # queued_migration_version - Version of the migration that queues the BBM, this is used to establish dependecies
+        #
+        # queued_migration_version is made optional temporarily to allow prior migrations to not fail,
+        # https://gitlab.com/gitlab-org/gitlab/-/issues/426417 will make it mandatory.
         #
         # *Returns the created BatchedMigration record*
         #
@@ -62,6 +67,7 @@ module Gitlab
           batch_column_name,
           *job_arguments,
           job_interval:,
+          queued_migration_version: nil,
           batch_min_value: BATCH_MIN_VALUE,
           batch_max_value: nil,
           batch_class_name: BATCH_CLASS_NAME,
@@ -112,27 +118,13 @@ module Gitlab
               "(given #{job_arguments.count}, expected #{migration.job_class.job_arguments_count})"
           end
 
-          # Below `BatchedMigration` attributes were introduced after the
-          # initial `batched_background_migrations` table was created, so any
-          # migrations that ran relying on initial table schema would not know
-          # about columns introduced later on because this model is not
-          # isolated in migrations, which is why we need to check for existence
-          # of these columns first.
-          if migration.respond_to?(:max_batch_size)
-            migration.max_batch_size = max_batch_size
-          end
-
-          if migration.respond_to?(:total_tuple_count)
-            # We keep track of the estimated number of tuples to reason later
-            # about the overall progress of a migration.
-            migration.total_tuple_count = Gitlab::Database::SharedModel.using_connection(connection) do
-              Gitlab::Database::PgClass.for_table(batch_table_name)&.cardinality_estimate
-            end
-          end
-
-          if migration.respond_to?(:gitlab_schema)
-            migration.gitlab_schema = gitlab_schema
-          end
+          assign_attribtues_safely(
+            migration,
+            max_batch_size,
+            batch_table_name,
+            gitlab_schema,
+            queued_migration_version
+          )
 
           migration.save!
           migration
@@ -200,6 +192,12 @@ module Gitlab
         def ensure_batched_background_migration_is_finished(job_class_name:, table_name:, column_name:, job_arguments:, finalize: true)
           Gitlab::Database::QueryAnalyzers::RestrictAllowedSchemas.require_dml_mode!
 
+          if transaction_open?
+            raise 'The `ensure_batched_background_migration_is_finished` cannot be run inside a transaction. ' \
+              'You can disable transactions by calling `disable_ddl_transaction!` in the body of ' \
+              'your migration class.'
+          end
+
           Gitlab::Database::BackgroundMigration::BatchedMigration.reset_column_information
           migration = Gitlab::Database::BackgroundMigration::BatchedMigration.find_for_configuration(
             Gitlab::Database.gitlab_schemas_for_connection(connection),
@@ -212,6 +210,10 @@ module Gitlab
             column_name: column_name,
             job_arguments: job_arguments
           }
+
+          if ENV['DBLAB_ENVIRONMENT'] && migration.nil?
+            raise NonExistentMigrationError, 'called ensure_batched_background_migration_is_finished with non-existent migration name'
+          end
 
           return Gitlab::AppLogger.warn "Could not find batched background migration for the given configuration: #{configuration}" if migration.nil?
 
@@ -231,7 +233,34 @@ module Gitlab
             "\n\n" \
             "For more information, check the documentation" \
             "\n\n" \
-            "\thttps://docs.gitlab.com/ee/user/admin_area/monitoring/background_migrations.html#database-migrations-failing-because-of-batched-background-migration-not-finished"
+            "\thttps://docs.gitlab.com/ee/update/background_migrations.html#database-migrations-failing-because-of-batched-background-migration-not-finished"
+        end
+
+        private
+
+        # Below `BatchedMigration` attributes were introduced after the
+        # initial `batched_background_migrations` table was created, so any
+        # migrations that ran relying on initial table schema would not know
+        # about columns introduced later on because this model is not
+        # isolated in migrations, which is why we need to check for existence
+        # of these columns first.
+        def assign_attribtues_safely(migration, max_batch_size, batch_table_name, gitlab_schema, queued_migration_version)
+          # We keep track of the estimated number of tuples in 'total_tuple_count' to reason later
+          # about the overall progress of a migration.
+          safe_attributes_value = {
+            max_batch_size: max_batch_size,
+            total_tuple_count: Gitlab::Database::SharedModel.using_connection(connection) do
+              Gitlab::Database::PgClass.for_table(batch_table_name)&.cardinality_estimate
+            end,
+            gitlab_schema: gitlab_schema,
+            queued_migration_version: queued_migration_version
+          }
+
+          # rubocop:disable GitlabSecurity/PublicSend
+          safe_attributes_value.each do |safe_attribute, value|
+            migration.public_send("#{safe_attribute}=", value) if migration.respond_to?(safe_attribute)
+          end
+          # rubocop:enable GitlabSecurity/PublicSend
         end
       end
     end

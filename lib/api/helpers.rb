@@ -8,6 +8,7 @@ module API
     include Helpers::PaginationStrategies
     include Gitlab::Ci::Artifacts::Logger
     include Gitlab::Utils::StrongMemoize
+    include Gitlab::RackLoadBalancingHelpers
 
     SUDO_HEADER = "HTTP_SUDO"
     GITLAB_SHARED_SECRET_HEADER = "Gitlab-Shared-Secret"
@@ -18,7 +19,11 @@ module API
     API_TOKEN_ENV = 'gitlab.api.token'
     API_EXCEPTION_ENV = 'gitlab.api.exception'
     API_RESPONSE_STATUS_CODE = 'gitlab.api.response_status_code'
-    INTEGER_ID_REGEX = /^-?\d+$/.freeze
+    INTEGER_ID_REGEX = /^-?\d+$/
+
+    def logger
+      API.logger
+    end
 
     def declared_params(options = {})
       options = { include_parent_namespaces: false }.merge(options)
@@ -87,9 +92,7 @@ module API
       save_current_token_in_env
 
       if @current_user
-        ::ApplicationRecord
-          .sticking
-          .stick_or_unstick_request(env, :user, @current_user.id)
+        load_balancer_stick_request(::ApplicationRecord, :user, @current_user.id)
       end
 
       @current_user
@@ -143,7 +146,7 @@ module API
       if id.is_a?(Integer) || id =~ INTEGER_ID_REGEX
         projects.find_by(id: id)
       elsif id.include?("/")
-        projects.find_by_full_path(id)
+        projects.find_by_full_path(id, follow_redirects: Feature.enabled?(:api_redirect_moved_projects))
       end
     end
     # rubocop: enable CodeReuse/ActiveRecord
@@ -153,10 +156,23 @@ module API
 
       return forbidden! unless authorized_project_scope?(project)
 
-      return project if can?(current_user, :read_project, project)
-      return unauthorized! if authenticate_non_public?
+      unless can?(current_user, read_project_ability, project)
+        return unauthorized! if authenticate_non_public?
 
-      not_found!('Project')
+        return not_found!('Project')
+      end
+
+      if project_moved?(id, project)
+        return not_allowed!('Non GET methods are not allowed for moved projects') unless request.get?
+
+        return redirect!(url_with_project_id(project))
+      end
+
+      project
+    end
+
+    def read_project_ability
+      :read_project
     end
 
     def authorized_project_scope?(project)
@@ -167,8 +183,28 @@ module API
         current_authenticated_job.project == project
     end
 
-    def enforce_jobs_api_rate_limits(project)
-      ::Feature.enabled?(:ci_enforce_rate_limits_jobs_api, project)
+    # rubocop: disable CodeReuse/ActiveRecord
+    def find_pipeline(id)
+      return unless id
+
+      if id.to_s =~ INTEGER_ID_REGEX
+        ::Ci::Pipeline.find_by(id: id)
+      end
+    end
+    # rubocop: enable CodeReuse/ActiveRecord
+
+    def find_pipeline!(id)
+      pipeline = find_pipeline(id)
+      check_pipeline_access(pipeline)
+    end
+
+    def check_pipeline_access(pipeline)
+      return forbidden! unless authorized_project_scope?(pipeline&.project)
+
+      return pipeline if can?(current_user, :read_pipeline, pipeline)
+      return unauthorized! if authenticate_non_public?
+
+      not_found!('Pipeline')
     end
 
     # rubocop: disable CodeReuse/ActiveRecord
@@ -201,11 +237,12 @@ module API
     end
 
     def check_namespace_access(namespace)
-      return namespace if can?(current_user, :read_namespace, namespace)
+      return namespace if can?(current_user, :read_namespace_via_membership, namespace)
 
       not_found!('Namespace')
     end
 
+    # find_namespace returns the namespace regardless of user access level on the namespace
     # rubocop: disable CodeReuse/ActiveRecord
     def find_namespace(id)
       if id.to_s =~ INTEGER_ID_REGEX
@@ -216,6 +253,8 @@ module API
     end
     # rubocop: enable CodeReuse/ActiveRecord
 
+    # find_namespace! returns the namespace if the current user can read the given namespace
+    # Otherwise, returns a not_found! error
     def find_namespace!(id)
       check_namespace_access(find_namespace(id))
     end
@@ -332,6 +371,10 @@ module API
       authorize! :read_build, user_project
     end
 
+    def authorize_read_code!
+      authorize! :read_code, user_project
+    end
+
     def authorize_read_build_trace!(build)
       authorize! :read_build_trace, build
     end
@@ -419,8 +462,8 @@ module API
       items.search(text)
     end
 
-    def order_options_with_tie_breaker
-      order_by = if params[:order_by] == 'created_at'
+    def order_options_with_tie_breaker(override_created_at: true)
+      order_by = if params[:order_by] == 'created_at' && override_created_at
                    'id'
                  else
                    params[:order_by]
@@ -429,6 +472,13 @@ module API
       order_options = { order_by => params[:sort] }
       order_options['id'] ||= params[:sort] || 'asc'
       order_options
+    end
+
+    # An error is raised to interrupt user's request and redirect them to the right route.
+    # The error! helper behaves similarly, but it cannot be used because it formats the
+    # response message.
+    def redirect!(location_url)
+      raise ::API::API::MovedPermanentlyError, location_url
     end
 
     # error helpers
@@ -484,6 +534,12 @@ module API
 
     def file_too_large!
       render_api_error!('413 Request Entity Too Large', 413)
+    end
+
+    def too_many_requests!(message = nil, retry_after: 1.minute)
+      header['Retry-After'] = retry_after.to_i if retry_after
+
+      render_api_error!(message || '429 Too Many Requests', 429)
     end
 
     def not_modified!
@@ -644,6 +700,23 @@ module API
       Gitlab::AppLogger.warn("Redis tracking event failed for event: #{event_name}, message: #{error.message}")
     end
 
+    def track_event(event_name, user:, send_snowplow_event: true, namespace_id: nil, project_id: nil)
+      return unless user.present?
+
+      namespace = Namespace.find(namespace_id) if namespace_id
+      project = Project.find(project_id) if project_id
+
+      Gitlab::InternalEvents.track_event(
+        event_name,
+        send_snowplow_event: send_snowplow_event,
+        user: user,
+        namespace: namespace,
+        project: project
+      )
+    rescue StandardError => e
+      Gitlab::ErrorTracking.track_and_raise_for_dev_exception(e, event_name: event_name)
+    end
+
     def order_by_similarity?(allow_unauthorized: true)
       params[:order_by] == 'similarity' && params[:search].present? && (allow_unauthorized || current_user.present?)
     end
@@ -683,6 +756,8 @@ module API
       finder_params[:user] = params.delete(:user) if params[:user]
       finder_params[:id_after] = sanitize_id_param(params[:id_after]) if params[:id_after]
       finder_params[:id_before] = sanitize_id_param(params[:id_before]) if params[:id_before]
+      finder_params[:updated_after] = declared_params[:updated_after] if declared_params[:updated_after]
+      finder_params[:updated_before] = declared_params[:updated_before] if declared_params[:updated_before]
       finder_params
     end
 
@@ -709,6 +784,9 @@ module API
         @initial_current_user = Gitlab::Auth::UniqueIpsLimiter.limit_user! { find_current_user! }
       rescue Gitlab::Auth::UnauthorizedError
         unauthorized!
+
+        # Explicitly return `nil`, otherwise an instance of `Rack::Response` is returned when reporting an error
+        nil
       end
     end
     # rubocop:enable Gitlab/ModuleWithInstanceVariables
@@ -808,6 +886,24 @@ module API
 
     def sanitize_id_param(id)
       id.present? ? id.to_i : nil
+    end
+
+    def project_moved?(id, project)
+      return false unless Feature.enabled?(:api_redirect_moved_projects)
+      return false unless id.is_a?(String) && id.include?('/')
+      return false if project.blank? || id == project.full_path
+      return false unless params[:id] == id
+
+      true
+    end
+
+    def url_with_project_id(project)
+      new_params = params.merge(id: project.id.to_s).transform_values { |v| v.is_a?(String) ? CGI.escape(v) : v }
+      new_path = GrapePathHelpers::DecoratedRoute.new(route).path_segments_with_values(new_params).join('/')
+
+      Rack::Request.new(env).tap do |r|
+        r.path_info = "/#{new_path}"
+      end.url
     end
   end
 end

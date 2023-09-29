@@ -25,11 +25,6 @@ describe('Release block milestone info', () => {
     milestones = convertObjectPropsToCamelCase(originalMilestones, { deep: true });
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   const milestoneProgressBarContainer = () => wrapper.find('.js-milestone-progress-bar-container');
   const milestoneListContainer = () => wrapper.find('.js-milestone-list-container');
   const issuesContainer = () => wrapper.find('[data-testid="issue-stats"]');
@@ -46,10 +41,10 @@ describe('Release block milestone info', () => {
       const progressBar = milestoneProgressBarContainer().findComponent(GlProgressBar);
 
       expect(progressBar.exists()).toBe(true);
-      expect(progressBar.attributes()).toEqual(
+      expect(progressBar.vm.$attrs).toEqual(
         expect.objectContaining({
-          value: '4',
-          max: '9',
+          value: 4,
+          max: 9,
         }),
       );
     });

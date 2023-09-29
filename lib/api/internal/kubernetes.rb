@@ -4,76 +4,12 @@ module API
   # Kubernetes Internal API
   module Internal
     class Kubernetes < ::API::Base
-      include Gitlab::Utils::StrongMemoize
-
       before do
         check_feature_enabled
         authenticate_gitlab_kas_request!
       end
 
-      helpers do
-        def authenticate_gitlab_kas_request!
-          render_api_error!('KAS JWT authentication invalid', 401) unless Gitlab::Kas.verify_api_request(headers)
-        end
-
-        def agent_token
-          @agent_token ||= cluster_agent_token_from_authorization_token
-        end
-
-        def agent
-          @agent ||= agent_token.agent
-        end
-
-        def repo_type
-          Gitlab::GlRepository::PROJECT
-        end
-
-        def gitaly_info(project)
-          shard = repo_type.repository_for(project).shard
-          {
-            address: Gitlab::GitalyClient.address(shard),
-            token: Gitlab::GitalyClient.token(shard),
-            features: Feature::Gitaly.server_feature_flags
-          }
-        end
-
-        def gitaly_repository(project)
-          {
-            storage_name: project.repository_storage,
-            relative_path: project.disk_path + '.git',
-            gl_repository: repo_type.identifier_for_container(project),
-            gl_project_path: repo_type.repository_for(project).full_path
-          }
-        end
-
-        def check_feature_enabled
-          not_found! unless Feature.enabled?(:kubernetes_agent_internal_api, type: :ops)
-        end
-
-        def check_agent_token
-          unauthorized! unless agent_token
-
-          ::Clusters::AgentTokens::TrackUsageService.new(agent_token).execute
-        end
-
-        def agent_has_access_to_project?(project)
-          Guest.can?(:download_code, project) || agent.has_access_to?(project)
-        end
-
-        def increment_unique_events
-          events = params[:unique_counters]&.slice(:agent_users_using_ci_tunnel)
-
-          events&.each do |event, entity_ids|
-            increment_unique_values(event, entity_ids)
-          end
-        end
-
-        def increment_count_events
-          events = params[:counters]&.slice(:gitops_sync, :k8s_api_proxy_request)
-
-          Gitlab::UsageDataCounters::KubernetesAgentCounter.increment_event_counts(events)
-        end
-      end
+      helpers ::API::Helpers::Kubernetes::AgentHelpers
 
       namespace 'internal' do
         namespace 'kubernetes' do
@@ -85,7 +21,7 @@ module API
             detail 'Retrieves agent info for the given token'
           end
           route_setting :authentication, cluster_agent_token_allowed: true
-          get '/agent_info', feature_category: :kubernetes_management, urgency: :low do
+          get '/agent_info', feature_category: :deployment_management, urgency: :low do
             project = agent.project
 
             status 200
@@ -103,7 +39,7 @@ module API
             detail 'Retrieves project info (if authorized)'
           end
           route_setting :authentication, cluster_agent_token_allowed: true
-          get '/project_info', feature_category: :kubernetes_management, urgency: :low do
+          get '/project_info', feature_category: :deployment_management, urgency: :low do
             project = find_project(params[:id])
 
             not_found! unless agent_has_access_to_project?(project)
@@ -116,6 +52,18 @@ module API
               default_branch: project.default_branch_or_main
             }
           end
+
+          desc 'Verify agent access to a project' do
+            detail 'Verifies if the agent (owning the token) is authorized to access the given project'
+          end
+          route_setting :authentication, cluster_agent_token_allowed: true
+          get '/verify_project_access', feature_category: :deployment_management, urgency: :low do
+            project = find_project(params[:id])
+
+            not_found! unless agent_has_access_to_project?(project)
+
+            status 204
+          end
         end
 
         namespace 'kubernetes/agent_configuration' do
@@ -126,12 +74,44 @@ module API
             requires :agent_id, type: Integer, desc: 'ID of the configured Agent'
             requires :agent_config, type: JSON, desc: 'Configuration for the Agent'
           end
-          post '/', feature_category: :kubernetes_management, urgency: :low do
+          post '/', feature_category: :deployment_management, urgency: :low do
             agent = ::Clusters::Agent.find(params[:agent_id])
-
-            ::Clusters::Agents::RefreshAuthorizationService.new(agent, config: params[:agent_config]).execute
+            update_configuration(agent: agent, config: params[:agent_config])
 
             no_content!
+          end
+        end
+
+        namespace 'kubernetes/authorize_proxy_user' do
+          desc 'Authorize a proxy user request'
+          params do
+            requires :agent_id, type: Integer, desc: 'ID of the agent accessed'
+            requires :access_type, type: String, values: %w[session_cookie personal_access_token], desc: 'The type of access key being verified.'
+            requires :access_key, type: String, desc: 'The authentication secret for the given access type.'
+            given access_type: ->(val) { val == 'session_cookie' } do
+              requires :csrf_token, type: String, allow_blank: false, desc: 'CSRF token that must be checked when access_type is "session_cookie", to ensure the request originates from a GitLab browsing session.'
+            end
+          end
+          post '/', feature_category: :deployment_management do
+            # Load user
+            user = if params[:access_type] == 'session_cookie'
+                     retrieve_user_from_session_cookie
+                   elsif params[:access_type] == 'personal_access_token'
+                     u = retrieve_user_from_personal_access_token
+                     bad_request!('PAT authentication is not enabled') unless Feature.enabled?(:k8s_proxy_pat, u)
+                     u
+                   end
+
+            bad_request!('Unable to get user from request data') if user.nil?
+
+            # Load agent
+            agent = ::Clusters::Agent.find(params[:agent_id])
+            unauthorized!('Feature disabled for agent') unless ::Gitlab::Kas::UserAccess.enabled?
+
+            service_response = ::Clusters::Agents::AuthorizeProxyUserService.new(user, agent).execute
+            render_api_error!(service_response[:message], service_response[:reason]) unless service_response.success?
+
+            service_response.payload
           end
         end
 
@@ -143,13 +123,24 @@ module API
             optional :counters, type: Hash do
               optional :gitops_sync, type: Integer, desc: 'The count to increment the gitops_sync metric by'
               optional :k8s_api_proxy_request, type: Integer, desc: 'The count to increment the k8s_api_proxy_request metric by'
+              optional :flux_git_push_notifications_total, type: Integer, desc: 'The count to increment the flux_git_push_notifications_total metrics by'
+              optional :k8s_api_proxy_requests_via_ci_access, type: Integer, desc: 'The count to increment the k8s_api_proxy_requests_via_ci_access metric by'
+              optional :k8s_api_proxy_requests_via_user_access, type: Integer, desc: 'The count to increment the k8s_api_proxy_requests_via_user_access metric by'
+              optional :k8s_api_proxy_requests_via_pat_access, type: Integer, desc: 'The count to increment the k8s_api_proxy_requests_via_pat_access metric by'
             end
 
             optional :unique_counters, type: Hash do
               optional :agent_users_using_ci_tunnel, type: Array[Integer], desc: 'An array of user ids that have interacted with CI Tunnel'
+              optional :k8s_api_proxy_requests_unique_users_via_ci_access, type: Array[Integer], desc: 'An array of users that have interacted with the CI tunnel via `ci_access`'
+              optional :k8s_api_proxy_requests_unique_agents_via_ci_access, type: Array[Integer], desc: 'An array of agents that have interacted with the CI tunnel via `ci_access`'
+              optional :k8s_api_proxy_requests_unique_users_via_user_access, type: Array[Integer], desc: 'An array of users that have interacted with the CI tunnel via `user_access`'
+              optional :k8s_api_proxy_requests_unique_agents_via_user_access, type: Array[Integer], desc: 'An array of agents that have interacted with the CI tunnel via `user_access`'
+              optional :k8s_api_proxy_requests_unique_users_via_pat_access, type: Array[Integer], desc: 'An array of users that have interacted with the CI tunnel via Personal Access Token'
+              optional :k8s_api_proxy_requests_unique_agents_via_pat_access, type: Array[Integer], desc: 'An array of agents that have interacted with the CI tunnel via Personal Access Token'
+              optional :flux_git_push_notified_unique_projects, type: Array[Integer], desc: 'An array of projects that have been notified to reconcile their Flux workloads'
             end
           end
-          post '/', feature_category: :kubernetes_management do
+          post '/', feature_category: :deployment_management do
             increment_count_events
             increment_unique_events
 

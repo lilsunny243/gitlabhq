@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Projects::Menus::ConfluenceMenu do
+RSpec.describe Sidebars::Projects::Menus::ConfluenceMenu, feature_category: :navigation do
   let_it_be_with_refind(:project) { create(:project, has_external_wiki: true) }
 
   let(:user) { project.first_owner }
@@ -39,6 +39,15 @@ RSpec.describe Sidebars::Projects::Menus::ConfluenceMenu do
           expect(subject.has_items?).to be false
         end
       end
+    end
+  end
+
+  describe 'serialize_as_menu_item_args' do
+    it 'renders as part of the Plan section' do
+      expect(subject.serialize_as_menu_item_args).to include({
+        item_id: :confluence,
+        super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::PlanMenu
+      })
     end
   end
 end

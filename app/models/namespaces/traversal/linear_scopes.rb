@@ -18,40 +18,38 @@ module Namespaces
         end
 
         def roots
-          return super unless use_traversal_ids_roots?
+          return super unless use_traversal_ids?
 
           root_ids = all.select("#{quoted_table_name}.traversal_ids[1]").distinct
           unscoped.where(id: root_ids)
         end
 
         def self_and_ancestors(include_self: true, upto: nil, hierarchy_order: nil)
-          return super unless use_traversal_ids_for_ancestor_scopes?
-
-          self_and_ancestors_from_inner_join(include_self: include_self,
-                                             upto: upto, hierarchy_order:
-                                             hierarchy_order)
+          self_and_ancestors_from_inner_join(
+            include_self: include_self,
+            upto: upto, hierarchy_order:
+            hierarchy_order
+          )
         end
 
         def self_and_ancestor_ids(include_self: true)
-          return super unless use_traversal_ids_for_ancestor_scopes?
-
           self_and_ancestors(include_self: include_self).as_ids
         end
 
         def self_and_descendants(include_self: true)
-          return super unless use_traversal_ids_for_descendants_scopes?
+          return super unless use_traversal_ids?
 
           self_and_descendants_with_comparison_operators(include_self: include_self)
         end
 
         def self_and_descendant_ids(include_self: true)
-          return super unless use_traversal_ids_for_descendants_scopes?
+          return super unless use_traversal_ids?
 
           self_and_descendants(include_self: include_self).as_ids
         end
 
         def self_and_hierarchy
-          return super unless use_traversal_ids_for_self_and_hierarchy_scopes?
+          return super unless use_traversal_ids?
 
           unscoped.from_union([all.self_and_ancestors, all.self_and_descendants(include_self: false)])
         end
@@ -78,26 +76,6 @@ module Namespaces
 
         def use_traversal_ids?
           Feature.enabled?(:use_traversal_ids)
-        end
-
-        def use_traversal_ids_roots?
-          Feature.enabled?(:use_traversal_ids_roots) &&
-          use_traversal_ids?
-        end
-
-        def use_traversal_ids_for_ancestor_scopes?
-          Feature.enabled?(:use_traversal_ids_for_ancestor_scopes) &&
-          use_traversal_ids?
-        end
-
-        def use_traversal_ids_for_descendants_scopes?
-          Feature.enabled?(:use_traversal_ids_for_descendants_scopes) &&
-          use_traversal_ids?
-        end
-
-        def use_traversal_ids_for_self_and_hierarchy_scopes?
-          Feature.enabled?(:use_traversal_ids_for_self_and_hierarchy_scopes) &&
-            use_traversal_ids?
         end
 
         def self_and_ancestors_from_inner_join(include_self: true, upto: nil, hierarchy_order: nil)

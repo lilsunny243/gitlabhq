@@ -51,7 +51,7 @@ module LoginHelpers
   def gitlab_enable_admin_mode_sign_in(user)
     visit new_admin_session_path
     fill_in 'user_password', with: user.password
-    click_button 'Enter Admin Mode'
+    click_button 'Enter admin mode'
 
     wait_for_requests
   end
@@ -82,7 +82,7 @@ module LoginHelpers
     open_top_nav
 
     within_top_nav do
-      click_on 'Leave Admin Mode'
+      click_on 'Leave admin mode'
     end
   end
 
@@ -94,8 +94,8 @@ module LoginHelpers
   # remember - Whether or not to check "Remember me" (default: false)
   # two_factor_auth - If two-factor authentication is enabled (default: false)
   # password - password to attempt to login with (default: user.password)
-  def gitlab_sign_in_with(user, remember: false, two_factor_auth: false, password: nil)
-    visit new_user_session_path
+  def gitlab_sign_in_with(user, remember: false, two_factor_auth: false, password: nil, visit: true)
+    visit new_user_session_path if visit
 
     fill_in "user_login", with: user.email
     fill_in "user_password", with: (password || user.password)
@@ -114,9 +114,9 @@ module LoginHelpers
   def login_via(provider, user, uid, remember_me: false, additional_info: {})
     mock_auth_hash(provider, uid, user.email, additional_info: additional_info)
     visit new_user_session_path
-    expect(page).to have_content('Sign in with')
+    expect(page).to have_css('.omniauth-container')
 
-    check 'remember_me' if remember_me
+    check 'remember_me_omniauth' if remember_me
 
     click_button "oauth-login-#{provider}"
   end
@@ -139,11 +139,6 @@ module LoginHelpers
     click_link_or_button "oauth-login-#{provider}"
   end
 
-  def fake_successful_u2f_authentication
-    allow(U2fRegistration).to receive(:authenticate).and_return(true)
-    FakeU2fDevice.new(page, nil).fake_u2f_authentication
-  end
-
   def fake_successful_webauthn_authentication
     allow_any_instance_of(Webauthn::AuthenticateService).to receive(:execute).and_return(true)
     FakeWebauthnDevice.new(page, nil).fake_webauthn_authentication
@@ -154,7 +149,7 @@ module LoginHelpers
     mock_auth_hash(provider, uid, email, response_object: response_object)
   end
 
-  def configure_mock_auth(provider, uid, email, response_object: nil, additional_info: {})
+  def configure_mock_auth(provider, uid, email, response_object: nil, additional_info: {}, name: 'mockuser')
     # The mock_auth configuration allows you to set per-provider (or default)
     # authentication hashes to return during integration testing.
 
@@ -162,7 +157,7 @@ module LoginHelpers
       provider: provider,
       uid: uid,
       info: {
-        name: 'mockuser',
+        name: name,
         email: email,
         image: 'mock_user_thumbnail_url'
       },
@@ -185,8 +180,10 @@ module LoginHelpers
     }).merge(additional_info) { |_, old_hash, new_hash| old_hash.merge(new_hash) }
   end
 
-  def mock_auth_hash(provider, uid, email, additional_info: {}, response_object: nil)
-    configure_mock_auth(provider, uid, email, additional_info: additional_info, response_object: response_object)
+  def mock_auth_hash(provider, uid, email, additional_info: {}, response_object: nil, name: 'mockuser')
+    configure_mock_auth(
+      provider, uid, email, additional_info: additional_info, response_object: response_object, name: name
+    )
 
     original_env_config_omniauth_auth = Rails.application.env_config['omniauth.auth']
     Rails.application.env_config['omniauth.auth'] = OmniAuth.config.mock_auth[provider.to_sym]
@@ -218,6 +215,15 @@ module LoginHelpers
     config
   end
 
+  def prepare_provider_route(provider_name)
+    routes = Rails.application.routes
+    routes.disable_clear_and_finalize = true
+    routes.formatter.clear
+    routes.draw do
+      post "/users/auth/#{provider_name}" => "omniauth_callbacks##{provider_name}"
+    end
+  end
+
   def stub_omniauth_provider(provider, context: Rails.application)
     env = env_from_context(context)
 
@@ -235,14 +241,9 @@ module LoginHelpers
 
   def stub_omniauth_saml_config(context: Rails.application, **messages)
     set_devise_mapping(context: context)
-    routes = Rails.application.routes
-    routes.disable_clear_and_finalize = true
-    routes.formatter.clear
-    routes.draw do
-      post '/users/auth/saml' => 'omniauth_callbacks#saml'
-    end
     saml_config = messages.key?(:providers) ? messages[:providers].first : mock_saml_config
-    allow(Gitlab::Auth::OAuth::Provider).to receive_messages(providers: [:saml], config_for: saml_config)
+    prepare_provider_route(saml_config.name)
+    allow(Gitlab::Auth::OAuth::Provider).to receive_messages(providers: [saml_config.name], config_for: saml_config)
     stub_omniauth_setting(messages)
     stub_saml_authorize_path_helpers
   end
@@ -262,11 +263,15 @@ module LoginHelpers
   end
 
   def stub_basic_saml_config
-    allow(Gitlab::Auth::Saml::Config).to receive_messages({ options: { name: 'saml', args: {} } })
+    allow_next_instance_of(Gitlab::Auth::Saml::Config) do |config|
+      allow(config).to receive_messages({ options: { name: 'saml', args: {} } })
+    end
   end
 
   def stub_saml_group_config(groups)
-    allow(Gitlab::Auth::Saml::Config).to receive_messages({ options: { name: 'saml', groups_attribute: 'groups', external_groups: groups, args: {} } })
+    allow_next_instance_of(Gitlab::Auth::Saml::Config) do |config|
+      allow(config).to receive_messages({ options: { name: 'saml', groups_attribute: 'groups', external_groups: groups, args: {} } })
+    end
   end
 end
 

@@ -35,7 +35,7 @@ RSpec.describe RedisCommands::Recorder, :use_clean_rails_redis_caching do
         cache.delete('key1')
       end
 
-      expect(recorder.log).to include([:set, 'cache:gitlab:key1', anything])
+      expect(recorder.log).to include([:set, 'cache:gitlab:key1', anything, anything, anything])
       expect(recorder.log).to include([:get, 'cache:gitlab:key1'])
       expect(recorder.log).to include([:get, 'cache:gitlab:key2'])
       expect(recorder.log).to include([:del, 'cache:gitlab:key1'])
@@ -91,7 +91,7 @@ RSpec.describe RedisCommands::Recorder, :use_clean_rails_redis_caching do
         cache.delete('key2')
       end
 
-      expect(recorder.log).to include([:set, 'cache:gitlab:key1', anything])
+      expect(recorder.log).to include([:set, 'cache:gitlab:key1', anything, anything, anything])
       expect(recorder.log).to include([:get, 'cache:gitlab:key1'])
       expect(recorder.log).not_to include([:get, 'cache:gitlab:key2'])
       expect(recorder.log).not_to include([:del, 'cache:gitlab:key2'])

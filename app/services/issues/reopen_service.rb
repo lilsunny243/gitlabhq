@@ -7,13 +7,19 @@ module Issues
 
       if issue.reopen
         event_service.reopen_issue(issue, current_user)
+
+        if current_user.project_bot?
+          log_audit_event(issue, current_user, "#{issue.issue_type}_reopened_by_project_bot",
+            "Reopened #{issue.issue_type.humanize(capitalize: false)} #{issue.title}")
+        end
+
         create_note(issue, 'reopened')
         notification_service.async.reopen_issue(issue, current_user)
         perform_incident_management_actions(issue)
         execute_hooks(issue, 'reopen')
         invalidate_cache_counts(issue, users: issue.assignees)
         issue.update_project_counter_caches
-        delete_milestone_closed_issue_counter_cache(issue.milestone)
+        Milestones::ClosedIssuesCountService.new(issue.milestone).delete_cache if issue.milestone
         track_incident_action(current_user, issue, :incident_reopened)
       end
 
@@ -27,7 +33,7 @@ module Issues
     end
 
     def perform_incident_management_actions(issue)
-      return unless issue.incident?
+      return unless issue.work_item_type&.incident?
 
       create_timeline_event(issue)
     end

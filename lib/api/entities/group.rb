@@ -14,6 +14,7 @@ module API
       expose :mentions_disabled
       expose :lfs_enabled?, as: :lfs_enabled
       expose :default_branch_protection
+      expose :default_branch_protection_defaults
       expose :avatar_url do |group, options|
         group.avatar_url(only_path: false)
       end
@@ -21,6 +22,7 @@ module API
       expose :full_name, :full_path
       expose :created_at
       expose :parent_id
+      expose :shared_runners_setting
 
       expose :custom_attributes, using: 'API::Entities::CustomAttribute', if: :with_custom_attributes
 

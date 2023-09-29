@@ -3,9 +3,9 @@
 module Gitlab
   # Extract possible GFM references from an arbitrary String for further processing.
   class ReferenceExtractor < Banzai::ReferenceExtractor
-    REFERABLES = %i(user issue label milestone mentioned_user mentioned_group mentioned_project
-                    merge_request snippet commit commit_range directly_addressed_user epic iteration vulnerability
-                    alert).freeze
+    REFERABLES = %i[user issue label milestone mentioned_user mentioned_group mentioned_project
+                    merge_request snippet commit commit_range directly_addressed_user epic vulnerability
+                    alert].freeze
     attr_accessor :project, :current_user, :author
 
     def initialize(project, current_user = nil)
@@ -43,7 +43,7 @@ module Gitlab
         @references[type] ||= references(type)
       end
 
-      next unless %w(mentioned_user mentioned_group mentioned_project).include?(type.to_s)
+      next unless %w[mentioned_user mentioned_group mentioned_project].include?(type.to_s)
 
       define_method("#{type}_ids") do
         @references[type] ||= references(type, ids_only: true)
@@ -64,18 +64,24 @@ module Gitlab
     end
 
     def all
-      REFERABLES.each { |referable| send(referable.to_s.pluralize) } # rubocop:disable GitlabSecurity/PublicSend
+      self.class.referrables.each { |referable| send(referable.to_s.pluralize) } # rubocop:disable GitlabSecurity/PublicSend
       @references.values.flatten
     end
 
-    def self.references_pattern
-      return @pattern if @pattern
+    class << self
+      def references_pattern
+        return @pattern if @pattern
 
-      patterns = REFERABLES.map do |type|
-        Banzai::ReferenceParser[type].reference_class.try(:reference_pattern)
-      end.uniq
+        patterns = referrables.map do |type|
+          Banzai::ReferenceParser[type].reference_class.try(:reference_pattern)
+        end.uniq
 
-      @pattern = Regexp.union(patterns.compact)
+        @pattern = Regexp.union(patterns.compact)
+      end
+
+      def referrables
+        @referrables ||= REFERABLES
+      end
     end
 
     private
@@ -90,3 +96,5 @@ module Gitlab
     end
   end
 end
+
+Gitlab::ReferenceExtractor.prepend_mod

@@ -1,4 +1,4 @@
-import { GlModal, GlSprintf } from '@gitlab/ui';
+import { GlModal, GlSprintf, GlAlert } from '@gitlab/ui';
 import { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import Api from '~/api';
@@ -12,12 +12,19 @@ import {
   displaySuccessfulInvitationAlert,
   reloadOnInvitationSuccess,
 } from '~/invite_members/utils/trigger_successful_invite_alert';
+import {
+  GROUP_MODAL_TO_GROUP_ALERT_BODY,
+  GROUP_MODAL_TO_GROUP_ALERT_LINK,
+  GROUP_MODAL_TO_PROJECT_ALERT_BODY,
+  GROUP_MODAL_TO_PROJECT_ALERT_LINK,
+} from '~/invite_members/constants';
 import { propsData, sharedGroup } from '../mock_data/group_modal';
 
 jest.mock('~/invite_members/utils/trigger_successful_invite_alert');
 
 describe('InviteGroupsModal', () => {
   let wrapper;
+  const mockToastShow = jest.fn();
 
   const createComponent = (props = {}) => {
     wrapper = shallowMountExtended(InviteGroupsModal, {
@@ -33,8 +40,17 @@ describe('InviteGroupsModal', () => {
           template: '<div><slot></slot><slot name="modal-footer"></slot></div>',
         }),
       },
+      mocks: {
+        $toast: {
+          show: mockToastShow,
+        },
+      },
     });
   };
+
+  afterEach(() => {
+    mockToastShow.mockClear();
+  });
 
   const createInviteGroupToProjectWrapper = () => {
     createComponent({ isProject: true });
@@ -43,11 +59,6 @@ describe('InviteGroupsModal', () => {
   const createInviteGroupToGroupWrapper = () => {
     createComponent({ isProject: false });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   const findModal = () => wrapper.findComponent(GlModal);
   const findGroupSelect = () => wrapper.findComponent(GroupSelect);
@@ -58,11 +69,13 @@ describe('InviteGroupsModal', () => {
     findMembersFormGroup().attributes('invalid-feedback');
   const findBase = () => wrapper.findComponent(InviteModalBase);
   const triggerGroupSelect = (val) => findGroupSelect().vm.$emit('input', val);
-  const emitEventFromModal = (eventName) => () =>
-    findModal().vm.$emit(eventName, { preventDefault: jest.fn() });
-  const hideModal = emitEventFromModal('hidden');
-  const clickInviteButton = emitEventFromModal('primary');
-  const clickCancelButton = emitEventFromModal('cancel');
+  const hideModal = () => findModal().vm.$emit('hidden', { preventDefault: jest.fn() });
+
+  const emitClickFromModal = (testId) => () =>
+    wrapper.findByTestId(testId).vm.$emit('click', { preventDefault: jest.fn() });
+
+  const clickInviteButton = emitClickFromModal('invite-modal-submit');
+  const clickCancelButton = emitClickFromModal('invite-modal-cancel');
 
   describe('displaying the correct introText and form group description', () => {
     describe('when inviting to a project', () => {
@@ -94,6 +107,26 @@ describe('InviteGroupsModal', () => {
 
       expect(findInviteGroupAlert().exists()).toBe(false);
     });
+
+    it('shows the user limit notification alert with correct link and text for group', () => {
+      createComponent({ freeUserCapEnabled: true });
+
+      expect(findInviteGroupAlert().props()).toMatchObject({
+        name: propsData.name,
+        notificationText: GROUP_MODAL_TO_GROUP_ALERT_BODY,
+        notificationLink: GROUP_MODAL_TO_GROUP_ALERT_LINK,
+      });
+    });
+
+    it('shows the user limit notification alert with correct link and text for project', () => {
+      createComponent({ freeUserCapEnabled: true, isProject: true });
+
+      expect(findInviteGroupAlert().props()).toMatchObject({
+        name: propsData.name,
+        notificationText: GROUP_MODAL_TO_PROJECT_ALERT_BODY,
+        notificationLink: GROUP_MODAL_TO_PROJECT_ALERT_LINK,
+      });
+    });
   });
 
   describe('submitting the invite form', () => {
@@ -110,7 +143,6 @@ describe('InviteGroupsModal', () => {
       createComponent();
       triggerGroupSelect(sharedGroup);
 
-      wrapper.vm.$toast = { show: jest.fn() };
       jest.spyOn(Api, 'groupShareWithGroup').mockImplementation(
         () =>
           new Promise((resolve, reject) => {
@@ -144,7 +176,7 @@ describe('InviteGroupsModal', () => {
       });
 
       it('displays the successful toastMessage', () => {
-        expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added', {
+        expect(mockToastShow).toHaveBeenCalledWith('Members were successfully added', {
           onComplete: expect.any(Function),
         });
       });
@@ -164,7 +196,7 @@ describe('InviteGroupsModal', () => {
       });
 
       it('does not show the toast message on failure', () => {
-        expect(wrapper.vm.$toast.show).not.toHaveBeenCalled();
+        expect(mockToastShow).not.toHaveBeenCalled();
       });
 
       it('displays the generic error for http server error', () => {
@@ -199,7 +231,6 @@ describe('InviteGroupsModal', () => {
       createComponent({ reloadPageOnSubmit: true });
       triggerGroupSelect(sharedGroup);
 
-      wrapper.vm.$toast = { show: jest.fn() };
       jest.spyOn(Api, 'groupShareWithGroup').mockResolvedValue({ data: groupPostData });
 
       clickInviteButton();
@@ -215,8 +246,19 @@ describe('InviteGroupsModal', () => {
       });
 
       it('does not show the toast message on failure', () => {
-        expect(wrapper.vm.$toast.show).not.toHaveBeenCalled();
+        expect(mockToastShow).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('when group select emits an error event', () => {
+    it('displays error alert', async () => {
+      createComponent();
+
+      findGroupSelect().vm.$emit('error', GroupSelect.i18n.errorMessage);
+      await nextTick();
+
+      expect(wrapper.findComponent(GlAlert).text()).toBe(GroupSelect.i18n.errorMessage);
     });
   });
 });

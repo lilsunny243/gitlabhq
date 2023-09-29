@@ -20,7 +20,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       is_expected.to include(:counts_monthly)
       is_expected.to include(:counts_weekly)
       is_expected.to include(:license)
-      is_expected.to include(:settings)
 
       # usage_activity_by_stage data
       is_expected.to include(:usage_activity_by_stage)
@@ -29,10 +28,8 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         .to include(:configure, :create, :manage, :monitor, :plan, :release, :verify)
       expect(subject[:usage_activity_by_stage_monthly])
         .to include(:configure, :create, :manage, :monitor, :plan, :release, :verify)
-      expect(subject[:usage_activity_by_stage][:create])
-        .not_to include(:merge_requests_users)
       expect(subject[:usage_activity_by_stage_monthly][:create])
-        .to include(:merge_requests_users)
+        .to include(:snippets)
     end
 
     it 'clears memoized values' do
@@ -100,6 +97,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
     it 'includes accurate usage_activity_by_stage data' do
       for_defined_days_back do
         user = create(:user)
+        project = create(:project, creator: user)
         create(:cluster, user: user)
         create(:cluster, :disabled, user: user)
         create(:cluster_provider_gcp, :created)
@@ -110,6 +108,9 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         create(:cluster, :instance, :disabled, :production_environment)
         create(:cluster, :instance, :production_environment)
         create(:cluster, :management_project)
+        create(:integrations_slack, project: project)
+        create(:slack_slash_commands_integration, project: project)
+        create(:prometheus_integration, project: project)
       end
 
       expect(described_class.usage_activity_by_stage_configure({})).to include(
@@ -124,7 +125,9 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         group_clusters_disabled: 2,
         group_clusters_enabled: 2,
         project_clusters_disabled: 2,
-        project_clusters_enabled: 10
+        project_clusters_enabled: 10,
+        projects_slack_notifications_active: 2,
+        projects_slack_slash_active: 2
       )
       expect(described_class.usage_activity_by_stage_configure(described_class.monthly_time_range_db_params)).to include(
         clusters_management_project: 1,
@@ -138,7 +141,9 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         group_clusters_disabled: 1,
         group_clusters_enabled: 1,
         project_clusters_disabled: 1,
-        project_clusters_enabled: 5
+        project_clusters_enabled: 5,
+        projects_slack_notifications_active: 1,
+        projects_slack_slash_active: 1
       )
     end
   end
@@ -265,7 +270,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       for_defined_days_back do
         user = create(:user)
 
-        %w(gitlab_project gitlab github bitbucket bitbucket_server gitea git manifest fogbugz phabricator).each do |type|
+        %w(gitlab_project github bitbucket bitbucket_server gitea git manifest fogbugz).each do |type|
           create(:project, import_type: type, creator_id: user.id)
         end
 
@@ -294,16 +299,14 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
             git: 2,
             gitea: 2,
             github: 2,
-            gitlab: 2,
             gitlab_migration: 2,
             gitlab_project: 2,
             manifest: 2,
-            total: 18
+            total: 16
           },
           issue_imports: {
             jira: 2,
             fogbugz: 2,
-            phabricator: 2,
             csv: 2
           },
           group_imports: {
@@ -323,16 +326,14 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
             git: 1,
             gitea: 1,
             github: 1,
-            gitlab: 1,
             gitlab_migration: 1,
             gitlab_project: 1,
             manifest: 1,
-            total: 9
+            total: 8
           },
           issue_imports: {
             jira: 1,
             fogbugz: 1,
-            phabricator: 1,
             csv: 1
           },
           group_imports: {
@@ -362,6 +363,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         create(:project_error_tracking_setting)
         create(:incident)
         create(:incident, alert_management_alert: create(:alert_management_alert))
+        create(:issue, alert_management_alert: create(:alert_management_alert))
         create(:alert_management_http_integration, :active, project: project)
       end
 
@@ -371,7 +373,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         operations_dashboard_default_dashboard: 2,
         projects_with_error_tracking_enabled: 2,
         projects_with_incidents: 4,
-        projects_with_alert_incidents: 2,
+        projects_with_alert_incidents: 4,
         projects_with_enabled_alert_integrations_histogram: { '1' => 2 }
       )
 
@@ -382,7 +384,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         operations_dashboard_default_dashboard: 1,
         projects_with_error_tracking_enabled: 1,
         projects_with_incidents: 2,
-        projects_with_alert_incidents: 1
+        projects_with_alert_incidents: 2
       )
 
       expect(data_28_days).not_to include(:projects_with_enabled_alert_integrations_histogram)
@@ -395,7 +397,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         user = create(:user)
         project = create(:project, creator: user)
         issue = create(:issue, project: project, author: user)
-        create(:issue, project: project, author: User.support_bot)
+        create(:issue, project: project, author: Users::Internal.support_bot)
         create(:note, project: project, noteable: issue, author: user)
         create(:todo, project: project, target: issue, author: user)
         create(:jira_integration, :jira_cloud_service, active: true, project: create(:project, :jira_dvcs_cloud, creator: user))
@@ -429,7 +431,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         user = create(:user)
         project = create(:project, creator: user)
         create(:issue, project: project, author: user)
-        create(:issue, project: project, author: User.support_bot)
+        create(:issue, project: project, author: Users::Internal.support_bot)
       end
 
       expect(described_class.usage_activity_by_stage_plan({})).to include(issues: 3)
@@ -529,8 +531,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       expect(count_data[:projects_prometheus_active]).to eq(1)
       expect(count_data[:projects_jenkins_active]).to eq(1)
       expect(count_data[:projects_jira_active]).to eq(4)
-      expect(count_data[:projects_jira_server_active]).to eq(2)
-      expect(count_data[:projects_jira_cloud_active]).to eq(2)
       expect(count_data[:jira_imports_projects_count]).to eq(2)
       expect(count_data[:jira_imports_total_imported_count]).to eq(3)
       expect(count_data[:jira_imports_total_imported_issues_count]).to eq(13)
@@ -547,7 +547,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       expect(count_data[:projects_with_enabled_alert_integrations]).to eq(1)
       expect(count_data[:projects_with_terraform_reports]).to eq(2)
       expect(count_data[:projects_with_terraform_states]).to eq(2)
-      expect(count_data[:projects_with_alerts_created]).to eq(1)
       expect(count_data[:protected_branches]).to eq(2)
       expect(count_data[:protected_branches_except_default]).to eq(1)
       expect(count_data[:terraform_reports]).to eq(6)
@@ -557,7 +556,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       expect(count_data[:issues_using_zoom_quick_actions]).to eq(3)
       expect(count_data[:issues_with_embedded_grafana_charts_approx]).to eq(2)
       expect(count_data[:incident_issues]).to eq(4)
-      expect(count_data[:issues_created_from_alerts]).to eq(3)
+      expect(count_data[:issues_created_from_alerts]).to eq(2)
       expect(count_data[:alert_bot_incident_issues]).to eq(4)
       expect(count_data[:clusters_enabled]).to eq(6)
       expect(count_data[:project_clusters_enabled]).to eq(4)
@@ -576,13 +575,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       expect(count_data[:kubernetes_agents]).to eq(2)
       expect(count_data[:kubernetes_agents_with_token]).to eq(1)
 
-      expect(count_data[:deployments]).to eq(4)
-      expect(count_data[:successful_deployments]).to eq(2)
-      expect(count_data[:failed_deployments]).to eq(2)
       expect(count_data[:feature_flags]).to eq(1)
-      expect(count_data[:snippets]).to eq(6)
-      expect(count_data[:personal_snippets]).to eq(2)
-      expect(count_data[:project_snippets]).to eq(4)
 
       expect(count_data[:projects_creating_incidents]).to eq(2)
       expect(count_data[:projects_with_packages]).to eq(2)
@@ -614,14 +607,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         it 'raises an error' do
           expect { subject }.to raise_error(ActiveRecord::StatementInvalid)
         end
-
-        context 'when metric calls find_in_batches' do
-          let(:metric_method) { :find_in_batches }
-
-          it 'raises an error for jira_usage' do
-            expect { described_class.jira_usage }.to raise_error(ActiveRecord::StatementInvalid)
-          end
-        end
       end
 
       context 'with should_raise_for_dev? false' do
@@ -629,14 +614,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
 
         it 'does not raise an error' do
           expect { subject }.not_to raise_error
-        end
-
-        context 'when metric calls find_in_batches' do
-          let(:metric_method) { :find_in_batches }
-
-          it 'does not raise an error for jira_usage' do
-            expect { described_class.jira_usage }.not_to raise_error
-          end
         end
       end
     end
@@ -650,20 +627,8 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
     let_it_be(:project) { create(:project, created_at: 3.days.ago) }
 
     before do
-      env = create(:environment)
       create(:package, project: project, created_at: 3.days.ago)
       create(:package, created_at: 2.months.ago, project: project)
-
-      [3, 31].each do |n|
-        deployment_options = { created_at: n.days.ago, project: env.project, environment: env }
-        create(:deployment, :failed, deployment_options)
-        create(:deployment, :success, deployment_options)
-        create(:project_snippet, project: project, created_at: n.days.ago)
-        create(:personal_snippet, created_at: n.days.ago)
-        create(:alert_management_alert, project: project, created_at: n.days.ago)
-      end
-
-      stub_application_setting(self_monitoring_project: project)
 
       for_defined_days_back do
         create(:product_analytics_event, project: project, se_category: 'epics', se_action: 'promote')
@@ -675,50 +640,8 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
     it 'gathers monthly usage counts correctly' do
       counts_monthly = subject[:counts_monthly]
 
-      expect(counts_monthly[:deployments]).to eq(2)
-      expect(counts_monthly[:successful_deployments]).to eq(1)
-      expect(counts_monthly[:failed_deployments]).to eq(1)
-      expect(counts_monthly[:snippets]).to eq(2)
-      expect(counts_monthly[:personal_snippets]).to eq(1)
-      expect(counts_monthly[:project_snippets]).to eq(1)
-      expect(counts_monthly[:projects_with_alerts_created]).to eq(1)
       expect(counts_monthly[:projects]).to eq(1)
       expect(counts_monthly[:packages]).to eq(1)
-    end
-  end
-
-  describe '.runners_usage' do
-    before do
-      project = build(:project)
-      create_list(:ci_runner, 2, :instance_type, :online)
-      create(:ci_runner, :group, :online)
-      create(:ci_runner, :group, :inactive)
-      create_list(:ci_runner, 3, :project_type, :online, projects: [project])
-    end
-
-    subject { described_class.runners_usage }
-
-    it 'gathers runner usage counts correctly' do
-      expect(subject[:ci_runners]).to eq(7)
-      expect(subject[:ci_runners_instance_type_active]).to eq(2)
-      expect(subject[:ci_runners_group_type_active]).to eq(1)
-      expect(subject[:ci_runners_project_type_active]).to eq(3)
-
-      expect(subject[:ci_runners_instance_type_active_online]).to eq(2)
-      expect(subject[:ci_runners_group_type_active_online]).to eq(1)
-      expect(subject[:ci_runners_project_type_active_online]).to eq(3)
-    end
-  end
-
-  describe '.license_usage_data' do
-    subject { described_class.license_usage_data }
-
-    it 'gathers license data' do
-      expect(subject[:uuid]).to eq(Gitlab::CurrentSettings.uuid)
-      expect(subject[:version]).to eq(Gitlab::VERSION)
-      expect(subject[:installation_type]).to eq('gitlab-development-kit')
-      expect(subject[:active_user_count]).to eq(User.active.size)
-      expect(subject[:recorded_at]).to be_a(Time)
     end
   end
 
@@ -733,7 +656,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         expect(subject[:ldap_enabled]).to eq(Gitlab.config.ldap.enabled)
         expect(subject[:gravatar_enabled]).to eq(Gitlab::CurrentSettings.gravatar_enabled?)
         expect(subject[:omniauth_enabled]).to eq(Gitlab::Auth.omniauth_enabled?)
-        expect(subject[:reply_by_email_enabled]).to eq(Gitlab::IncomingEmail.enabled?)
+        expect(subject[:reply_by_email_enabled]).to eq(Gitlab::Email::IncomingEmail.enabled?)
         expect(subject[:container_registry_enabled]).to eq(Gitlab.config.registry.enabled)
         expect(subject[:dependency_proxy_enabled]).to eq(Gitlab.config.dependency_proxy.enabled)
         expect(subject[:gitlab_shared_runners_enabled]).to eq(Gitlab.config.gitlab_ci.shared_runners_enabled)
@@ -888,7 +811,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       let(:project) { create(:project) }
       let(:description_with_embed) { "Some comment\n\nhttps://grafana.example.com/d/xvAk4q0Wk/go-processes?orgId=1&from=1573238522762&to=1573240322762&var-job=prometheus&var-interval=10m&panelId=1&fullscreen" }
       let(:description_with_unintegrated_embed) { "Some comment\n\nhttps://grafana.exp.com/d/xvAk4q0Wk/go-processes?orgId=1&from=1573238522762&to=1573240322762&var-job=prometheus&var-interval=10m&panelId=1&fullscreen" }
-      let(:description_with_non_grafana_inline_metric) { "Some comment\n\n#{Gitlab::Routing.url_helpers.metrics_namespace_project_environment_url(*['foo', 'bar', 12])}" }
 
       shared_examples "zero count" do
         it "does not count the issue" do
@@ -908,7 +830,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
             create(:issue, project: project, description: description_with_embed)
             # In-Valid
             create(:issue, project: project, description: description_with_unintegrated_embed)
-            create(:issue, project: project, description: description_with_non_grafana_inline_metric)
             create(:issue, project: project, description: nil)
             create(:issue, project: project, description: '')
             create(:issue, project: project)
@@ -946,119 +867,6 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
         end
       end
     end
-
-    describe ".operating_system" do
-      let(:ohai_data) { { "platform" => "ubuntu", "platform_version" => "20.04" } }
-
-      before do
-        allow_next_instance_of(Ohai::System) do |ohai|
-          allow(ohai).to receive(:data).and_return(ohai_data)
-        end
-      end
-
-      subject { described_class.operating_system }
-
-      it { is_expected.to eq("ubuntu-20.04") }
-
-      context 'when on Debian with armv architecture' do
-        let(:ohai_data) { { "platform" => "debian", "platform_version" => "10", 'kernel' => { 'machine' => 'armv' } } }
-
-        it { is_expected.to eq("raspbian-10") }
-      end
-    end
-
-    describe ".system_usage_data_settings" do
-      let(:prometheus_client) { double(Gitlab::PrometheusClient) }
-      let(:snowplow_gitlab_host?) { Gitlab::CurrentSettings.snowplow_collector_hostname == 'snowplow.trx.gitlab.net' }
-
-      before do
-        allow(described_class).to receive(:operating_system).and_return('ubuntu-20.04')
-        expect(prometheus_client).to receive(:query)
-          .with(/gitlab_usage_ping:gitaly_apdex:ratio_avg_over_time_5m/)
-          .and_return(
-            [
-              { 'metric' => {},
-                'value' => [1616016381.473, '0.95'] }
-            ])
-        expect(described_class).to receive(:with_prometheus_client).and_yield(prometheus_client)
-      end
-
-      subject { described_class.system_usage_data_settings }
-
-      it 'gathers encrypted secrets usage data', :aggregate_failures do
-        expect(subject[:settings][:ldap_encrypted_secrets_enabled]).to eq(Gitlab::Auth::Ldap::Config.encrypted_secrets.active?)
-        expect(subject[:settings][:smtp_encrypted_secrets_enabled]).to eq(Gitlab::Email::SmtpConfig.encrypted_secrets.active?)
-      end
-
-      it 'populates operating system information' do
-        expect(subject[:settings][:operating_system]).to eq('ubuntu-20.04')
-      end
-
-      it 'gathers gitaly apdex', :aggregate_failures do
-        expect(subject[:settings][:gitaly_apdex]).to be_within(0.001).of(0.95)
-      end
-
-      it 'reports collected data categories' do
-        expected_value = %w[standard subscription operational optional]
-
-        allow_next_instance_of(ServicePing::PermitDataCategories) do |instance|
-          expect(instance).to receive(:execute).and_return(expected_value)
-        end
-
-        expect(subject[:settings][:collected_data_categories]).to eq(expected_value)
-      end
-
-      it 'gathers service_ping_features_enabled' do
-        expect(subject[:settings][:service_ping_features_enabled]).to eq(Gitlab::CurrentSettings.usage_ping_features_enabled)
-      end
-
-      it 'gathers user_cap_feature_enabled' do
-        expect(subject[:settings][:user_cap_feature_enabled]).to eq(Gitlab::CurrentSettings.new_user_signups_cap)
-      end
-
-      it 'reports status of the certificate_based_clusters feature flag as true' do
-        expect(subject[:settings][:certificate_based_clusters_ff]).to eq(true)
-      end
-
-      context 'with certificate_based_clusters disabled' do
-        before do
-          stub_feature_flags(certificate_based_clusters: false)
-        end
-
-        it 'reports status of the certificate_based_clusters feature flag as false' do
-          expect(subject[:settings][:certificate_based_clusters_ff]).to eq(false)
-        end
-      end
-
-      context 'snowplow stats' do
-        it 'gathers snowplow stats' do
-          expect(subject[:settings][:snowplow_enabled]).to eq(Gitlab::CurrentSettings.snowplow_enabled?)
-          expect(subject[:settings][:snowplow_configured_to_gitlab_collector]).to eq(snowplow_gitlab_host?)
-        end
-      end
-    end
-  end
-
-  describe '.merge_requests_users', :clean_gitlab_redis_shared_state do
-    let(:time_period) { { created_at: 2.days.ago..time } }
-    let(:time) { Time.current }
-
-    before do
-      counter = Gitlab::UsageDataCounters::TrackUniqueEvents
-      merge_request = Event::TARGET_TYPES[:merge_request]
-      design = Event::TARGET_TYPES[:design]
-
-      counter.track_event(event_action: :commented, event_target: merge_request, author_id: 1, time: time)
-      counter.track_event(event_action: :opened, event_target: merge_request, author_id: 1, time: time)
-      counter.track_event(event_action: :merged, event_target: merge_request, author_id: 2, time: time)
-      counter.track_event(event_action: :closed, event_target: merge_request, author_id: 3, time: time)
-      counter.track_event(event_action: :opened, event_target: merge_request, author_id: 4, time: time - 3.days)
-      counter.track_event(event_action: :created, event_target: design, author_id: 5, time: time)
-    end
-
-    it 'returns the distinct count of users using merge requests (via events table) within the specified time period' do
-      expect(described_class.merge_requests_users(time_period)).to eq(3)
-    end
   end
 
   def for_defined_days_back(days: [31, 3])
@@ -1069,48 +877,13 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
     end
   end
 
-  describe '#action_monthly_active_users', :clean_gitlab_redis_shared_state do
-    let(:time_period) { { created_at: 2.days.ago..time } }
-    let(:time) { Time.zone.now }
-    let(:user1) { build(:user, id: 1) }
-    let(:user2) { build(:user, id: 2) }
-    let(:user3) { build(:user, id: 3) }
-    let(:user4) { build(:user, id: 4) }
-    let(:project) { build(:project) }
-
-    before do
-      counter = Gitlab::UsageDataCounters::EditorUniqueCounter
-
-      counter.track_web_ide_edit_action(author: user1, project: project)
-      counter.track_web_ide_edit_action(author: user1, project: project)
-      counter.track_sfe_edit_action(author: user1, project: project)
-      counter.track_snippet_editor_edit_action(author: user1, project: project)
-      counter.track_snippet_editor_edit_action(author: user1, time: time - 3.days, project: project)
-
-      counter.track_web_ide_edit_action(author: user2, project: project)
-      counter.track_sfe_edit_action(author: user2, project: project)
-
-      counter.track_web_ide_edit_action(author: user3, time: time - 3.days, project: project)
-      counter.track_snippet_editor_edit_action(author: user3, project: project)
-    end
-
-    it 'returns the distinct count of user actions within the specified time period' do
-      expect(described_class.action_monthly_active_users(time_period)).to eq(
-        {
-          action_monthly_active_users_sfe_edit: 2,
-          action_monthly_active_users_snippet_editor_edit: 2
-        }
-      )
-    end
-  end
-
   describe '.service_desk_counts' do
     subject { described_class.send(:service_desk_counts) }
 
     let(:project) { create(:project, :service_desk_enabled) }
 
     it 'gathers Service Desk data' do
-      create_list(:issue, 2, :confidential, author: User.support_bot, project: project)
+      create_list(:issue, 2, :confidential, author: Users::Internal.support_bot, project: project)
 
       expect(subject).to eq(service_desk_enabled_projects: 1,
                             service_desk_issues: 2)
@@ -1124,7 +897,7 @@ RSpec.describe Gitlab::UsageData, :aggregate_failures, feature_category: :servic
       expect(result.duration).to be_an(Float)
     end
 
-    it 'records error and returns nil', :aggregated_errors do
+    it 'records error and returns nil', :aggregate_failures do
       allow(Gitlab::ErrorTracking).to receive(:track_and_raise_for_dev_exception)
 
       result = described_class.with_metadata { raise }

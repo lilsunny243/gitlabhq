@@ -11,9 +11,10 @@ RSpec.describe Atlassian::JiraConnect::Client, feature_category: :integrations d
   let_it_be(:mrs_by_title) { create_list(:merge_request, 4, :unique_branches, :jira_title) }
   let_it_be(:mrs_by_branch) { create_list(:merge_request, 2, :jira_branch) }
   let_it_be(:red_herrings) { create_list(:merge_request, 1, :unique_branches) }
+  let_it_be(:mrs_by_description) { create_list(:merge_request, 2, :unique_branches, :jira_description) }
 
   let_it_be(:pipelines) do
-    (red_herrings + mrs_by_branch + mrs_by_title).map do |mr|
+    (red_herrings + mrs_by_branch + mrs_by_title + mrs_by_description).map do |mr|
       create(:ci_pipeline, merge_request: mr)
     end
   end
@@ -213,13 +214,7 @@ RSpec.describe Atlassian::JiraConnect::Client, feature_category: :integrations d
   end
 
   describe '#store_deploy_info' do
-    let_it_be(:environment) { create(:environment, name: 'DEV', project: project) }
-    let_it_be(:deployments) do
-      pipelines.map do |p|
-        build = create(:ci_build, environment: environment.name, pipeline: p, project: project)
-        create(:deployment, deployable: build, environment: environment)
-      end
-    end
+    let_it_be(:deployments) { create_list(:deployment, 1) }
 
     let(:schema) do
       Atlassian::Schemata.deploy_info_payload
@@ -251,18 +246,22 @@ RSpec.describe Atlassian::JiraConnect::Client, feature_category: :integrations d
       subject.send(:store_deploy_info, project: project, deployments: deployments)
     end
 
-    it 'only sends information about relevant MRs' do
+    it 'calls the API if issue keys are found' do
       expect(subject).to receive(:post).with(
-        '/rest/deployments/0.1/bulk', { deployments: have_attributes(size: 6) }
+        '/rest/deployments/0.1/bulk', { deployments: have_attributes(size: 1) }
       ).and_call_original
 
       subject.send(:store_deploy_info, project: project, deployments: deployments)
     end
 
-    it 'does not call the API if there is nothing to report' do
+    it 'does not call the API if no issue keys are found' do
+      allow_next_instances_of(Atlassian::JiraConnect::Serializers::DeploymentEntity, nil) do |entity|
+        allow(entity).to receive(:issue_keys).and_return([])
+      end
+
       expect(subject).not_to receive(:post)
 
-      subject.send(:store_deploy_info, project: project, deployments: deployments.take(1))
+      subject.send(:store_deploy_info, project: project, deployments: deployments)
     end
 
     context 'when there are errors' do
@@ -378,7 +377,7 @@ RSpec.describe Atlassian::JiraConnect::Client, feature_category: :integrations d
 
     it 'only sends information about relevant MRs' do
       expect(subject).to receive(:post)
-        .with('/rest/builds/0.1/bulk', { builds: have_attributes(size: 6) })
+        .with('/rest/builds/0.1/bulk', { builds: have_attributes(size: 8) })
         .and_call_original
 
       subject.send(:store_build_info, project: project, pipelines: pipelines)

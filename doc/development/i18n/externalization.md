@@ -1,6 +1,6 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -39,7 +39,7 @@ The following tools are used:
 - [`gettext_i18n_rails_js`](https://github.com/webhippie/gettext_i18n_rails_js):
   this gem makes the translations available in JavaScript. It provides the following Rake task:
 
-  - `rake gettext:po_to_json`: reads the contents of the PO files and generates JSON files that
+  - `rake gettext:compile`: reads the contents of the PO files and generates JS files which
     contain all the available translations.
 
 - PO editor: there are multiple applications that can help us work with PO files. A good option is
@@ -169,9 +169,9 @@ If you need to translate strings in the Vue component's JavaScript, you can impo
 
 To test Vue translations, learn about [manually testing translations from the UI](#manually-test-translations-from-the-ui).
 
-### Test files
+### Test files (RSpec)
 
-Test expectations against externalized contents should not be hard coded,
+For RSpec tests, expectations against externalized contents should not be hard coded,
 because we may need to run the tests with non-default locale, and tests with
 hard coded contents will fail.
 
@@ -194,18 +194,19 @@ click_button _('Submit review')
 expect(rendered).to have_content(_('Thank you for your feedback!'))
 ```
 
-This includes JavaScript tests:
+### Test files (Jest)
 
-Bad:
+For Frontend Jest tests, expectations do not need to reference externalization methods. Externalization is mocked
+in the Frontend test environment, so the expectations are deterministic across locales
+([see relevant MR](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/128531)).
 
-```javascript
-expect(findUpdateIgnoreStatusButton().text()).toBe('Ignore');
-```
-
-Good:
+Example:
 
 ```javascript
-expect(findUpdateIgnoreStatusButton().text()).toBe(__('Ignore'));
+// Bad. Not necessary in Frontend environment.
+expect(findText()).toBe(__('Lorem ipsum dolor sit'));
+// Good.
+expect(findText()).toBe('Lorem ipsum dolor sit');
 ```
 
 #### Recommendations
@@ -228,58 +229,29 @@ If strings are reused throughout a component, it can be useful to define these s
 </template>
 ```
 
-Also consider defining these strings in a `constants.js` file, especially if they need
-to be shared across different modules.
+If we are reusing the same translated string in multiple components, it is tempting to add them to a `constants.js` file instead and import them across our components. However, there are multiple pitfalls to this approach:
 
-```javascript
-  javascripts
-  │
-  └───alert_settings
-  │   │   constants.js
-  │   └───components
-  │       │   alert_settings_form.vue
+- It creates distance between the HTML template and the copy, adding an additional level of complexity while navigating our codebase.
+- Copy strings are rarely, if ever, truly the same entity. The benefit of having a reusable variable is to have one easy place to go to update a value, but for copy it is quite common to have similar strings that aren't quite the same.
 
+Another practice to avoid when exporting copy strings is to import them in specs. While it might seem like a much more efficient test (if we change the copy, the test will still pass!) it creates additional problems:
 
-  // constants.js
+- There is a risk that the value we import is `undefined` and we might get a false-positive in our tests (even more so if we import an `i18n` object, see [export constants as primitives](../fe_guide/style/javascript.md#export-constants-as-primitives)).
+- It is harder to know what we are testing (which copy to expect).
+- There is a higher risk of typos being missed because we are not re-writing the assertion, but assuming that the value of our constant is the correct one.
+- The benefit of this approach is minor. Updating the copy in our component and not updating specs is not a big enough benefit to outweigh the potential issues.
 
-  import { s__ } from '~/locale';
-
-  /* Integration constants */
-
-  export const MSG_ALERT_SETTINGS_FORM_ERROR = __('Failed to save alert settings.')
-
-
-  // alert_settings_form.vue
-
-  import {
-    MSG_ALERT_SETTINGS_FORM_ERROR,
-  } from '../constants';
-
-  <script>
-    export default {
-      MSG_ALERT_SETTINGS_FROM_ERROR,
-    }
-  </script>
-
-  <template>
-    <gl-alert v-if="showAlert">
-      {{ $options.MSG_ALERT_SETTINGS_FORM_ERROR }}
-    </gl-alert>
-  </template>
-```
-
-Using either `constants` or `$options.i18n` allows us to reference messages directly in specs:
+As an example:
 
 ```javascript
 import { MSG_ALERT_SETTINGS_FORM_ERROR } from 'path/to/constants.js';
 
-// okay
-expect(wrapper.text()).toEqual('this test will fail just from button text changing!');
-
-// better
-expect(wrapper.text()).toEqual(MyComponent.i18n.buttonLabel);
-// also better
-expect(wrapper.text()).toEqual(MSG_ALERT_SETTINGS_FORM_ERROR);
+// Bad. What is the actual text for `MSG_ALERT_SETTINGS_FORM_ERROR`? If `wrapper.text()` returns undefined, the test may still pass with the wrong values!
+expect(wrapper.text()).toBe(MSG_ALERT_SETTINGS_FORM_ERROR);
+// Very bad. Same problem as above and we are going through the vm property!
+expect(wrapper.text()).toBe(MyComponent.vm.i18n.buttonLabel);
+// Good. What we are expecting is very clear and there can be no surprises.
+expect(wrapper.text()).toBe('There was an error: Please refresh and hope for the best!');
 ```
 
 ### Dynamic translations
@@ -561,9 +533,8 @@ To include formatting in the translated string, you can do the following:
 - In Ruby/HAML:
 
   ```ruby
-    html_escape(_('Some %{strongOpen}bold%{strongClose} text.')) % { strongOpen: '<strong>'.html_safe, strongClose: '</strong>'.html_safe }
-
-    # => 'Some <strong>bold</strong> text.'
+  safe_format(_('Some %{strongOpen}bold%{strongClose} text.'), tag_pair(tag.strong, :strongOpen, :strongClose))
+  # => 'Some <strong>bold</strong> text.'
   ```
 
 - In JavaScript:
@@ -590,7 +561,7 @@ instead:
 - In Ruby/HAML:
 
    ```ruby
-   html_escape_once(_('In &lt; 1 hour')).html_safe
+   safe_format(_('In &lt; 1 hour'))
 
    # => 'In < 1 hour'
    ```
@@ -801,8 +772,8 @@ translatable in certain languages.
 
   ```haml
   - zones_link_url = 'https://cloud.google.com/compute/docs/regions-zones/regions-zones'
-  - zones_link_start = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: zones_link_url }
-  = html_escape(s_('ClusterIntegration|Learn more about %{zones_link_start}zones%{zones_link_end}')) % { zones_link_start: zones_link_start, zones_link_end: '</a>'.html_safe }
+  - zones_link = link_to('', zones_link_url, target: '_blank', rel: 'noopener noreferrer')
+  = safe_format(s_('ClusterIntegration|Learn more about %{zones_link_start}zones%{zones_link_end}'), tag_pair(zones_link, :zones_link_start, :zones_link_end))
   ```
 
 - In Vue, instead of:
@@ -1007,4 +978,4 @@ Suppose you want to add translations for a new language, for example, French:
 To manually test Vue translations:
 
 1. Change the GitLab localization to another language than English.
-1. Generate JSON files using `bin/rake gettext:po_to_json` or `bin/rake gettext:compile`.
+1. Generate JSON files using `bin/rake gettext:compile`.

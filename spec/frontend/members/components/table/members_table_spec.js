@@ -1,5 +1,6 @@
 import { GlBadge, GlPagination, GlTable } from '@gitlab/ui';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import { mountExtended, extendedWrapper } from 'helpers/vue_test_utils_helper';
@@ -95,10 +96,6 @@ describe('MembersTable', () => {
       `${url}&invited_members_page=2`,
     );
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('fields', () => {
     const memberCanUpdate = {
@@ -225,9 +222,11 @@ describe('MembersTable', () => {
             'col-actions',
             'gl-display-none!',
             'gl-lg-display-table-cell!',
+            'gl-vertical-align-middle!',
           ]);
           expect(findTableCellByMemberId('Actions', members[1].id).classes()).toStrictEqual([
             'col-actions',
+            'gl-vertical-align-middle!',
           ]);
         });
       });

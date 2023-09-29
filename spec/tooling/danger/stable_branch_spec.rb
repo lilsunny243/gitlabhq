@@ -59,6 +59,8 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
     end
 
     context 'when not applicable' do
+      let(:current_stable_branch) { '15-1-stable-ee' }
+
       where(:stable_branch?, :security_mr?) do
         true  | true
         false | true
@@ -67,7 +69,7 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
 
       with_them do
         before do
-          allow(fake_helper).to receive(:mr_target_branch).and_return(stable_branch? ? '15-1-stable-ee' : 'main')
+          allow(fake_helper).to receive(:mr_target_branch).and_return(stable_branch? ? current_stable_branch : 'main')
           allow(fake_helper).to receive(:security_mr?).and_return(security_mr?)
         end
 
@@ -92,10 +94,19 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
 
       let(:pipeline_bridges_response) do
         [
-          { 'name' => 'e2e:package-and-test',
-            'status' => 'success' }
+          {
+            'name' => 'e2e:package-and-test-ee',
+            'status' => pipeline_bridge_state,
+            'downstream_pipeline' => {
+              'id' => '123',
+              'status' => package_and_qa_state
+            }
+          }
         ]
       end
+
+      let(:pipeline_bridge_state) { 'running' }
+      let(:package_and_qa_state) { 'success' }
 
       let(:parsed_response) do
         [
@@ -168,36 +179,55 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
         it_behaves_like 'bypassing when flaky test or docs only'
       end
 
-      context 'when no package-and-test job is found' do
+      context 'when no package-and-test bridge is found' do
         let(:pipeline_bridges_response) { nil }
 
         it_behaves_like 'with a failure', described_class::NEEDS_PACKAGE_AND_TEST_MESSAGE
         it_behaves_like 'bypassing when flaky test or docs only'
       end
 
-      context 'when package-and-test job is in manual state' do
-        described_class::FAILING_PACKAGE_AND_TEST_STATUSES.each do |status|
-          let(:pipeline_bridges_response) do
-            [
-              { 'name' => 'e2e:package-and-test',
-                'status' => status }
-            ]
-          end
+      context 'when package-and-test bridge is created' do
+        let(:pipeline_bridge_state) { 'created' }
 
-          it_behaves_like 'with a failure', described_class::NEEDS_PACKAGE_AND_TEST_MESSAGE
-          it_behaves_like 'bypassing when flaky test or docs only'
-        end
+        it_behaves_like 'with a warning', described_class::WARN_PACKAGE_AND_TEST_MESSAGE
+        it_behaves_like 'bypassing when flaky test or docs only'
       end
 
-      context 'when package-and-test job is in a non-successful state' do
+      context 'when package-and-test bridge has been canceled and no downstream pipeline is generated' do
+        let(:pipeline_bridge_state) { 'canceled' }
+
         let(:pipeline_bridges_response) do
           [
-            { 'name' => 'e2e:package-and-test',
-              'status' => 'running' }
+            {
+              'name' => 'e2e:package-and-test-ee',
+              'status' => pipeline_bridge_state,
+              'downstream_pipeline' => nil
+            }
           ]
         end
 
+        it_behaves_like 'with a failure', described_class::NEEDS_PACKAGE_AND_TEST_MESSAGE
+        it_behaves_like 'bypassing when flaky test or docs only'
+      end
+
+      context 'when package-and-test job is in a non-successful state' do
+        let(:package_and_qa_state) { 'running' }
+
         it_behaves_like 'with a warning', described_class::WARN_PACKAGE_AND_TEST_MESSAGE
+        it_behaves_like 'bypassing when flaky test or docs only'
+      end
+
+      context 'when package-and-test job is in manual state' do
+        let(:package_and_qa_state) { 'manual' }
+
+        it_behaves_like 'with a failure', described_class::NEEDS_PACKAGE_AND_TEST_MESSAGE
+        it_behaves_like 'bypassing when flaky test or docs only'
+      end
+
+      context 'when package-and-test job is canceled' do
+        let(:package_and_qa_state) { 'canceled' }
+
+        it_behaves_like 'with a failure', described_class::NEEDS_PACKAGE_AND_TEST_MESSAGE
         it_behaves_like 'bypassing when flaky test or docs only'
       end
 
@@ -211,15 +241,25 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
       end
 
       context 'when not an applicable version' do
-        let(:target_branch) { '14-9-stable-ee' }
+        let(:target_branch) { '15-0-stable-ee' }
 
-        it_behaves_like 'with a warning', described_class::VERSION_WARNING_MESSAGE
+        it 'warns about the package-and-test pipeline and the version' do
+          expect(stable_branch).to receive(:warn).with(described_class::WARN_PACKAGE_AND_TEST_MESSAGE)
+          expect(stable_branch).to receive(:warn).with(described_class::VERSION_WARNING_MESSAGE)
+
+          subject
+        end
       end
 
       context 'when the version API request fails' do
         let(:response_success) { false }
 
-        it_behaves_like 'with a warning', described_class::FAILED_VERSION_REQUEST_MESSAGE
+        it 'warns about the package-and-test pipeline and the version request' do
+          expect(stable_branch).to receive(:warn).with(described_class::WARN_PACKAGE_AND_TEST_MESSAGE)
+          expect(stable_branch).to receive(:warn).with(described_class::FAILED_VERSION_REQUEST_MESSAGE)
+
+          subject
+        end
       end
 
       context 'when more than one page of versions is needed' do
@@ -259,37 +299,79 @@ RSpec.describe Tooling::Danger::StableBranch, feature_category: :delivery do
 
         it_behaves_like 'without a failure'
       end
-
-      context 'when too many version API requests are made' do
-        let(:parsed_response) { [{ 'version' => '15.0.0' }] }
-
-        it 'adds a warning' do
-          expect(HTTParty).to receive(:get).and_return(version_response).at_least(10).times
-          expect(stable_branch).to receive(:warn).with(described_class::FAILED_VERSION_REQUEST_MESSAGE)
-
-          subject
-        end
-      end
     end
   end
 
-  describe '#non_security_stable_branch?' do
-    subject { stable_branch.non_security_stable_branch? }
+  describe '#encourage_package_and_qa_execution?' do
+    subject { stable_branch.encourage_package_and_qa_execution? }
 
-    where(:stable_branch?, :security_mr?, :expected_result) do
-      true  | true  | false
-      false | true  | false
-      true  | false | true
-      false | false | false
+    where(:stable_branch?, :security_mr?, :documentation?, :flaky?, :result) do
+      # security merge requests
+      true  | true  | true  | true  | false
+      true  | true  | true  | false | false
+      true  | true  | false | true  | false
+      true  | true  | false | false | false
+      # canonical merge requests with doc and flaky changes only
+      true  | false | true  | true  | false
+      true  | false | true  | false | false
+      true  | false | false | true  | false
+      # canonical merge requests with app code
+      true  | false | false | false | true
     end
 
     with_them do
       before do
-        allow(fake_helper).to receive(:mr_target_branch).and_return(stable_branch? ? '15-1-stable-ee' : 'main')
-        allow(fake_helper).to receive(:security_mr?).and_return(security_mr?)
+        allow(fake_helper)
+          .to receive(:mr_target_branch)
+          .and_return(stable_branch? ? '15-1-stable-ee' : 'main')
+
+        allow(fake_helper)
+          .to receive(:security_mr?)
+          .and_return(security_mr?)
+
+        allow(fake_helper)
+          .to receive(:has_only_documentation_changes?)
+          .and_return(documentation?)
+
+        changes_by_category =
+          if documentation?
+            { docs: ['foo.md'] }
+          else
+            { graphql: ['bar.rb'] }
+          end
+
+        allow(fake_helper)
+          .to receive(:changes_by_category)
+          .and_return(changes_by_category)
+
+        allow(fake_helper)
+          .to receive(:mr_has_labels?)
+          .and_return(flaky?)
       end
 
-      it { is_expected.to eq(expected_result) }
+      it { is_expected.to eq(result) }
+    end
+  end
+
+  describe '#valid_stable_branch?' do
+    it "returns false when on the default branch" do
+      allow(fake_helper).to receive(:mr_target_branch).and_return('main')
+
+      expect(stable_branch.valid_stable_branch?).to be(false)
+    end
+
+    it "returns true when on a stable branch" do
+      allow(fake_helper).to receive(:mr_target_branch).and_return('15-1-stable-ee')
+      allow(fake_helper).to receive(:security_mr?).and_return(false)
+
+      expect(stable_branch.valid_stable_branch?).to be(true)
+    end
+
+    it "returns false when on a stable branch on a security MR" do
+      allow(fake_helper).to receive(:mr_target_branch).and_return('15-1-stable-ee')
+      allow(fake_helper).to receive(:security_mr?).and_return(true)
+
+      expect(stable_branch.valid_stable_branch?).to be(false)
     end
   end
 end

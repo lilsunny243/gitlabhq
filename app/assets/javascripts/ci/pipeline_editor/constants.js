@@ -1,5 +1,10 @@
 import { s__ } from '~/locale';
 
+export const EDITOR_APP_DRAWER_HELP = 'HELP';
+export const EDITOR_APP_DRAWER_JOB_ASSISTANT = 'JOB_ASSISTANT';
+export const EDITOR_APP_DRAWER_AI_ASSISTANT = 'AI_ASSISTANT';
+export const EDITOR_APP_DRAWER_NONE = '';
+
 // Values for CI_CONFIG_STATUS_* comes from lint graphQL
 export const CI_CONFIG_STATUS_INVALID = 'INVALID';
 export const CI_CONFIG_STATUS_VALID = 'VALID';
@@ -65,8 +70,10 @@ export const CI_YAML_LINK = 'CI_YAML_LINK';
 export const pipelineEditorTrackingOptions = {
   label: 'pipeline_editor',
   actions: {
+    browseCatalog: 'browse_catalog',
     browseTemplates: 'browse_templates',
     closeHelpDrawer: 'close_help_drawer',
+    commitCiConfig: 'commit_ci_config',
     helpDrawerLinks: {
       [CI_EXAMPLES_LINK]: 'visit_help_drawer_link_ci_examples',
       [CI_HELP_LINK]: 'visit_help_drawer_link_ci_help',
@@ -86,25 +93,8 @@ export const VALIDATE_TAB_FEEDBACK_URL = 'https://gitlab.com/gitlab-org/gitlab/-
 
 export const COMMIT_SHA_POLL_INTERVAL = 1000;
 
-export const RUNNERS_AVAILABILITY_SECTION_EXPERIMENT_NAME = 'runners_availability_section';
-export const RUNNERS_SETTINGS_LINK_CLICKED_EVENT = 'runners_settings_link_clicked';
-export const RUNNERS_DOCUMENTATION_LINK_CLICKED_EVENT = 'runners_documentation_link_clicked';
-export const RUNNERS_SETTINGS_BUTTON_CLICKED_EVENT = 'runners_settings_button_clicked';
 export const I18N = {
   title: s__('Pipelines|Get started with GitLab CI/CD'),
-  runners: {
-    title: s__('Pipelines|Runners are available to run your jobs now'),
-    subtitle: s__(
-      'Pipelines|GitLab Runner is an application that works with GitLab CI/CD to run jobs in a pipeline. There are active runners available to run your jobs right now. If you prefer, you can %{settingsLinkStart}configure your runners%{settingsLinkEnd} or %{docsLinkStart}learn more%{docsLinkEnd} about runners.',
-    ),
-  },
-  noRunners: {
-    title: s__('Pipelines|No runners detected'),
-    subtitle: s__(
-      'Pipelines|A GitLab Runner is an application that works with GitLab CI/CD to run jobs in a pipeline. Install GitLab Runner and register your own runners to get started with CI/CD.',
-    ),
-    cta: s__('Pipelines|Install GitLab Runner'),
-  },
   learnBasics: {
     title: s__('Pipelines|Learn the basics of pipelines and .yml files'),
     subtitle: s__(

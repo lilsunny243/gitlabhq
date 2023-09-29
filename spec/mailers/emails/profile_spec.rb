@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'email_spec'
 
-RSpec.describe Emails::Profile do
+RSpec.describe Emails::Profile, feature_category: :user_profile do
   include EmailSpec::Matchers
   include_context 'gitlab email notification'
 
@@ -157,42 +157,67 @@ RSpec.describe Emails::Profile do
     end
   end
 
-  describe 'user personal access token is about to expire' do
+  describe 'resource access token is about to expire' do
     let_it_be(:user) { create(:user) }
-    let_it_be(:expiring_token) { create(:personal_access_token, user: user, expires_at: 5.days.from_now) }
 
-    subject { Notify.access_token_about_to_expire_email(user, [expiring_token.name]) }
+    shared_examples 'resource about to expire email' do
+      it 'is sent to the owners' do
+        is_expected.to deliver_to user
+      end
 
-    it_behaves_like 'an email sent from GitLab'
-    it_behaves_like 'it should not have Gmail Actions links'
-    it_behaves_like 'a user cannot unsubscribe through footer link'
+      it 'has the correct subject' do
+        is_expected.to have_subject /^Your resource access tokens will expire in 7 days or less$/i
+      end
 
-    it 'is sent to the user' do
-      is_expected.to deliver_to user.email
+      it 'includes a link to access tokens page' do
+        is_expected.to have_body_text /#{resource_access_tokens_path}/
+      end
+
+      it 'provides the names of expiring tokens' do
+        is_expected.to have_body_text /#{expiring_token.name}/
+      end
+
+      it 'includes the email reason' do
+        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
+      end
     end
 
-    it 'has the correct subject' do
-      is_expected.to have_subject /^Your personal access tokens will expire in 7 days or less$/i
+    context 'when access token belongs to a group' do
+      let_it_be(:project_bot) { create(:user, :project_bot) }
+      let_it_be(:expiring_token) { create(:personal_access_token, user: project_bot, expires_at: 5.days.from_now) }
+      let_it_be(:resource) { create(:group) }
+      let_it_be(:resource_access_tokens_path) { group_settings_access_tokens_path(resource) }
+
+      before_all do
+        resource.add_owner(user)
+        resource.add_developer(project_bot)
+      end
+
+      subject { Notify.resource_access_tokens_about_to_expire_email(user, resource, [expiring_token.name]) }
+
+      it_behaves_like 'an email sent from GitLab'
+      it_behaves_like 'it should not have Gmail Actions links'
+      it_behaves_like 'a user cannot unsubscribe through footer link'
+      it_behaves_like 'resource about to expire email'
     end
 
-    it 'mentions the access tokens will expire' do
-      is_expected.to have_body_text /One or more of your personal access tokens will expire in 7 days or less/
-    end
+    context 'when access token belongs to a project' do
+      let_it_be(:project_bot) { create(:user, :project_bot) }
+      let_it_be(:expiring_token) { create(:personal_access_token, user: project_bot, expires_at: 5.days.from_now) }
+      let_it_be(:resource) { create(:project) }
+      let_it_be(:resource_access_tokens_path) { project_settings_access_tokens_path(resource) }
 
-    it 'provides the names of expiring tokens' do
-      is_expected.to have_body_text /#{expiring_token.name}/
-    end
+      before_all do
+        resource.add_maintainer(user)
+        resource.add_reporter(project_bot)
+      end
 
-    it 'includes a link to personal access tokens page' do
-      is_expected.to have_body_text /#{profile_personal_access_tokens_path}/
-    end
+      subject { Notify.resource_access_tokens_about_to_expire_email(user, resource, [expiring_token.name]) }
 
-    it 'includes the email reason' do
-      is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
-    end
-
-    context 'with User does not exist' do
-      it { expect { Notify.access_token_about_to_expire_email('foo') }.not_to raise_error }
+      it_behaves_like 'an email sent from GitLab'
+      it_behaves_like 'it should not have Gmail Actions links'
+      it_behaves_like 'a user cannot unsubscribe through footer link'
+      it_behaves_like 'resource about to expire email'
     end
   end
 
@@ -429,11 +454,16 @@ RSpec.describe Emails::Profile do
       is_expected.to have_subject "#{Gitlab.config.gitlab.host} sign-in from new location"
     end
 
+    it 'mentions the username' do
+      is_expected.to have_body_text user.name
+      is_expected.to have_body_text user.username
+    end
+
     it 'mentions the new sign-in IP' do
       is_expected.to have_body_text ip
     end
 
-    it 'mentioned the time' do
+    it 'mentions the time' do
       is_expected.to have_body_text current_time.strftime('%Y-%m-%d %H:%M:%S %Z')
     end
 
@@ -534,6 +564,33 @@ RSpec.describe Emails::Profile do
 
     it 'includes a link to the email address page' do
       is_expected.to have_body_text /#{profile_emails_path}/
+    end
+  end
+
+  describe 'awarded a new achievement' do
+    let(:user) { build(:user) }
+    let(:achievement) { build(:achievement) }
+
+    subject { Notify.new_achievement_email(user, achievement) }
+
+    it_behaves_like 'an email sent from GitLab'
+    it_behaves_like 'it should not have Gmail Actions links'
+    it_behaves_like 'a user cannot unsubscribe through footer link'
+
+    it 'is sent to the user' do
+      is_expected.to deliver_to user.email
+    end
+
+    it 'has the correct subject' do
+      is_expected.to have_subject("#{achievement.namespace.full_path} awarded you the #{achievement.name} achievement")
+    end
+
+    it 'includes a link to the profile page' do
+      is_expected.to have_body_text(group_url(achievement.namespace))
+    end
+
+    it 'includes a link to the awarding group' do
+      is_expected.to have_body_text(user_url(user))
     end
   end
 end

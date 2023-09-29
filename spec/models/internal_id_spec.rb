@@ -7,7 +7,7 @@ RSpec.describe InternalId do
   let(:usage) { :issues }
   let(:issue) { build(:issue, project: project) }
   let(:id_subject) { issue }
-  let(:scope) { { project: project } }
+  let(:scope) { { namespace: project.project_namespace } }
   let(:init) { ->(issue, scope) { issue&.project&.issues&.size || Issue.where(**scope).count } }
 
   it_behaves_like 'having unique enum values'
@@ -17,7 +17,7 @@ RSpec.describe InternalId do
   end
 
   describe '.flush_records!' do
-    subject { described_class.flush_records!(project: project) }
+    subject { described_class.flush_records!(namespace: project.project_namespace) }
 
     let(:another_project) { create(:project) }
 
@@ -27,11 +27,11 @@ RSpec.describe InternalId do
     end
 
     it 'deletes all records for the given project' do
-      expect { subject }.to change { described_class.where(project: project).count }.from(1).to(0)
+      expect { subject }.to change { described_class.where(namespace: project.project_namespace).count }.from(1).to(0)
     end
 
     it 'retains records for other projects' do
-      expect { subject }.not_to change { described_class.where(project: another_project).count }
+      expect { subject }.not_to change { described_class.where(namespace: another_project.project_namespace).count }
     end
 
     it 'does not allow an empty filter' do
@@ -51,7 +51,7 @@ RSpec.describe InternalId do
         subject
 
         described_class.first.tap do |record|
-          expect(record.project).to eq(project)
+          expect(record.namespace).to eq(project.project_namespace)
           expect(record.usage).to eq(usage.to_s)
         end
       end
@@ -89,7 +89,7 @@ RSpec.describe InternalId do
       it 'increments counter with in_transaction: "false"' do
         allow(ApplicationRecord.connection).to receive(:transaction_open?) { false }
 
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :generate, usage: 'issues', in_transaction: 'false').and_call_original
 
         subject
@@ -98,7 +98,7 @@ RSpec.describe InternalId do
 
     context 'when executed within transaction' do
       it 'increments counter with in_transaction: "true"' do
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :generate, usage: 'issues', in_transaction: 'true').and_call_original
 
         InternalId.transaction { subject }
@@ -148,7 +148,7 @@ RSpec.describe InternalId do
       it 'increments counter with in_transaction: "false"' do
         allow(ApplicationRecord.connection).to receive(:transaction_open?) { false }
 
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :reset, usage: 'issues', in_transaction: 'false').and_call_original
 
         subject
@@ -159,7 +159,7 @@ RSpec.describe InternalId do
       let(:value) { 2 }
 
       it 'increments counter with in_transaction: "true"' do
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :reset, usage: 'issues', in_transaction: 'true').and_call_original
 
         InternalId.transaction { subject }
@@ -182,7 +182,7 @@ RSpec.describe InternalId do
       subject
 
       described_class.first.tap do |record|
-        expect(record.project).to eq(project)
+        expect(record.namespace).to eq(project.project_namespace)
         expect(record.usage).to eq(usage.to_s)
         expect(record.last_value).to eq(value)
       end
@@ -219,7 +219,7 @@ RSpec.describe InternalId do
       it 'increments counter with in_transaction: "false"' do
         allow(ApplicationRecord.connection).to receive(:transaction_open?) { false }
 
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :track_greatest, usage: 'issues', in_transaction: 'false').and_call_original
 
         subject
@@ -228,7 +228,7 @@ RSpec.describe InternalId do
 
     context 'when executed within transaction' do
       it 'increments counter with in_transaction: "true"' do
-        expect(InternalId.internal_id_transactions_total).to receive(:increment)
+        expect(described_class.internal_id_transactions_total).to receive(:increment)
           .with(operation: :track_greatest, usage: 'issues', in_transaction: 'true').and_call_original
 
         InternalId.transaction { subject }

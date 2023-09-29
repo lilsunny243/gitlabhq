@@ -7,12 +7,14 @@ approvers: [ "@cheryl.li", "@jreporter" ]
 owning-stage: "~devops::verify"
 ---
 
+<!-- vale gitlab.FutureTense = NO -->
+
 # CI/CD Scaling
 
 ## Summary
 
 GitLab CI/CD is one of the most data and compute intensive components of GitLab.
-Since its [initial release in November 2012](https://about.gitlab.com/blog/2012/11/13/continuous-integration-server-from-gitlab/),
+Since its initial release in 2012,
 the CI/CD subsystem has evolved significantly. It was [integrated into GitLab in September 2015](https://about.gitlab.com/releases/2015/09/22/gitlab-8-0-released/)
 and has become [one of the most beloved CI/CD solutions](https://about.gitlab.com/blog/2017/09/27/gitlab-leader-continuous-integration-forrester-wave/).
 
@@ -135,7 +137,7 @@ stores more than 600 gigabytes of data, and `ci_builds.yaml_variables` more
 than 300 gigabytes (as of February 2021).
 
 It is a lot of data that needs to be reliably moved to a different place.
-Unfortunately, right now, our [background migrations](../../../development/database/background_migrations.md)
+Unfortunately, right now, our background migrations
 are not reliable enough to migrate this amount of data at scale. We need to
 build mechanisms that will give us confidence in moving this data between
 columns, tables, partitions or database shards.

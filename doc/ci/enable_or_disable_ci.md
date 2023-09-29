@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: howto
 ---
 
-# Disabling GitLab CI/CD **(FREE)**
+# Disabling GitLab CI/CD **(FREE ALL)**
 
 GitLab CI/CD is enabled by default on all new projects.
 If you use an external CI/CD server like Jenkins or Drone CI, you can
@@ -30,8 +30,8 @@ When you disable GitLab CI/CD:
 
 To disable GitLab CI/CD in your project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. In the **Repository** section, turn off **CI/CD**.
 1. Select **Save changes**.
@@ -40,8 +40,8 @@ To disable GitLab CI/CD in your project:
 
 To enable GitLab CI/CD in your project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. In the **Repository** section, turn on **CI/CD**.
 1. Select **Save changes**.

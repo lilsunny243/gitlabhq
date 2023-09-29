@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, howto
 ---
 
-# Web API Fuzz Testing **(ULTIMATE)**
+# Web API Fuzz Testing **(ULTIMATE ALL)**
 
 Web API fuzzing performs fuzz testing of API operation parameters. Fuzz testing sets operation
 parameters to unexpected values in an effort to cause unexpected behavior and errors in the API
@@ -15,6 +15,9 @@ miss.
 We recommend that you use fuzz testing in addition to [GitLab Secure](../index.md)'s
 other security scanners and your own test processes. If you're using [GitLab CI/CD](../../../ci/index.md),
 you can run fuzz tests as part your CI/CD workflow.
+
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For an overview, see [Web API Fuzzing](https://www.youtube.com/watch?v=oUHsfvLGhDk).
 
 ## When Web API fuzzing runs
 
@@ -50,6 +53,7 @@ Example projects using these methods are available:
 - [Example Postman Collection project](https://gitlab.com/gitlab-org/security-products/demos/api-fuzzing/postman-api-fuzzing-example)
 - [Example GraphQL project](https://gitlab.com/gitlab-org/security-products/demos/api-fuzzing/graphql-api-fuzzing-example)
 - [Example SOAP project](https://gitlab.com/gitlab-org/security-products/demos/api-fuzzing/soap-api-fuzzing-example)
+- [Authentication Token using Selenium](https://gitlab.com/gitlab-org/security-products/demos/api-fuzzing/auth-token-selenium)
 
 ## Enable Web API fuzzing
 
@@ -97,8 +101,8 @@ a YAML snippet that you can paste in your GitLab CI/CD configuration.
 
 To generate an API Fuzzing configuration snippet:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Configuration**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Security configuration**.
 1. In the **API Fuzzing** row, select **Enable API Fuzzing**.
 1. Complete the fields. For details see [Available CI/CD variables](#available-cicd-variables).
 1. Select **Generate code snippet**.
@@ -329,6 +333,8 @@ This example is a minimal configuration for API Fuzzing. From here you can:
 - Learn how to [handle false positives](#handling-false-positives).
 
 #### API Fuzzing with a GraphQL Schema file
+
+API Fuzzing can use a GraphQL schema file to understand and test a GraphQL endpoint that has introspection disabled. To use a GraphQL schema file, it must be in the introspection JSON format. A GraphQL schema can be converted to a the introspection JSON format using an online 3rd party tool: [https://transform.tools/graphql-to-introspection-json](https://transform.tools/graphql-to-introspection-json).
 
 To configure API Fuzzing to use a GraphQl schema file that provides information about the target API to test:
 
@@ -1102,7 +1108,7 @@ profile increases as the number of tests increases.
 |[`FUZZAPI_EXCLUDE_PARAMETER_ENV`](#exclude-parameters)       | JSON string containing excluded parameters. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/292196) in GitLab 14.10. |
 |[`FUZZAPI_EXCLUDE_PARAMETER_FILE`](#exclude-parameters)      | Path to a JSON file containing excluded parameters. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/292196) in GitLab 14.10. |
 |[`FUZZAPI_OPENAPI`](#openapi-specification)                  | OpenAPI Specification file or URL. |
-|[`FUZZAPI_OPENAPI_RELAXED_VALIDATION`](#openapi-specification) | Relax document validation. Default is disabled. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345950) in GitLab 14.7. |
+|[`FUZZAPI_OPENAPI_RELAXED_VALIDATION`](#openapi-specification) | Relax document validation. Default is disabled. Introduced in GitLab 14.7. GitLab team members can view more information in this confidential issue: `https://gitlab.com/gitlab-org/gitlab/-/issues/345950`. |
 |[`FUZZAPI_OPENAPI_ALL_MEDIA_TYPES`](#openapi-specification)  | Use all supported media types instead of one when generating requests. Causes test duration to be longer. Default is disabled. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/333304) in GitLab 14.10. |
 |[`FUZZAPI_OPENAPI_MEDIA_TYPES`](#openapi-specification)  | Colon (`:`) separated media types accepted for testing. Default is disabled. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/333304) in GitLab 14.10. |
 |[`FUZZAPI_HAR`](#http-archive-har)                           | HTTP Archive (HAR) file. |
@@ -2026,7 +2032,7 @@ Follow these steps to view details of a fuzzing fault:
 
 1. You can view faults in a project, or a merge request:
 
-   - In a project, go to the project's **Security and Compliance > Vulnerability Report**
+   - In a project, go to the project's **Secure > Vulnerability report**
      page. This page shows all vulnerabilities from the default branch only.
    - In a merge request, go the merge request's **Security** section and select the **Expand**
      button. API Fuzzing faults are available in a section labeled
@@ -2345,9 +2351,12 @@ apifuzzer_v1:
     FUZZAPI_EXCLUDE_PATHS: /api/v1/**
   rules:
     rules:
-    - if: $API_FUZZING_DISABLED
+    - if: $API_FUZZING_DISABLED == 'true' || $API_FUZZING_DISABLED == '1'
       when: never
-    - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH &&
+    - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH == 'true' &&
+            $CI_DEFAULT_BRANCH == $CI_COMMIT_REF_NAME
+      when: never
+    - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH == '1' &&
             $CI_DEFAULT_BRANCH == $CI_COMMIT_REF_NAME
       when: never
     - if: $CI_COMMIT_BRANCH &&
@@ -2361,7 +2370,7 @@ apifuzzer_v2:
     FUZZAPI_EXCLUDE_PATHS: /api/v2/**
   rules:
     rules:
-    - if: $API_FUZZING_DISABLED
+    - if: $API_FUZZING_DISABLED == 'true' || $API_FUZZING_DISABLED == '1'
       when: never
     - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH &&
             $CI_DEFAULT_BRANCH == $CI_COMMIT_REF_NAME
@@ -2396,7 +2405,7 @@ apifuzzer_branch:
     FUZZAPI_EXCLUDE_PATHS: /api/large_response_json
   rules:
     rules:
-    - if: $API_FUZZING_DISABLED
+    - if: $API_FUZZING_DISABLED == 'true' || $API_FUZZING_DISABLED == '1'
       when: never
     - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH &&
             $CI_DEFAULT_BRANCH == $CI_COMMIT_REF_NAME
@@ -2414,7 +2423,7 @@ apifuzzer_branch:
 apifuzzer_main:
   extends: apifuzzer_fuzz
     rules:
-    - if: $API_FUZZING_DISABLED
+    - if: $API_FUZZING_DISABLED == 'true' || $API_FUZZING_DISABLED == '1'
       when: never
     - if: $API_FUZZING_DISABLED_FOR_DEFAULT_BRANCH &&
             $CI_DEFAULT_BRANCH == $CI_COMMIT_REF_NAME
@@ -2443,7 +2452,7 @@ See the following documentation sections for assistance:
 
 See [Performance Tuning and Testing Speed](#performance-tuning-and-testing-speed)
 
-### Error waiting for API Fuzzing 'http://127.0.0.1:5000' to become available
+### Error: `Error waiting for API Fuzzing 'http://127.0.0.1:5000' to become available`
 
 A bug exists in versions of the API Fuzzing analyzer prior to v1.6.196 that can cause a background process to fail under certain conditions. The solution is to update to a newer version of the API Fuzzing analyzer.
 
@@ -2597,14 +2606,6 @@ deploy-test-target:
       - environment_url.txt
 ```
 
-<!--
-### Target Container
-
-The API Fuzzing template supports launching a docker container containing an API target using docker-in-docker.
-
-TODO
--->
-
 ### Use OpenAPI with an invalid schema
 
 There are cases where the document is autogenerated with an invalid schema or cannot be edited manually in a timely manner. In those scenarios, the API Fuzzing is able to perform a relaxed validation by setting the variable `FUZZAPI_OPENAPI_RELAXED_VALIDATION`. We recommend providing a fully compliant OpenAPI document to prevent unexpected behaviors.
@@ -2697,14 +2698,75 @@ You can expedite the investigation with the [testssl.sh tool](https://testssl.sh
 1. Run `./testssl.sh --log https://specs`.
 1. Attach the log file to your support ticket.
 
+### `ERROR: Job failed: failed to pull image`
+
+This error message occurs when pulling an image from a container registry that requires authentication to access (it is not public).
+
+In the job console output the error looks like:
+
+```log
+Running with gitlab-runner 15.6.0~beta.186.ga889181a (a889181a)
+  on blue-2.shared.runners-manager.gitlab.com/default XxUrkriX
+Resolving secrets
+00:00
+Preparing the "docker+machine" executor
+00:06
+Using Docker executor with image registry.gitlab.com/security-products/api-security:2 ...
+Starting service registry.example.com/my-target-app:latest ...
+Pulling docker image registry.example.com/my-target-app:latest ...
+WARNING: Failed to pull image with policy "always": Error response from daemon: Get https://registry.example.com/my-target-app/manifests/latest: unauthorized (manager.go:237:0s)
+ERROR: Job failed: failed to pull image "registry.example.com/my-target-app:latest" with specified policies [always]: Error response from daemon: Get https://registry.example.com/my-target-app/manifests/latest: unauthorized (manager.go:237:0s)
+```
+
+**Error message**
+
+- In GitLab 15.9 and earlier, `ERROR: Job failed: failed to pull image` followed by `Error response from daemon: Get IMAGE: unauthorized`.
+
+**Solution**
+
+Authentication credentials are provided using the methods outlined in the [Access an image from a private Container Registry](../../../ci/docker/using_docker_images.md#access-an-image-from-a-private-container-registry) documentation section. The method used is dictated by your container registry provider and its configuration. If your using a container registry provided by a third party, such as a cloud provider (Azure, Google Could (GCP), AWS and so on), check the providers documentation for information on how to authenticate to their container registries.
+
+The following example uses the [statically defined credentials](../../../ci/docker/using_docker_images.md#use-statically-defined-credentials) authentication method. In this example the container registry is `registry.example.com` and image is `my-target-app:latest`.
+
+1. Read how to [Determine your `DOCKER_AUTH_CONFIG` data](../../../ci/docker/using_docker_images.md#determine-your-docker_auth_config-data) to understand how to compute the variable value for `DOCKER_AUTH_CONFIG`. The configuration variable `DOCKER_AUTH_CONFIG` contains the Docker JSON configuration to provide the appropriate authentication information. For example, to access private container registry: `registry.example.com` with the credentials `aGVsbG8gd29ybGQK`, the Docker JSON looks like:
+
+    ```json
+    {
+        "auths": {
+            "registry.example.com": {
+                "auth": "aGVsbG8gd29ybGQK"
+            }
+        }
+    }
+    ```
+
+1. Add the `DOCKER_AUTH_CONFIG` as a CI/CD variable. Instead of adding the configuration variable directly in your `.gitlab-ci.yml` file you should create a project [CI/CD variable](../../../ci/variables/index.md#for-a-project).
+1. Rerun your job, and the statically-defined credentials are now used to sign in to the private container registry `registry.example.com`, and let you pull the image `my-target-app:latest`. If succeeded the job console shows an output like:
+
+   ```log
+   Running with gitlab-runner 15.6.0~beta.186.ga889181a (a889181a)
+     on blue-4.shared.runners-manager.gitlab.com/default J2nyww-s
+   Resolving secrets
+   00:00
+   Preparing the "docker+machine" executor
+   00:56
+   Using Docker executor with image registry.gitlab.com/security-products/api-security:2 ...
+   Starting service registry.example.com/my-target-app:latest ...
+   Authenticating with credentials from $DOCKER_AUTH_CONFIG
+   Pulling docker image registry.example.com/my-target-app:latest ...
+   Using docker image sha256:139c39668e5e4417f7d0eb0eeb74145ba862f4f3c24f7c6594ecb2f82dc4ad06 for registry.example.com/my-target-app:latest with digest registry.example.com/my-target-
+   app@sha256:2b69fc7c3627dbd0ebaa17674c264fcd2f2ba21ed9552a472acf8b065d39039c ...
+   Waiting for services to be up and running (timeout 30 seconds)...
+   ```
+
 ## Get support or request an improvement
 
 To get support for your particular problem use the [getting help channels](https://about.gitlab.com/get-help/).
 
 The [GitLab issue tracker on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues) is the right place for bugs and feature proposals about API Security and API Fuzzing.
-Use `~"Category:API Security"` [label](../../../development/contributing/issue_workflow.md#labels) when opening a new issue regarding API fuzzing to ensure it is quickly reviewed by the right people. Refer to our [review response SLO](https://about.gitlab.com/handbook/engineering/workflow/code-review/#review-response-slo) to understand when you should receive a response.
+Use `~"Category:API Security"` [label](../../../development/labels/index.md) when opening a new issue regarding API fuzzing to ensure it is quickly reviewed by the right people. Refer to our [review response SLO](https://about.gitlab.com/handbook/engineering/workflow/code-review/#review-response-slo) to understand when you should receive a response.
 
-[Search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) for similar entries before submitting your own, there's a good chance somebody else had the same issue or feature proposal. Show your support with an award emoji and or join the discussion.
+[Search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) for similar entries before submitting your own, there's a good chance somebody else had the same issue or feature proposal. Show your support with an emoji reaction or join the discussion.
 
 When experiencing a behavior not working as expected, consider providing contextual information:
 

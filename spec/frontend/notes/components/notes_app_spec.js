@@ -90,8 +90,9 @@ describe('note_app', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     axiosMock.restore();
+    // eslint-disable-next-line @gitlab/vtu-no-explicit-wrapper-destroy
+    wrapper.destroy();
   });
 
   describe('render', () => {
@@ -121,15 +122,19 @@ describe('note_app', () => {
       );
     });
 
-    it('should render form comment button as disabled', () => {
+    // quarantine: https://gitlab.com/gitlab-org/gitlab/-/issues/410409
+    // eslint-disable-next-line jest/no-disabled-tests
+    it.skip('should render form comment button as disabled', () => {
       expect(findCommentButton().props('disabled')).toEqual(true);
     });
 
     it('should render notes activity header', () => {
-      expect(wrapper.findComponent(NotesActivityHeader).props()).toEqual({
-        notesFilterValue: TEST_NOTES_FILTER_VALUE,
-        notesFilters: mockData.notesFilters,
-      });
+      expect(wrapper.findComponent(NotesActivityHeader).props().notesFilterValue).toEqual(
+        TEST_NOTES_FILTER_VALUE,
+      );
+      expect(wrapper.findComponent(NotesActivityHeader).props().notesFilters).toEqual(
+        mockData.notesFilters,
+      );
     });
   });
 
@@ -173,7 +178,7 @@ describe('note_app', () => {
   });
 
   describe('while fetching data', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       wrapper = mountComponent();
     });
 
@@ -245,15 +250,7 @@ describe('note_app', () => {
     it('should render markdown docs url', () => {
       const { markdownDocsPath } = mockData.notesDataMock;
 
-      expect(wrapper.find(`a[href="${markdownDocsPath}"]`).text().trim()).toEqual('Markdown');
-    });
-
-    it('should render quick action docs url', () => {
-      const { quickActionsDocsPath } = mockData.notesDataMock;
-
-      expect(wrapper.find(`a[href="${quickActionsDocsPath}"]`).text().trim()).toEqual(
-        'quick actions',
-      );
+      expect(wrapper.find(`a[href="${markdownDocsPath}"]`).exists()).toBe(true);
     });
   });
 
@@ -269,19 +266,7 @@ describe('note_app', () => {
       const { markdownDocsPath } = mockData.notesDataMock;
 
       await nextTick();
-      expect(wrapper.find(`.edit-note a[href="${markdownDocsPath}"]`).text().trim()).toEqual(
-        'Markdown',
-      );
-    });
-
-    it('should render quick actions docs url', async () => {
-      wrapper.find('.js-note-edit').trigger('click');
-      const { quickActionsDocsPath } = mockData.notesDataMock;
-
-      await nextTick();
-      expect(wrapper.find(`.edit-note a[href="${quickActionsDocsPath}"]`).text().trim()).toEqual(
-        'quick actions',
-      );
+      expect(wrapper.find(`.edit-note a[href="${markdownDocsPath}"]`).exists()).toBe(true);
     });
   });
 
@@ -303,7 +288,6 @@ describe('note_app', () => {
       wrapper.vm.$store.hotUpdate({
         actions: {
           toggleAward: toggleAwardAction,
-          stopPolling() {},
         },
       });
 
@@ -329,14 +313,12 @@ describe('note_app', () => {
     });
 
     it('should listen hashchange event', () => {
-      const notesApp = wrapper.findComponent(NotesApp);
       const hash = 'some dummy hash';
       jest.spyOn(urlUtility, 'getLocationHash').mockReturnValue(hash);
-      const setTargetNoteHash = jest.spyOn(notesApp.vm, 'setTargetNoteHash');
-
+      const dispatchMock = jest.spyOn(store, 'dispatch');
       window.dispatchEvent(new Event('hashchange'), hash);
 
-      expect(setTargetNoteHash).toHaveBeenCalled();
+      expect(dispatchMock).toHaveBeenCalledWith('setTargetNoteHash', 'some dummy hash');
     });
   });
 

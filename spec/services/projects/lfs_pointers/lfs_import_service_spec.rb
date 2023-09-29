@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Projects::LfsPointers::LfsImportService do
+RSpec.describe Projects::LfsPointers::LfsImportService, feature_category: :source_code_management do
   let(:project) { create(:project) }
   let(:user) { project.creator }
   let(:import_url) { 'http://www.gitlab.com/demo/repo.git' }
@@ -51,6 +51,20 @@ RSpec.describe Projects::LfsPointers::LfsImportService do
         error_message = "error message"
         expect_next_instance_of(Projects::LfsPointers::LfsObjectDownloadListService) do |instance|
           expect(instance).to receive(:each_list_item).and_raise(StandardError, error_message)
+        end
+
+        result = subject.execute
+
+        expect(result[:status]).to eq :error
+        expect(result[:message]).to eq error_message
+      end
+    end
+
+    context 'when an GRPC::Core::CallError exception raised' do
+      it 'returns error' do
+        error_message = "error message"
+        expect_next_instance_of(Projects::LfsPointers::LfsObjectDownloadListService) do |instance|
+          expect(instance).to receive(:each_list_item).and_raise(GRPC::Core::CallError, error_message)
         end
 
         result = subject.execute

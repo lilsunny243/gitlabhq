@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { ENTER_KEY } from '~/lib/utils/keys';
@@ -83,11 +84,6 @@ describe('Milestone combobox component', () => {
       .reply((config) => groupMilestonesApiCallSpy(config));
 
     mock.onGet(`/api/v4/projects/${projectId}/search`).reply((config) => searchApiCallSpy(config));
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   //

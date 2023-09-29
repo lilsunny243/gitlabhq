@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe IncidentManagement::ProcessAlertWorkerV2 do
+RSpec.describe IncidentManagement::ProcessAlertWorkerV2, feature_category: :incident_management do
   let_it_be(:project) { create(:project) }
   let_it_be(:settings) { create(:project_incident_management_setting, project: project, create_issue: true) }
 
@@ -19,14 +19,14 @@ RSpec.describe IncidentManagement::ProcessAlertWorkerV2 do
       allow(Gitlab::AppLogger).to receive(:warn).and_call_original
 
       allow(AlertManagement::CreateAlertIssueService)
-        .to receive(:new).with(alert, User.alert_bot)
+        .to receive(:new).with(alert, Users::Internal.alert_bot)
         .and_call_original
     end
 
     shared_examples 'creates issue successfully' do
       it 'creates an issue' do
         expect(AlertManagement::CreateAlertIssueService)
-          .to receive(:new).with(alert, User.alert_bot)
+          .to receive(:new).with(alert, Users::Internal.alert_bot)
 
         expect { perform_worker }.to change { Issue.count }.by(1)
       end

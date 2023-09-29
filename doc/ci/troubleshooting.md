@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# Troubleshooting CI/CD **(FREE)**
+# Troubleshooting CI/CD **(FREE ALL)**
 
 GitLab provides several tools to help make troubleshooting your pipelines easier.
 
@@ -37,7 +37,7 @@ If you need to link to the schema directly, it
 is at:
 
 ```plaintext
-https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/editor/schema/ci.json.
+https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/editor/schema/ci.json
 ```
 
 To see the full list of custom tags covered by the CI/CD schema, check the
@@ -74,7 +74,8 @@ and [templates](examples/index.md#cicd-templates).
 
 ### Documentation for pipeline types
 
-Some pipeline types have their own detailed usage guides that you should read
+Branch pipelines are the most basic type.
+Other pipeline types have their own detailed usage guides that you should read
 if you are using that type:
 
 - [Multi-project pipelines](pipelines/downstream_pipelines.md#multi-project-pipelines): Have your pipeline trigger
@@ -163,7 +164,7 @@ blocked the pipeline, or allowed the wrong pipeline type.
 
 ### Pipeline with many jobs fails to start
 
-A Pipeline that has more jobs than the instance's defined [CI/CD limits](../user/admin_area/settings/continuous_integration.md#set-cicd-limits)
+A Pipeline that has more jobs than the instance's defined [CI/CD limits](../administration/settings/continuous_integration.md#set-cicd-limits)
 fails to start.
 
 To reduce the number of jobs in your pipeline, you can split your `.gitlab-ci.yml`
@@ -209,6 +210,42 @@ To illustrate its life cycle:
 1. The runner fetches the persistent pipeline ref and gets source code from the checkout-SHA.
 1. When the pipeline finishes, its persistent ref is cleaned up in a background process.
 
+### `get_sources` job section fails because of an HTTP/2 problem
+
+Sometimes, jobs fail with the following cURL error:
+
+```plaintext
+++ git -c 'http.userAgent=gitlab-runner <version>' fetch origin +refs/pipelines/<id>:refs/pipelines/<id> ...
+error: RPC failed; curl 16 HTTP/2 send again with decreased length
+fatal: ...
+```
+
+You can work around this problem by configuring Git and `libcurl` to
+[use HTTP/1.1](https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpversion).
+The configuration can be added to:
+
+- A job's [`pre_get_sources_script`](yaml/index.md#hookspre_get_sources_script):
+
+  ```yaml
+  job_name:
+    hooks:
+      pre_get_sources_script:
+        - git config --local http.version "HTTP/1.1"
+  ```
+
+- The [runner's `config.toml`](https://docs.gitlab.com/runner/configuration/advanced-configuration.html)
+  with [Git configuration environment variables](https://git-scm.com/docs/git-config#ENVIRONMENT):
+
+  ```toml
+  [[runners]]
+  ...
+  environment = [
+    "GIT_CONFIG_COUNT=1",
+    "GIT_CONFIG_KEY_1=http.version",
+    "GIT_CONFIG_VALUE_1=HTTP/1.1"
+  ]
+  ```
+
 ### Merge request pipeline messages
 
 The merge request pipeline widget shows information about the pipeline status in
@@ -245,15 +282,10 @@ After the pipeline is created, the message updates with the pipeline status.
 
 ### Merge request status messages
 
-The merge request status widget shows the **Merge** button and whether or not a merge
-request is ready to merge. If the merge request can't be merged, the reason for this
-is displayed.
+The merge request status widget shows:
 
-If the pipeline is still running, **Merge** is replaced with the
-**Merge when pipeline succeeds** button.
-
-If [**Merge Trains**](pipelines/merge_trains.md)
-are enabled, the button is either **Add to merge train** or **Add to merge train when pipeline succeeds**. **(PREMIUM)**
+- If the merge request is ready to merge. If the merge request can't be merged, the reason is displayed.
+- **Merge**, if the pipeline is complete, or **Set to auto-merge** if the pipeline is still running.
 
 #### "A CI/CD pipeline must run and be successful before merge" message
 
@@ -269,6 +301,7 @@ This message is shown if the [merge request pipeline](pipelines/merge_request_pi
 [merged results pipeline](pipelines/merged_results_pipelines.md),
 or [merge train pipeline](pipelines/merge_trains.md)
 has failed or been canceled.
+This does not happen when a basic branch pipeline fails.
 
 If a merge request pipeline or merged result pipeline was canceled or failed, you can:
 
@@ -285,6 +318,36 @@ If the merge train pipeline has failed, you can:
 If the merge train pipeline was canceled before the merge request was merged, without a failure, you can:
 
 - Add it to the train again.
+
+### Merge request rules widget shows a scan result policy is invalid or duplicated **(ULTIMATE SELF)**
+
+On GitLab self-managed 15.0 and later, the most likely cause is that the project was exported from a
+group and imported into another, and had scan result policy rules. These rules are stored in a
+separate project to the one that was exported. As a result, the project contains policy rules that
+reference entities that don't exist in the imported project's group. The result is policy rules that
+are invalid, duplicated, or both.
+
+To remove all invalid scan result policy rules from a GitLab instance, an administrator can run
+the following script in the [Rails console](../administration/operations/rails_console.md).
+
+```ruby
+Project.joins(:approval_rules).where(approval_rules: { report_type: %i[scan_finding license_scanning] }).where.not(approval_rules: { security_orchestration_policy_configuration_id: nil }).find_in_batches.flat_map do |batch|
+  batch.map do |project|
+    # Get projects and their configuration_ids for applicable project rules
+    [project, project.approval_rules.where(report_type: %i[scan_finding license_scanning]).pluck(:security_orchestration_policy_configuration_id).uniq]
+  end.uniq.map do |project, configuration_ids| # We take only unique combinations of project + configuration_ids
+    # If we find more configurations than what is available for the project, we take records with the extra configurations
+    [project, configuration_ids - project.all_security_orchestration_policy_configurations.pluck(:id)]
+  end.select { |_project, configuration_ids| configuration_ids.any? }
+end.each do |project, configuration_ids|
+  # For each found pair project + ghost configuration, we remove these rules for a given project
+  Security::OrchestrationPolicyConfiguration.where(id: configuration_ids).each do |configuration|
+    configuration.delete_scan_finding_rules_for_project(project.id)
+  end
+  # Ensure we sync any potential rules from new group's policy
+  Security::ScanResultPolicies::SyncProjectWorker.perform_async(project.id)
+end
+```
 
 ### Project `group/project` not found or access denied
 
@@ -311,7 +374,7 @@ likely to hit the default memory limit.
 To reduce the configuration size, you can:
 
 - Check the length of the expanded CI/CD configuration in the pipeline editor's
-  [merged YAML](pipeline_editor/index.md#view-expanded-configuration) tab. Look for
+  [Full configuration](pipeline_editor/index.md#view-full-configuration) tab. Look for
   duplicated configuration that can be removed or simplified.
 - Move long or repeated `script` sections into standalone scripts in the project.
 - Use [parent and child pipelines](pipelines/downstream_pipelines.md#parent-child-pipelines) to move some
@@ -330,6 +393,25 @@ The configuration for a pipeline is only fetched when the pipeline is created.
 When you rerun a job, uses the same configuration each time. If you update configuration files,
 including separate files added with [`include`](yaml/index.md#include), you must
 start a new pipeline to use the new configuration.
+
+### Unable to pull image from another project
+
+> **Allow access to this project with a CI_JOB_TOKEN** setting [renamed to **Limit access _to_ this project**](https://gitlab.com/gitlab-org/gitlab/-/issues/411406) in GitLab 16.3.
+
+When a runner tries to pull an image from a private project, the job could fail with the following error:
+
+```shell
+WARNING: Failed to pull image with policy "always": Error response from daemon: pull access denied for registry.example.com/path/to/project, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+```
+
+This error can happen if the following are both true:
+
+- The **Limit access _to_ this project** option is enabled in the private project
+  hosting the image.
+- The job attempting to fetch the image is running for a project that is not listed in
+  the private project's allowlist.
+
+The recommended solution is to [add your project to the private project's job token scope allowlist](jobs/ci_job_token.md#add-a-project-to-the-job-token-scope-allowlist).
 
 ## Pipeline warnings
 
@@ -385,21 +467,21 @@ on shared runners, which reduces system resource usage on the `jobs/request` end
 When enabled, jobs are processed in the order they were put in the system, instead of
 balanced across many projects.
 
-### Disable CI/CD minutes quota enforcement
+### Disable compute quota enforcement
 
-To disable the enforcement of CI/CD minutes quotas on shared runners, you can temporarily
+To disable the enforcement of [compute quotas](pipelines/cicd_minutes.md) on shared runners, you can temporarily
 enable the `ci_queueing_disaster_recovery_disable_quota` [feature flag](../administration/feature_flags.md).
 This flag reduces system resource usage on the `jobs/request` endpoint.
 
 When enabled, jobs created in the last hour can run in projects which are out of quota.
 Earlier jobs are already canceled by a periodic background worker (`StuckCiJobsWorker`).
 
-## CI/CD troubleshooting rails console commands
+## CI/CD troubleshooting Rails console commands
 
-The following commands are run in the [rails console](../administration/operations/rails_console.md#starting-a-rails-console-session).
+The following commands are run in the [Rails console](../administration/operations/rails_console.md#starting-a-rails-console-session).
 
 WARNING:
-Any command that changes data directly could be damaging if not run correctly, or under the right conditions.  
+Any command that changes data directly could be damaging if not run correctly, or under the right conditions.
 We highly recommend running them in a test environment with a backup of the instance ready to be restored, just in case.
 
 ### Cancel stuck pending pipelines

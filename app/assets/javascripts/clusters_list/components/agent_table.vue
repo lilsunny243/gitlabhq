@@ -7,11 +7,17 @@ import {
   GlTooltip,
   GlTooltipDirective,
   GlPopover,
+  GlBadge,
+  GlPagination,
 } from '@gitlab/ui';
+import semverLt from 'semver/functions/lt';
+import semverInc from 'semver/functions/inc';
+import semverPrerelease from 'semver/functions/prerelease';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import timeagoMixin from '~/vue_shared/mixins/timeago';
 import { helpPagePath } from '~/helpers/help_page_helper';
-import { AGENT_STATUSES, I18N_AGENT_TABLE } from '../constants';
+import { getIdFromGraphQLId } from '~/graphql_shared/utils';
+import { MAX_LIST_COUNT, AGENT_STATUSES, I18N_AGENT_TABLE } from '../constants';
 import { getAgentConfigPath } from '../clusters_util';
 import DeleteAgentButton from './delete_agent_button.vue';
 
@@ -24,6 +30,8 @@ export default {
     GlSprintf,
     GlTooltip,
     GlPopover,
+    GlBadge,
+    GlPagination,
     TimeAgoTooltip,
     DeleteAgentButton,
   },
@@ -56,6 +64,12 @@ export default {
       type: Number,
     },
   },
+  data() {
+    return {
+      currentPage: 1,
+      limit: this.maxAgents ?? MAX_LIST_COUNT,
+    };
+  },
   computed: {
     fields() {
       const tdClass = 'gl-pt-3! gl-pb-4! gl-vertical-align-middle!';
@@ -78,6 +92,11 @@ export default {
         {
           key: 'version',
           label: this.$options.i18n.versionLabel,
+          tdClass,
+        },
+        {
+          key: 'agentID',
+          label: this.$options.i18n.agentIdLabel,
           tdClass,
         },
         {
@@ -105,6 +124,16 @@ export default {
     serverVersion() {
       return this.kasVersion || this.gitlabVersion;
     },
+    showPagination() {
+      return !this.maxAgents && this.agents.length > this.limit;
+    },
+    prevPage() {
+      return Math.max(this.currentPage - 1, 0);
+    },
+    nextPage() {
+      const nextPage = this.currentPage + 1;
+      return nextPage > Math.ceil(this.agents.length / this.limit) ? null : nextPage;
+    },
   },
   methods: {
     getStatusCellId(item) {
@@ -115,6 +144,9 @@ export default {
     },
     getPopoverTestId(item) {
       return `popover-${item.name}`;
+    },
+    getAgentId(item) {
+      return getIdFromGraphQLId(item.id);
     },
     getAgentConfigPath,
     getAgentVersions(agent) {
@@ -134,26 +166,36 @@ export default {
     isVersionMismatch(agent) {
       return agent.versions.length > 1;
     },
+    // isVersionOutdated determines if the agent version is outdated compared to the KAS / GitLab version
+    // using the following heuristics:
+    // - KAS Version is used as *server* version if available, otherwise the GitLab version is used.
+    // - returns `outdated` if the agent has a different major version than the server
+    // - returns `outdated` if the agents minor version is at least two proper versions older than the server
+    //   - *proper* -> not a prerelease version. Meaning that server prereleases (with `-rcN`) suffix are counted as the previous minor version
+    //
+    // Note that it does NOT support if the agent is newer than the server version.
     isVersionOutdated(agent) {
       if (!agent.versions.length) return false;
 
-      const [agentMajorVersion, agentMinorVersion] = this.getAgentVersionString(agent).split('.');
-      const [serverMajorVersion, serverMinorVersion] = this.serverVersion.split('.');
+      const agentVersion = this.getAgentVersionString(agent);
+      let allowableAgentVersion = semverInc(agentVersion, 'minor');
 
-      const majorVersionMismatch = agentMajorVersion !== serverMajorVersion;
+      const isServerPrerelease = Boolean(semverPrerelease(this.serverVersion));
+      if (isServerPrerelease) {
+        allowableAgentVersion = semverInc(allowableAgentVersion, 'minor');
+      }
 
-      // We should warn user if their current GitLab and agent versions are more than 1 minor version apart:
-      const minorVersionMismatch = Math.abs(agentMinorVersion - serverMinorVersion) > 1;
-
-      return majorVersionMismatch || minorVersionMismatch;
+      return semverLt(allowableAgentVersion, this.serverVersion);
     },
 
     getVersionPopoverTitle(agent) {
       if (this.isVersionMismatch(agent) && this.isVersionOutdated(agent)) {
         return this.$options.i18n.versionMismatchOutdatedTitle;
-      } else if (this.isVersionMismatch(agent)) {
+      }
+      if (this.isVersionMismatch(agent)) {
         return this.$options.i18n.versionMismatchTitle;
-      } else if (this.isVersionOutdated(agent)) {
+      }
+      if (this.isVersionOutdated(agent)) {
         return this.$options.i18n.versionOutdatedTitle;
       }
 
@@ -164,84 +206,105 @@ export default {
 </script>
 
 <template>
-  <gl-table
-    :items="agentsList"
-    :fields="fields"
-    stacked="md"
-    class="gl-mb-4!"
-    data-testid="cluster-agent-list-table"
-  >
-    <template #cell(name)="{ item }">
-      <gl-link :href="item.webPath" data-testid="cluster-agent-name-link">
-        {{ item.name }}
-      </gl-link>
-    </template>
+  <div>
+    <gl-table
+      :items="agentsList"
+      :fields="fields"
+      :per-page="limit"
+      :current-page="currentPage"
+      stacked="md"
+      class="gl-mb-4!"
+      data-testid="cluster-agent-list-table"
+    >
+      <template #cell(name)="{ item }">
+        <gl-link :href="item.webPath" data-testid="cluster-agent-name-link">{{ item.name }}</gl-link
+        ><gl-badge v-if="item.isShared" class="gl-ml-3">{{
+          $options.i18n.sharedBadgeText
+        }}</gl-badge>
+      </template>
 
-    <template #cell(status)="{ item }">
-      <span
-        :id="getStatusCellId(item)"
-        class="gl-md-pr-5"
-        data-testid="cluster-agent-connection-status"
-      >
-        <span :class="$options.AGENT_STATUSES[item.status].class" class="gl-mr-3">
-          <gl-icon :name="$options.AGENT_STATUSES[item.status].icon" :size="16" /></span
-        >{{ $options.AGENT_STATUSES[item.status].name }}
-      </span>
-      <gl-tooltip v-if="item.status === 'active'" :target="getStatusCellId(item)" placement="right">
-        <gl-sprintf :message="$options.AGENT_STATUSES[item.status].tooltip.title"
-          ><template #timeAgo>{{ timeFormatted(item.lastContact) }}</template>
-        </gl-sprintf>
-      </gl-tooltip>
-      <gl-popover
-        v-else
-        :target="getStatusCellId(item)"
-        :title="$options.AGENT_STATUSES[item.status].tooltip.title"
-        placement="right"
-        container="viewport"
-      >
-        <p>
-          <gl-sprintf :message="$options.AGENT_STATUSES[item.status].tooltip.body"
-            ><template #timeAgo>{{ timeFormatted(item.lastContact) }}</template></gl-sprintf
-          >
-        </p>
-        <p class="gl-mb-0">
-          <gl-link :href="$options.troubleshootingLink" target="_blank" class="gl-font-sm">
-            {{ $options.i18n.troubleshootingText }}</gl-link
-          >
-        </p>
-      </gl-popover>
-    </template>
-
-    <template #cell(lastContact)="{ item }">
-      <span data-testid="cluster-agent-last-contact">
-        <time-ago-tooltip v-if="item.lastContact" :time="item.lastContact" />
-        <span v-else>{{ $options.i18n.neverConnectedText }}</span>
-      </span>
-    </template>
-
-    <template #cell(version)="{ item }">
-      <span :id="getVersionCellId(item)" data-testid="cluster-agent-version">
-        {{ getAgentVersionString(item) }}
-
-        <gl-icon
-          v-if="isVersionMismatch(item) || isVersionOutdated(item)"
-          name="warning"
-          class="gl-text-orange-500 gl-ml-2"
-        />
-      </span>
-
-      <gl-popover
-        v-if="isVersionMismatch(item) || isVersionOutdated(item)"
-        :target="getVersionCellId(item)"
-        :title="getVersionPopoverTitle(item)"
-        :data-testid="getPopoverTestId(item)"
-        placement="right"
-        container="viewport"
-      >
-        <div v-if="isVersionMismatch(item) && isVersionOutdated(item)">
-          <p>{{ $options.i18n.versionMismatchText }}</p>
-
+      <template #cell(status)="{ item }">
+        <span
+          :id="getStatusCellId(item)"
+          class="gl-md-pr-5"
+          data-testid="cluster-agent-connection-status"
+        >
+          <span :class="$options.AGENT_STATUSES[item.status].class" class="gl-mr-3">
+            <gl-icon :name="$options.AGENT_STATUSES[item.status].icon" :size="16" /></span
+          >{{ $options.AGENT_STATUSES[item.status].name }}
+        </span>
+        <gl-tooltip
+          v-if="item.status === 'active'"
+          :target="getStatusCellId(item)"
+          placement="right"
+        >
+          <gl-sprintf :message="$options.AGENT_STATUSES[item.status].tooltip.title"
+            ><template #timeAgo>{{ timeFormatted(item.lastContact) }}</template>
+          </gl-sprintf>
+        </gl-tooltip>
+        <gl-popover
+          v-else
+          :target="getStatusCellId(item)"
+          :title="$options.AGENT_STATUSES[item.status].tooltip.title"
+          placement="right"
+          container="viewport"
+        >
+          <p>
+            <gl-sprintf :message="$options.AGENT_STATUSES[item.status].tooltip.body"
+              ><template #timeAgo>{{ timeFormatted(item.lastContact) }}</template></gl-sprintf
+            >
+          </p>
           <p class="gl-mb-0">
+            <gl-link :href="$options.troubleshootingLink" target="_blank" class="gl-font-sm">
+              {{ $options.i18n.troubleshootingText }}</gl-link
+            >
+          </p>
+        </gl-popover>
+      </template>
+
+      <template #cell(lastContact)="{ item }">
+        <span data-testid="cluster-agent-last-contact">
+          <time-ago-tooltip v-if="item.lastContact" :time="item.lastContact" />
+          <span v-else>{{ $options.i18n.neverConnectedText }}</span>
+        </span>
+      </template>
+
+      <template #cell(version)="{ item }">
+        <span :id="getVersionCellId(item)" data-testid="cluster-agent-version">
+          {{ getAgentVersionString(item) }}
+
+          <gl-icon
+            v-if="isVersionMismatch(item) || isVersionOutdated(item)"
+            name="warning"
+            class="gl-text-orange-500 gl-ml-2"
+          />
+        </span>
+
+        <gl-popover
+          v-if="isVersionMismatch(item) || isVersionOutdated(item)"
+          :target="getVersionCellId(item)"
+          :title="getVersionPopoverTitle(item)"
+          :data-testid="getPopoverTestId(item)"
+          placement="right"
+          container="viewport"
+        >
+          <div v-if="isVersionMismatch(item) && isVersionOutdated(item)">
+            <p>{{ $options.i18n.versionMismatchText }}</p>
+
+            <p class="gl-mb-0">
+              <gl-sprintf :message="$options.i18n.versionOutdatedText">
+                <template #version>{{ serverVersion }}</template>
+              </gl-sprintf>
+              <gl-link :href="$options.versionUpdateLink" class="gl-font-sm">
+                {{ $options.i18n.viewDocsText }}</gl-link
+              >
+            </p>
+          </div>
+          <p v-else-if="isVersionMismatch(item)" class="gl-mb-0">
+            {{ $options.i18n.versionMismatchText }}
+          </p>
+
+          <p v-else-if="isVersionOutdated(item)" class="gl-mb-0">
             <gl-sprintf :message="$options.i18n.versionOutdatedText">
               <template #version>{{ serverVersion }}</template>
             </gl-sprintf>
@@ -249,47 +312,54 @@ export default {
               {{ $options.i18n.viewDocsText }}</gl-link
             >
           </p>
-        </div>
-        <p v-else-if="isVersionMismatch(item)" class="gl-mb-0">
-          {{ $options.i18n.versionMismatchText }}
-        </p>
+        </gl-popover>
+      </template>
 
-        <p v-else-if="isVersionOutdated(item)" class="gl-mb-0">
-          <gl-sprintf :message="$options.i18n.versionOutdatedText">
-            <template #version>{{ serverVersion }}</template>
-          </gl-sprintf>
-          <gl-link :href="$options.versionUpdateLink" class="gl-font-sm">
-            {{ $options.i18n.viewDocsText }}</gl-link
-          >
-        </p>
-      </gl-popover>
-    </template>
+      <template #cell(agentID)="{ item }">
+        <span data-testid="cluster-agent-id">
+          {{ getAgentId(item) }}
+        </span>
+      </template>
 
-    <template #cell(configuration)="{ item }">
-      <span data-testid="cluster-agent-configuration-link">
-        <gl-link v-if="item.configFolder" :href="item.configFolder.webPath">
-          {{ getAgentConfigPath(item.name) }}
-        </gl-link>
+      <template #cell(configuration)="{ item }">
+        <span data-testid="cluster-agent-configuration-link">
+          <gl-link v-if="item.configFolder" :href="item.configFolder.webPath">
+            {{ getAgentConfigPath(item.name) }}
+          </gl-link>
 
-        <span v-else
-          >{{ $options.i18n.defaultConfigText }}
-          <gl-link
-            v-gl-tooltip
-            :href="$options.configHelpLink"
-            :title="$options.i18n.defaultConfigTooltip"
-            :aria-label="$options.i18n.defaultConfigTooltip"
-            class="gl-vertical-align-middle"
-            ><gl-icon name="question" :size="14" /></gl-link
-        ></span>
-      </span>
-    </template>
+          <span v-else-if="item.isShared">
+            {{ $options.i18n.externalConfigText }}
+          </span>
 
-    <template #cell(options)="{ item }">
-      <delete-agent-button
-        :agent="item"
-        :default-branch-name="defaultBranchName"
-        :max-agents="maxAgents"
-      />
-    </template>
-  </gl-table>
+          <span v-else
+            >{{ $options.i18n.defaultConfigText }}
+            <gl-link
+              v-gl-tooltip
+              :href="$options.configHelpLink"
+              :title="$options.i18n.defaultConfigTooltip"
+              :aria-label="$options.i18n.defaultConfigTooltip"
+              class="gl-vertical-align-middle"
+              ><gl-icon name="question-o" :size="14" /></gl-link
+          ></span>
+        </span>
+      </template>
+
+      <template #cell(options)="{ item }">
+        <delete-agent-button
+          v-if="!item.isShared"
+          :agent="item"
+          :default-branch-name="defaultBranchName"
+        />
+      </template>
+    </gl-table>
+
+    <gl-pagination
+      v-if="showPagination"
+      v-model="currentPage"
+      :prev-page="prevPage"
+      :next-page="nextPage"
+      align="center"
+      class="gl-mt-5"
+    />
+  </div>
 </template>

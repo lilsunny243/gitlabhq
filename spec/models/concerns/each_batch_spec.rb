@@ -75,6 +75,26 @@ RSpec.describe EachBatch do
       expect(ids).to eq(ids.sort.reverse)
     end
 
+    shared_examples 'preloaded batch' do |method|
+      it 'respects preloading without N+1 queries' do
+        one, two = User.first(2)
+
+        create(:key, user: one)
+
+        scope = User.send(method, :keys)
+
+        control = ActiveRecord::QueryRecorder.new { scope.each_batch(of: 5) { |batch| batch.each(&:keys) } }
+
+        create(:key, user: one)
+        create(:key, user: two)
+
+        expect { scope.each_batch(of: 5) { |batch| batch.each(&:keys) } }.not_to exceed_query_limit(control)
+      end
+    end
+
+    it_behaves_like 'preloaded batch', :preload
+    it_behaves_like 'preloaded batch', :includes
+
     describe 'current scope' do
       let(:entry) { create(:user, sign_in_count: 1) }
       let(:ids_with_new_relation) { model.where(id: entry.id).pluck(:id) }
@@ -168,6 +188,38 @@ RSpec.describe EachBatch do
 
           it { is_expected.to eq(expected_values) }
         end
+      end
+    end
+  end
+
+  describe '.each_batch_count' do
+    let_it_be(:users) { create_list(:user, 5, updated_at: 1.day.ago) }
+
+    it 'counts the records' do
+      count, last_value = User.each_batch_count
+
+      expect(count).to eq(5)
+      expect(last_value).to eq(nil)
+    end
+
+    context 'when using a different column' do
+      it 'returns correct count' do
+        count, _ = User.each_batch_count(column: :email, of: 2)
+
+        expect(count).to eq(5)
+      end
+    end
+
+    context 'when stopping and resuming the counting' do
+      it 'returns the correct count' do
+        count, last_value = User.each_batch_count(of: 1) do |current_count, _current_value|
+          current_count == 3 # stop when count reaches 3
+        end
+
+        expect(count).to eq(3)
+
+        final_count, _ = User.each_batch_count(of: 1, last_value: last_value, last_count: count)
+        expect(final_count).to eq(5)
       end
     end
   end

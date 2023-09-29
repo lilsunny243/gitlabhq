@@ -1,16 +1,18 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
+<!--- start_remove The following content will be removed on remove_date: '2024-05-22' -->
 
-# Slack notifications **(FREE)**
+# Slack notifications (deprecated) **(FREE ALL)**
 
 WARNING:
-This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/372411) on GitLab.com
-in GitLab 15.9 and is [planned for removal](https://gitlab.com/groups/gitlab-org/-/epics/8673).
-For GitLab.com, use the [GitLab for Slack app](gitlab_slack_application.md) instead.
-For self-managed GitLab instances, you can continue to use this feature.
+This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/372411) in GitLab 15.9
+and is planned for removal in 17.0. Use the [GitLab for Slack app](gitlab_slack_application.md) instead.
+This change is a breaking change.
+For the planned support of the GitLab for Slack app for self-managed instances,
+see [epic 1211](https://gitlab.com/groups/gitlab-org/-/epics/1211).
 
 The Slack notifications integration enables your GitLab project to send events
 (such as issue creation) to your existing Slack team as notifications. Setting up
@@ -30,10 +32,10 @@ to control GitLab from Slack. Slash commands are configured separately.
 
 > [Changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106760) in GitLab 15.9 to limit Slack channels to 10 per event.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **Slack notifications**.
-1. In the **Enable integration** section, select the **Active** checkbox.
+1. Under **Enable integration**, select the **Active** checkbox.
 1. In the **Trigger** section, select the checkboxes for each type of GitLab
    event to send to Slack as a notification. For a full list, see
    [Triggers for Slack notifications](#triggers-for-slack-notifications).
@@ -54,8 +56,8 @@ to control GitLab from Slack. Slash commands are configured separately.
 1. Leave the **Labels to be notified** field blank to get all notifications, or
    add labels that the issue or merge request must have to trigger a
    notification.
-1. Select **Test settings** to verify your information, and then select
-   **Save changes**.
+1. Optional. Select **Test settings**.
+1. Select **Save changes**.
 
 Your Slack team now starts receiving GitLab event notifications as configured.
 
@@ -77,7 +79,18 @@ The following triggers are available for Slack notifications:
 | **Wiki page**                                                            | A wiki page is created or updated.                   |
 | **Deployment**                                                           | A deployment starts or finishes.                     |
 | **Alert**                                                                | A new, unique alert is recorded.                     |
+| **[Group mention](#trigger-notifications-for-group-mentions) in public**                                              | A group is mentioned in a public context.            |
+| **[Group mention](#trigger-notifications-for-group-mentions) in private**                                             | A group is mentioned in a confidential context.      |
 | [**Vulnerability**](../../application_security/vulnerabilities/index.md) | A new, unique vulnerability is recorded.             |
+
+## Trigger notifications for group mentions
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/417751) in GitLab 16.4.
+
+To trigger a [notification event](#triggers-for-slack-notifications) for a group mention, use `@<group_name>` in:
+
+- Issue and merge request descriptions
+- Comments on issues, merge requests, and commits
 
 ## Troubleshooting
 
@@ -125,7 +138,7 @@ To view which of these problems is the cause of the issue:
    ```
 
 If GitLab does not trust HTTPS connections to itself,
-[add your certificate to the GitLab trusted certificates](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates).
+[add your certificate to the GitLab trusted certificates](https://docs.gitlab.com/omnibus/settings/ssl/index.html#install-custom-public-certificates).
 
 If GitLab does not trust connections to Slack,
 the GitLab OpenSSL trust store is incorrect. Typical causes are:
@@ -143,10 +156,12 @@ Commands that change data can cause damage if not run correctly or under the rig
 
 ```ruby
 # Grab all projects that have the Slack notifications enabled
-p = Project.find_by_sql("SELECT p.id FROM projects p LEFT JOIN integrations s ON p.id = s.project_id WHERE s.type_new = 'Slack' AND s.active = true")
+p = Project.find_by_sql("SELECT p.id FROM projects p LEFT JOIN integrations s ON p.id = s.project_id WHERE s.type_new = 'Integrations::Slack' AND s.active = true")
 
 # Disable the integration on each of the projects that were found.
 p.each do |project|
   project.slack_integration.update!(:active, false)
 end
 ```
+
+<!--- end_remove -->

@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Pumble **(FREE)**
+# Pumble **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/93623) in GitLab 15.3.
 
@@ -26,14 +26,15 @@ notifications:
 1. To enable the integration for your group or project:
    1. In your group or project, on the left sidebar, select **Settings > Integrations**.
 1. To enable the integration for your instance:
-   1. On the top bar, select **Main menu > Admin**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **Admin Area**.
    1. On the left sidebar, select **Settings > Integrations**.
 1. Select the **Pumble** integration.
 1. Ensure that the **Active** toggle is enabled.
 1. Select the checkboxes corresponding to the GitLab events you want to receive in Pumble.
 1. Paste the **Webhook** URL for the Pumble channel.
 1. Configure the remaining options.
-1. Optional. To test the integration, select **Test settings**.
+1. Optional. Select **Test settings**.
 1. Select **Save changes**.
 
 The Pumble channel begins to receive all applicable GitLab events.

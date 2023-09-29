@@ -1,6 +1,7 @@
 import { GlLoadingIcon } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import ErrorMessage from '~/ide/components/error_message.vue';
 
@@ -30,11 +31,6 @@ describe('IDE error message component', () => {
 
   beforeEach(() => {
     setErrorMessageMock.mockReset();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   const findDismissButton = () => wrapper.find('button[aria-label=Dismiss]');

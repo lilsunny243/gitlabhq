@@ -43,8 +43,7 @@
     }
   }
 
-  &:last-child,
-  &.create-timeline-event {
+  &:last-child {
     &::before {
       top: - #{$gl-spacing-scale-5} !important; // Override default positioning
       @include gl-h-8;
@@ -57,8 +56,6 @@
 }
 
 .timeline-entry:not(:last-child) {
-  @include gl-pb-0;
-
   .timeline-event-border {
     @include gl-pb-3;
     @include gl-border-gray-50;

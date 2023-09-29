@@ -1,19 +1,26 @@
 <script>
-import { GlBadge, GlButton, GlTooltipDirective } from '@gitlab/ui';
-import { __ } from '~/locale';
-import SafeHtml from '~/vue_shared/directives/safe_html';
-import logo from '../../../../views/shared/_logo.svg';
-import { toggleSuperSidebarCollapsed } from '../super_sidebar_collapsed_state_manager';
+import { GlBadge, GlButton, GlModalDirective, GlTooltipDirective, GlIcon } from '@gitlab/ui';
+import { __, s__, sprintf } from '~/locale';
+import {
+  destroyUserCountsManager,
+  createUserCountsManager,
+  userCounts,
+} from '~/super_sidebar/user_counts_manager';
+import BrandLogo from 'jh_else_ce/super_sidebar/components/brand_logo.vue';
+import { JS_TOGGLE_COLLAPSE_CLASS } from '../constants';
 import CreateMenu from './create_menu.vue';
 import Counter from './counter.vue';
 import MergeRequestMenu from './merge_request_menu.vue';
 import UserMenu from './user_menu.vue';
+import SuperSidebarToggle from './super_sidebar_toggle.vue';
+import { SEARCH_MODAL_ID } from './global_search/constants';
 
 export default {
   // "GitLab Next" is a proper noun, so don't translate "Next"
   /* eslint-disable-next-line @gitlab/require-i18n-strings */
   NEXT_LABEL: 'Next',
-  logo,
+  JS_TOGGLE_COLLAPSE_CLASS,
+  SEARCH_MODAL_ID,
   components: {
     Counter,
     CreateMenu,
@@ -21,92 +28,183 @@ export default {
     GlButton,
     MergeRequestMenu,
     UserMenu,
+    SearchModal: () =>
+      import(
+        /* webpackChunkName: 'global_search_modal' */ './global_search/components/global_search.vue'
+      ),
+    SuperSidebarToggle,
+    BrandLogo,
+    GlIcon,
   },
   i18n: {
-    collapseSidebar: __('Collapse sidebar'),
-    createNew: __('Create new...'),
     issues: __('Issues'),
     mergeRequests: __('Merge requests'),
-    search: __('Search'),
+    searchKbdHelp: sprintf(
+      s__('GlobalSearch|Type %{kbdOpen}/%{kbdClose} to search'),
+      { kbdOpen: '<kbd>', kbdClose: '</kbd>' },
+      false,
+    ),
     todoList: __('To-Do list'),
+    stopImpersonating: __('Stop impersonating'),
+    searchBtnText: __('Search or go to…'),
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml,
+    GlModal: GlModalDirective,
   },
-  inject: ['rootPath'],
+  inject: ['isImpersonating'],
   props: {
+    hasCollapseButton: {
+      default: true,
+      type: Boolean,
+      required: false,
+    },
     sidebarData: {
       type: Object,
       required: true,
     },
   },
+  data() {
+    return {
+      mrMenuShown: false,
+      searchTooltip: this.$options.i18n.searchKbdHelp,
+      userCounts,
+    };
+  },
+  computed: {
+    mergeRequestTotalCount() {
+      return userCounts.assigned_merge_requests + userCounts.review_requested_merge_requests;
+    },
+  },
+  created() {
+    Object.assign(userCounts, this.sidebarData.user_counts);
+    createUserCountsManager();
+  },
+  mounted() {
+    document.addEventListener('todo:toggle', this.updateTodos);
+  },
+  beforeDestroy() {
+    document.removeEventListener('todo:toggle', this.updateTodos);
+    destroyUserCountsManager();
+  },
   methods: {
-    collapseSidebar() {
-      toggleSuperSidebarCollapsed(true, true);
+    updateTodos(e) {
+      userCounts.todos = e.detail.count || 0;
+    },
+    hideSearchTooltip() {
+      this.searchTooltip = '';
+    },
+    showSearchTooltip() {
+      this.searchTooltip = this.$options.i18n.searchKbdHelp;
     },
   },
 };
 </script>
 
 <template>
-  <div class="user-bar">
-    <div class="gl-display-flex gl-align-items-center gl-px-3 gl-py-2 gl-gap-2">
-      <a v-safe-html="$options.logo" :href="rootPath"></a>
-      <gl-badge
-        v-if="sidebarData.gitlab_com_and_canary"
-        variant="success"
-        :href="sidebarData.canary_toggle_com_url"
-        size="sm"
-        >{{ $options.NEXT_LABEL }}</gl-badge
-      >
-      <div class="gl-flex-grow-1"></div>
-      <gl-button
-        v-gl-tooltip:super-sidebar.hover.bottom="$options.i18n.collapseSidebar"
-        :aria-label="$options.i18n.collapseSidebar"
-        icon="sidebar"
-        category="tertiary"
-        @click="collapseSidebar"
+  <div
+    class="user-bar gl-display-flex gl-p-3 gl-gap-1"
+    :class="{ 'gl-flex-direction-column gl-gap-3': sidebarData.is_logged_in }"
+  >
+    <div
+      v-if="hasCollapseButton || sidebarData.is_logged_in"
+      class="gl-display-flex gl-align-items-center gl-gap-1"
+    >
+      <template v-if="sidebarData.is_logged_in">
+        <brand-logo :logo-url="sidebarData.logo_url" />
+        <gl-badge
+          v-if="sidebarData.gitlab_com_and_canary"
+          variant="success"
+          :href="sidebarData.canary_toggle_com_url"
+          size="sm"
+        >
+          {{ $options.NEXT_LABEL }}
+        </gl-badge>
+        <div class="gl-flex-grow-1"></div>
+      </template>
+
+      <super-sidebar-toggle
+        v-if="hasCollapseButton"
+        :class="$options.JS_TOGGLE_COLLAPSE_CLASS"
+        data-testid="super-sidebar-collapse-button"
+        type="collapse"
       />
-      <create-menu :groups="sidebarData.create_new_menu_groups" />
-      <gl-button
-        icon="search"
-        :aria-label="$options.i18n.search"
-        category="tertiary"
-        href="/search"
+      <create-menu
+        v-if="sidebarData.is_logged_in && sidebarData.create_new_menu_groups.length > 0"
+        :groups="sidebarData.create_new_menu_groups"
       />
-      <user-menu :data="sidebarData" />
+
+      <user-menu v-if="sidebarData.is_logged_in" :data="sidebarData" />
+
+      <gl-button
+        v-if="isImpersonating"
+        v-gl-tooltip.bottom
+        :href="sidebarData.stop_impersonation_path"
+        :title="$options.i18n.stopImpersonating"
+        :aria-label="$options.i18n.stopImpersonating"
+        icon="incognito"
+        category="tertiary"
+        data-method="delete"
+        data-testid="stop-impersonation-btn"
+      />
     </div>
-    <div class="gl-display-flex gl-justify-content-space-between gl-px-3 gl-py-2 gl-gap-2">
+    <div
+      v-if="sidebarData.is_logged_in"
+      class="gl-display-flex gl-justify-content-space-between gl-gap-2"
+    >
       <counter
         v-gl-tooltip:super-sidebar.hover.bottom="$options.i18n.issues"
-        class="gl-flex-basis-third"
+        class="gl-flex-basis-third dashboard-shortcuts-issues"
         icon="issues"
-        :count="sidebarData.assigned_open_issues_count"
+        :count="userCounts.assigned_issues"
         :href="sidebarData.issues_dashboard_path"
         :label="$options.i18n.issues"
+        data-testid="issues-shortcut-button"
+        data-track-action="click_link"
+        data-track-label="issues_link"
+        data-track-property="nav_core_menu"
       />
       <merge-request-menu
         class="gl-flex-basis-third gl-display-block!"
         :items="sidebarData.merge_request_menu"
+        @shown="mrMenuShown = true"
+        @hidden="mrMenuShown = false"
       >
         <counter
-          v-gl-tooltip:super-sidebar.hover.bottom="$options.i18n.mergeRequests"
+          v-gl-tooltip:super-sidebar.hover.bottom="mrMenuShown ? '' : $options.i18n.mergeRequests"
           class="gl-w-full"
-          tabindex="-1"
           icon="merge-request-open"
-          :count="sidebarData.total_merge_requests_count"
+          :count="mergeRequestTotalCount"
           :label="$options.i18n.mergeRequests"
+          data-testid="merge-requests-shortcut-button"
+          data-track-action="click_dropdown"
+          data-track-label="merge_requests_menu"
+          data-track-property="nav_core_menu"
         />
       </merge-request-menu>
       <counter
         v-gl-tooltip:super-sidebar.hover.bottom="$options.i18n.todoList"
-        class="gl-flex-basis-third"
+        class="gl-flex-basis-third shortcuts-todos js-todos-count"
         icon="todo-done"
-        :count="sidebarData.todos_pending_count"
-        href="/dashboard/todos"
+        :count="userCounts.todos"
+        :href="sidebarData.todos_dashboard_path"
         :label="$options.i18n.todoList"
+        data-testid="todos-shortcut-button"
+        data-track-action="click_link"
+        data-track-label="todos_link"
+        data-track-property="nav_core_menu"
       />
     </div>
+    <button
+      id="super-sidebar-search"
+      v-gl-tooltip.bottom.hover.html="searchTooltip"
+      v-gl-modal="$options.SEARCH_MODAL_ID"
+      class="counter gl-display-block gl-py-3 gl-bg-gray-10 gl-rounded-base gl-text-gray-900 gl-border-none gl-inset-border-1-gray-a-08 gl-line-height-1 gl-focus--focus gl-w-full"
+      data-testid="super-sidebar-search-button"
+    >
+      <gl-icon name="search" />
+      {{ $options.i18n.searchBtnText }}
+    </button>
+    <search-modal @shown="hideSearchTooltip" @hidden="showSearchTooltip" />
   </div>
 </template>

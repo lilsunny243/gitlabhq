@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Mutations::Namespace::PackageSettings::Update do
+RSpec.describe Mutations::Namespace::PackageSettings::Update, feature_category: :package_registry do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be_with_reload(:namespace) { create(:group) }
@@ -31,6 +31,8 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
           maven_duplicate_exception_regex: 'SNAPSHOT',
           generic_duplicates_allowed: true,
           generic_duplicate_exception_regex: 'foo',
+          nuget_duplicates_allowed: true,
+          nuget_duplicate_exception_regex: 'foo',
           maven_package_requests_forwarding: nil,
           lock_maven_package_requests_forwarding: false,
           npm_package_requests_forwarding: nil,
@@ -42,6 +44,8 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
           maven_duplicate_exception_regex: 'RELEASE',
           generic_duplicates_allowed: false,
           generic_duplicate_exception_regex: 'bar',
+          nuget_duplicates_allowed: false,
+          nuget_duplicate_exception_regex: 'bar',
           maven_package_requests_forwarding: true,
           lock_maven_package_requests_forwarding: true,
           npm_package_requests_forwarding: true,
@@ -69,12 +73,33 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
           )
         end
       end
+
+      context 'when nuget_duplicates_option FF is disabled' do
+        let_it_be(:params) { { namespace_path: namespace.full_path, nuget_duplicates_allowed: false } }
+
+        before do
+          stub_feature_flags(nuget_duplicates_option: false)
+        end
+
+        it 'raises an error' do
+          expect { subject }.to raise_error(Gitlab::Graphql::Errors::ResourceNotAvailable, /feature flag is disabled/)
+        end
+      end
     end
 
     RSpec.shared_examples 'denying access to namespace package setting' do
       it 'raises Gitlab::Graphql::Errors::ResourceNotAvailable' do
         expect { subject }.to raise_error(Gitlab::Graphql::Errors::ResourceNotAvailable)
       end
+    end
+
+    # To be removed when raise_group_admin_package_permission_to_owner FF is removed
+    RSpec.shared_examples 'disabling admin_package feature flag' do |action:|
+      before do
+        stub_feature_flags(raise_group_admin_package_permission_to_owner: false)
+      end
+
+      it_behaves_like "#{action} the namespace package setting"
     end
 
     context 'with existing namespace package setting' do
@@ -86,6 +111,8 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
           maven_duplicate_exception_regex: 'RELEASE',
           generic_duplicates_allowed: false,
           generic_duplicate_exception_regex: 'bar',
+          nuget_duplicates_allowed: false,
+          nuget_duplicate_exception_regex: 'bar',
           maven_package_requests_forwarding: true,
           lock_maven_package_requests_forwarding: true,
           npm_package_requests_forwarding: true,
@@ -96,7 +123,8 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
       end
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'updating the namespace package setting'
+        :owner      | 'updating the namespace package setting'
+        :maintainer | 'denying access to namespace package setting'
         :developer  | 'denying access to namespace package setting'
         :reporter   | 'denying access to namespace package setting'
         :guest      | 'denying access to namespace package setting'
@@ -109,6 +137,7 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :updating if params[:user_role] == :maintainer
       end
     end
 
@@ -116,7 +145,8 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
       let_it_be(:package_settings) { namespace.package_settings }
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'creating the namespace package setting'
+        :owner      | 'creating the namespace package setting'
+        :maintainer | 'denying access to namespace package setting'
         :developer  | 'denying access to namespace package setting'
         :reporter   | 'denying access to namespace package setting'
         :guest      | 'denying access to namespace package setting'
@@ -129,6 +159,7 @@ RSpec.describe Mutations::Namespace::PackageSettings::Update do
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :creating if params[:user_role] == :maintainer
       end
     end
   end

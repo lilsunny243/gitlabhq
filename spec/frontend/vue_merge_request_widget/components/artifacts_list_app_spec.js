@@ -2,6 +2,7 @@ import { GlLoadingIcon } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { TEST_HOST as FAKE_ENDPOINT } from 'helpers/test_constants';
 import axios from '~/lib/utils/axios_utils';
@@ -26,7 +27,6 @@ describe('Merge Requests Artifacts list app', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     mock.restore();
   });
 
@@ -71,8 +71,8 @@ describe('Merge Requests Artifacts list app', () => {
 
     it('renders disabled buttons', () => {
       const buttons = findButtons();
-      expect(buttons.at(0).attributes('disabled')).toBe('disabled');
-      expect(buttons.at(1).attributes('disabled')).toBe('disabled');
+      expect(buttons.at(0).attributes('disabled')).toBeDefined();
+      expect(buttons.at(1).attributes('disabled')).toBeDefined();
     });
   });
 

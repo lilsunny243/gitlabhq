@@ -3,9 +3,9 @@
 module Gitlab
   module DependencyLinker
     class BaseLinker
-      URL_REGEX = %r{https?://[^'" ]+}.freeze
-      GIT_INVALID_URL_REGEX = /^git\+#{URL_REGEX}/.freeze
-      REPO_REGEX = %r{[^/'" ]+/[^/'" ]+}.freeze
+      URL_REGEX = %r{https?://[^'" ]+}
+      GIT_INVALID_URL_REGEX = /^git\+#{URL_REGEX}/
+      REPO_REGEX = %r{[^/'" ]+/[^/'" ]+}
 
       class_attribute :file_type
 
@@ -31,7 +31,7 @@ module Gitlab
       end
 
       def external_url(name, external_ref)
-        return if external_ref =~ GIT_INVALID_URL_REGEX
+        return if GIT_INVALID_URL_REGEX.match?(external_ref)
 
         case external_ref
         when /\A#{URL_REGEX}\z/o
@@ -62,9 +62,9 @@ module Gitlab
       end
 
       def link_tag(name, url)
-        href_attribute = %{href="#{ERB::Util.html_escape_once(url)}" } if Gitlab::UrlSanitizer.valid_web?(url)
+        href_attribute = %(href="#{ERB::Util.html_escape_once(url)}" ) if Gitlab::UrlSanitizer.valid_web?(url)
 
-        %{<a #{href_attribute}rel="nofollow noreferrer noopener" target="_blank">#{ERB::Util.html_escape_once(name)}</a>}.html_safe
+        %(<a #{href_attribute}rel="nofollow noreferrer noopener" target="_blank">#{ERB::Util.html_escape_once(name)}</a>).html_safe
       end
 
       # Links package names based on regex.

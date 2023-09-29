@@ -1,5 +1,6 @@
 <script>
 import { GlButton, GlModalDirective, GlTooltipDirective } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters } from 'vuex';
 import { formType } from '~/boards/constants';
 import eventHub from '~/boards/eventhub';
@@ -16,13 +17,20 @@ export default {
   },
   mixins: [Tracking.mixin()],
   inject: ['canAdminList'],
+  props: {
+    boardHasScope: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
   computed: {
     ...mapGetters(['hasScope']),
     buttonText() {
       return this.canAdminList ? s__('Boards|Edit board') : s__('Boards|View scope');
     },
     tooltipTitle() {
-      return this.hasScope ? __("This board's scope is reduced") : '';
+      return this.hasScope || this.boardHasScope ? __("This board's scope is reduced") : '';
     },
   },
   methods: {
@@ -40,7 +48,7 @@ export default {
       v-gl-modal-directive="'board-config-modal'"
       v-gl-tooltip
       :title="tooltipTitle"
-      :class="{ 'dot-highlight': hasScope }"
+      :class="{ 'dot-highlight': hasScope || boardHasScope }"
       data-qa-selector="boards_config_button"
       @click.prevent="showPage"
     >

@@ -1,40 +1,32 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', :reliable, product_group: :editor, quarantine: {
-    only: { subdomain: 'pre' },
-    type: :investigating,
-    issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/378697'
-  } do
+  RSpec.describe 'Create', :reliable, product_group: :source_code do
     describe 'Multiple file snippet' do
       let(:first_file_content) { 'First file content' }
       let(:second_file_content) { 'Second file content' }
       let(:third_file_content) { 'Third file content' }
 
       let(:personal_snippet) do
-        Resource::Snippet.fabricate_via_api! do |snippet|
-          snippet.title = 'Personal snippet to copy file contents from'
-          snippet.file_name = 'First file name'
-          snippet.file_content = first_file_content
-
-          snippet.add_files do |files|
-            files.append(name: 'Second file name', content: second_file_content)
-            files.append(name: 'Third file name', content: third_file_content)
-          end
-        end
+        create(:snippet,
+          title: 'Personal snippet to copy file contents from',
+          file_name: 'First file name',
+          file_content: first_file_content,
+          files: [
+            { name: 'Second file name', content: second_file_content },
+            { name: 'Third file name', content: third_file_content }
+          ])
       end
 
       let(:project_snippet) do
-        Resource::ProjectSnippet.fabricate_via_api! do |snippet|
-          snippet.title = 'Project snippet to copy file contents from'
-          snippet.file_name = 'First file name'
-          snippet.file_content = first_file_content
-
-          snippet.add_files do |files|
-            files.append(name: 'Second file name', content: second_file_content)
-            files.append(name: 'Third file name', content: third_file_content)
-          end
-        end
+        create(:project_snippet,
+          title: 'Project snippet to copy file contents from',
+          file_name: 'First file name',
+          file_content: first_file_content,
+          files: [
+            { name: 'Second file name', content: second_file_content },
+            { name: 'Third file name', content: third_file_content }
+          ])
       end
 
       let(:files) do

@@ -1,5 +1,6 @@
 <script>
 import { GlTabs, GlTab, GlBadge, GlButton } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState } from 'vuex';
 import { __ } from '~/locale';
 import { queryToObject } from '~/lib/utils/url_utility';
@@ -111,6 +112,7 @@ export default {
 <template>
   <gl-tabs
     v-model="selectedTabIndex"
+    content-class="gl-py-0"
     sync-active-tab-with-query-params
     :query-param-name="$options.ACTIVE_TAB_QUERY_PARAM_NAME"
   >

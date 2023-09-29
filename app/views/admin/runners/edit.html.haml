@@ -1,4 +1,4 @@
-- runner_name = "##{@runner.id} (#{@runner.short_sha})"
+- runner_name = runner_short_name(@runner)
 - breadcrumb_title _('Edit')
 - page_title _('Edit'), runner_name
 - add_to_breadcrumbs _('Runners'), admin_runners_path
@@ -23,7 +23,7 @@
               = render Pajamas::AlertComponent.new(variant: :danger,
                 dismissible: false,
                 title: project.full_name) do |c|
-                = c.actions do
+                - c.with_actions do
                   = render Pajamas::ButtonComponent.new(variant: :confirm, href: admin_namespace_project_runner_project_path(project.namespace, project, runner_project), method: :delete) do
                     = _('Disable')
 
@@ -39,7 +39,8 @@
           .input-group
             = search_field_tag :search, params[:search], class: 'form-control gl-form-input', spellcheck: false
             .input-group-append
-              = submit_tag _('Search'), class: 'gl-button btn btn-default'
+              = render Pajamas::ButtonComponent.new(type: 'submit', variant: :default) do
+                = _('Search')
 
       %td
     - @projects.each do |project|

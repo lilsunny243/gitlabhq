@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::MergeOrchestrationService do
+RSpec.describe MergeRequests::MergeOrchestrationService, feature_category: :code_review_workflow do
   let_it_be(:maintainer) { create(:user) }
 
   let(:merge_params) { { sha: merge_request.diff_head_sha } }
@@ -10,8 +10,11 @@ RSpec.describe MergeRequests::MergeOrchestrationService do
   let(:service) { described_class.new(project, user, merge_params) }
 
   let!(:merge_request) do
-    create(:merge_request, source_project: project, source_branch: 'feature',
-                           target_project: project, target_branch: 'master')
+    create(
+      :merge_request,
+      source_project: project, source_branch: 'feature',
+      target_project: project, target_branch: 'master'
+    )
   end
 
   shared_context 'fresh repository' do
@@ -32,6 +35,8 @@ RSpec.describe MergeRequests::MergeOrchestrationService do
         before do
           create(:ci_pipeline, :detached_merge_request_pipeline, project: project, merge_request: merge_request)
           merge_request.update_head_pipeline
+
+          stub_licensed_features(merge_request_approvers: true) if Gitlab.ee?
         end
 
         it 'schedules auto merge' do
@@ -42,7 +47,17 @@ RSpec.describe MergeRequests::MergeOrchestrationService do
           subject
 
           expect(merge_request).to be_auto_merge_enabled
-          expect(merge_request.auto_merge_strategy).to eq(AutoMergeService::STRATEGY_MERGE_WHEN_PIPELINE_SUCCEEDS)
+
+          if Gitlab.ee?
+            expect(merge_request.auto_merge_strategy).to(
+              eq(AutoMergeService::STRATEGY_MERGE_WHEN_CHECKS_PASS)
+            )
+          else
+            expect(merge_request.auto_merge_strategy).to(
+              eq(AutoMergeService::STRATEGY_MERGE_WHEN_PIPELINE_SUCCEEDS)
+            )
+          end
+
           expect(merge_request).not_to be_merged
         end
       end
@@ -103,9 +118,15 @@ RSpec.describe MergeRequests::MergeOrchestrationService do
       before do
         create(:ci_pipeline, :detached_merge_request_pipeline, project: project, merge_request: merge_request)
         merge_request.update_head_pipeline
+
+        stub_licensed_features(merge_request_approvers: true) if Gitlab.ee?
       end
 
-      it 'fetches perferred auto merge strategy' do
+      it 'fetches preferred auto merge strategy', if: Gitlab.ee? do
+        is_expected.to eq(AutoMergeService::STRATEGY_MERGE_WHEN_CHECKS_PASS)
+      end
+
+      it 'fetches preferred auto merge strategy', unless: Gitlab.ee? do
         is_expected.to eq(AutoMergeService::STRATEGY_MERGE_WHEN_PIPELINE_SUCCEEDS)
       end
     end

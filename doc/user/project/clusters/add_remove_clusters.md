@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Add a cluster using cluster certificates (DEPRECATED) **(FREE)**
+# Add a cluster using cluster certificates (deprecated) **(FREE ALL)**
 
 > [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/327908) in GitLab 14.0.
 
@@ -17,9 +17,9 @@ To create and manage a new cluster use [Infrastructure as Code](../../infrastruc
 When you successfully connect an existing cluster using cluster certificates, the cluster connection to GitLab becomes enabled. To disable it:
 
 1. Go to your:
-   - Project's **{cloud-gear}** **Infrastructure > Kubernetes clusters** page, for a project-level cluster.
+   - Project's **{cloud-gear}** **Operate > Kubernetes clusters** page, for a project-level cluster.
    - Group's **{cloud-gear}** **Kubernetes** page, for a group-level cluster.
-   - **Main menu > Admin > Kubernetes** page, for an instance-level cluster.
+   - The Admin Area's **Kubernetes** page, for an instance-level cluster.
 1. Select the name of the cluster you want to disable.
 1. Toggle **GitLab Integration** off (in gray).
 1. Select **Save changes**.

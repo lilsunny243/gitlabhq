@@ -12,19 +12,28 @@ RSpec.describe API::NugetGroupPackages, feature_category: :package_registry do
   let_it_be(:deploy_token) { create(:deploy_token, :group, read_package_registry: true, write_package_registry: true) }
   let_it_be(:group_deploy_token) { create(:group_deploy_token, deploy_token: deploy_token, group: group) }
 
-  let(:snowplow_gitlab_standard_context) { { namespace: project.group, property: 'i_package_nuget_user' } }
   let(:target_type) { 'groups' }
+  let(:snowplow_gitlab_standard_context) { snowplow_context }
+  let(:target) { subgroup }
+
+  def snowplow_context(user_role: :developer)
+    if user_role == :anonymous
+      { namespace: target, property: 'i_package_nuget_user' }
+    else
+      { namespace: target, property: 'i_package_nuget_user', user: user }
+    end
+  end
 
   shared_examples 'handling all endpoints' do
     describe 'GET /api/v4/groups/:id/-/packages/nuget' do
-      it_behaves_like 'handling nuget service requests',
-                      example_names_with_status: {
-                        anonymous_requests_example_name: 'rejects nuget packages access',
-                        anonymous_requests_status: :unauthorized,
-                        guest_requests_example_name: 'process nuget service index request',
-                        guest_requests_status: :success
-                      } do
+      it_behaves_like 'handling nuget service requests' do
         let(:url) { "/groups/#{target.id}/-/packages/nuget/index.json" }
+      end
+    end
+
+    describe 'GET /api/v4/groups/:id/-/packages/nuget/v2' do
+      it_behaves_like 'handling nuget service requests', v2: true do
+        let(:url) { "/groups/#{target.id}/-/packages/nuget/v2" }
       end
     end
 
@@ -84,7 +93,6 @@ RSpec.describe API::NugetGroupPackages, feature_category: :package_registry do
 
   context 'a group' do
     let(:target) { group }
-    let(:snowplow_gitlab_standard_context) { { namespace: target, property: 'i_package_nuget_user' } }
 
     it_behaves_like 'handling all endpoints'
 

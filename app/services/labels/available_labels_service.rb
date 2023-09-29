@@ -40,6 +40,10 @@ module Labels
       ids.map(&:to_i) & existing_ids
     end
 
+    def filter_locked_label_ids(ids)
+      available_labels.with_lock_on_merge.id_in(ids).pluck(:id) # rubocop:disable CodeReuse/ActiveRecord
+    end
+
     def available_labels
       @available_labels ||= LabelsFinder.new(current_user, finder_params).execute
     end

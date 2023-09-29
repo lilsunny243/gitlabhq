@@ -24,7 +24,8 @@ module QA
         :title,
         :description,
         :merge_when_pipeline_succeeds,
-        :merge_status,
+        :detailed_merge_status,
+        :prepared_at,
         :state,
         :reviewers
 
@@ -45,7 +46,7 @@ module QA
           resource.project = project
           resource.api_client = api_client
           resource.commit_message = 'This is a test commit'
-          resource.add_files([{ 'file_path': "file-#{SecureRandom.hex(8)}.txt", 'content': 'MR init' }])
+          resource.add_files([{ file_path: "file-#{SecureRandom.hex(8)}.txt", content: 'MR init' }])
           resource.branch = target_branch
 
           resource.start_branch = project.default_branch if target_branch != project.default_branch
@@ -60,7 +61,7 @@ module QA
           resource.branch = source_branch
           resource.start_branch = target_branch
 
-          files = [{ 'file_path': file_name, 'content': file_content }]
+          files = [{ file_path: file_name, content: file_content }]
           update_existing_file ? resource.update_files(files) : resource.add_files(files)
         end
       end
@@ -110,7 +111,9 @@ module QA
       rescue ResourceNotFoundError, NoValueError # rescue if iid not populated
         populate_target_and_source_if_required
 
-        super
+        url = super
+        wait_for_preparation
+        url
       end
 
       def api_merge_path
@@ -139,7 +142,8 @@ module QA
           source_branch: source_branch,
           target_branch: target_branch,
           title: title,
-          reviewer_ids: reviewer_ids
+          reviewer_ids: reviewer_ids,
+          labels: labels.join(",")
         }
       end
 
@@ -151,13 +155,11 @@ module QA
       end
 
       def merge_via_api!
-        Support::Waiter.wait_until(sleep_interval: 1) do
-          QA::Runtime::Logger.debug("Waiting until merge request with id '#{iid}' can be merged")
+        QA::Runtime::Logger.info("Merging via PUT #{api_merge_path}")
 
-          reload!.merge_status == 'can_be_merged'
-        end
+        wait_until_mergable
 
-        Support::Retrier.retry_on_exception do
+        Support::Retrier.retry_on_exception(max_attempts: 10, sleep_interval: 5) do
           response = put(Runtime::API::Request.new(api_client, api_merge_path).url)
 
           unless response.code == HTTP_STATUS_OK
@@ -184,6 +186,10 @@ module QA
       end
 
       def fabricate_large_merge_request
+        # requires admin access
+        QA::Support::Helpers::ImportSource.enable(%w[gitlab_project])
+        Flow::Login.sign_in
+
         @project = Resource::ImportProject.fabricate_via_browser_ui!
         # Setting the name here, since otherwise some tests will look for an existing file in
         # the project without ever knowing what is in it.
@@ -205,7 +211,7 @@ module QA
           :project_id,
           :source_project_id,
           :target_project_id,
-          :merge_status,
+          :detailed_merge_status,
           # we consider mr to still be the same even if users changed
           :author,
           :reviewers,
@@ -249,6 +255,30 @@ module QA
       # @return [Boolean]
       def create_target?
         !(project.initialize_with_readme && target_branch == project.default_branch) && target_new_branch
+      end
+
+      # Wait until the merge request can be merged. Raises WaitExceededError if the MR can't be merged within 60 seconds
+      #
+      # @return [void]
+      def wait_until_mergable
+        return if Support::Waiter.wait_until(sleep_interval: 1, raise_on_failure: false, log: false) do
+          reload!.detailed_merge_status == 'mergeable'
+        end
+
+        raise Support::Repeater::WaitExceededError,
+          "Timed out waiting for merge of MR with id '#{iid}'. Final status was '#{detailed_merge_status}'"
+      end
+
+      # Wait until the merge request is prepared. Raises WaitExceededError if the MR is not prepared within 60 seconds
+      # https://docs.gitlab.com/ee/api/merge_requests.html#preparation-steps
+      #
+      # @return [void]
+      def wait_for_preparation
+        return if Support::Waiter.wait_until(sleep_interval: 1, raise_on_failure: false, log: false) do
+          reload!.prepared_at
+        end
+
+        raise Support::Repeater::WaitExceededError, "Timed out waiting for MR with id '#{iid}' to be prepared."
       end
     end
   end

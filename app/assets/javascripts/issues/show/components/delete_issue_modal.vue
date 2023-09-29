@@ -1,5 +1,6 @@
 <script>
 import { GlModal } from '@gitlab/ui';
+import { TYPE_EPIC } from '~/issues/constants';
 import csrf from '~/lib/utils/csrf';
 import { capitalizeFirstCharacter } from '~/lib/utils/text_utility';
 import { __, sprintf } from '~/locale';
@@ -34,13 +35,13 @@ export default {
       return {
         attributes: {
           variant: 'danger',
-          'data-qa-selector': 'confirm_delete_issue_button',
+          'data-testid': 'confirm-delete-issue-button',
         },
         text: this.title,
       };
     },
     bodyText() {
-      return this.issueType.toLowerCase() === 'epic'
+      return this.issueType.toLowerCase() === TYPE_EPIC
         ? __('Delete this epic and all descendants?')
         : sprintf(__('%{issuableType} will be removed! Are you sure?'), {
             issuableType: capitalizeFirstCharacter(this.issueType),

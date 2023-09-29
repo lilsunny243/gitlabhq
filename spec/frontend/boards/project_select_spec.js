@@ -1,173 +1,128 @@
-import {
-  GlDropdown,
-  GlDropdownItem,
-  GlFormInput,
-  GlSearchBoxByType,
-  GlLoadingIcon,
-} from '@gitlab/ui';
-import { mount } from '@vue/test-utils';
+import { GlCollapsibleListbox, GlListboxItem, GlLoadingIcon } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
-import Vuex from 'vuex';
+import VueApollo from 'vue-apollo';
+import createMockApollo from 'helpers/mock_apollo_helper';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
+import waitForPromises from 'helpers/wait_for_promises';
+import groupProjectsQuery from '~/boards/graphql/group_projects.query.graphql';
 import ProjectSelect from '~/boards/components/project_select.vue';
-import defaultState from '~/boards/stores/state';
 
-import { mockList, mockActiveGroupProjects } from './mock_data';
+import { mockList, mockGroupProjectsResponse, mockProjects } from './mock_data';
 
-const mockProjectsList1 = mockActiveGroupProjects.slice(0, 1);
+Vue.use(VueApollo);
 
 describe('ProjectSelect component', () => {
   let wrapper;
-  let store;
+  let mockApollo;
 
   const findLabel = () => wrapper.find("[data-testid='header-label']");
-  const findGlDropdown = () => wrapper.findComponent(GlDropdown);
+  const findGlCollapsibleListBox = () => wrapper.findComponent(GlCollapsibleListbox);
   const findGlDropdownLoadingIcon = () =>
-    findGlDropdown().find('button:first-child').findComponent(GlLoadingIcon);
-  const findGlSearchBoxByType = () => wrapper.findComponent(GlSearchBoxByType);
-  const findGlDropdownItems = () => wrapper.findAllComponents(GlDropdownItem);
-  const findFirstGlDropdownItem = () => findGlDropdownItems().at(0);
-  const findInMenuLoadingIcon = () => wrapper.find("[data-testid='dropdown-text-loading-icon']");
-  const findEmptySearchMessage = () => wrapper.find("[data-testid='empty-result-message']");
+    findGlCollapsibleListBox()
+      .find("[data-testid='base-dropdown-toggle'")
+      .findComponent(GlLoadingIcon);
+  const findGlListboxSearchInput = () =>
+    wrapper.find("[data-testid='listbox-search-input'] > .gl-listbox-search-input");
+  const findGlListboxItem = () => wrapper.findAllComponents(GlListboxItem);
+  const findFirstGlDropdownItem = () => findGlListboxItem().at(0);
+  const findInMenuLoadingIcon = () => wrapper.find("[data-testid='listbox-search-loader']");
+  const findEmptySearchMessage = () => wrapper.find("[data-testid='listbox-no-results-text']");
 
-  const createStore = ({ state, activeGroupProjects }) => {
-    Vue.use(Vuex);
+  const projectsQueryHandler = jest.fn().mockResolvedValue(mockGroupProjectsResponse());
+  const emptyProjectsQueryHandler = jest.fn().mockResolvedValue(mockGroupProjectsResponse([]));
 
-    store = new Vuex.Store({
-      state: {
-        defaultState,
-        groupProjectsFlags: {
-          isLoading: false,
-          pageInfo: {
-            hasNextPage: false,
-          },
-        },
-        ...state,
-      },
-      actions: {
-        fetchGroupProjects: jest.fn(),
-        setSelectedProject: jest.fn(),
-      },
-      getters: {
-        activeGroupProjects: () => activeGroupProjects,
-      },
-    });
-  };
-
-  const createWrapper = ({ state = {}, activeGroupProjects = [] } = {}) => {
-    createStore({
-      state,
-      activeGroupProjects,
-    });
-
-    wrapper = mount(ProjectSelect, {
+  const createWrapper = ({ queryHandler = projectsQueryHandler, selectedProject = {} } = {}) => {
+    mockApollo = createMockApollo([[groupProjectsQuery, queryHandler]]);
+    wrapper = mountExtended(ProjectSelect, {
+      apolloProvider: mockApollo,
       propsData: {
         list: mockList,
+        selectedProject,
       },
-      store,
       provide: {
         groupId: 1,
+        fullPath: 'gitlab-org',
       },
       attachTo: document.body,
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
-  it('displays a header title', () => {
-    createWrapper();
-
-    expect(findLabel().text()).toBe('Projects');
-  });
-
-  it('renders a default dropdown text', () => {
-    createWrapper();
-
-    expect(findGlDropdown().exists()).toBe(true);
-    expect(findGlDropdown().text()).toContain('Select a project');
-  });
-
   describe('when mounted', () => {
-    it('displays a loading icon while projects are being fetched', async () => {
+    beforeEach(() => {
       createWrapper();
+    });
 
+    it('displays a loading icon while projects are being fetched', async () => {
       expect(findGlDropdownLoadingIcon().exists()).toBe(true);
 
-      await nextTick();
+      await waitForPromises();
 
       expect(findGlDropdownLoadingIcon().exists()).toBe(false);
+      expect(projectsQueryHandler).toHaveBeenCalled();
+    });
+
+    it('displays a header title', () => {
+      expect(findLabel().text()).toBe('Projects');
+    });
+
+    it('renders a default dropdown text', () => {
+      expect(findGlCollapsibleListBox().exists()).toBe(true);
+      expect(findGlCollapsibleListBox().text()).toContain('Select a project');
     });
   });
 
   describe('when dropdown menu is open', () => {
     describe('by default', () => {
-      beforeEach(() => {
-        createWrapper({ activeGroupProjects: mockActiveGroupProjects });
+      beforeEach(async () => {
+        createWrapper();
+        await waitForPromises();
       });
 
-      it('shows GlSearchBoxByType with default attributes', () => {
-        expect(findGlSearchBoxByType().exists()).toBe(true);
-        expect(findGlSearchBoxByType().vm.$attrs).toMatchObject({
-          placeholder: 'Search projects',
-          debounce: '250',
-        });
+      it('shows GlListboxSearchInput with placeholder text', () => {
+        expect(findGlListboxSearchInput().exists()).toBe(true);
+        expect(findGlListboxSearchInput().attributes('placeholder')).toBe('Search projects');
       });
 
       it("displays the fetched project's name", () => {
         expect(findFirstGlDropdownItem().exists()).toBe(true);
-        expect(findFirstGlDropdownItem().text()).toContain(mockProjectsList1[0].name);
+        expect(findFirstGlDropdownItem().text()).toContain(mockProjects[0].name);
       });
 
       it("doesn't render loading icon in the menu", () => {
-        expect(findInMenuLoadingIcon().isVisible()).toBe(false);
+        expect(findInMenuLoadingIcon().exists()).toBe(false);
       });
 
       it('does not render empty search result message', () => {
         expect(findEmptySearchMessage().exists()).toBe(false);
       });
-
-      it('focuses on the search input', async () => {
-        const dropdownToggle = findGlDropdown().find('.dropdown-toggle');
-
-        await dropdownToggle.trigger('click');
-        jest.runOnlyPendingTimers();
-        await nextTick();
-
-        const searchInput = findGlDropdown().findComponent(GlFormInput).element;
-        expect(document.activeElement).toBe(searchInput);
-      });
     });
 
     describe('when no projects are being returned', () => {
-      it('renders empty search result message', () => {
-        createWrapper();
+      it('renders empty search result message', async () => {
+        createWrapper({ queryHandler: emptyProjectsQueryHandler });
+        await waitForPromises();
 
         expect(findEmptySearchMessage().exists()).toBe(true);
       });
     });
 
     describe('when a project is selected', () => {
-      beforeEach(() => {
-        createWrapper({ activeGroupProjects: mockProjectsList1 });
-
-        findFirstGlDropdownItem().find('button').trigger('click');
+      beforeEach(async () => {
+        createWrapper({ selectedProject: mockProjects[0] });
+        await waitForPromises();
       });
 
       it('renders the name of the selected project', () => {
-        expect(findGlDropdown().find('.gl-dropdown-button-text').text()).toBe(
-          mockProjectsList1[0].name,
+        expect(findGlCollapsibleListBox().find('.gl-new-dropdown-button-text').text()).toBe(
+          mockProjects[0].name,
         );
       });
     });
 
     describe('when projects are loading', () => {
-      beforeEach(() => {
-        createWrapper({ state: { groupProjectsFlags: { isLoading: true } } });
-      });
-
-      it('displays and hides gl-loading-icon while and after fetching data', () => {
+      it('displays and hides gl-loading-icon while and after fetching data', async () => {
+        createWrapper();
+        await nextTick();
         expect(findInMenuLoadingIcon().isVisible()).toBe(true);
       });
     });

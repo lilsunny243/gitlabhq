@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Pages::DeleteService do
+RSpec.describe Pages::DeleteService, feature_category: :pages do
   let_it_be(:admin) { create(:admin) }
 
   let(:project) { create(:project, path: "my.project") }
@@ -25,7 +25,7 @@ RSpec.describe Pages::DeleteService do
     service.execute
 
     expect(PagesDomain.find_by_id(domain.id)).to eq(nil)
-    expect(PagesDomain.find_by_id(unrelated_domain.id)).to be
+    expect(PagesDomain.find_by_id(unrelated_domain.id)).to be_present
   end
 
   it 'schedules a destruction of pages deployments' do

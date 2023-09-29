@@ -5,13 +5,13 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# Pipeline Editor **(FREE)**
+# Pipeline editor **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4540) in GitLab 13.8.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/270059) in GitLab 13.10.
 
 The pipeline editor is the primary place to edit the GitLab CI/CD configuration in
-the `.gitlab-ci.yml` file in the root of your repository. To access the editor, go to **CI/CD > Editor**.
+the `.gitlab-ci.yml` file in the root of your repository. To access the editor, go to **Build > Pipeline editor**.
 
 From the pipeline editor page you can:
 
@@ -21,7 +21,7 @@ From the pipeline editor page you can:
   added with the [`include`](../yaml/index.md#include) keyword.
 - View a [list of the CI/CD configuration added with the `include` keyword](#view-included-cicd-configuration).
 - See a [visualization](#visualize-ci-configuration) of the current configuration.
-- View an [expanded](#view-expanded-configuration) version of your configuration.
+- View the [full configuration](#view-full-configuration), which displays the configuration with any configuration from `include` added.
 - [Commit](#commit-changes-to-ci-configuration) the changes to a specific branch.
 
 In GitLab 13.9 and earlier, you must already have [a `.gitlab-ci.yml` file](../quick_start/index.md#create-a-gitlab-ciyml-file)
@@ -45,7 +45,7 @@ The **Lint** tab is replaced with the **Validate** tab in GitLab 15.3. The lint 
 in a successful [pipeline simulation](#simulate-a-cicd-pipeline).
 
 To test the validity of your GitLab CI/CD configuration before committing the changes,
-you can use the CI lint tool. To access it, go to **CI/CD > Editor** and select the **Lint** tab.
+you can use the CI lint tool. To access it, go to **Build > Pipeline editor** and select the **Lint** tab.
 
 This tool checks for syntax and logical errors but goes into more detail than the
 automatic [validation](#validate-ci-configuration) in the editor.
@@ -77,11 +77,11 @@ for review.
 ## Visualize CI configuration
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/241722) in GitLab 13.5.
-> - [Moved to **CI/CD > Editor**](https://gitlab.com/gitlab-org/gitlab/-/issues/263141) in GitLab 13.7.
+> - [Moved to **Build > Pipeline editor**](https://gitlab.com/gitlab-org/gitlab/-/issues/263141) in GitLab 13.7.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/290117) in GitLab 13.12.
 
 To view a visualization of your `.gitlab-ci.yml` configuration, in your project,
-go to **CI/CD > Editor**, and then select the **Visualize** tab. The
+go to **Build > Pipeline editor**, and then select the **Visualize** tab. The
 visualization shows all stages and jobs. Any [`needs`](../yaml/index.md#needs)
 relationships are displayed as lines connecting jobs together, showing the
 hierarchy of execution:
@@ -95,13 +95,14 @@ Hover over a job to highlight its `needs` relationships:
 If the configuration does not have any `needs` relationships, then no lines are drawn because
 each job depends only on the previous stage being completed successfully.
 
-## View expanded configuration
+## View full configuration
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/246801) in GitLab 13.9.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/301103) in GitLab 13.12.
+> - **View merged YAML** tab [renamed to **Full configuration**](https://gitlab.com/gitlab-org/gitlab/-/issues/377404) in GitLab 16.0.
 
 To view the fully expanded CI/CD configuration as one combined file, go to the
-pipeline editor's **View merged YAML** tab. This tab displays an expanded configuration
+pipeline editor's **Full configuration** tab. This tab displays an expanded configuration
 where:
 
 - Configuration imported with [`include`](../yaml/index.md#include) is copied into the view.
@@ -112,7 +113,7 @@ where:
   with the linked configuration.
 
 Using `!reference` tags can cause nested configuration that display with
-multiple hyphens (`-`) in the expanded view. This behavior is expected, and the extra
+multiple hyphens (`-`) at the start of the line in the expanded view. This behavior is expected, and the extra
 hyphens do not affect the job's execution. For example, this configuration and
 fully expanded version are both valid:
 
@@ -123,24 +124,59 @@ fully expanded version are both valid:
     script:
       - pip install pyflakes
 
+  .rule-01:
+    rules:
+      - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^feature/
+        when: manual
+        allow_failure: true
+      - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+
+  .rule-02:
+    rules:
+      - if: $CI_COMMIT_BRANCH == "main"
+        when: manual
+        allow_failure: true
+
   lint-python:
     image: python:latest
     script:
       - !reference [.python-req, script]
       - pyflakes python/
+    rules:
+      - !reference [.rule-01, rules]
+      - !reference [.rule-02, rules]
   ```
 
-- Expanded configuration in **View merged YAML** tab:
+- Expanded configuration in **Full configuration** tab:
 
   ```yaml
   ".python-req":
     script:
     - pip install pyflakes
+  ".rule-01":
+    rules:
+    - if: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^feature/"
+      when: manual
+      allow_failure: true
+    - if: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+  ".rule-02":
+    rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
   lint-python:
-    script:
-    - - pip install pyflakes  # <- The extra hyphens do not affect the job's execution.
-    - pyflakes python/
     image: python:latest
+    script:
+    - - pip install pyflakes                                     # <- The extra hyphens do not affect the job's execution.
+    - pyflakes python/
+    rules:
+    - - if: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^feature/" # <- The extra hyphens do not affect the job's execution.
+        when: manual
+        allow_failure: true
+      - if: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"               # <- No extra hyphen but aligned with previous rule
+    - - if: $CI_COMMIT_BRANCH == "main"                          # <- The extra hyphens do not affect the job's execution.
+        when: manual
+        allow_failure: true
   ```
 
 ## Commit changes to CI configuration
@@ -169,7 +205,7 @@ It can happen when:
   - The syntax status on the **Edit** tab (valid or invalid).
   - The **Visualize** tab.
   - The **Lint** tab.
-  - The **View merged YAML** tab.
+  - The **Full configuration** tab.
 
   You can still work on your CI/CD configuration and commit the changes you made without
   any issues. As soon as the service becomes available again, the syntax validation

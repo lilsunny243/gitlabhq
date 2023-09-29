@@ -45,6 +45,7 @@ describe('Blob Editing', () => {
     getValue: jest.fn().mockReturnValue('test value'),
     focus: jest.fn(),
     onDidChangeModelLanguage: emitter.event,
+    updateModelLanguage: jest.fn(),
   };
   beforeEach(() => {
     mock = new MockAdapter(axios);
@@ -61,7 +62,6 @@ describe('Blob Editing', () => {
   });
   afterEach(() => {
     mock.restore();
-    jest.clearAllMocks();
     unuseMock.mockClear();
     useMock.mockClear();
     resetHTMLFixture();

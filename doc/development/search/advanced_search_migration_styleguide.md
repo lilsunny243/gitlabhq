@@ -4,14 +4,26 @@ group: Global Search
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Advanced Search migration style guide
+# Advanced search migration style guide
 
-## Creating a new Advanced Search migration
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/234046) in GitLab 13.6.
+## Create a new advanced search migration
 
 NOTE:
 This functionality is only supported for indices created in GitLab 13.0 and later.
+
+### With a script
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/414674) in GitLab 16.3.
+
+Execute `scripts/elastic-migration` and follow the prompts to create:
+
+- A migration file to define the migration: `ee/elastic/migrate/YYYYMMDDHHMMSS_migration_name.rb`
+- A spec file to test the migration: `ee/spec/elastic/migrate/YYYYMMDDHHMMSS_migration_name_spec.rb`
+- A dictionary file to identify the migration: `ee/elastic/docs/YYYYMMDDHHMMSS_migration_name.yml`
+
+### Manually
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/234046) in GitLab 13.6.
 
 In the [`ee/elastic/migrate/`](https://gitlab.com/gitlab-org/gitlab/-/tree/master/ee/elastic/migrate) folder, create a new file with the filename format `YYYYMMDDHHMMSS_migration_name.rb`. This format is the same for Rails database migrations.
 
@@ -54,7 +66,7 @@ The following migration helpers are available in `ee/app/workers/concerns/elasti
 
 Backfills a specific field in an index. In most cases, the mapping for the field should already be added.
 
-Requires the `index_name` and `field_name` methods.
+Requires the `index_name` and `field_name` methods to backfill a single field.
 
 ```ruby
 class MigrationName < Elastic::Migration
@@ -68,6 +80,24 @@ class MigrationName < Elastic::Migration
 
   def field_name
     :schema_version
+  end
+end
+```
+
+Requires the `index_name` and `field_names` methods to backfill multiple fields if any field is null.
+
+```ruby
+class MigrationName < Elastic::Migration
+  include Elastic::MigrationBackfillHelper
+
+  private
+
+  def index_name
+    Issue.__elasticsearch__.index_name
+  end
+
+  def field_names
+    %w[schema_version visibility_level]
   end
 end
 ```
@@ -152,6 +182,55 @@ class MigrationName < Elastic::Migration
 end
 ```
 
+#### `Elastic::MigrationCreateIndex`
+
+Creates a new index.
+
+Requires:
+
+- The `target_class` and `document_type` methods
+- Mappings and index settings for the class in `ee/lib/elastic/latest/` and `ee/lib/elastic/v12p1/`
+
+WARNING:
+You must perform a follow-up migration to populate the index in the same milestone.
+
+```ruby
+class MigrationName < Elastic::Migration
+  include Elastic::MigrationCreateIndex
+
+  retry_on_failure
+
+  def document_type
+    :epic
+  end
+
+  def target_class
+    Epic
+  end
+end
+```
+
+#### `Search::Elastic::MigrationReindexBasedOnSchemaVersion`
+
+Reindexes all documents in the index that stores the specified document type and updates `schema_version`.
+
+Requires the `DOCUMENT_TYPE` and `NEW_SCHEMA_VERSION` constants.
+The index mapping must have a `schema_version` integer field in a `YYMM` format.
+
+```ruby
+class MigrationName < Elastic::Migration
+  include Search::Elastic::MigrationReindexBasedOnSchemaVersion
+
+  batched!
+  batch_size 9_000
+  throttle_delay 1.minute
+
+  DOCUMENT_TYPE = WorkItem
+  NEW_SCHEMA_VERSION = 23_08
+  UPDATE_BATCH_SIZE = 100
+end
+```
+
 #### `Elastic::MigrationHelper`
 
 Contains methods you can use when a migration doesn't fit the previous examples.
@@ -184,9 +263,9 @@ end
   `migrate` method which uses this setting. Default value is 1000 documents.
 
 - `throttle_delay` - Sets the wait time in between batch runs. This time should be set high enough to allow each migration batch
-  enough time to finish. Additionally, the time should be less than 30 minutes because that is how often the
+  enough time to finish. Additionally, the time should be less than 5 minutes because that is how often the
   [`Elastic::MigrationWorker`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/app/workers/elastic/migration_worker.rb)
-  cron worker runs. Default value is 5 minutes.
+  cron worker runs. The default value is 3 minutes.
 
 - `pause_indexing!` - Pause indexing while the migration runs. This setting records the indexing setting before
   the migration runs and set it back to that value when the migration is completed.
@@ -215,17 +294,30 @@ class BatchedMigrationName < Elastic::Migration
 end
 ```
 
+## Avoiding downtime in migrations
+
+### Reverting a migration
+
+If a migration fails or is halted on GitLab.com, we prefer to revert the change that introduced the migration. This
+prevents self-managed customers from receiving a broken migration and reduces the need for backports.
+
+### When to merge
+
+We prefer not to merge migrations within 1 week of the release. This allows time for a revert if a migration fails or
+doesn't work as expected. Migrations still in development or review during the final week of the release should be pushed
+to the next milestone.
+
 ### Multi-version compatibility
 
-These Advanced Search migrations, like any other GitLab changes, need to support the case where
+Advanced search migrations, like any other GitLab changes, need to support the case where
 [multiple versions of the application are running at the same time](../multi_version_compatibility.md).
 
 Depending on the order of deployment, it's possible that the migration
 has started or finished and there's still a server running the application code from before the
 migration. We need to take this into consideration until we can
-[ensure all Advanced Search migrations start after the deployment has finished](https://gitlab.com/gitlab-org/gitlab/-/issues/321619).
+[ensure all advanced search migrations start after the deployment has finished](https://gitlab.com/gitlab-org/gitlab/-/issues/321619).
 
-### Reverting a migration
+### High risk migrations
 
 Because Elasticsearch does not support transactions, we always need to design our
 migrations to accommodate a situation where the application
@@ -236,15 +328,39 @@ some data is moved) to a later merge request after the migrations have
 completed successfully. To be safe, for self-managed customers we should also
 defer it to another release if there is risk of important data loss.
 
-### Best practices for Advanced Search migrations
+## Calculating migration runtime
+
+It's important to understand how long a migration might take to run on GitLab.com. Derive the number of documents that
+will be processed by the migration. This number may come from querying the database or an existing Elasticsearch index.
+Use the following formula to calculate the runtime:
+
+```ruby
+> batch_size = 9_000
+=> 9000
+> throttle_delay = 1.minute
+=> 1 minute
+> number_of_documents = 15_536_906
+=> 15536906
+> (number_of_documents / batch_size) * throttle_delay
+=> 1726 minutes
+> (number_of_documents / batch_size) * throttle_delay / 1.hour
+=> 28
+```
+
+## Best practices for advanced search migrations
 
 Follow these best practices for best results:
 
-- When working in batches, keep the batch size under 9,000 documents
-  and `throttle_delay` for at least 3 minutes. The bulk indexer is set to run
-  every 1 minute and process a batch of 10,000 documents. These limits
-  allow the bulk indexer time to process records before another migration
-  batch is attempted.
+- Order all migrations for each document type so that any migrations that use
+  [`Elastic::MigrationUpdateMappingsHelper`](#elasticmigrationupdatemappingshelper)
+  are executed before migrations that use the
+  [`Elastic::MigrationBackfillHelper`](#elasticmigrationbackfillhelper). This avoids
+  reindexing the same documents multiple times if all of the migrations are unapplied
+  and reduces the backfill time.
+- When working in batches, keep the batch size under 9,000 documents.
+  The bulk indexer is set to run every minute and process a batch
+  of 10,000 documents. This way, the bulk indexer has time to
+  process records before another migration batch is attempted.
 - To ensure that document counts are up to date, you should refresh
   the index before checking if a migration is completed.
 - Add logging statements to each migration when the migration starts, when a
@@ -254,9 +370,9 @@ Follow these best practices for best results:
 - Consider adding a retry limit if there is potential for the migration to fail.
   This ensures that migrations can be halted if an issue occurs.
 
-## Deleting Advanced Search migrations in a major version upgrade
+## Deleting advanced search migrations in a major version upgrade
 
-Because our Advanced Search migrations usually require us to support multiple
+Because our advanced search migrations usually require us to support multiple
 code paths for a long period of time, it's important to clean those up when we
 safely can.
 
@@ -266,7 +382,7 @@ backwards compatibility for indices that have not been fully migrated. We
 We also choose to replace the migration code with the halted migration
 and remove tests so that:
 
-- We don't need to maintain any code that is called from our Advanced Search
+- We don't need to maintain any code that is called from our advanced search
   migrations.
 - We don't waste CI time running tests for migrations that we don't support
   anymore.
@@ -282,7 +398,7 @@ GitLab.com to `%14.0` before the migrations in `%13.12` were finished. Because
 our deployments to GitLab.com are automated and we don't have
 automated checks to prevent this, the extra precaution is warranted.
 Additionally, even if we did have automated checks to prevent it, we wouldn't
-actually want to hold up GitLab.com deployments on Advanced Search migrations,
+actually want to hold up GitLab.com deployments on advanced search migrations,
 as they may still have another week to go, and that's too long to block
 deployments.
 

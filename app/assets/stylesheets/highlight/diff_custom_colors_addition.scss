@@ -6,7 +6,7 @@
     .line_holder {
       .diff-line-num,
       .line-coverage,
-      .line-codequality,
+      .line-inline-findings,
       .line_content {
         &.new {
           &:not(.hll) {
@@ -25,7 +25,7 @@
       }
     }
 
-    .gd {
+    .gi {
       background-color: var(--diff-addition-color);
     }
   }

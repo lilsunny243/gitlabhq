@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::ReadmeRendererService, '#execute' do
+RSpec.describe Projects::ReadmeRendererService, '#execute', feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
 
   subject(:service) { described_class.new(project, nil, opts) }
 
   let_it_be(:project) { create(:project, title: 'My Project', description: '_custom_description_') }
 
-  let(:opts) { {} }
+  let(:opts) { { default_branch: 'master' } }
 
   it 'renders the an ERB readme template' do
     expect(service.execute).to start_with(<<~MARKDOWN)
@@ -52,7 +52,7 @@ RSpec.describe Projects::ReadmeRendererService, '#execute' do
 
     context 'with path traversal in mind' do
       where(:template_name, :exception, :expected_path) do
-        '../path/traversal/bad' | [Gitlab::Utils::PathTraversalAttackError, 'Invalid path'] | nil
+        '../path/traversal/bad' | [Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path'] | nil
         '/bad/template' | [StandardError, 'path /bad/template.md.tt is not allowed'] | nil
         'good/template' | nil | 'good/template.md.tt'
       end

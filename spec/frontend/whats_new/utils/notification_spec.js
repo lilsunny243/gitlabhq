@@ -1,4 +1,5 @@
-import { loadHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+import htmlWhatsNewNotification from 'test_fixtures_static/whats_new_notification.html';
+import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { useLocalStorageSpy } from 'helpers/local_storage_helper';
 import { setNotification, getVersionDigest } from '~/whats_new/utils/notification';
 
@@ -12,7 +13,7 @@ describe('~/whats_new/utils/notification', () => {
   const getAppEl = () => wrapper.querySelector('.app');
 
   beforeEach(() => {
-    loadHTMLFixture('static/whats_new_notification.html');
+    setHTMLFixture(htmlWhatsNewNotification);
     wrapper = document.querySelector('.whats-new-notification-fixture-root');
   });
 
@@ -37,12 +38,27 @@ describe('~/whats_new/utils/notification', () => {
 
     it('removes class and count element when storage key has current digest', () => {
       const notificationEl = findNotificationEl();
+
       notificationEl.classList.add('with-notifications');
       localStorage.setItem('display-whats-new-notification', 'version-digest');
 
       expect(findNotificationCountEl()).not.toBe(null);
 
       subject();
+
+      expect(findNotificationCountEl()).toBe(null);
+      expect(notificationEl.classList).not.toContain('with-notifications');
+    });
+
+    it('removes class and count element when no records and digest undefined', () => {
+      const notificationEl = findNotificationEl();
+
+      notificationEl.classList.add('with-notifications');
+      localStorage.setItem('display-whats-new-notification', 'version-digest');
+
+      expect(findNotificationCountEl()).not.toBe(null);
+
+      setNotification(wrapper.querySelector('[data-testid="without-digest"]'));
 
       expect(findNotificationCountEl()).toBe(null);
       expect(notificationEl.classList).not.toContain('with-notifications');

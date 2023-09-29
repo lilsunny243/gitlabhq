@@ -4,7 +4,7 @@ group: Code Review
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Revert changes **(FREE)**
+# Revert changes **(FREE ALL)**
 
 You can revert individual commits or an entire merge request in GitLab.
 When you revert a commit in Git, you create a new commit that reverses all actions
@@ -30,8 +30,8 @@ Prerequisites:
 
 To do this:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests** and identify your merge request.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and identify your merge request.
 1. Scroll to the merge request reports area, and find the report showing when the
    merge request was merged.
 1. Select **Revert**.
@@ -55,12 +55,13 @@ Prerequisites:
 
 To do this:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. If you know the merge request that contains the commit:
-   1. On the left sidebar, select **Merge requests** and identify your merge request.
-   1. Select **Commits**, then select the title of the commit you want to revert. GitLab displays the contents of the commit.
+   1. Select **Code > Merge requests**, then identify and select your merge request.
+   1. Select **Commits**, then select the title of the commit you want to revert. This displays the commit in the **Changes** tab of your merge request.
+   1. Select the commit hash you want to revert. GitLab displays the contents of the commit.
 1. If you don't know the merge request the commit originated from:
-   1. On the left sidebar, select **Repository > Commits**.
+   1. Select **Code > Commits**.
    1. Select the title of the commit to display full information about the commit.
 1. In the upper-right corner, select **Options**, then select **Revert**.
 1. In **Revert in branch**, select the branch to revert your changes into.

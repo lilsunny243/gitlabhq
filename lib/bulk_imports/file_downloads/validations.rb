@@ -22,7 +22,7 @@ module BulkImports
       private
 
       def validate_filepath
-        Gitlab::Utils.check_path_traversal!(filepath)
+        Gitlab::PathTraversal.check_path_traversal!(filepath)
       end
 
       def validate_content_type
@@ -32,7 +32,7 @@ module BulkImports
       end
 
       def validate_symlink
-        return unless File.lstat(filepath).symlink?
+        return unless Gitlab::Utils::FileInfo.linked?(filepath)
 
         File.delete(filepath)
         raise_error 'Invalid downloaded file'
@@ -45,7 +45,7 @@ module BulkImports
       def validate_size!(size)
         if size.blank?
           raise_error 'Missing content-length header'
-        elsif size.to_i > file_size_limit
+        elsif file_size_limit > 0 && size.to_i > file_size_limit
           raise_error format(
             "File size %{size} exceeds limit of %{limit}",
             size: ActiveSupport::NumberHelper.number_to_human_size(size),

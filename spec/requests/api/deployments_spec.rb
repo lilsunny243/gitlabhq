@@ -38,20 +38,22 @@ RSpec.describe API::Deployments, feature_category: :continuous_delivery do
       end
 
       context 'with updated_at filters specified' do
-        it 'returns projects deployments with last update in specified datetime range' do
-          perform_request({ updated_before: 30.minutes.ago, updated_after: 90.minutes.ago, order_by: :updated_at })
+        context 'when using `order_by=updated_at`' do
+          it 'returns projects deployments with last update in specified datetime range' do
+            perform_request({ updated_before: 30.minutes.ago, updated_after: 90.minutes.ago, order_by: :updated_at })
 
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(response).to include_pagination_headers
-          expect(json_response.first['id']).to eq(deployment_3.id)
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to include_pagination_headers
+            expect(json_response.first['id']).to eq(deployment_3.id)
+          end
         end
 
-        context 'when forbidden order_by is specified' do
+        context 'when not using `order_by=updated_at`' do
           it 'returns an error' do
             perform_request({ updated_before: 30.minutes.ago, updated_after: 90.minutes.ago, order_by: :id })
 
             expect(response).to have_gitlab_http_status(:bad_request)
-            expect(json_response['message']).to include('`updated_at` filter and `updated_at` sorting must be paired')
+            expect(json_response['message']).to include('`updated_at` filter requires `updated_at` sort')
           end
         end
       end
@@ -422,7 +424,7 @@ RSpec.describe API::Deployments, feature_category: :continuous_delivery do
         )
 
         expect(response).to have_gitlab_http_status(:bad_request)
-        expect(json_response['message']['status']).to include(%Q{cannot transition via \"run\"})
+        expect(json_response['message']['status']).to include(%{cannot transition via \"run\"})
       end
 
       it 'links merge requests when the deployment status changes to success', :sidekiq_inline do

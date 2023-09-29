@@ -201,3 +201,93 @@ export const mockUpstreamQueryResponse = {
     },
   },
 };
+
+export const sshSignatureProp = {
+  __typename: 'SshSignature',
+  verificationStatus: 'VERIFIED',
+  keyFingerprintSha256: 'xxx',
+};
+
+export const gpgSignatureProp = {
+  __typename: 'GpgSignature',
+  verificationStatus: 'VERIFIED',
+  gpgKeyPrimaryKeyid: 'yyy',
+};
+
+export const x509SignatureProp = {
+  __typename: 'X509Signature',
+  verificationStatus: 'VERIFIED',
+  x509Certificate: {
+    subject: 'CN=gitlab@example.org,OU=Example,O=World',
+    subjectKeyIdentifier: 'BC:BC:BC:BC:BC:BC:BC:BC',
+    x509Issuer: {
+      subject: 'CN=PKI,OU=Example,O=World',
+      subjectKeyIdentifier: 'AB:AB:AB:AB:AB:AB:AB:AB:',
+    },
+  },
+};
+
+export const x509CertificateDetailsProp = {
+  title: 'Title',
+  subject: 'CN=gitlab@example.org,OU=Example,O=World',
+  subjectKeyIdentifier: 'BC BC BC BC BC BC BC BC',
+};
+
+export const tippingBranchesMock = ['main', 'development'];
+
+export const containingBranchesMock = ['branch-1', 'branch-2', 'branch-3'];
+
+export const mockCommitReferencesResponse = {
+  data: {
+    project: {
+      id: 'gid://gitlab/Project/1',
+      commitReferences: {
+        containingBranches: { names: ['branch-1'], __typename: 'CommitParentNames' },
+        containingTags: { names: ['tag-1'], __typename: 'CommitParentNames' },
+        tippingBranches: { names: tippingBranchesMock, __typename: 'CommitParentNames' },
+        tippingTags: { names: ['tag-latest'], __typename: 'CommitParentNames' },
+        __typename: 'CommitReferences',
+      },
+      __typename: 'Project',
+    },
+  },
+};
+
+export const mockOnlyBranchesResponse = {
+  data: {
+    project: {
+      id: 'gid://gitlab/Project/1',
+      commitReferences: {
+        containingBranches: { names: ['branch-1'], __typename: 'CommitParentNames' },
+        containingTags: { names: [], __typename: 'CommitParentNames' },
+        tippingBranches: { names: tippingBranchesMock, __typename: 'CommitParentNames' },
+        tippingTags: { names: [], __typename: 'CommitParentNames' },
+        __typename: 'CommitReferences',
+      },
+      __typename: 'Project',
+    },
+  },
+};
+
+export const mockContainingBranchesResponse = {
+  data: {
+    project: {
+      id: 'gid://gitlab/Project/1',
+      commitReferences: {
+        containingBranches: { names: containingBranchesMock, __typename: 'CommitParentNames' },
+        __typename: 'CommitReferences',
+      },
+      __typename: 'Project',
+    },
+  },
+};
+
+export const refsListPropsMock = {
+  hasContainingRefs: true,
+  containingRefs: [],
+  namespace: 'Branches',
+  tippingRefs: tippingBranchesMock,
+  isLoading: false,
+  urlPart: '/some/project/-/commits/',
+  refType: 'heads',
+};

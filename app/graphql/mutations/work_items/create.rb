@@ -6,12 +6,15 @@ module Mutations
       graphql_name 'WorkItemCreate'
 
       include Mutations::SpamProtection
-      include FindsProject
+      include FindsNamespace
       include Mutations::WorkItems::Widgetable
 
       description "Creates a work item."
 
       authorize :create_work_item
+
+      MUTUALLY_EXCLUSIVE_ARGUMENTS_ERROR = 'Please provide either projectPath or namespacePath argument, but not both.'
+      DISABLED_FF_ERROR = 'namespace_level_work_items feature flag is disabled. Only project paths allowed.'
 
       argument :confidential, GraphQL::Types::Boolean,
                required: false,
@@ -25,9 +28,16 @@ module Mutations
       argument :milestone_widget, ::Types::WorkItems::Widgets::MilestoneInputType,
                required: false,
                description: 'Input for milestone widget.'
+      argument :namespace_path, GraphQL::Types::ID,
+               required: false,
+               description: 'Full path of the namespace(project or group) the work item is created in.'
       argument :project_path, GraphQL::Types::ID,
-               required: true,
-               description: 'Full path of the project the work item is associated with.'
+               required: false,
+               description: 'Full path of the project the work item is associated with.',
+               deprecated: {
+                 reason: 'Please use namespace_path instead. That will cover for both projects and groups',
+                 milestone: '15.10'
+               }
       argument :title, GraphQL::Types::String,
                required: true,
                description: copy_field_description(Types::WorkItemType, :title)
@@ -39,19 +49,27 @@ module Mutations
             null: true,
             description: 'Created work item.'
 
-      def resolve(project_path:, **attributes)
-        project = authorized_find!(project_path)
+      def ready?(**args)
+        if args.slice(:project_path, :namespace_path)&.length != 1
+          raise Gitlab::Graphql::Errors::ArgumentError, MUTUALLY_EXCLUSIVE_ARGUMENTS_ERROR
+        end
 
-        spam_params = ::Spam::SpamParams.new_from_request(request: context[:request])
+        super
+      end
+
+      def resolve(project_path: nil, namespace_path: nil, **attributes)
+        container_path = project_path || namespace_path
+        container = authorized_find!(container_path)
+        check_feature_available!(container)
+
         params = global_id_compatibility_params(attributes).merge(author_id: current_user.id)
         type = ::WorkItems::Type.find(attributes[:work_item_type_id])
         widget_params = extract_widget_params!(type, params)
 
         create_result = ::WorkItems::CreateService.new(
-          container: project,
+          container: container,
           current_user: current_user,
           params: params,
-          spam_params: spam_params,
           widget_params: widget_params
         ).execute
 
@@ -64,6 +82,12 @@ module Mutations
       end
 
       private
+
+      def check_feature_available!(container)
+        return unless container.is_a?(::Group) && Feature.disabled?(:namespace_level_work_items, container)
+
+        raise Gitlab::Graphql::Errors::ArgumentError, DISABLED_FF_ERROR
+      end
 
       def global_id_compatibility_params(params)
         params[:work_item_type_id] = params[:work_item_type_id]&.model_id

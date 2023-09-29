@@ -60,11 +60,9 @@ RSpec.describe MergeRequestPollWidgetEntity do
       end
     end
 
-    context 'when head pipeline is running' do
+    context 'when head pipeline is running', unless: Gitlab.ee? do
       before do
-        create(:ci_pipeline, :running, project: project,
-                                       ref: resource.source_branch,
-                                       sha: resource.diff_head_sha)
+        create(:ci_pipeline, :running, project: project, ref: resource.source_branch, sha: resource.diff_head_sha)
         resource.update_head_pipeline
       end
 
@@ -96,9 +94,7 @@ RSpec.describe MergeRequestPollWidgetEntity do
 
     context 'when head pipeline is finished' do
       before do
-        create(:ci_pipeline, :success, project: project,
-                                       ref: resource.source_branch,
-                                       sha: resource.diff_head_sha)
+        create(:ci_pipeline, :success, project: project, ref: resource.source_branch, sha: resource.diff_head_sha)
         resource.update_head_pipeline
       end
 

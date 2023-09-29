@@ -3,12 +3,40 @@
 require 'spec_helper'
 
 RSpec.describe Ci::PersistentRef do
-  it 'cleans up persistent refs after pipeline finished' do
+  it 'cleans up persistent refs async after pipeline finished' do
     pipeline = create(:ci_pipeline, :running)
 
-    expect(pipeline.persistent_ref).to receive(:delete).once
+    expect { pipeline.succeed! }
+      .to change { ::BatchedGitRefUpdates::Deletion.count }
+      .by(1)
+  end
 
-    pipeline.succeed!
+  context 'when pipeline_delete_gitaly_refs_in_batches is disabled' do
+    before do
+      stub_feature_flags(pipeline_delete_gitaly_refs_in_batches: false)
+    end
+
+    it 'cleans up persistent refs after pipeline finished' do
+      pipeline = create(:ci_pipeline, :running)
+
+      expect(Ci::PipelineCleanupRefWorker).to receive(:perform_async).with(pipeline.id)
+
+      pipeline.succeed!
+    end
+
+    context 'when pipeline_cleanup_ref_worker_async is disabled' do
+      before do
+        stub_feature_flags(pipeline_cleanup_ref_worker_async: false)
+      end
+
+      it 'cleans up persistent refs after pipeline finished' do
+        pipeline = create(:ci_pipeline, :running)
+
+        expect(pipeline.persistent_ref).to receive(:delete).once
+
+        pipeline.succeed!
+      end
+    end
   end
 
   describe '#exist?' do
@@ -72,7 +100,7 @@ RSpec.describe Ci::PersistentRef do
   describe '#delete' do
     subject { pipeline.persistent_ref.delete }
 
-    let(:pipeline) { create(:ci_pipeline, sha: sha, project: project) }
+    let(:pipeline) { create(:ci_pipeline, :success, sha: sha, project: project) }
     let(:project) { create(:project, :repository) }
     let(:sha) { project.repository.commit.sha }
 

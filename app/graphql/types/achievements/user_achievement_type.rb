@@ -5,7 +5,9 @@ module Types
     class UserAchievementType < BaseObject
       graphql_name 'UserAchievement'
 
-      authorize :read_achievement
+      connection_type_class Types::CountableConnectionType
+
+      authorize :read_user_achievement
 
       field :id,
         ::Types::GlobalIDType[::Achievements::UserAchievement],
@@ -46,6 +48,11 @@ module Types
         Types::TimeType,
         null: true,
         description: 'Timestamp the achievement was revoked.'
+
+      field :priority,
+        GraphQL::Types::Int,
+        null: true,
+        description: 'Priority of the user achievement.'
     end
   end
 end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
+RSpec.describe Feature, :clean_gitlab_redis_feature_flag, stub_feature_flags: false, feature_category: :shared do
   include StubVersion
 
   before do
@@ -11,29 +11,35 @@ RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
     skip_feature_flags_yaml_validation
   end
 
-  describe '.feature_flags_available?' do
-    it 'returns false on connection error' do
-      expect(ActiveRecord::Base.connection).to receive(:active?).and_raise(PG::ConnectionBad) # rubocop:disable Database/MultipleDatabases
+  describe '.current_request' do
+    it 'returns a FlipperRequest with a flipper_id' do
+      flipper_request = described_class.current_request
 
-      expect(described_class.feature_flags_available?).to eq(false)
+      expect(flipper_request.flipper_id).to include("FlipperRequest:")
     end
 
-    it 'returns false when connection is not active' do
-      expect(ActiveRecord::Base.connection).to receive(:active?).and_return(false) # rubocop:disable Database/MultipleDatabases
+    context 'when request store is inactive' do
+      it 'does not cache flipper_id' do
+        previous_id = described_class.current_request.flipper_id
 
-      expect(described_class.feature_flags_available?).to eq(false)
+        expect(described_class.current_request.flipper_id).not_to eq(previous_id)
+      end
     end
 
-    it 'returns false when the flipper table does not exist' do
-      expect(Feature::FlipperFeature).to receive(:table_exists?).and_return(false)
+    context 'when request store is active', :request_store do
+      it 'caches flipper_id when request store is active' do
+        previous_id = described_class.current_request.flipper_id
 
-      expect(described_class.feature_flags_available?).to eq(false)
-    end
+        expect(described_class.current_request.flipper_id).to eq(previous_id)
+      end
 
-    it 'returns false on NoDatabaseError' do
-      expect(Feature::FlipperFeature).to receive(:table_exists?).and_raise(ActiveRecord::NoDatabaseError)
+      it 'returns a new flipper_id when request ends' do
+        previous_id = described_class.current_request.flipper_id
 
-      expect(described_class.feature_flags_available?).to eq(false)
+        RequestStore.end!
+
+        expect(described_class.current_request.flipper_id).not_to eq(previous_id)
+      end
     end
   end
 
@@ -154,17 +160,6 @@ RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
     end
   end
 
-  describe '.register_feature_groups' do
-    before do
-      Flipper.unregister_groups
-      described_class.register_feature_groups
-    end
-
-    it 'registers expected groups' do
-      expect(Flipper.groups).to include(an_object_having_attributes(name: :gitlab_team_members))
-    end
-  end
-
   describe '.enabled?' do
     before do
       allow(Feature).to receive(:log_feature_flag_states?).and_return(false)
@@ -249,7 +244,7 @@ RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
     end
 
     it { expect(described_class.send(:l1_cache_backend)).to eq(Gitlab::ProcessMemoryCache.cache_backend) }
-    it { expect(described_class.send(:l2_cache_backend)).to eq(Rails.cache) }
+    it { expect(described_class.send(:l2_cache_backend)).to eq(Gitlab::Redis::FeatureFlag.cache_store) }
 
     it 'caches the status in L1 and L2 caches',
        :request_store, :use_clean_rails_memory_store_caching do
@@ -336,6 +331,36 @@ RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
       end
     end
 
+    context 'with current_request actor' do
+      context 'when request store is inactive' do
+        it 'returns the approximate percentage set' do
+          number_of_times = 1_000
+          percentage = 50
+          described_class.enable_percentage_of_actors(:enabled_feature_flag, percentage)
+
+          gate_values = Array.new(number_of_times) do
+            described_class.enabled?(:enabled_feature_flag, described_class.current_request)
+          end
+
+          margin_of_error = 0.05 * number_of_times
+          expected_size = number_of_times * percentage / 100
+          expect(gate_values.count { |v| v }).to be_within(margin_of_error).of(expected_size)
+        end
+      end
+
+      context 'when request store is active', :request_store do
+        it 'always returns the same gate value' do
+          described_class.enable_percentage_of_actors(:enabled_feature_flag, 50)
+
+          previous_gate_value = described_class.enabled?(:enabled_feature_flag, described_class.current_request)
+
+          1_000.times do
+            expect(described_class.enabled?(:enabled_feature_flag, described_class.current_request)).to eq(previous_gate_value)
+          end
+        end
+      end
+    end
+
     context 'with a group member' do
       let(:key) { :awesome_feature }
       let(:guinea_pigs) { create_list(:user, 3) }
@@ -358,22 +383,6 @@ RSpec.describe Feature, stub_feature_flags: false, feature_category: :shared do
 
       it 'is false for any other actor' do
         expect(described_class.enabled?(key, create(:user))).to be_falsey
-      end
-    end
-
-    context 'with gitlab_team_members feature group' do
-      let(:actor) { build_stubbed(:user) }
-
-      before do
-        Flipper.unregister_groups
-        described_class.register_feature_groups
-        described_class.enable(:enabled_feature_flag, :gitlab_team_members)
-      end
-
-      it 'delegates check to FeatureGroups::GitlabTeamMembers' do
-        expect(FeatureGroups::GitlabTeamMembers).to receive(:enabled?).with(actor)
-
-        described_class.enabled?(:enabled_feature_flag, actor)
       end
     end
 

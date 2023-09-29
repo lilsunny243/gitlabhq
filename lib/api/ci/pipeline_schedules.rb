@@ -90,11 +90,13 @@ module API
         post ':id/pipeline_schedules' do
           authorize! :create_pipeline_schedule, user_project
 
-          pipeline_schedule = ::Ci::CreatePipelineScheduleService
+          response = ::Ci::PipelineSchedules::CreateService
             .new(user_project, current_user, declared_params(include_missing: false))
             .execute
 
-          if pipeline_schedule.persisted?
+          pipeline_schedule = response.payload
+
+          if response.success?
             present pipeline_schedule, with: Entities::Ci::PipelineScheduleDetails
           else
             render_validation_error!(pipeline_schedule)
@@ -121,7 +123,11 @@ module API
         put ':id/pipeline_schedules/:pipeline_schedule_id' do
           authorize! :update_pipeline_schedule, pipeline_schedule
 
-          if pipeline_schedule.update(declared_params(include_missing: false))
+          response = ::Ci::PipelineSchedules::UpdateService
+            .new(pipeline_schedule, current_user, declared_params(include_missing: false))
+            .execute
+
+          if response.success?
             present pipeline_schedule, with: Entities::Ci::PipelineScheduleDetails
           else
             render_validation_error!(pipeline_schedule)

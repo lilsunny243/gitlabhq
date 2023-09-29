@@ -1,6 +1,6 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -34,7 +34,8 @@ Start by [importing the example project by URL](../../../project/import/repo_by_
 
 To import the project:
 
-1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. In GitLab, on the left sidebar, select **Search or go to**.
+1. Select **View all my projects**.
 1. On the right of the page, select **New project**.
 1. Select **Import project**.
 1. Select **Repository by URL**.
@@ -54,7 +55,7 @@ In GitLab 14.10, a [flag](../../../../administration/feature_flags.md) named `ce
 
 To create a GitLab agent for Kubernetes:
 
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Operate > Kubernetes clusters**.
 1. Select **Connect a cluster (agent)**.
 1. From the **Select an agent** dropdown list, select `eks-agent` and select **Register an agent**.
 1. GitLab generates a registration token for the agent. Securely store this secret token, as you will need it later.
@@ -67,42 +68,42 @@ Set up your AWS credentials when you want to authenticate AWS with GitLab.
 1. Create an [IAM User](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) or [IAM Role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html).
 1. Make sure that your IAM user or role has the appropriate permissions for your project. For this example project, you must have the permissions shown below. You can expand this when you set up your own project.
 
-    ```json
-    // IAM custom Policy definition
-    {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Sid": "VisualEditor0",
-              "Effect": "Allow",
-              "Action": [
-                  "ec2:*",
-                  "eks:*",
-                  "elasticloadbalancing:*",
-                  "autoscaling:*",
-                  "cloudwatch:*",
-                  "logs:*",
-                  "kms:DescribeKey",
-                  "iam:AddRoleToInstanceProfile",
-                  "iam:AttachRolePolicy",
-                  "iam:CreateInstanceProfile",
-                  "iam:CreateRole",
-                  "iam:CreateServiceLinkedRole",
-                  "iam:GetRole",
-                  "iam:ListAttachedRolePolicies",
-                  "iam:ListRolePolicies",
-                  "iam:ListRoles",
-                  "iam:PassRole",
-                  // required for destroy step
-                  "iam:DetachRolePolicy",
-                  "iam:ListInstanceProfilesForRole",
-                  "iam:DeleteRole"
-              ],
-              "Resource": "*"
-          }
-      ]
-    }
-    ```
+   ```json
+   // IAM custom Policy definition
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+         {
+             "Sid": "VisualEditor0",
+             "Effect": "Allow",
+             "Action": [
+                 "ec2:*",
+                 "eks:*",
+                 "elasticloadbalancing:*",
+                 "autoscaling:*",
+                 "cloudwatch:*",
+                 "logs:*",
+                 "kms:DescribeKey",
+                 "iam:AddRoleToInstanceProfile",
+                 "iam:AttachRolePolicy",
+                 "iam:CreateInstanceProfile",
+                 "iam:CreateRole",
+                 "iam:CreateServiceLinkedRole",
+                 "iam:GetRole",
+                 "iam:ListAttachedRolePolicies",
+                 "iam:ListRolePolicies",
+                 "iam:ListRoles",
+                 "iam:PassRole",
+                 // required for destroy step
+                 "iam:DetachRolePolicy",
+                 "iam:ListInstanceProfilesForRole",
+                 "iam:DeleteRole"
+             ],
+             "Resource": "*"
+         }
+     ]
+   }
+   ```
 
 1. [Create an access key for the user or role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
 1. Save your access key and secret. You need these to authenticate AWS with GitLab.
@@ -138,20 +139,20 @@ View the [AWS Terraform provider](https://registry.terraform.io/providers/hashic
 
 After configuring your project, manually trigger the provisioning of your cluster. In GitLab:
 
-1. On the left sidebar, go to **CI/CD > Pipelines**.
+1. On the left sidebar, go to **Build > Pipelines**.
 1. Next to **Play** (**{play}**), select the dropdown list icon (**{chevron-lg-down}**).
 1. Select **Deploy** to manually trigger the deployment job.
 
 When the pipeline finishes successfully, you can view the new cluster:
 
 - In AWS: From the [EKS console](https://console.aws.amazon.com/eks/home), select **Amazon EKS > Clusters**.
-- In GitLab: On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+- In GitLab: On the left sidebar, select **Operate > Kubernetes clusters**.
 
 ## Use your cluster
 
 After you provision the cluster, it is connected to GitLab and is ready for deployments. To check the connection:
 
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Operate > Kubernetes clusters**.
 1. In the list, view the **Connection status** column.
 
 For more information about the capabilities of the connection, see [the GitLab agent for Kubernetes documentation](../index.md).
@@ -165,19 +166,19 @@ To remove all resources:
 
 1. Add the following to your `.gitlab-ci.yml` file:
 
-    ```yaml
-    stages:
-      - init
-      - validate
-      - test
-      - build
-      - deploy
-      - cleanup
+   ```yaml
+   stages:
+     - init
+     - validate
+     - test
+     - build
+     - deploy
+     - cleanup
 
-    destroy:
-      extends: .terraform:destroy
-      needs: []
-    ```
+   destroy:
+     extends: .terraform:destroy
+     needs: []
+   ```
 
-1. On the left sidebar, select **CI/CD > Pipelines** and select the most recent pipeline.
+1. On the left sidebar, select **Build > Pipelines** and select the most recent pipeline.
 1. For the `destroy` job, select **Play** (**{play}**).

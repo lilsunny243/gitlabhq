@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::Stage, :models do
+RSpec.describe Ci::Stage, :models, feature_category: :continuous_integration do
   let_it_be(:pipeline) { create(:ci_empty_pipeline) }
 
   let(:stage) { create(:ci_stage, pipeline: pipeline, project: pipeline.project) }
@@ -223,10 +223,13 @@ RSpec.describe Ci::Stage, :models do
     with_them do
       before do
         statuses.each do |status|
-          create(:commit_status, project: stage.project,
-                                 pipeline: stage.pipeline,
-                                 stage_id: stage.id,
-                                 status: status)
+          create(
+            :commit_status,
+            project: stage.project,
+            pipeline: stage.pipeline,
+            stage_id: stage.id,
+            status: status
+          )
 
           stage.update_legacy_status
         end
@@ -239,11 +242,14 @@ RSpec.describe Ci::Stage, :models do
 
     context 'when stage has warnings' do
       before do
-        create(:ci_build, project: stage.project,
-                          pipeline: stage.pipeline,
-                          stage_id: stage.id,
-                          status: :failed,
-                          allow_failure: true)
+        create(
+          :ci_build,
+          project: stage.project,
+          pipeline: stage.pipeline,
+          stage_id: stage.id,
+          status: :failed,
+          allow_failure: true
+        )
 
         stage.update_legacy_status
       end

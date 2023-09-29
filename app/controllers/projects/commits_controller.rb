@@ -45,6 +45,8 @@ class Projects::CommitsController < Projects::ApplicationController
   # rubocop: enable CodeReuse/ActiveRecord
 
   def signatures
+    Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/424527')
+
     respond_to do |format|
       format.json do
         render json: {
@@ -77,25 +79,21 @@ class Projects::CommitsController < Projects::ApplicationController
     # fully_qualified_ref is available in some situations from ExtractsRef
     ref = @fully_qualified_ref || @ref
 
-    show_tags = Feature.enabled?(:show_tags_on_commits_view, @project)
     @commits =
       if search.present?
-        @repository.find_commits_by_message(search, ref, @path, @limit, @offset).tap do |collection|
-          collection.load_tags if show_tags
-        end
+        @repository.find_commits_by_message(search, ref, @path, @limit, @offset)
       else
         options = {
           path: @path,
           limit: @limit,
           offset: @offset
         }
-
         options[:author] = author if author.present?
-        options[:include_referenced_by] = [Gitlab::Git::TAG_REF_PREFIX] if show_tags
 
         @repository.commits(ref, **options)
       end
 
+    @commits.load_tags
     @commits.each(&:lazy_author) # preload authors
 
     @commits = @commits.with_markdown_cache.with_latest_pipeline(ref)

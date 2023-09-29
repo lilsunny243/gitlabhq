@@ -10,6 +10,7 @@ module MergeRequests
       end
 
       def execute
+        return :preparing if preparing?
         return :checking if checking?
         return :unchecked if unchecked?
 
@@ -31,8 +32,12 @@ module MergeRequests
 
       attr_reader :merge_request, :checks, :ci_check
 
+      def preparing?
+        merge_request.preparing? && !merge_request.merge_request_diff.persisted?
+      end
+
       def checking?
-        merge_request.cannot_be_merged_rechecking? || merge_request.preparing? || merge_request.checking?
+        merge_request.cannot_be_merged_rechecking? || merge_request.checking?
       end
 
       def unchecked?
@@ -41,7 +46,11 @@ module MergeRequests
 
       def check_results
         strong_memoize(:check_results) do
-          merge_request.execute_merge_checks(params: { skip_ci_check: true })
+          merge_request
+            .execute_merge_checks(
+              merge_request.mergeable_state_checks,
+              params: { skip_ci_check: true }
+            )
         end
       end
 

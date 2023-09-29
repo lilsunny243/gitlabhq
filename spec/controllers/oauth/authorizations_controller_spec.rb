@@ -5,10 +5,15 @@ require 'spec_helper'
 RSpec.describe Oauth::AuthorizationsController do
   let(:user) { create(:user) }
   let(:application_scopes) { 'api read_user' }
+  let(:confidential) { true }
 
   let!(:application) do
-    create(:oauth_application, scopes: application_scopes,
-                               redirect_uri: 'http://example.com')
+    create(
+      :oauth_application,
+      scopes: application_scopes,
+      redirect_uri: 'http://example.com',
+      confidential: confidential
+    )
   end
 
   let(:params) do
@@ -69,12 +74,27 @@ RSpec.describe Oauth::AuthorizationsController do
           create(:oauth_access_token, application: application, resource_owner_id: user.id, scopes: scopes)
         end
 
-        it 'authorizes the request and shows the user a page that redirects' do
-          subject
+        context 'when application is confidential' do
+          let(:confidential) { true }
 
-          expect(request.session['user_return_to']).to be_nil
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(response).to render_template('doorkeeper/authorizations/redirect')
+          it 'authorizes the request and shows the user a page that redirects' do
+            subject
+
+            expect(request.session['user_return_to']).to be_nil
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to render_template('doorkeeper/authorizations/redirect')
+          end
+        end
+
+        context 'when application is not confidential' do
+          let(:confidential) { false }
+
+          it 'returns 200 code and renders view' do
+            subject
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to render_template('doorkeeper/authorizations/new')
+          end
         end
       end
 
@@ -298,5 +318,16 @@ RSpec.describe Oauth::AuthorizationsController do
 
   it 'includes Two-factor enforcement concern' do
     expect(described_class.included_modules.include?(EnforcesTwoFactorAuthentication)).to eq(true)
+  end
+
+  describe 'Gon variables' do
+    it 'adds Gon variables' do
+      expect(controller).to receive(:add_gon_variables)
+      get :new, params: params
+    end
+
+    it 'includes GonHelper module' do
+      expect(controller).to be_a(Gitlab::GonHelper)
+    end
   end
 end

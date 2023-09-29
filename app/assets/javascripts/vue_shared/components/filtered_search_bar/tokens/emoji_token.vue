@@ -1,10 +1,10 @@
 <script>
 import { GlFilteredSearchSuggestion } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __ } from '~/locale';
 import BaseToken from '~/vue_shared/components/filtered_search_bar/tokens/base_token.vue';
+import { stripQuotes } from '~/lib/utils/text_utility';
 import { OPTIONS_NONE_ANY } from '../constants';
-import { stripQuotes } from '../filtered_search_utils';
 
 export default {
   components: {
@@ -48,7 +48,7 @@ export default {
           this.emojis = Array.isArray(response) ? response : response.data;
         })
         .catch(() => {
-          createAlert({ message: __('There was a problem fetching emojis.') });
+          createAlert({ message: __('There was a problem fetching emoji.') });
         })
         .finally(() => {
           this.loading = false;

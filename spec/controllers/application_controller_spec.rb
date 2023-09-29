@@ -865,39 +865,12 @@ RSpec.describe ApplicationController, feature_category: :shared do
     end
   end
 
-  describe '#required_signup_info' do
-    controller(described_class) do
-      def index; end
-    end
-
-    let(:user) { create(:user) }
-
-    context 'user with required role' do
-      before do
-        user.set_role_required!
-        sign_in(user)
-        get :index
-      end
-
-      it { is_expected.to redirect_to users_sign_up_welcome_path }
-    end
-
-    context 'user without a required role' do
-      before do
-        sign_in(user)
-        get :index
-      end
-
-      it { is_expected.not_to redirect_to users_sign_up_welcome_path }
-    end
-  end
-
-  describe 'rescue_from Gitlab::Auth::IpBlacklisted' do
+  describe 'rescue_from Gitlab::Auth::IpBlocked' do
     controller(described_class) do
       skip_before_action :authenticate_user!
 
       def index
-        raise Gitlab::Auth::IpBlacklisted
+        raise Gitlab::Auth::IpBlocked
       end
     end
 
@@ -1115,6 +1088,30 @@ RSpec.describe ApplicationController, feature_category: :shared do
         expect(response).to have_gitlab_http_status(:redirect)
         expect(response.headers['Permissions-Policy']).to eq('interest-cohort=()')
       end
+    end
+  end
+
+  context 'when Gitlab::Git::ResourceExhaustedError exception is raised' do
+    before do
+      sign_in user
+    end
+
+    controller(described_class) do
+      def index
+        raise Gitlab::Git::ResourceExhaustedError.new(
+          "Upstream Gitaly has been exhausted: maximum time in concurrency queue reached. Try again later", 50
+        )
+      end
+    end
+
+    it 'returns a plaintext error response with 503 status' do
+      get :index
+
+      expect(response).to have_gitlab_http_status(:service_unavailable)
+      expect(response.body).to include(
+        "Upstream Gitaly has been exhausted: maximum time in concurrency queue reached. Try again later"
+      )
+      expect(response.headers['Retry-After']).to eq(50)
     end
   end
 end

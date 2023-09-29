@@ -4,7 +4,7 @@ module API
   module Entities
     class Note < Grape::Entity
       # Only Issue and MergeRequest have iid
-      NOTEABLE_TYPES_WITH_IID = %w(Issue MergeRequest).freeze
+      NOTEABLE_TYPES_WITH_IID = %w[Issue MergeRequest].freeze
 
       expose :id
       expose :type
@@ -18,7 +18,7 @@ module API
       expose :commit_id, if: ->(note, options) { note.noteable_type == "MergeRequest" && note.is_a?(DiffNote) }
 
       expose :position, if: ->(note, options) { note.is_a?(DiffNote) } do |note|
-        note.position.to_h
+        note.position.to_h.except(:ignore_whitespace_change)
       end
 
       expose :resolvable?, as: :resolvable

@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import { parseBoolean } from '~/lib/utils/common_utils';
 import UpdateSharedRunnersForm from './components/shared_runners_form.vue';
 
 export default (containerId = 'update-shared-runners-form') => {
@@ -6,7 +7,11 @@ export default (containerId = 'update-shared-runners-form') => {
 
   const {
     groupId,
+    groupName,
+    groupIsEmpty,
     sharedRunnersSetting,
+    parentName,
+    parentSettingsPath,
     parentSharedRunnersSetting,
     runnerEnabledValue,
     runnerDisabledValue,
@@ -17,11 +22,17 @@ export default (containerId = 'update-shared-runners-form') => {
     el: containerEl,
     provide: {
       groupId,
+      groupName,
+      groupIsEmpty: parseBoolean(groupIsEmpty),
       sharedRunnersSetting,
-      parentSharedRunnersSetting,
+
       runnerEnabledValue,
       runnerDisabledValue,
       runnerAllowOverrideValue,
+
+      parentName,
+      parentSettingsPath,
+      parentSharedRunnersSetting,
     },
     render(createElement) {
       return createElement(UpdateSharedRunnersForm);

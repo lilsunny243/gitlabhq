@@ -1,6 +1,7 @@
 import { GlButton, GlForm } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import ApproveAccessRequestButton from '~/members/components/action_buttons/approve_access_request_button.vue';
@@ -48,10 +49,6 @@ describe('ApproveAccessRequestButton', () => {
 
   beforeEach(() => {
     createComponent();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('displays a tooltip', () => {

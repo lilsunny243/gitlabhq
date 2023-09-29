@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > Repository settings', feature_category: :projects do
+RSpec.describe 'Projects > Settings > Repository settings', feature_category: :groups_and_projects do
+  include Features::MirroringHelpers
+
   let(:project) { create(:project_empty_repo) }
   let(:user) { create(:user) }
   let(:role) { :developer }
 
   before do
-    stub_feature_flags(branch_rules: false)
-    stub_feature_flags(mirror_only_branches_match_regex: false)
     project.add_role(user, role)
     sign_in(user)
   end
@@ -41,15 +41,7 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
     end
 
     context 'Branch rules', :js do
-      context 'branch_rules feature flag disabled', :js do
-        it 'does not render branch rules settings' do
-          visit project_settings_repository_path(project)
-          expect(page).not_to have_content('Branch rules')
-        end
-      end
-
       it 'renders branch rules settings' do
-        stub_feature_flags(branch_rules: true)
         visit project_settings_repository_path(project)
         expect(page).to have_content('Branch rules')
       end
@@ -60,6 +52,10 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
       let_it_be(:public_deploy_key) { create(:another_deploy_key, title: 'public_deploy_key', public: true) }
 
       let(:new_ssh_key) { attributes_for(:key)[:key] }
+
+      around do |example|
+        travel_to Time.zone.local(2022, 3, 1, 1, 0, 0) { example.run }
+      end
 
       it 'get list of keys' do
         project.deploy_keys << private_deploy_key
@@ -80,6 +76,21 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
         click_button 'Add key'
 
         expect(page).to have_content('new_deploy_key')
+        expect(page).to have_content('Grant write permissions to this key')
+      end
+
+      it 'add a new deploy key with expiration' do
+        one_month = Time.zone.local(2022, 4, 1, 1, 0, 0)
+        visit project_settings_repository_path(project)
+
+        fill_in 'deploy_key_title', with: 'new_deploy_key_with_expiry'
+        fill_in 'deploy_key_key', with: new_ssh_key
+        fill_in 'deploy_key_expires_at', with: one_month.to_s
+        check 'deploy_key_deploy_keys_projects_attributes_0_can_push'
+        click_button 'Add key'
+
+        expect(page).to have_content('new_deploy_key_with_expiry')
+        expect(page).to have_content('in 1 month')
         expect(page).to have_content('Grant write permissions to this key')
       end
 
@@ -145,6 +156,7 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
 
       before do
         visit project_settings_repository_path(project)
+        click_button 'Add new'
       end
 
       it 'shows push mirror settings', :js do
@@ -152,10 +164,8 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
       end
 
       it 'creates a push mirror that mirrors all branches', :js do
-        expect(page).to have_css('.js-mirror-protected-hidden[value="0"]', visible: false)
-
-        fill_in 'url', with: ssh_url
-        expect(page).to have_css(".js-mirror-url-hidden[value=\"#{ssh_url}\"]", visible: false)
+        wait_for_mirror_field_javascript('protected', '0')
+        fill_and_wait_for_mirror_url_javascript('url', ssh_url)
 
         select 'SSH public key', from: 'Authentication method'
         select_direction
@@ -172,10 +182,8 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
       it 'creates a push mirror that only mirrors protected branches', :js do
         find('#only_protected_branches').click
 
-        expect(page).to have_css('.js-mirror-protected-hidden[value="1"]', visible: false)
-
-        fill_in 'url', with: ssh_url
-        expect(page).to have_css(".js-mirror-url-hidden[value=\"#{ssh_url}\"]", visible: false)
+        wait_for_mirror_field_javascript('protected', '1')
+        fill_and_wait_for_mirror_url_javascript('url', ssh_url)
 
         select 'SSH public key', from: 'Authentication method'
         select_direction
@@ -192,8 +200,7 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
       it 'creates a push mirror that keeps divergent refs', :js do
         select_direction
 
-        fill_in 'url', with: ssh_url
-        expect(page).to have_css(".js-mirror-url-hidden[value=\"#{ssh_url}\"]", visible: false)
+        fill_and_wait_for_mirror_url_javascript('url', ssh_url)
 
         fill_in 'Password', with: 'password'
         check 'Keep divergent refs'
@@ -212,8 +219,7 @@ RSpec.describe 'Projects > Settings > Repository settings', feature_category: :p
       end
 
       it 'generates an SSH public key on submission', :js do
-        fill_in 'url', with: ssh_url
-        expect(page).to have_css(".js-mirror-url-hidden[value=\"#{ssh_url}\"]", visible: false)
+        fill_and_wait_for_mirror_url_javascript('url', ssh_url)
 
         select 'SSH public key', from: 'Authentication method'
 

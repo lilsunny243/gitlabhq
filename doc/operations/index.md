@@ -4,32 +4,10 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Monitor application performance **(FREE)**
+# Monitor application performance **(FREE ALL)**
 
 GitLab provides a variety of tools to help operate and maintain
 your applications.
-
-## Measure reliability and stability with metrics (DEPRECATED)
-
-> [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/346541) in GitLab 14.7.
-
-WARNING:
-This feature is in its end-of-life process. It is [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/346541)
-for use in GitLab 14.7, and is planned for removal in GitLab 16.0.
-
-Metrics help you understand the health and performance of your infrastructure,
-applications, and systems by providing insights into your application's reliability,
-stability, and performance. GitLab provides a default dashboard that you
-can extend with custom metrics, and augment with additional custom dashboards. You
-can track the metrics that matter most to your team, generate automated alerts when
-performance degrades, and manage those alerts - all within GitLab.
-
-- Collect [Prometheus metrics](../user/project/integrations/prometheus_library/index.md).
-- Monitor application status with the [out-of-the-box metrics dashboard](metrics/index.md),
-  which you can [customize](metrics/dashboards/settings.md).
-- Create [custom performance alerts](metrics/alerts.md).
-- Create [custom metrics](metrics/index.md#adding-custom-metrics) and
-  [custom dashboards](metrics/dashboards/index.md).
 
 ## Manage alerts and incidents
 
@@ -38,11 +16,10 @@ issues across multiple systems and aggregate alerts in a centralized place. Your
 team needs a single, central interface where they can investigate alerts
 and promote the critical alerts to incidents.
 
-Are your alerts too noisy? Alerts configured on GitLab metrics can configured
+Are your alerts too noisy? Alerts can be configured
 and fine-tuned in GitLab immediately following a fire-fight.
 
 - [Manage alerts and incidents](incident_management/index.md) in GitLab.
-- [Configure alerts for metrics](metrics/alerts.md) in GitLab. (DEPRECATED)
 - Create a [status page](incident_management/status_page.md)
   to communicate efficiently to your users during an incident.
 
@@ -76,4 +53,4 @@ an environment.
 
 - Deploy to different [environments](../ci/environments/index.md).
 - Connect your project to a [Kubernetes cluster](../user/infrastructure/clusters/index.md).
-- Create, toggle, and remove [Feature Flags](feature_flags.md).
+- Create, toggle, and remove [feature flags](feature_flags.md).

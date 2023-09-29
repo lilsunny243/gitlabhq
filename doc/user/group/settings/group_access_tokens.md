@@ -1,11 +1,11 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
 ---
 
-# Group access tokens
+# Group access tokens **(FREE)**
 
 With group access tokens, you can use a single token to:
 
@@ -25,50 +25,51 @@ Group access tokens are similar to [project access tokens](../../project/setting
 and [personal access tokens](../../profile/personal_access_tokens.md), except they are
 associated with a group rather than a project or user.
 
-In self-managed instances, group access tokens are subject to the same [maximum lifetime limits](../../admin_area/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) as personal access tokens if the limit is set.
+In self-managed instances, group access tokens are subject to the same [maximum lifetime limits](../../../administration/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) as personal access tokens if the limit is set.
 
 WARNING:
-The ability to create group access tokens without expiry was
-[deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/369122) in GitLab 15.4 and is planned for removal in GitLab
-16.0. When this ability is removed, existing group access tokens without an expiry are planned to have an expiry added.
-The automatic adding of an expiry occurs on GitLab.com during the 16.0 milestone. The automatic adding of an expiry
-occurs on self-managed instances when they are upgraded to GitLab 16.0. This change is a breaking change.
+The ability to create group access tokens without an expiry date was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/369122) in GitLab 15.4 and [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/392855) in GitLab 16.0. In GitLab 16.0 and later, existing group access tokens without an expiry date are automatically given an expiry date 365 days later than the current date. The automatic adding of an expiry date occurs on GitLab.com during the 16.0 milestone. The automatic adding of an expiry date occurs on self-managed instances when they are upgraded to GitLab 16.0. This change is a breaking change.
 
 You can use group access tokens:
 
-- On GitLab SaaS if you have the Premium license tier or higher. Group access tokens are not available with a [trial license](https://about.gitlab.com/free-trial/).
-- On self-managed instances of GitLab, with any license tier. If you have the Free tier:
+- On GitLab SaaS: If you have the Premium or Ultimate license tier. Group access tokens are not available with a [trial license](https://about.gitlab.com/free-trial/).
+- On self-managed instances: With any license tier. If you have the Free tier:
   - Review your security and compliance policies around
-    [user self-enrollment](../../admin_area/settings/sign_up_restrictions.md#disable-new-sign-ups).
+    [user self-enrollment](../../../administration/settings/sign_up_restrictions.md#disable-new-sign-ups).
   - Consider [disabling group access tokens](#enable-or-disable-group-access-token-creation) to
     lower potential abuse.
 
 You cannot use group access tokens to create other group, project, or personal access tokens.
 
-Group access tokens inherit the [default prefix setting](../../admin_area/settings/account_and_limit_settings.md#personal-access-token-prefix)
+Group access tokens inherit the [default prefix setting](../../../administration/settings/account_and_limit_settings.md#personal-access-token-prefix)
 configured for personal access tokens.
 
 ## Create a group access token using UI
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/214045) in GitLab 14.7.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/348660) in GitLab 15.3, default expiration of 30 days and default role of Guest is populated in the UI.
+> - Ability to create non-expiring group access tokens [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/392855) in GitLab 16.0.
+
+WARNING:
+Project access tokens are treated as [internal users](../../../development/internal_users.md).
+If an internal user creates a project access token, that token is able to access
+all projects that have visibility level set to [Internal](../../public_access.md).
 
 To create a group access token:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > Access Tokens**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > Access Tokens**.
 1. Enter a name. The token name is visible to any user with permissions to view the group.
-1. Optional. Enter an expiry date for the token. The token will expire on that date at midnight UTC. An instance-wide [maximum lifetime](../../admin_area/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) setting can limit the maximum allowable lifetime in self-managed instances.
+1. Enter an expiry date for the token:
+   - The token expires on that date at midnight UTC.
+   - If you do not enter an expiry date, the expiry date is automatically set to 365 days later than the current date.
+   - By default, this date can be a maximum of 365 days later than the current date.
+   - An instance-wide [maximum lifetime](../../../administration/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) setting can limit the maximum allowable lifetime in self-managed instances.
 1. Select a role for the token.
 1. Select the [desired scopes](#scopes-for-a-group-access-token).
 1. Select  **Create group access token**.
 
 A group access token is displayed. Save the group access token somewhere safe. After you leave or refresh the page, you can't view it again.
-
-WARNING:
-Group access tokens are treated as [internal users](../../../development/internal_users.md).
-If an internal user creates a group access token, that token is able to access all
-groups that have visibility level set to [Internal](../../public_access.md).
 
 ## Create a group access token using Rails console
 
@@ -85,7 +86,7 @@ or API. However, administrators can use a workaround:
    group = Group.find(109)
 
    # Create the group bot user. For further group access tokens, the username should be `group_{group_id}_bot_{random_string}` and email address `group_{group_id}_bot_{random_string}@noreply.{Gitlab.config.gitlab.host}`.
-   random_string = SecureRandom.hex(8)
+   random_string = SecureRandom.hex(16)
    bot = Users::CreateService.new(admin, { name: 'group_token', username: "group_#{group.id}_bot_#{random_string}", email: "group_#{group.id}_bot_#{random_string}@noreply.#{Gitlab.config.gitlab.host}", user_type: :project_bot }).execute
 
    # Confirm the group bot.
@@ -118,8 +119,8 @@ or API. However, administrators can use a workaround:
 
 To revoke a group access token:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > Access Tokens**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > Access Tokens**.
 1. Next to the group access token to revoke, select **Revoke**.
 
 ## Revoke a group access token using Rails console
@@ -137,6 +138,8 @@ token.revoke!
 
 ## Scopes for a group access token
 
+> `k8s_proxy` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/422408) in GitLab 16.4 [with a flag](../../../administration/feature_flags.md) named `k8s_proxy_pat`. Enabled by default.
+
 The scope determines the actions you can perform when you authenticate with a group access token.
 
 | Scope              | Description                                                                                                                                                                      |
@@ -147,13 +150,16 @@ The scope determines the actions you can perform when you authenticate with a gr
 | `write_registry`   | Grants write access (push) to the [Container Registry](../../packages/container_registry/index.md).                                                                              |
 | `read_repository`  | Grants read access (pull) to all repositories within a group.                                                                                                                    |
 | `write_repository` | Grants read and write access (pull and push) to all repositories within a group.                                                                                                 |
+| `create_runner`    | Grants permission to create runners in a group.                                                                                                                                  |
+| `ai_features`      | Grants permission to perform API actions for GitLab Duo.                                                                                                                         |
+| `k8s_proxy`        | Grants permission to perform Kubernetes API calls using the agent for Kubernetes in a group.                                                                                     |
 
 ## Enable or disable group access token creation
 
 To enable or disable group access token creation for all subgroups in a top-level group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. Under **Permissions**, turn on or off **Users can create project access tokens and group access tokens in this group**.
 
@@ -167,7 +173,7 @@ These bot users are similar to
 [bot users for projects](../../project/settings/project_access_tokens.md#bot-users-for-projects), except they are added
 to groups instead of projects. Bot users for groups:
 
-- Do not count as licensed seats.
+- Is not a billable user, so it does not count toward the license limit.
 - Can have a maximum role of Owner for a group. For more information, see
   [Create a group access token](../../../api/group_access_tokens.md#create-a-group-access-token).
 - Have a username set to `group_{group_id}_bot_{random_string}`. For example, `group_123_bot_4ffca233d8298ea1`.

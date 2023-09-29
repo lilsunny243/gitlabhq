@@ -1,6 +1,6 @@
 <script>
 import { GlIcon } from '@gitlab/ui';
-import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
+import { TYPE_ISSUE, TYPE_MERGE_REQUEST } from '~/issues/constants';
 import { __, sprintf } from '~/locale';
 
 export default {
@@ -32,7 +32,7 @@ export default {
       );
     },
     isMergeRequest() {
-      return this.issuableType === IssuableType.MergeRequest;
+      return this.issuableType === TYPE_MERGE_REQUEST;
     },
     hasMergeIcon() {
       const canMerge = this.user.mergeRequestInteraction?.canMerge || this.user.can_merge;
@@ -50,7 +50,7 @@ export default {
       :width="imgSize"
       :class="`s${imgSize}`"
       class="avatar avatar-inline m-0"
-      data-qa-selector="avatar_image"
+      data-testid="avatar-image"
     />
     <gl-icon v-if="hasMergeIcon" name="warning-solid" aria-hidden="true" class="merge-icon" />
   </span>

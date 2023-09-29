@@ -16,8 +16,12 @@ import UserAccessRoleBadge from '~/vue_shared/components/user_access_role_badge.
 import { AVATAR_SHAPE_OPTION_RECT } from '~/vue_shared/constants';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { __ } from '~/locale';
-import { VISIBILITY_LEVELS_STRING_TO_INTEGER } from '~/visibility_level/constants';
-import { VISIBILITY_TYPE_ICON, GROUP_VISIBILITY_TYPE, ITEM_TYPE } from '../constants';
+import {
+  VISIBILITY_LEVELS_STRING_TO_INTEGER,
+  VISIBILITY_TYPE_ICON,
+  GROUP_VISIBILITY_TYPE,
+} from '~/visibility_level/constants';
+import { ITEM_TYPE, ACTIVE_TAB_SHARED } from '../constants';
 
 import eventHub from '../event_hub';
 
@@ -46,7 +50,11 @@ export default {
     ItemActions,
     ItemStats,
   },
-  inject: ['currentGroupVisibility'],
+  inject: {
+    currentGroupVisibility: {
+      default: '',
+    },
+  },
   props: {
     parentGroup: {
       type: Object,
@@ -110,7 +118,7 @@ export default {
     },
     shouldShowVisibilityWarning() {
       return (
-        this.action === 'shared' &&
+        this.action === ACTIVE_TAB_SHARED &&
         VISIBILITY_LEVELS_STRING_TO_INTEGER[this.group.visibility] >
           VISIBILITY_LEVELS_STRING_TO_INTEGER[this.currentGroupVisibility]
       );
@@ -197,7 +205,7 @@ export default {
               data-testid="group-name"
               :href="group.relativePath"
               :title="group.fullName"
-              class="no-expand gl-mr-3 gl-text-gray-900!"
+              class="no-expand gl-mr-3 gl-text-gray-900! gl-word-break-word"
               :itemprop="microdata.nameItemprop"
             >
               <!-- ending bracket must be by closing tag to prevent -->

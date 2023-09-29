@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe TestHooks::ProjectService do
+RSpec.describe TestHooks::ProjectService, feature_category: :code_testing do
   include AfterNextHelpers
 
   let(:current_user) { create(:user) }
@@ -202,6 +202,27 @@ RSpec.describe TestHooks::ProjectService do
       it 'executes hook' do
         allow(release).to receive(:to_hook_data).and_return(sample_data)
         allow_next(ReleasesFinder).to receive(:execute).and_return([release])
+
+        expect(hook).to receive(:execute).with(sample_data, trigger_key, force: true).and_return(success_result)
+        expect(service.execute).to include(success_result)
+      end
+    end
+
+    context 'emoji' do
+      let(:trigger) { 'emoji_events' }
+      let(:trigger_key) { :emoji_hooks }
+
+      it 'returns error message if not enough data' do
+        expect(hook).not_to receive(:execute)
+        expect(service.execute).to have_attributes(status: :error, message: 'Ensure the project has notes.')
+      end
+
+      it 'executes hook' do
+        note = create(:note)
+        allow(project).to receive_message_chain(:notes, :any?).and_return(true)
+        allow(project).to receive_message_chain(:notes, :last).and_return(note)
+        allow(Gitlab::DataBuilder::Emoji).to receive(:build).with(anything, current_user, 'award')
+          .and_return(sample_data)
 
         expect(hook).to receive(:execute).with(sample_data, trigger_key, force: true).and_return(success_result)
         expect(service.execute).to include(success_result)

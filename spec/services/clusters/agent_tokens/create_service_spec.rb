@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Clusters::AgentTokens::CreateService, feature_category: :kubernetes_management do
+RSpec.describe Clusters::AgentTokens::CreateService, feature_category: :deployment_management do
   subject(:service) { described_class.new(agent: cluster_agent, current_user: user, params: params) }
 
   let_it_be(:user) { create(:user) }
@@ -76,6 +76,18 @@ RSpec.describe Clusters::AgentTokens::CreateService, feature_category: :kubernet
         it 'returns validation errors', :aggregate_failures do
           expect(subject.status).to eq(:error)
           expect(subject.message).to eq(["Name can't be blank"])
+        end
+      end
+
+      context 'when the active agent tokens limit is reached' do
+        before do
+          create(:cluster_agent_token, agent: cluster_agent)
+          create(:cluster_agent_token, agent: cluster_agent)
+        end
+
+        it 'returns an error' do
+          expect(subject.status).to eq(:error)
+          expect(subject.message).to eq('An agent can have only two active tokens at a time')
         end
       end
     end

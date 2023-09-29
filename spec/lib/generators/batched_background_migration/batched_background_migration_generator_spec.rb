@@ -20,51 +20,76 @@ RSpec.describe BatchedBackgroundMigration::BatchedBackgroundMigrationGenerator, 
     rm_rf(destination_root)
   end
 
-  context 'with valid arguments' do
-    let(:expected_migration_file) { load_expected_file('queue_my_batched_migration.txt') }
-    let(:expected_migration_spec_file) { load_expected_file('queue_my_batched_migration_spec.txt') }
-    let(:expected_migration_job_file) { load_expected_file('my_batched_migration.txt') }
-    let(:expected_migration_job_spec_file) { load_expected_file('my_batched_migration_spec_matcher.txt') }
+  shared_examples "generates files common to both types of migrations" do |migration_job_file, migration_file,
+    migration_spec_file, migration_dictionary_file|
+    let(:expected_migration_job_file) { load_expected_file(migration_job_file) }
+    let(:expected_migration_file) { load_expected_file(migration_file) }
+    let(:expected_migration_spec_file) { load_expected_file(migration_spec_file) }
+    let(:expected_migration_dictionary) { load_expected_file(migration_dictionary_file) }
 
-    it 'generates expected files' do
-      run_generator %w[my_batched_migration --table_name=projects --column_name=id --feature_category=database]
+    it 'generates expected common files' do
+      assert_file('lib/gitlab/background_migration/my_batched_migration.rb') do |migration_job_file|
+        expect(migration_job_file).to eq(expected_migration_job_file)
+      end
 
       assert_migration('db/post_migrate/queue_my_batched_migration.rb') do |migration_file|
-        expect(migration_file).to eq(expected_migration_file)
+        expect(migration_file).to eq(expected_migration_file.gsub('<migration_version>', fetch_migration_version))
       end
 
       assert_migration('spec/migrations/queue_my_batched_migration_spec.rb') do |migration_spec_file|
         expect(migration_spec_file).to eq(expected_migration_spec_file)
       end
 
-      assert_file('lib/gitlab/background_migration/my_batched_migration.rb') do |migration_job_file|
-        expect(migration_job_file).to eq(expected_migration_job_file)
+      assert_file('db/docs/batched_background_migrations/my_batched_migration.yml') do |migration_dictionary|
+        # Regex is used to match the dynamically generated 'milestone' in the dictionary
+        expect(migration_dictionary).to match(/#{expected_migration_dictionary}/)
+      end
+    end
+  end
+
+  context 'when generating EE-only batched background migration' do
+    before do
+      run_generator %w[my_batched_migration --table_name=projects --column_name=id --feature_category=database
+        --ee-only]
+    end
+
+    let(:expected_ee_migration_job_file) { load_expected_file('ee_my_batched_migration.txt') }
+    let(:expected_migration_job_spec_file) { load_expected_file('my_batched_migration_spec.txt') }
+
+    include_examples "generates files common to both types of migrations",
+      'foss_my_batched_migration.txt',
+      'queue_my_batched_migration.txt',
+      'queue_my_batched_migration_spec.txt',
+      'my_batched_migration_dictionary_matcher.txt'
+
+    it 'generates expected files' do
+      assert_file('ee/lib/ee/gitlab/background_migration/my_batched_migration.rb') do |migration_job_file|
+        expect(migration_job_file).to eq(expected_ee_migration_job_file)
       end
 
-      assert_file('spec/lib/gitlab/background_migration/my_batched_migration_spec.rb') do |migration_job_spec_file|
-        # Regex is used to match the dynamic schema: <version> in the specs
+      assert_file('ee/spec/lib/ee/gitlab/background_migration/my_batched_migration_spec.rb') do |migration_job_spec_file| # rubocop:disable Layout/LineLength
         expect(migration_job_spec_file).to match(/#{expected_migration_job_spec_file}/)
       end
     end
   end
 
-  context 'without required arguments' do
-    it 'throws table_name is required error' do
-      expect do
-        run_generator %w[my_batched_migration]
-      end.to raise_error(ArgumentError, 'table_name is required')
+  context 'when generating FOSS batched background migration' do
+    before do
+      run_generator %w[my_batched_migration --table_name=projects --column_name=id --feature_category=database]
     end
 
-    it 'throws column_name is required error' do
-      expect do
-        run_generator %w[my_batched_migration --table_name=projects]
-      end.to raise_error(ArgumentError, 'column_name is required')
-    end
+    let(:expected_migration_job_spec_file) { load_expected_file('my_batched_migration_spec.txt') }
 
-    it 'throws feature_category is required error' do
-      expect do
-        run_generator %w[my_batched_migration --table_name=projects --column_name=id]
-      end.to raise_error(ArgumentError, 'feature_category is required')
+    include_examples "generates files common to both types of migrations",
+      'my_batched_migration.txt',
+      'queue_my_batched_migration.txt',
+      'queue_my_batched_migration_spec.txt',
+      'my_batched_migration_dictionary_matcher.txt'
+
+    it 'generates expected files' do
+      assert_file('spec/lib/gitlab/background_migration/my_batched_migration_spec.rb') do |migration_job_spec_file|
+        expect(migration_job_spec_file).to eq(expected_migration_job_spec_file)
+      end
     end
   end
 
@@ -72,5 +97,10 @@ RSpec.describe BatchedBackgroundMigration::BatchedBackgroundMigrationGenerator, 
 
   def load_expected_file(file_name)
     File.read(File.expand_path("expected_files/#{file_name}", __dir__))
+  end
+
+  def fetch_migration_version
+    @migration_version ||= migration_file_name('db/post_migrate/queue_my_batched_migration.rb')
+      .match(%r{post_migrate/([0-9]+)_queue_my_batched_migration.rb})[1]
   end
 end

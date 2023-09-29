@@ -25,6 +25,8 @@ describe('Registry Search', () => {
     orderBy: 'name',
     search: [],
     sort: 'asc',
+    after: null,
+    before: null,
   };
 
   const mountComponent = (propsData = defaultProps) => {
@@ -35,11 +37,6 @@ describe('Registry Search', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('searching', () => {
     it('has a filtered-search component', () => {

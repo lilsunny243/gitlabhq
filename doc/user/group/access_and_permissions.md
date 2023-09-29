@@ -1,6 +1,6 @@
 ---
-stage: Manage
-group: Organization
+stage: Data Stores
+group: Tenant Scale
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -8,7 +8,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 Configure your groups to control group permissions and access.
 
-## Group push rules **(PREMIUM)**
+## Group push rules **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/34370) in GitLab 12.8.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/224129) in GitLab 13.4.
@@ -37,46 +37,42 @@ The group's new subgroups have push rules set for them based on either:
 
 ## Restrict Git access protocols
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/365601) in GitLab 15.1 [with a flag](../../administration/feature_flags.md) named `group_level_git_protocol_control`. Disabled by default.
-
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to
-[enable the feature flag](../../administration/feature_flags.md) named `group_level_git_protocol_control`. On GitLab.com,
-this feature is available.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/365601) in GitLab 15.1.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/365357) in GitLab 16.0.
 
 You can set the permitted protocols used to access a group's repositories to either SSH, HTTPS, or both. This setting
-is disabled when the [instance setting](../admin_area/settings/visibility_and_access_controls.md#configure-enabled-git-access-protocols) is
+is disabled when the [instance setting](../../administration/settings/visibility_and_access_controls.md#configure-enabled-git-access-protocols) is
 configured by an administrator.
 
 To change the permitted Git access protocols for a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Choose the permitted protocols from **Enabled Git access protocols**.
 1. Select **Save changes**.
 
-## Restrict group access by IP address **(PREMIUM)**
+## Restrict group access by IP address **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1985) in GitLab 12.0.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/215410) from GitLab Ultimate to GitLab Premium in 13.1.
 
 To ensure only people from your organization can access particular resources, you can restrict access to groups by IP
-address. This group-level setting applies to:
+address. This top-level group setting applies to:
 
-- The GitLab UI, including subgroups, projects, and issues.
+- The GitLab UI, including subgroups, projects, and issues. It does not apply to GitLab Pages.
 - [In GitLab 12.3 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/12874), the API.
 - In self-managed installations of GitLab 15.1 and later, you can also configure
-[globally-allowed IP address ranges](../admin_area/settings/visibility_and_access_controls.md#configure-globally-allowed-ip-address-ranges)
+[globally-allowed IP address ranges](../../administration/settings/visibility_and_access_controls.md#configure-globally-allowed-ip-address-ranges)
 at the group level.
 
 Administrators can combine restricted access by IP address with
-[globally-allowed IP addresses](../admin_area/settings/visibility_and_access_controls.md#configure-globally-allowed-ip-address-ranges).
+[globally-allowed IP addresses](../../administration/settings/visibility_and_access_controls.md#configure-globally-allowed-ip-address-ranges).
 
 To restrict group access by IP address:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. In the **Restrict access by IP address** text box, enter a list of IPv4 or IPv6
    address ranges in CIDR notation. This list:
@@ -102,10 +98,21 @@ Keep in mind that restricting group access by IP address has the following impli
   restricted IP address, the IP restriction prevents code from being cloned.
 - Users might still see some events from the IP-restricted groups and projects on their dashboard. Activity might include
   push, merge, issue, or comment events.
-- IP access restrictions for Git operations via SSH are supported only on GitLab SaaS.
-  IP access restrictions applied to self-managed instances block SSH completely.
+- IP access restrictions for Git operations via SSH are supported on GitLab SaaS.
+  IP access restrictions applied to self-managed instances are possible with [`gitlab-sshd`](../../administration/operations/gitlab_sshd.md)
+  with [PROXY protocol](../../administration/operations/gitlab_sshd.md#proxy-protocol-support) enabled.
+- IP restriction is not applicable to shared resources belonging to a group. Any shared resource is accessible to a user even if that user is not able to access the group.
+- While IP restrictions apply to public projects, they aren't a complete firewall and cached files for a project may still be accessible to users not in the IP block
 
-## Restrict group access by domain **(PREMIUM)**
+### GitLab.com access restrictions
+
+On GitLab.com shared runners are added to the [global allowlist](../../administration/settings/visibility_and_access_controls.md#configure-globally-allowed-ip-address-ranges), so that they are available regardless of IP restrictions.
+
+Artifact and Registry downloading from runners is sourced from any Google or, in the case of MacOS runners, Amazon IP address in that region.
+The download is therefore not added to the global allowlist.
+To allow runner downloading, add the [outbound runner CIDR ranges](../gitlab_com/index.md#ip-range) to your group allowlist.
+
+## Restrict group access by domain **(PREMIUM ALL)**
 
 > - Support for specifying multiple email domains [added](https://gitlab.com/gitlab-org/gitlab/-/issues/33143) in GitLab 13.1.
 > - Support for restricting access to projects in the group [added](https://gitlab.com/gitlab-org/gitlab/-/issues/14004) in GitLab 14.1.2.
@@ -115,8 +122,8 @@ You can prevent users with email addresses in specific domains from being added 
 
 To restrict group access by domain:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. In the **Restrict membership by email** field, enter the domain names.
 1. Select **Save changes**.
@@ -159,8 +166,8 @@ If you prevent group sharing outside the hierarchy for the **Animals** group:
 
 To prevent sharing outside of the group's hierarchy:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. Select **Members cannot invite groups outside of `<group_name>` and its subgroups**.
 1. Select **Save changes**.
@@ -175,8 +182,8 @@ which can be confusing and difficult to control.
 To restrict the permission to invite project members to a single source,
 prevent a project from being shared with other groups:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Select **Projects in `<group_name>` cannot be shared with other groups**.
 1. Select **Save changes**.
@@ -189,20 +196,18 @@ added to a project lose access when the setting is enabled.
 As a group Owner, you can prevent non-members from requesting access to
 your group.
 
-1. On the top bar, **Main menu > Groups** and find your group.
-1. Select **Your Groups**.
-1. Find the group and select it.
-1. From the left menu, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Clear the **Allow users to request access** checkbox.
 1. Select **Save changes**.
 
-## Prevent project forking outside group **(PREMIUM)**
+## Prevent project forking outside group **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216987) in GitLab 13.3.
 
 By default, projects in a group can be forked.
-Optionally, on [GitLab Premium](https://about.gitlab.com/pricing/) or higher tiers,
+Optionally, on [GitLab Premium and Ultimate tiers](https://about.gitlab.com/pricing/),
 you can prevent the projects in a group from being forked outside of the current top-level group.
 
 This setting is removed from the SAML setting page, and migrated to the
@@ -211,15 +216,15 @@ If even one is set to `true`, then the group does not allow outside forks.
 
 To prevent projects from being forked outside the group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Check **Prevent project forking outside current group**.
 1. Select **Save changes**.
 
 Existing forks are not removed.
 
-## Prevent members from being added to projects in a group **(PREMIUM)**
+## Prevent members from being added to projects in a group **(PREMIUM ALL)**
 
 As a group Owner, you can prevent any new project membership for all
 projects in a group, allowing tighter control over project membership.
@@ -236,8 +241,9 @@ The setting does not cascade. Projects in subgroups observe the subgroup configu
 
 To prevent members from being added to projects in a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
+1. Expand the **Permissions and group features** section.
 1. Under **Membership**, select **Users cannot be added to projects in this group**.
 1. Select **Save changes**.
 
@@ -256,6 +262,8 @@ For more information on the administration of LDAP and group sync, refer to the 
 
 NOTE:
 When you add LDAP synchronization, if an LDAP user is a group member and they are not part of the LDAP group, they are removed from the group.
+
+You can use a workaround to [manage project access through LDAP groups](../project/working_with_projects.md#manage-project-access-through-ldap-groups).
 
 ### Create group links via CN **(PREMIUM SELF)**
 
@@ -285,15 +293,15 @@ To create group links via filter:
 
 LDAP user permissions can be manually overridden by an administrator. To override a user's permissions:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Group information > Members**. If LDAP synchronization
+1. On the left sidebar, select **Search or go to** and find your group.
+1. On the left sidebar, select **Manage > Members**. If LDAP synchronization
    has granted a user a role with:
    - More permissions than the parent group membership, that user is displayed as having
      [direct membership](../project/members/index.md#display-direct-members) of the group.
    - The same or fewer permissions than the parent group membership, that user is displayed as having
      [inherited membership](../project/members/index.md#display-inherited-members) of the group.
 1. Optional. If the user you want to edit is displayed as having inherited membership,
-   [filter the subgroup to show direct members](manage.md#filter-a-group) before
+   [filter the subgroup to show direct members](index.md#filter-a-group) before
    overriding LDAP user permissions.
 1. In the row for the user you are editing, select the pencil (**{pencil}**) icon.
 1. Select **Edit permissions** in the modal.
@@ -321,6 +329,6 @@ If a parent group membership has the same or higher role than a subgroup, the
 listed on the subgroup members page, even if a [direct membership](../project/members/index.md#membership-types)
 on the group exists.
 
-To view and update direct memberships, [filter the group to show direct members](manage.md#filter-a-group).
+To view and update direct memberships, [filter the group to show direct members](index.md#filter-a-group).
 
 The need to filter members by type through a redesigned members page that lists both direct and inherited memberships is proposed in [issue 337539](https://gitlab.com/gitlab-org/gitlab/-/issues/337539#note_1277786161).

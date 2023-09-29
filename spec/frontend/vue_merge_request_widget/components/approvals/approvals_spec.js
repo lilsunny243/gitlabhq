@@ -2,11 +2,12 @@ import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import { GlButton, GlSprintf } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
+import { createMockSubscription as createMockApolloSubscription } from 'mock-apollo-client';
 import approvedByCurrentUser from 'test_fixtures/graphql/merge_requests/approvals/approvals.query.graphql.json';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import Approvals from '~/vue_merge_request_widget/components/approvals/approvals.vue';
 import ApprovalsSummary from '~/vue_merge_request_widget/components/approvals/approvals_summary.vue';
 import ApprovalsSummaryOptional from '~/vue_merge_request_widget/components/approvals/approvals_summary_optional.vue';
@@ -16,12 +17,13 @@ import {
 } from '~/vue_merge_request_widget/components/approvals/messages';
 import eventHub from '~/vue_merge_request_widget/event_hub';
 import approvedByQuery from 'ee_else_ce/vue_merge_request_widget/components/approvals/queries/approvals.query.graphql';
+import approvedBySubscription from 'ee_else_ce/vue_merge_request_widget/components/approvals/queries/approvals.subscription.graphql';
 import { createCanApproveResponse } from 'jest/approvals/mock_data';
 
 Vue.use(VueApollo);
 
 const mockAlertDismiss = jest.fn();
-jest.mock('~/flash', () => ({
+jest.mock('~/alert', () => ({
   createAlert: jest.fn().mockImplementation(() => ({
     dismiss: mockAlertDismiss,
   })),
@@ -42,21 +44,33 @@ const testApprovals = () => ({
 });
 
 describe('MRWidget approvals', () => {
+  let mockedSubscription;
   let wrapper;
   let service;
   let mr;
 
-  const createComponent = (props = {}, response = approvedByCurrentUser) => {
-    const requestHandlers = [[approvedByQuery, jest.fn().mockResolvedValue(response)]];
+  const createComponent = (options = {}, responses = { query: approvedByCurrentUser }) => {
+    mockedSubscription = createMockApolloSubscription();
+
+    const requestHandlers = [[approvedByQuery, jest.fn().mockResolvedValue(responses.query)]];
+    const subscriptionHandlers = [[approvedBySubscription, () => mockedSubscription]];
     const apolloProvider = createMockApollo(requestHandlers);
+    const provide = {
+      ...options.provide,
+    };
+
+    subscriptionHandlers.forEach(([query, stream]) => {
+      apolloProvider.defaultClient.setRequestHandler(query, stream);
+    });
 
     wrapper = shallowMount(Approvals, {
       apolloProvider,
       propsData: {
         mr,
         service,
-        ...props,
+        ...options.props,
       },
+      provide,
       stubs: {
         GlSprintf,
       },
@@ -97,6 +111,7 @@ describe('MRWidget approvals', () => {
       isOpen: true,
       state: 'open',
       targetProjectFullPath: 'gitlab-org/gitlab',
+      id: 1,
       iid: '1',
     };
 
@@ -114,7 +129,7 @@ describe('MRWidget approvals', () => {
 
         mr.isOpen = false;
 
-        createComponent({}, response);
+        createComponent({}, { query: response });
         await waitForPromises();
       });
 
@@ -128,7 +143,7 @@ describe('MRWidget approvals', () => {
         const response = JSON.parse(JSON.stringify(approvedByCurrentUser));
         response.data.project.mergeRequest.approvedBy.nodes = [];
 
-        createComponent({}, response);
+        createComponent({}, { query: response });
         await waitForPromises();
       });
 
@@ -146,7 +161,7 @@ describe('MRWidget approvals', () => {
 
       describe('and MR is unapproved', () => {
         beforeEach(async () => {
-          createComponent({}, canApproveResponse);
+          createComponent({}, { query: canApproveResponse });
           await waitForPromises();
         });
 
@@ -167,7 +182,7 @@ describe('MRWidget approvals', () => {
         describe('with no approvers', () => {
           beforeEach(async () => {
             canApproveResponse.data.project.mergeRequest.approvedBy.nodes = [];
-            createComponent({}, canApproveResponse);
+            createComponent({}, { query: canApproveResponse });
             await nextTick();
           });
 
@@ -186,7 +201,7 @@ describe('MRWidget approvals', () => {
 
             canApproveResponse.data.project.mergeRequest.approvedBy.nodes[0].id = 2;
 
-            createComponent({}, canApproveResponse);
+            createComponent({}, { query: canApproveResponse });
             await waitForPromises();
           });
 
@@ -202,7 +217,7 @@ describe('MRWidget approvals', () => {
 
       describe('when approve action is clicked', () => {
         beforeEach(async () => {
-          createComponent({}, canApproveResponse);
+          createComponent({}, { query: canApproveResponse });
           await waitForPromises();
         });
 
@@ -227,10 +242,6 @@ describe('MRWidget approvals', () => {
 
           it('calls service approve', () => {
             expect(service.approveMergeRequest).toHaveBeenCalled();
-          });
-
-          it('emits to eventHub', () => {
-            expect(eventHub.$emit).toHaveBeenCalledWith('MRWidgetUpdateRequested');
           });
         });
 
@@ -259,7 +270,7 @@ describe('MRWidget approvals', () => {
       beforeEach(async () => {
         const response = JSON.parse(JSON.stringify(approvedByCurrentUser));
 
-        createComponent({}, response);
+        createComponent({}, { query: response });
 
         await waitForPromises();
       });
@@ -282,10 +293,6 @@ describe('MRWidget approvals', () => {
           it('calls service unapprove', () => {
             expect(service.unapproveMergeRequest).toHaveBeenCalled();
           });
-
-          it('emits to eventHub', () => {
-            expect(eventHub.$emit).toHaveBeenCalledWith('MRWidgetUpdateRequested');
-          });
         });
 
         describe('and error', () => {
@@ -295,7 +302,7 @@ describe('MRWidget approvals', () => {
             return nextTick();
           });
 
-          it('flashes error message', () => {
+          it('alerts error message', () => {
             expect(createAlert).toHaveBeenCalledWith({ message: UNAPPROVE_ERROR });
           });
         });
@@ -320,7 +327,7 @@ describe('MRWidget approvals', () => {
         beforeEach(async () => {
           optionalApprovalsResponse.data.project.mergeRequest.userPermissions.canApprove = true;
 
-          createComponent({}, optionalApprovalsResponse);
+          createComponent({}, { query: optionalApprovalsResponse });
           await waitForPromises();
         });
 
@@ -335,7 +342,7 @@ describe('MRWidget approvals', () => {
 
       describe('and cannot approve', () => {
         beforeEach(async () => {
-          createComponent({}, optionalApprovalsResponse);
+          createComponent({}, { query: optionalApprovalsResponse });
           await nextTick();
         });
 
@@ -364,6 +371,25 @@ describe('MRWidget approvals', () => {
       expect(summary.props()).toMatchObject({
         approvalState: approvedByCurrentUser.data.project.mergeRequest,
       });
+    });
+  });
+
+  describe('realtime approvals update', () => {
+    const subscriptionApproval = { approved: true };
+    const subscriptionResponse = {
+      data: { mergeRequestApprovalStateUpdated: subscriptionApproval },
+    };
+
+    beforeEach(() => {
+      createComponent();
+    });
+
+    it('updates approvals when the subscription data is streamed to the Apollo client', () => {
+      expect(mr.setApprovals).not.toHaveBeenCalled();
+
+      mockedSubscription.next(subscriptionResponse);
+
+      expect(mr.setApprovals).toHaveBeenCalledWith(subscriptionApproval);
     });
   });
 });

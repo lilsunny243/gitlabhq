@@ -53,6 +53,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
     let!(:deployment)  { build.deployment }
 
     before do
+      stub_feature_flags(unbatch_graphql_queries: false)
       merge_request.update!(head_pipeline: pipeline)
       deployment.update!(status: :success)
       visit project_merge_request_path(project, merge_request)
@@ -117,12 +118,15 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
   context 'view merge request with failed GitLab CI pipelines' do
     before do
       commit_status = create(:commit_status, project: project, status: 'failed')
-      pipeline = create(:ci_pipeline, project: project,
-                                      sha: merge_request.diff_head_sha,
-                                      ref: merge_request.source_branch,
-                                      status: 'failed',
-                                      statuses: [commit_status],
-                                      head_pipeline_of: merge_request)
+      pipeline = create(
+        :ci_pipeline,
+        project: project,
+        sha: merge_request.diff_head_sha,
+        ref: merge_request.source_branch,
+        status: 'failed',
+        statuses: [commit_status],
+        head_pipeline_of: merge_request
+      )
       create(:ci_build, :pending, pipeline: pipeline)
 
       visit project_merge_request_path(project, merge_request)
@@ -190,7 +194,8 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
 
     it 'shows head pipeline information' do
       within '.ci-widget-content' do
-        expect(page).to have_content("Pipeline ##{pipeline.id} pending " \
+        expect(page).to have_content("Pipeline ##{pipeline.id} pending")
+        expect(page).to have_content("Pipeline pending " \
                                      "for #{pipeline.short_sha} " \
                                      "on #{pipeline.ref}")
       end
@@ -220,7 +225,8 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
     shared_examples 'pipeline widget' do
       it 'shows head pipeline information', :sidekiq_might_not_need_inline do
         within '.ci-widget-content' do
-          expect(page).to have_content("Merge request pipeline ##{pipeline.id} pending for #{pipeline.short_sha}")
+          expect(page).to have_content("Merge request pipeline ##{pipeline.id} pending")
+          expect(page).to have_content("Merge request pipeline pending for #{pipeline.short_sha}")
         end
       end
     end
@@ -259,7 +265,8 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
     shared_examples 'pipeline widget' do
       it 'shows head pipeline information', :sidekiq_might_not_need_inline do
         within '.ci-widget-content' do
-          expect(page).to have_content("Merged result pipeline ##{pipeline.id} pending for #{pipeline.short_sha}")
+          expect(page).to have_content("Merged result pipeline ##{pipeline.id} pending")
+          expect(page).to have_content("Merged result pipeline pending for #{pipeline.short_sha}")
         end
       end
     end
@@ -277,12 +284,15 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
   context 'view merge request with MWBS button' do
     before do
       commit_status = create(:commit_status, project: project, status: 'pending')
-      pipeline = create(:ci_pipeline, project: project,
-                                      sha: merge_request.diff_head_sha,
-                                      ref: merge_request.source_branch,
-                                      status: 'pending',
-                                      statuses: [commit_status],
-                                      head_pipeline_of: merge_request)
+      pipeline = create(
+        :ci_pipeline,
+        project: project,
+        sha: merge_request.diff_head_sha,
+        ref: merge_request.source_branch,
+        status: 'pending',
+        statuses: [commit_status],
+        head_pipeline_of: merge_request
+      )
       create(:ci_build, :pending, pipeline: pipeline)
 
       visit project_merge_request_path(project, merge_request)
@@ -297,9 +307,12 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
 
   context 'view merge request where there is no pipeline yet' do
     before do
-      pipeline = create(:ci_pipeline, project: project,
-                                      sha: merge_request.diff_head_sha,
-                                      ref: merge_request.source_branch)
+      pipeline = create(
+        :ci_pipeline,
+        project: project,
+        sha: merge_request.diff_head_sha,
+        ref: merge_request.source_branch
+      )
       create(:ci_build, pipeline: pipeline)
 
       visit project_merge_request_path(project, merge_request)
@@ -322,7 +335,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
       # Wait for the `ci_status` and `merge_check` requests
       wait_for_requests
 
-      expect(page).not_to have_selector('.accept-merge-request')
+      expect(page).to have_selector('.accept-merge-request')
     end
   end
 
@@ -396,7 +409,9 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
     end
 
     it 'updates the MR widget', :sidekiq_might_not_need_inline do
-      click_button 'Merge'
+      page.within('.mr-state-widget') do
+        click_button 'Merge'
+      end
 
       expect(page).to have_content('An error occurred while merging')
     end
@@ -452,7 +467,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
 
       wait_for_requests
 
-      expect(page).not_to have_button('Merge')
+      expect(page).not_to have_button('Merge', exact: true)
       expect(page).to have_content('Merging!')
     end
   end
@@ -507,11 +522,13 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
 
   context 'when merge request has test reports' do
     let!(:head_pipeline) do
-      create(:ci_pipeline,
-             :success,
-             project: project,
-             ref: merge_request.source_branch,
-             sha: merge_request.diff_head_sha)
+      create(
+        :ci_pipeline,
+        :success,
+        project: project,
+        ref: merge_request.source_branch,
+        sha: merge_request.diff_head_sha
+      )
     end
 
     let!(:build) { create(:ci_build, :success, pipeline: head_pipeline, project: project) }
@@ -623,7 +640,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'addTest'
+                click_button 'View details'
               end
             end
 
@@ -670,7 +687,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'Test#sum when a is 1 and b is 3 returns summary'
+                click_button 'View details'
               end
             end
 
@@ -718,7 +735,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'addTest'
+                click_button 'View details'
               end
             end
 
@@ -765,7 +782,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'addTest'
+                click_button 'View details'
               end
             end
 
@@ -811,7 +828,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'Test#sum when a is 4 and b is 4 returns summary'
+                click_button 'View details'
               end
             end
 
@@ -858,7 +875,7 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
               click_expand_button
 
               within('[data-testid="widget-extension-collapsed-section"]') do
-                click_link 'addTest'
+                click_button 'View details'
               end
             end
 
@@ -932,6 +949,23 @@ RSpec.describe 'Merge request > User sees merge widget', :js, feature_category: 
     it 'renders a CI pipeline loading state' do
       within '.ci-widget' do
         expect(page).to have_content('Checking pipeline status')
+      end
+    end
+  end
+
+  context 'views MR when pipeline has code coverage enabled' do
+    let!(:pipeline) { create(:ci_pipeline, status: 'success', project: project, ref: merge_request.source_branch) }
+    let!(:build) { create(:ci_build, :success, :coverage, pipeline: pipeline) }
+
+    before do
+      merge_request.update!(head_pipeline: pipeline)
+
+      visit project_merge_request_path(project, merge_request)
+    end
+
+    it 'shows the coverage' do
+      within '.ci-widget' do
+        expect(find_by_testid('pipeline-coverage')).to have_content('Test coverage 99.90% ')
       end
     end
   end

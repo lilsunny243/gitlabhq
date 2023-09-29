@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Packages API **(FREE)**
+# Packages API **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/349418) support for [GitLab CI/CD job token](../ci/jobs/ci_job_token.md) authentication for the project-level API in GitLab 15.3.
 
@@ -330,6 +330,74 @@ Example response:
 
 By default, the `GET` request returns 20 results, because the API is [paginated](rest/index.md#pagination).
 
+## List package pipelines
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/341950) in GitLab 16.1.
+
+Get a list of pipelines for a single package. The results are sorted by `id` in descending order.
+
+The results are [paginated](rest/index.md#keyset-based-pagination) and return up to 20 records per page.
+
+```plaintext
+GET /projects/:id/packages/:package_id/pipelines
+```
+
+| Attribute | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id`      | integer/string | yes | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `package_id`      | integer | yes | ID of a package. |
+
+```shell
+curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/:id/packages/:package_id/pipelines"
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 1,
+    "iid": 1,
+    "project_id": 9,
+    "sha": "2b6127f6bb6f475c4e81afcc2251e3f941e554f9",
+    "ref": "mytag",
+    "status": "failed",
+    "source": "push",
+    "created_at": "2023-02-01T12:19:21.895Z",
+    "updated_at": "2023-02-01T14:00:05.922Z",
+    "web_url": "http://gdk.test:3001/feature-testing/composer-repository/-/pipelines/1",
+    "user": {
+      "id": 1,
+      "username": "root",
+      "name": "Administrator",
+      "state": "active",
+      "avatar_url": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80\u0026d=identicon",
+      "web_url": "http://gdk.test:3001/root"
+    }
+  },
+  {
+    "id": 2,
+    "iid": 2,
+    "project_id": 9,
+    "sha": "e564015ac6cb3d8617647802c875b27d392f72a6",
+    "ref": "main",
+    "status": "canceled",
+    "source": "push",
+    "created_at": "2023-02-01T12:23:23.694Z",
+    "updated_at": "2023-02-01T12:26:28.635Z",
+    "web_url": "http://gdk.test:3001/feature-testing/composer-repository/-/pipelines/2",
+    "user": {
+      "id": 1,
+      "username": "root",
+      "name": "Administrator",
+      "state": "active",
+      "avatar_url": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80\u0026d=identicon",
+      "web_url": "http://gdk.test:3001/root"
+    }
+  }
+]
+```
+
 ## Delete a project package
 
 Deletes a project package.
@@ -351,6 +419,9 @@ Can return the following status codes:
 
 - `204 No Content`, if the package was deleted successfully.
 - `404 Not Found`, if the package was not found.
+
+If [request forwarding](../user/packages/package_registry/supported_functionality.md#forwarding-requests) is enabled,
+deleting a package can introduce a [dependency confusion risk](../user/packages/package_registry/supported_functionality.md#deleting-packages).
 
 ## Delete a package file
 

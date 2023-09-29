@@ -12,8 +12,12 @@ module BulkImports
     sidekiq_options retry: false, dead: false
     worker_has_external_dependencies!
     deduplicate :until_executing
+    worker_resource_boundary :memory
 
-    def perform(pipeline_tracker_id, stage, entity_id)
+    version 2
+
+    # Keep _stage parameter for backwards compatibility.
+    def perform(pipeline_tracker_id, _stage, entity_id)
       @entity = ::BulkImports::Entity.find(entity_id)
       @pipeline_tracker = ::BulkImports::Tracker.find(pipeline_tracker_id)
 
@@ -30,9 +34,10 @@ module BulkImports
           fail_tracker(StandardError.new(message)) unless pipeline_tracker.finished? || pipeline_tracker.skipped?
         end
       end
-
     ensure
-      ::BulkImports::EntityWorker.perform_async(entity_id, stage)
+      # This is needed for in-flight migrations.
+      # It will be remove in https://gitlab.com/gitlab-org/gitlab/-/issues/426299
+      ::BulkImports::EntityWorker.perform_async(entity_id) if job_version.nil?
     end
 
     private
@@ -42,15 +47,22 @@ module BulkImports
     def run
       return skip_tracker if entity.failed?
 
-      raise(Pipeline::ExpiredError, 'Pipeline timeout') if job_timeout?
       raise(Pipeline::FailedError, "Export from source instance failed: #{export_status.error}") if export_failed?
       raise(Pipeline::ExpiredError, 'Empty export status on source instance') if empty_export_timeout?
 
       return re_enqueue if export_empty? || export_started?
 
-      pipeline_tracker.update!(status_event: 'start', jid: jid)
-      pipeline_tracker.pipeline_class.new(context).run
-      pipeline_tracker.finish!
+      if file_extraction_pipeline? && export_status.batched?
+        pipeline_tracker.update!(status_event: 'start', jid: jid, batched: true)
+
+        return pipeline_tracker.finish! if export_status.batches_count < 1
+
+        enqueue_batches
+      else
+        pipeline_tracker.update!(status_event: 'start', jid: jid)
+        pipeline_tracker.pipeline_class.new(context).run
+        pipeline_tracker.finish!
+      end
     rescue BulkImports::RetryPipelineError => e
       retry_tracker(e)
     rescue StandardError => e
@@ -173,10 +185,12 @@ module BulkImports
       "gitlab:bulk_imports:pipeline_worker:#{pipeline_tracker.id}"
     end
 
-    def job_timeout?
-      return false unless file_extraction_pipeline?
+    def enqueue_batches
+      1.upto(export_status.batches_count) do |batch_number|
+        batch = pipeline_tracker.batches.find_or_create_by!(batch_number: batch_number) # rubocop:disable CodeReuse/ActiveRecord
 
-      time_since_tracker_created > Pipeline::NDJSON_EXPORT_TIMEOUT
+        ::BulkImports::PipelineBatchWorker.perform_async(batch.id)
+      end
     end
   end
 end

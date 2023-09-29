@@ -28,6 +28,10 @@ Rails.application.configure do
   # Only use best-standards-support built into browsers
   config.action_dispatch.best_standards_support = :builtin
 
+  # There is no need to check if assets are precompiled locally
+  # To debug AssetNotPrecompiled errors locally, set CHECK_PRECOMPILED_ASSETS to true
+  config.assets.check_precompiled_asset = Gitlab::Utils.to_boolean(ENV['CHECK_PRECOMPILED_ASSETS'], default: false)
+
   # Do not compress assets
   config.assets.compress = false
 
@@ -37,16 +41,17 @@ Rails.application.configure do
   # Annotate rendered view with template file names as HTML comments
   config.action_view.annotate_rendered_view_with_filenames = true
 
-  # ViewComponent previews
+  # ViewComponent & Lookbook previews
   config.view_component.default_preview_layout = "component_preview"
   config.view_component.preview_route = "/-/view_component/previews"
-  config.view_component.preview_paths << "#{config.root}/spec/components/previews"
-  # Push preview path now to prevent FrozenError during view_component's initialzer
+  config.lookbook.preview_paths = ["#{config.root}/spec/components/previews"]
+  # Push preview path now to prevent FrozenError during initialzer
   config.autoload_paths.push("#{config.root}/spec/components/previews")
 
   config.lookbook.page_paths = ["#{config.root}/spec/components/docs"]
   config.lookbook.preview_params_options_eval = true
   config.lookbook.preview_display_options = {
+    layout: %w[fixed fluid],
     theme: ["light", "dark (alpha)"]
   }
 
@@ -68,12 +73,28 @@ Rails.application.configure do
   # Do not log asset requests
   config.assets.quiet = true
 
-  # Use 'listen' gem to watch for file changes and improve performance
-  # See: https://guides.rubyonrails.org/configuring.html#config-file-watcher
-  config.file_watcher = ActiveSupport::EventedFileUpdateChecker
+  # Disable inotify watchers in cases when we don't need them
+  if config.cache_classes || ::Gitlab::Runtime.console? || ::Gitlab::Runtime.rake?
+    # Rails ignores reload_classes_only_on_change if cache_classes is enabled, but
+    # the lookbook gem appears to use this variable to watch files. Disabling
+    # this variable ensures that a file watcher isn't loaded, which appears to save
+    # 8 threads (2 workers * 4 threads/worker):
+    # https://github.com/ViewComponent/lookbook/blob/v2.0.5/lib/lookbook/engine.rb#L65
+    # https://github.com/ViewComponent/lookbook/blob/v2.0.5/lib/lookbook/reloaders.rb#L15-L18
+    config.reload_classes_only_on_change = false
+    # Use the simple file watcher to prevent factory_bot_rails from launching 4 file watcher threads:
+    # https://github.com/thoughtbot/factory_bot_rails/blob/v6.2.0/lib/factory_bot_rails/reloader.rb#L29
+    config.file_watcher = ActiveSupport::FileUpdateChecker
+  else
+    # Use 'listen' gem to watch for file changes and improve performance
+    # See: https://guides.rubyonrails.org/configuring.html#config-file-watcher
+    config.file_watcher = ActiveSupport::EventedFileUpdateChecker
+  end
 
   # BetterErrors live shell (REPL) on every stack frame
   BetterErrors::Middleware.allow_ip!("127.0.0.1/0")
+  # Disable REPL due to security concerns.
+  BetterErrors.binding_of_caller_available = false
 
   # Reassign some performance related settings when we profile the app
   if Gitlab::Utils.to_boolean(ENV['RAILS_PROFILE'].to_s)

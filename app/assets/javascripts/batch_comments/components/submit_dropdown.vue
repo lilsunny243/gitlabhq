@@ -1,19 +1,15 @@
 <script>
-import {
-  GlDropdown,
-  GlButton,
-  GlIcon,
-  GlForm,
-  GlFormGroup,
-  GlLink,
-  GlFormCheckbox,
-} from '@gitlab/ui';
-import { mapGetters, mapActions } from 'vuex';
-import { createAlert } from '~/flash';
-import MarkdownField from '~/vue_shared/components/markdown/field.vue';
+import { GlDropdown, GlButton, GlIcon, GlForm, GlFormCheckbox } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
+import { mapGetters, mapActions, mapState } from 'vuex';
+import { __ } from '~/locale';
+import { createAlert } from '~/alert';
+import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
 import { scrollToElement } from '~/lib/utils/common_utils';
-import Autosave from '~/autosave';
-import { helpPagePath } from '~/helpers/help_page_helper';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { CLEAR_AUTOSAVE_ENTRY_EVENT } from '~/vue_shared/constants';
+import markdownEditorEventHub from '~/vue_shared/components/markdown/eventhub';
+import { trackSavedUsingEditor } from '~/vue_shared/components/markdown/tracking';
 
 export default {
   components: {
@@ -21,11 +17,15 @@ export default {
     GlButton,
     GlIcon,
     GlForm,
-    GlFormGroup,
-    GlLink,
     GlFormCheckbox,
-    MarkdownField,
+    MarkdownEditor,
     ApprovalPassword: () => import('ee_component/batch_comments/components/approval_password.vue'),
+    SummarizeMyReview: () =>
+      import('ee_component/batch_comments/components/summarize_my_review.vue'),
+  },
+  mixins: [glFeatureFlagsMixin()],
+  inject: {
+    canSummarize: { default: false },
   },
   data() {
     return {
@@ -37,10 +37,24 @@ export default {
         approve: false,
         approval_password: '',
       },
+      formFieldProps: {
+        id: 'review-note-body',
+        name: 'review[note]',
+        placeholder: __('Write a comment or drag your files here…'),
+        'aria-label': __('Comment'),
+        'data-testid': 'comment-textarea',
+      },
     };
   },
   computed: {
     ...mapGetters(['getNotesData', 'getNoteableData', 'noteableType', 'getCurrentUserLastNote']),
+    ...mapState('batchComments', ['shouldAnimateReviewButton']),
+    autocompleteDataSources() {
+      return gl.GfmAutoComplete?.dataSources;
+    },
+    autosaveKey() {
+      return `submit_review_dropdown/${this.getNoteableData.id}`;
+    },
   },
   watch: {
     'noteData.approve': function noteDataApproveWatch() {
@@ -50,10 +64,6 @@ export default {
     },
   },
   mounted() {
-    this.autosave = new Autosave(
-      this.$refs.textarea,
-      `submit_review_dropdown/${this.getNoteableData.id}`,
-    );
     this.noteData.noteable_type = this.noteableType;
     this.noteData.noteable_id = this.getNoteableData.id;
 
@@ -76,10 +86,12 @@ export default {
     async submitReview() {
       this.isSubmitting = true;
 
+      trackSavedUsingEditor(this.$refs.markdownEditor.isContentEditorActive, 'MergeRequest_review');
+
       try {
         await this.publishReview(this.noteData);
 
-        this.autosave.reset();
+        markdownEditorEventHub.$emit(CLEAR_AUTOSAVE_ENTRY_EVENT, this.descriptionAutosaveKey);
 
         if (window.mrTabs && (this.noteData.note || this.noteData.approve)) {
           if (this.noteData.note) {
@@ -100,11 +112,11 @@ export default {
 
       this.isSubmitting = false;
     },
+    updateNote(note) {
+      this.noteData.note = note;
+    },
   },
   restrictedToolbarItems: ['full-screen'],
-  helpPagePath: helpPagePath('user/project/merge_requests/reviews/index.html', {
-    anchor: 'submit-a-review',
-  }),
 };
 </script>
 
@@ -114,6 +126,7 @@ export default {
     right
     dropup
     class="submit-review-dropdown"
+    :class="{ 'submit-review-dropdown-animated': shouldAnimateReviewButton }"
     data-qa-selector="submit_review_dropdown"
     variant="info"
     category="primary"
@@ -123,56 +136,45 @@ export default {
       <gl-icon class="dropdown-chevron" name="chevron-up" />
     </template>
     <gl-form data-testid="submit-gl-form" @submit.prevent="submitReview">
-      <gl-form-group label-for="review-note-body" label-class="gl-mb-2">
-        <template #label>
+      <div class="gl-display-flex gl-mb-4 gl-align-items-center">
+        <label for="review-note-body" class="gl-mb-0">
           {{ __('Summary comment (optional)') }}
-          <gl-link
-            :href="$options.helpPagePath"
-            :aria-label="__('More information')"
-            target="_blank"
-            class="gl-ml-2"
-          >
-            <gl-icon name="question-o" />
-          </gl-link>
-        </template>
-        <div class="common-note-form gfm-form">
-          <div
-            class="comment-warning-wrapper gl-border-solid gl-border-1 gl-rounded-base gl-border-gray-100"
-          >
-            <markdown-field
-              :is-submitting="isSubmitting"
-              :add-spacing-classes="false"
-              :textarea-value="noteData.note"
-              :markdown-preview-path="getNoteableData.preview_note_path"
-              :markdown-docs-path="getNotesData.markdownDocsPath"
-              :quick-actions-docs-path="getNotesData.quickActionsDocsPath"
-              :restricted-tool-bar-items="$options.restrictedToolbarItems"
-              :force-autosize="false"
-              class="js-no-autosize"
-            >
-              <template #textarea>
-                <textarea
-                  id="review-note-body"
-                  ref="textarea"
-                  v-model="noteData.note"
-                  dir="auto"
-                  :disabled="isSubmitting"
-                  name="review[note]"
-                  class="note-textarea js-gfm-input markdown-area"
-                  data-supports-quick-actions="true"
-                  data-testid="comment-textarea"
-                  :aria-label="__('Comment')"
-                  :placeholder="__('Write a comment or drag your files here…')"
-                  @keydown.meta.enter="submitReview"
-                  @keydown.ctrl.enter="submitReview"
-                ></textarea>
-              </template>
-            </markdown-field>
-          </div>
-        </div>
-      </gl-form-group>
+        </label>
+        <summarize-my-review
+          v-if="canSummarize"
+          :id="getNoteableData.id"
+          class="gl-ml-auto"
+          @input="updateNote"
+        />
+      </div>
+      <div class="common-note-form gfm-form">
+        <markdown-editor
+          ref="markdownEditor"
+          v-model="noteData.note"
+          :enable-content-editor="Boolean(glFeatures.contentEditorOnIssues)"
+          class="js-no-autosize"
+          :is-submitting="isSubmitting"
+          :render-markdown-path="getNoteableData.preview_note_path"
+          :markdown-docs-path="getNotesData.markdownDocsPath"
+          :form-field-props="formFieldProps"
+          enable-autocomplete
+          :autocomplete-data-sources="autocompleteDataSources"
+          :disabled="isSubmitting"
+          :restricted-tool-bar-items="$options.restrictedToolbarItems"
+          :force-autosize="false"
+          :autosave-key="autosaveKey"
+          supports-quick-actions
+          @input="$emit('input', $event)"
+          @keydown.meta.enter="submitReview"
+          @keydown.ctrl.enter="submitReview"
+        />
+      </div>
       <template v-if="getNoteableData.current_user.can_approve">
-        <gl-form-checkbox v-model="noteData.approve" data-testid="approve_merge_request">
+        <gl-form-checkbox
+          v-model="noteData.approve"
+          data-testid="approve_merge_request"
+          class="gl-mt-4"
+        >
           {{ __('Approve merge request') }}
         </gl-form-checkbox>
         <approval-password
@@ -183,7 +185,7 @@ export default {
           data-testid="approve_password"
         />
       </template>
-      <div class="gl-display-flex gl-justify-content-start gl-mt-5">
+      <div class="gl-display-flex gl-justify-content-start gl-mt-4">
         <gl-button
           :loading="isSubmitting"
           variant="confirm"

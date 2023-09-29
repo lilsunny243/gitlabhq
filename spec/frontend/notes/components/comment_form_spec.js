@@ -3,13 +3,16 @@ import { mount, shallowMount } from '@vue/test-utils';
 import Autosize from 'autosize';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
-import Autosave from '~/autosave';
+import { useLocalStorageSpy } from 'helpers/local_storage_helper';
 import batchComments from '~/batch_comments/stores/modules/batch_comments';
 import { refreshUserMergeRequestCounts } from '~/commons/nav/user_merge_requests';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
+import { STATUS_CLOSED, STATUS_OPEN } from '~/issues/constants';
 import axios from '~/lib/utils/axios_utils';
+import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
 import { HTTP_STATUS_UNPROCESSABLE_ENTITY } from '~/lib/utils/http_status';
 import CommentForm from '~/notes/components/comment_form.vue';
 import CommentTypeDropdown from '~/notes/components/comment_type_dropdown.vue';
@@ -17,22 +20,27 @@ import * as constants from '~/notes/constants';
 import eventHub from '~/notes/event_hub';
 import { COMMENT_FORM } from '~/notes/i18n';
 import notesModule from '~/notes/stores/modules';
+import { sprintf } from '~/locale';
+import { mockTracking } from 'helpers/tracking_helper';
 import { loggedOutnoteableData, notesDataMock, userDataMock, noteableDataMock } from '../mock_data';
 
 jest.mock('autosize');
 jest.mock('~/commons/nav/user_merge_requests');
-jest.mock('~/flash');
-jest.mock('~/autosave');
+jest.mock('~/alert');
 
 Vue.use(Vuex);
 
 describe('issue_comment_form component', () => {
+  useLocalStorageSpy();
+
+  let trackingSpy;
   let store;
   let wrapper;
   let axiosMock;
 
   const findCloseReopenButton = () => wrapper.findByTestId('close-reopen-button');
-  const findTextArea = () => wrapper.findByTestId('comment-field');
+  const findMarkdownEditor = () => wrapper.findComponent(MarkdownEditor);
+  const findMarkdownEditorTextarea = () => findMarkdownEditor().find('textarea');
   const findAddToReviewButton = () => wrapper.findByTestId('add-to-review-button');
   const findAddCommentNowButton = () => wrapper.findByTestId('add-comment-now-button');
   const findConfidentialNoteCheckbox = () => wrapper.findByTestId('internal-note-checkbox');
@@ -116,6 +124,15 @@ describe('issue_comment_form component', () => {
         provide: {
           glFeatures: features,
         },
+        mocks: {
+          $apollo: {
+            queries: {
+              currentUser: {
+                loading: false,
+              },
+            },
+          },
+        },
       }),
     );
   };
@@ -123,11 +140,11 @@ describe('issue_comment_form component', () => {
   beforeEach(() => {
     axiosMock = new MockAdapter(axios);
     store = createStore();
+    trackingSpy = mockTracking(undefined, null, jest.spyOn);
   });
 
   afterEach(() => {
     axiosMock.restore();
-    wrapper.destroy();
   });
 
   describe('user is logged in', () => {
@@ -136,16 +153,25 @@ describe('issue_comment_form component', () => {
         mountComponent({ mountFunction: mount, initialData: { note: 'hello world' } });
 
         jest.spyOn(wrapper.vm, 'saveNote').mockResolvedValue();
-        jest.spyOn(wrapper.vm, 'resizeTextarea');
-        jest.spyOn(wrapper.vm, 'stopPolling');
 
         findCloseReopenButton().trigger('click');
 
         expect(wrapper.vm.isSubmitting).toBe(true);
         expect(wrapper.vm.note).toBe('');
         expect(wrapper.vm.saveNote).toHaveBeenCalled();
-        expect(wrapper.vm.stopPolling).toHaveBeenCalled();
-        expect(wrapper.vm.resizeTextarea).toHaveBeenCalled();
+      });
+
+      it('tracks event', () => {
+        mountComponent({ mountFunction: mount, initialData: { note: 'hello world' } });
+
+        jest.spyOn(wrapper.vm, 'saveNote').mockResolvedValue();
+
+        findCloseReopenButton().trigger('click');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'save_markdown', {
+          label: 'markdown_editor',
+          property: 'Issue_comment',
+        });
       });
 
       it('does not report errors in the UI when the save succeeds', async () => {
@@ -193,6 +219,35 @@ describe('issue_comment_form component', () => {
           });
         },
       );
+
+      describe('if response contains validation errors', () => {
+        beforeEach(() => {
+          store = createStore({
+            actions: {
+              saveNote: jest.fn().mockRejectedValue({
+                response: {
+                  status: HTTP_STATUS_UNPROCESSABLE_ENTITY,
+                  data: { errors: 'error 1 and error 2' },
+                },
+              }),
+            },
+          });
+
+          mountComponent({ mountFunction: mount, initialData: { note: 'invalid note' } });
+
+          clickCommentButton();
+        });
+
+        it('renders an error message', () => {
+          const errorAlerts = findErrorAlerts();
+
+          expect(errorAlerts.length).toBe(1);
+
+          expect(errorAlerts[0].text()).toBe(
+            sprintf(COMMENT_FORM.error, { reason: 'error 1 and error 2' }),
+          );
+        });
+      });
 
       it('should remove the correct error from the list when it is dismissed', async () => {
         const commandErrors = ['1', '2', '3'];
@@ -244,7 +299,6 @@ describe('issue_comment_form component', () => {
         const saveNotePromise = Promise.resolve();
 
         jest.spyOn(wrapper.vm, 'saveNote').mockReturnValue(saveNotePromise);
-        jest.spyOn(wrapper.vm, 'stopPolling');
 
         const actionButton = findCloseReopenButton();
 
@@ -260,6 +314,18 @@ describe('issue_comment_form component', () => {
       });
     });
 
+    it('hides content editor switcher if feature flag content_editor_on_issues is off', () => {
+      mountComponent({ mountFunction: mount, features: { contentEditorOnIssues: false } });
+
+      expect(wrapper.text()).not.toContain('Switch to rich text editing');
+    });
+
+    it('shows content editor switcher if feature flag content_editor_on_issues is on', () => {
+      mountComponent({ mountFunction: mount, features: { contentEditorOnIssues: true } });
+
+      expect(wrapper.text()).toContain('Switch to rich text editing');
+    });
+
     describe('textarea', () => {
       describe('general', () => {
         it.each`
@@ -268,35 +334,33 @@ describe('issue_comment_form component', () => {
           ${'internal note'} | ${true}        | ${'Write an internal note or drag your files here…'}
         `(
           'should render textarea with placeholder for $noteType',
-          ({ noteIsInternal, placeholder }) => {
-            mountComponent({
-              mountFunction: mount,
-              initialData: { noteIsInternal },
-            });
+          async ({ noteIsInternal, placeholder }) => {
+            mountComponent();
 
-            expect(findTextArea().attributes('placeholder')).toBe(placeholder);
+            wrapper.vm.noteIsInternal = noteIsInternal;
+            await nextTick();
+
+            expect(findMarkdownEditor().props('formFieldProps').placeholder).toBe(placeholder);
           },
         );
 
         it('should make textarea disabled while requesting', async () => {
           mountComponent({ mountFunction: mount });
 
-          jest.spyOn(wrapper.vm, 'stopPolling');
           jest.spyOn(wrapper.vm, 'saveNote').mockResolvedValue();
 
-          // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-          // eslint-disable-next-line no-restricted-syntax
-          await wrapper.setData({ note: 'hello world' });
+          findMarkdownEditor().vm.$emit('input', 'hello world');
+          await nextTick();
 
           await findCommentButton().trigger('click');
 
-          expect(findTextArea().attributes('disabled')).toBe('disabled');
+          expect(findMarkdownEditor().find('textarea').attributes('disabled')).toBeDefined();
         });
 
         it('should support quick actions', () => {
           mountComponent({ mountFunction: mount });
 
-          expect(findTextArea().attributes('data-supports-quick-actions')).toBe('true');
+          expect(findMarkdownEditor().props('supportsQuickActions')).toBe(true);
         });
 
         it('should link to markdown docs', () => {
@@ -304,15 +368,7 @@ describe('issue_comment_form component', () => {
 
           const { markdownDocsPath } = notesDataMock;
 
-          expect(wrapper.find(`a[href="${markdownDocsPath}"]`).text()).toBe('Markdown');
-        });
-
-        it('should link to quick actions docs', () => {
-          mountComponent({ mountFunction: mount });
-
-          const { quickActionsDocsPath } = notesDataMock;
-
-          expect(wrapper.find(`a[href="${quickActionsDocsPath}"]`).text()).toBe('quick actions');
+          expect(wrapper.find(`[href="${markdownDocsPath}"]`).exists()).toBe(true);
         });
 
         it('should resize textarea after note discarded', async () => {
@@ -336,63 +392,51 @@ describe('issue_comment_form component', () => {
         it('should enter edit mode when arrow up is pressed', () => {
           jest.spyOn(wrapper.vm, 'editCurrentUserLastNote');
 
-          findTextArea().trigger('keydown.up');
+          findMarkdownEditorTextarea().trigger('keydown.up');
 
           expect(wrapper.vm.editCurrentUserLastNote).toHaveBeenCalled();
         });
 
-        it('inits autosave', () => {
-          expect(Autosave).toHaveBeenCalledWith(expect.any(Element), [
-            'Note',
-            'Issue',
-            noteableDataMock.id,
-          ]);
-        });
-      });
+        describe('event enter', () => {
+          describe('when no draft exists', () => {
+            it('should save note when cmd+enter is pressed', () => {
+              jest.spyOn(wrapper.vm, 'handleSave');
 
-      describe('event enter', () => {
-        beforeEach(() => {
-          mountComponent({ mountFunction: mount });
-        });
+              findMarkdownEditorTextarea().trigger('keydown.enter', { metaKey: true });
 
-        describe('when no draft exists', () => {
-          it('should save note when cmd+enter is pressed', () => {
-            jest.spyOn(wrapper.vm, 'handleSave');
+              expect(wrapper.vm.handleSave).toHaveBeenCalledWith();
+            });
 
-            findTextArea().trigger('keydown.enter', { metaKey: true });
+            it('should save note when ctrl+enter is pressed', () => {
+              jest.spyOn(wrapper.vm, 'handleSave');
 
-            expect(wrapper.vm.handleSave).toHaveBeenCalledWith();
+              findMarkdownEditorTextarea().trigger('keydown.enter', { ctrlKey: true });
+
+              expect(wrapper.vm.handleSave).toHaveBeenCalledWith();
+            });
           });
 
-          it('should save note when ctrl+enter is pressed', () => {
-            jest.spyOn(wrapper.vm, 'handleSave');
+          describe('when a draft exists', () => {
+            beforeEach(() => {
+              store.registerModule('batchComments', batchComments());
+              store.state.batchComments.drafts = [{ note: 'A' }];
+            });
 
-            findTextArea().trigger('keydown.enter', { ctrlKey: true });
+            it('should save note draft when cmd+enter is pressed', () => {
+              jest.spyOn(wrapper.vm, 'handleSaveDraft');
 
-            expect(wrapper.vm.handleSave).toHaveBeenCalledWith();
-          });
-        });
+              findMarkdownEditorTextarea().trigger('keydown.enter', { metaKey: true });
 
-        describe('when a draft exists', () => {
-          beforeEach(() => {
-            store.registerModule('batchComments', batchComments());
-            store.state.batchComments.drafts = [{ note: 'A' }];
-          });
+              expect(wrapper.vm.handleSaveDraft).toHaveBeenCalledWith();
+            });
 
-          it('should save note draft when cmd+enter is pressed', () => {
-            jest.spyOn(wrapper.vm, 'handleSaveDraft');
+            it('should save note draft when ctrl+enter is pressed', () => {
+              jest.spyOn(wrapper.vm, 'handleSaveDraft');
 
-            findTextArea().trigger('keydown.enter', { metaKey: true });
+              findMarkdownEditorTextarea().trigger('keydown.enter', { ctrlKey: true });
 
-            expect(wrapper.vm.handleSaveDraft).toHaveBeenCalledWith();
-          });
-
-          it('should save note draft when ctrl+enter is pressed', () => {
-            jest.spyOn(wrapper.vm, 'handleSaveDraft');
-
-            findTextArea().trigger('keydown.enter', { ctrlKey: true });
-
-            expect(wrapper.vm.handleSaveDraft).toHaveBeenCalledWith();
+              expect(wrapper.vm.handleSaveDraft).toHaveBeenCalledWith();
+            });
           });
         });
       });
@@ -428,9 +472,8 @@ describe('issue_comment_form component', () => {
       it('should enable comment button if it has note', async () => {
         mountComponent();
 
-        // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-        // eslint-disable-next-line no-restricted-syntax
-        await wrapper.setData({ note: 'Foo' });
+        findMarkdownEditor().vm.$emit('input', 'Foo');
+        await nextTick();
 
         expect(findCommentTypeDropdown().props('disabled')).toBe(false);
       });
@@ -482,7 +525,7 @@ describe('issue_comment_form component', () => {
             it(`makes an API call to open it`, () => {
               mountComponent({
                 noteableType,
-                noteableData: { ...noteableDataMock, state: constants.OPENED },
+                noteableData: { ...noteableDataMock, state: STATUS_OPEN },
                 mountFunction: mount,
               });
 
@@ -496,7 +539,7 @@ describe('issue_comment_form component', () => {
             it(`shows an error when the API call fails`, async () => {
               mountComponent({
                 noteableType,
-                noteableData: { ...noteableDataMock, state: constants.OPENED },
+                noteableData: { ...noteableDataMock, state: STATUS_OPEN },
                 mountFunction: mount,
               });
 
@@ -517,7 +560,7 @@ describe('issue_comment_form component', () => {
             it('makes an API call to close it', () => {
               mountComponent({
                 noteableType,
-                noteableData: { ...noteableDataMock, state: constants.CLOSED },
+                noteableData: { ...noteableDataMock, state: STATUS_CLOSED },
                 mountFunction: mount,
               });
 
@@ -532,7 +575,7 @@ describe('issue_comment_form component', () => {
           it(`shows an error when the API call fails`, async () => {
             mountComponent({
               noteableType,
-              noteableData: { ...noteableDataMock, state: constants.CLOSED },
+              noteableData: { ...noteableDataMock, state: STATUS_CLOSED },
               mountFunction: mount,
             });
 
@@ -651,6 +694,37 @@ describe('issue_comment_form component', () => {
     });
   });
 
+  describe('check sensitive tokens', () => {
+    const sensitiveMessage = 'token: glpat-1234567890abcdefghij';
+    const nonSensitiveMessage = 'text';
+
+    it('should not save note when it contains sensitive token', () => {
+      mountComponent({
+        mountFunction: mount,
+        initialData: { note: sensitiveMessage },
+      });
+
+      jest.spyOn(wrapper.vm, 'saveNote').mockResolvedValue();
+
+      clickCommentButton();
+
+      expect(wrapper.vm.saveNote).not.toHaveBeenCalled();
+    });
+
+    it('should save note it does not contain sensitive token', () => {
+      mountComponent({
+        mountFunction: mount,
+        initialData: { note: nonSensitiveMessage },
+      });
+
+      jest.spyOn(wrapper.vm, 'saveNote').mockResolvedValue();
+
+      clickCommentButton();
+
+      expect(wrapper.vm.saveNote).toHaveBeenCalled();
+    });
+  });
+
   describe('user is not logged in', () => {
     beforeEach(() => {
       mountComponent({ userData: null, noteableData: loggedOutnoteableData, mountFunction: mount });
@@ -661,7 +735,7 @@ describe('issue_comment_form component', () => {
     });
 
     it('should not render submission form', () => {
-      expect(findTextArea().exists()).toBe(false);
+      expect(findMarkdownEditor().exists()).toBe(false);
     });
   });
 

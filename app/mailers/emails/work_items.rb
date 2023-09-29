@@ -8,8 +8,12 @@ module Emails
       @results = results
 
       email_with_layout(
-        to: @user.notification_email_for(@project),
+        to: @user.notification_email_for(@project.group),
         subject: subject('Imported work items'))
+    end
+
+    def export_work_items_csv_email(user, project, csv_data, export_status)
+      csv_email(user, project, csv_data, export_status, 'work_items')
     end
   end
 end

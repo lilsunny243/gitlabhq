@@ -152,7 +152,7 @@ module Gitlab
             config = YAML.dump({ default: { interruptible: true },
                                  rspec: { script: "rspec" } })
 
-            config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+            config_processor = described_class.new(config).execute
             builds = config_processor.builds.select { |b| b[:stage] == "test" }
 
             expect(builds.size).to eq(1)
@@ -659,6 +659,213 @@ module Gitlab
 
             it_behaves_like 'has warnings and expected error', /build job: need test is not defined in current or prior stages/
           end
+
+          describe '#validate_job_needs!' do
+            context "when all validations pass" do
+              let(:config) do
+                <<-EOYML
+                    stages:
+                      - lint
+                    lint_job:
+                      needs: [lint_job_2]
+                      stage: lint
+                      script: 'echo lint_job'
+                      rules:
+                        - if: $var == null
+                          needs:
+                            - lint_job_2
+                            - job: lint_job_3
+                              optional: true
+                    lint_job_2:
+                      stage: lint
+                      script: 'echo job'
+                      rules:
+                        - if: $var == null
+                    lint_job_3:
+                      stage: lint
+                      script: 'echo job'
+                      rules:
+                        - if: $var == null
+                EOYML
+              end
+
+              it 'returns a valid response' do
+                expect(subject).to be_valid
+                expect(subject).to be_instance_of(Gitlab::Ci::YamlProcessor::Result)
+              end
+            end
+
+            context 'needs as array' do
+              context 'single need in following stage' do
+                let(:config) do
+                  <<-EOYML
+                      stages:
+                        - lint
+                        - test
+                      lint_job:
+                        stage: lint
+                        script: 'echo lint_job'
+                        rules:
+                          - if: $var == null
+                            needs: [test_job]
+                      test_job:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                  EOYML
+                end
+
+                it_behaves_like 'returns errors', 'lint_job job: need test_job is not defined in current or prior stages'
+              end
+
+              context 'multiple needs in the following stage' do
+                let(:config) do
+                  <<-EOYML
+                      stages:
+                        - lint
+                        - test
+                      lint_job:
+                        stage: lint
+                        script: 'echo lint_job'
+                        rules:
+                          - if: $var == null
+                            needs: [test_job, test_job_2]
+                      test_job:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                      test_job_2:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                  EOYML
+                end
+
+                it_behaves_like 'returns errors', 'lint_job job: need test_job is not defined in current or prior stages'
+              end
+
+              context 'single need in following state - hyphen need' do
+                let(:config) do
+                  <<-EOYML
+                      stages:
+                        - lint
+                        - test
+                      lint_job:
+                        stage: lint
+                        script: 'echo lint_job'
+                        rules:
+                          - if: $var == null
+                            needs:
+                              - test_job
+                      test_job:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                  EOYML
+                end
+
+                it_behaves_like 'returns errors', 'lint_job job: need test_job is not defined in current or prior stages'
+              end
+
+              context 'when there are duplicate needs (string and hash)' do
+                let(:config) do
+                  <<-EOYML
+                      stages:
+                        - test
+                      test_job_1:
+                        stage: test
+                        script: 'echo lint_job'
+                        rules:
+                          - if: $var == null
+                            needs:
+                              - test_job_2
+                              - job: test_job_2
+                      test_job_2:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                  EOYML
+                end
+
+                it_behaves_like 'returns errors', 'test_job_1 has the following needs duplicated: test_job_2.'
+              end
+
+              context 'when needed job name is too long' do
+                let(:job_name) { 'a' * (::Ci::BuildNeed::MAX_JOB_NAME_LENGTH + 1) }
+
+                let(:config) do
+                  <<-EOYML
+                    lint_job:
+                      script: 'echo lint_job'
+                      rules:
+                        - if: $var == null
+                          needs: [#{job_name}]
+                    #{job_name}:
+                      script: 'echo job'
+                  EOYML
+                end
+
+                it 'returns an error' do
+                  expect(subject.errors).to include(
+                    "lint_job job: need `#{job_name}` name is too long (maximum is #{::Ci::BuildNeed::MAX_JOB_NAME_LENGTH} characters)"
+                  )
+                end
+              end
+            end
+
+            context 'rule needs as hash' do
+              context 'single hash need in following stage' do
+                let(:config) do
+                  <<-EOYML
+                      stages:
+                        - lint
+                        - test
+                      lint_job:
+                        stage: lint
+                        script: 'echo lint_job'
+                        rules:
+                          - if: $var == null
+                            needs:
+                              - job: test_job
+                                artifacts: false
+                                optional: false
+                      test_job:
+                        stage: test
+                        script: 'echo job'
+                        rules:
+                          - if: $var == null
+                  EOYML
+                end
+
+                it_behaves_like 'returns errors', 'lint_job job: need test_job is not defined in current or prior stages'
+              end
+            end
+
+            context 'job rule need does not exist' do
+              let(:config) do
+                <<-EOYML
+                  build:
+                    stage: build
+                    script: echo
+                    rules:
+                      - when: always
+                  test:
+                    stage: test
+                    script: echo
+                    rules:
+                      - if: $var == null
+                        needs: [unknown_job]
+                EOYML
+              end
+
+              it_behaves_like 'has warnings and expected error', /test job: undefined need: unknown_job/
+            end
+          end
         end
       end
 
@@ -666,7 +873,7 @@ module Gitlab
         context 'when `only` has an invalid value' do
           let(:config) { { rspec: { script: "rspec", stage: "test", only: only } } }
 
-          subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+          subject { described_class.new(YAML.dump(config)).execute }
 
           context 'when it is integer' do
             let(:only) { 1 }
@@ -690,7 +897,7 @@ module Gitlab
         context 'when `except` has an invalid value' do
           let(:config) { { rspec: { script: "rspec", except: except } } }
 
-          subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+          subject { described_class.new(YAML.dump(config)).execute }
 
           context 'when it is integer' do
             let(:except) { 1 }
@@ -714,7 +921,7 @@ module Gitlab
 
       describe "Scripts handling" do
         let(:config_data) { YAML.dump(config) }
-        let(:config_processor) { Gitlab::Ci::YamlProcessor.new(config_data).execute }
+        let(:config_processor) { described_class.new(config_data).execute }
 
         subject(:test_build) { config_processor.builds.find { |build| build[:name] == 'test' } }
 
@@ -946,7 +1153,7 @@ module Gitlab
                                  before_script: ["pwd"],
                                  rspec: { script: "rspec" } })
 
-            config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+            config_processor = described_class.new(config).execute
             rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
             expect(rspec_build).to eq({
@@ -980,7 +1187,7 @@ module Gitlab
                                                        command: ["/usr/local/bin/init", "run"] }, "docker:dind"],
                                           script: "rspec" } })
 
-            config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+            config_processor = described_class.new(config).execute
             rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
             expect(rspec_build).to eq({
@@ -1012,7 +1219,7 @@ module Gitlab
                                  before_script: ["pwd"],
                                  rspec: { script: "rspec" } })
 
-            config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+            config_processor = described_class.new(config).execute
             rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
             expect(rspec_build).to eq({
@@ -1040,7 +1247,7 @@ module Gitlab
                                  before_script: ["pwd"],
                                  rspec: { image: "image:1.0", services: ["postgresql", "docker:dind"], script: "rspec" } })
 
-            config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+            config_processor = described_class.new(config).execute
             rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
             expect(rspec_build).to eq({
@@ -1307,7 +1514,7 @@ module Gitlab
       end
 
       context 'when using `extends`' do
-        let(:config_processor) { Gitlab::Ci::YamlProcessor.new(config).execute }
+        let(:config_processor) { described_class.new(config).execute }
 
         subject { config_processor.builds.first }
 
@@ -1427,7 +1634,7 @@ module Gitlab
           }
         end
 
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config), opts).execute }
+        subject { described_class.new(YAML.dump(config), opts).execute }
 
         context "when validating a ci config file with no project context" do
           context "when a single string is provided" do
@@ -1559,7 +1766,7 @@ module Gitlab
                              variables: { 'VAR1' => 1 } })
         end
 
-        let(:config_processor) { Gitlab::Ci::YamlProcessor.new(config).execute }
+        let(:config_processor) { described_class.new(config).execute }
         let(:builds) { config_processor.builds }
 
         context 'when job is parallelized' do
@@ -1675,7 +1882,7 @@ module Gitlab
                               }
                             })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1685,7 +1892,8 @@ module Gitlab
               key: 'key',
               policy: 'pull-push',
               when: 'on_success',
-              unprotect: false
+              unprotect: false,
+              fallback_keys: []
             ])
         end
 
@@ -1700,7 +1908,7 @@ module Gitlab
               }
             })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1710,7 +1918,8 @@ module Gitlab
               key: { files: ['file'] },
               policy: 'pull-push',
               when: 'on_success',
-              unprotect: false
+              unprotect: false,
+              fallback_keys: []
             ])
         end
 
@@ -1726,7 +1935,7 @@ module Gitlab
               }
             })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1737,7 +1946,8 @@ module Gitlab
                 key: 'keya',
                 policy: 'pull-push',
                 when: 'on_success',
-                unprotect: false
+                unprotect: false,
+                fallback_keys: []
               },
               {
                 paths: ['logs/', 'binaries/'],
@@ -1745,7 +1955,8 @@ module Gitlab
                 key: 'key',
                 policy: 'pull-push',
                 when: 'on_success',
-                unprotect: false
+                unprotect: false,
+                fallback_keys: []
               }
             ]
           )
@@ -1763,7 +1974,7 @@ module Gitlab
             }
           )
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1773,7 +1984,8 @@ module Gitlab
               key: { files: ['file'] },
               policy: 'pull-push',
               when: 'on_success',
-              unprotect: false
+              unprotect: false,
+              fallback_keys: []
             ])
         end
 
@@ -1789,7 +2001,7 @@ module Gitlab
             }
           )
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1799,7 +2011,8 @@ module Gitlab
               key: { files: ['file'], prefix: 'prefix' },
               policy: 'pull-push',
               when: 'on_success',
-              unprotect: false
+              unprotect: false,
+              fallback_keys: []
             ])
         end
 
@@ -1813,7 +2026,7 @@ module Gitlab
               }
             })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build[:cache]).to eq(
@@ -1823,8 +2036,55 @@ module Gitlab
               key: 'local',
               policy: 'pull-push',
               when: 'on_success',
-              unprotect: false
+              unprotect: false,
+              fallback_keys: []
             ])
+        end
+      end
+
+      describe 'id_tokens' do
+        subject(:execute) { described_class.new(config).execute }
+
+        let(:build) { execute.builds.first }
+        let(:id_tokens_vars) { { ID_TOKEN_1: { aud: 'http://gcp.com' } } }
+        let(:job_id_tokens_vars) { { ID_TOKEN_2: { aud: 'http://job.com' } } }
+
+        context 'when defined on job level' do
+          let(:config) do
+            YAML.dump({
+              rspec: { script: 'rspec', id_tokens: id_tokens_vars }
+            })
+          end
+
+          it 'returns defined id_tokens' do
+            expect(build[:id_tokens]).to eq(id_tokens_vars)
+          end
+        end
+
+        context 'when defined as default' do
+          let(:config) do
+            YAML.dump({
+              default: { id_tokens: id_tokens_vars },
+              rspec: { script: 'rspec' }
+            })
+          end
+
+          it 'returns inherited by default id_tokens' do
+            expect(build[:id_tokens]).to eq(id_tokens_vars)
+          end
+        end
+
+        context 'when defined as default and on job level' do
+          let(:config) do
+            YAML.dump({
+              default: { id_tokens: id_tokens_vars },
+              rspec: { script: 'rspec', id_tokens: job_id_tokens_vars }
+            })
+          end
+
+          it 'overrides default and returns defined on job level' do
+            expect(build[:id_tokens]).to eq(job_id_tokens_vars)
+          end
         end
       end
 
@@ -1847,7 +2107,7 @@ module Gitlab
               }
             })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           rspec_build = config_processor.builds.find { |build| build[:name] == 'rspec' }
 
           expect(rspec_build).to eq({
@@ -1884,7 +2144,7 @@ module Gitlab
                                 }
                               })
 
-          config_processor = Gitlab::Ci::YamlProcessor.new(config).execute
+          config_processor = described_class.new(config).execute
           builds = config_processor.builds
 
           expect(builds.size).to eq(1)
@@ -1941,7 +2201,7 @@ module Gitlab
       end
 
       describe "release" do
-        let(:processor) { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        let(:processor) { described_class.new(YAML.dump(config)).execute }
         let(:config) do
           {
             stages: %w[build test release],
@@ -1987,7 +2247,7 @@ module Gitlab
           }
         end
 
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        subject { described_class.new(YAML.dump(config)).execute }
 
         let(:builds) { subject.builds }
 
@@ -2097,7 +2357,7 @@ module Gitlab
           }
         end
 
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        subject { described_class.new(YAML.dump(config)).execute }
 
         let(:builds) { subject.builds }
 
@@ -2139,7 +2399,7 @@ module Gitlab
           }
         end
 
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        subject { described_class.new(YAML.dump(config)).execute }
 
         context 'no dependencies' do
           let(:dependencies) {}
@@ -2212,7 +2472,7 @@ module Gitlab
           }
         end
 
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        subject { described_class.new(YAML.dump(config)).execute }
 
         context 'no needs' do
           it { is_expected.to be_valid }
@@ -2361,6 +2621,60 @@ module Gitlab
               scheduling_type: :dag
             )
           end
+
+          context 'when expanded job name is too long' do
+            let(:parallel_job_name) { 'a' * ::Ci::BuildNeed::MAX_JOB_NAME_LENGTH }
+            let(:needs) { [parallel_job_name] }
+
+            before do
+              config[parallel_job_name] = { stage: 'build', script: 'test', parallel: 1 }
+            end
+
+            it 'returns an error' do
+              expect(subject.errors).to include(
+                "test1 job: need `#{parallel_job_name} 1/1` name is too long (maximum is #{::Ci::BuildNeed::MAX_JOB_NAME_LENGTH} characters)"
+              )
+            end
+          end
+
+          context 'when parallel job has matrix specified' do
+            let(:var1) { '1' }
+            let(:var2) { '2' }
+
+            before do
+              config[:parallel] = { stage: 'build', script: 'test', parallel: { matrix: [{ VAR1: var1, VAR2: var2 }] } }
+            end
+
+            it 'does create jobs with valid specification' do
+              expect(subject.builds.size).to eq(6)
+              expect(subject.builds[3]).to eq(
+                stage: 'test',
+                stage_idx: 2,
+                name: 'test1',
+                only: { refs: %w[branches tags] },
+                options: { script: ['test'] },
+                needs_attributes: [
+                  { name: 'parallel: [1, 2]', artifacts: true, optional: false }
+                ],
+                when: "on_success",
+                allow_failure: false,
+                job_variables: [],
+                root_variables_inheritance: true,
+                scheduling_type: :dag
+              )
+            end
+
+            context 'when expanded job name is too long' do
+              let(:var1) { '1' * (::Ci::BuildNeed::MAX_JOB_NAME_LENGTH / 2) }
+              let(:var2) { '2' * (::Ci::BuildNeed::MAX_JOB_NAME_LENGTH / 2) }
+
+              it 'returns an error' do
+                expect(subject.errors).to include(
+                  "test1 job: need `parallel: [#{var1}, #{var2}]` name is too long (maximum is #{::Ci::BuildNeed::MAX_JOB_NAME_LENGTH} characters)"
+                )
+              end
+            end
+          end
         end
 
         context 'needs dependencies artifacts' do
@@ -2395,10 +2709,16 @@ module Gitlab
           end
         end
 
-        context 'undefined need' do
+        context 'when need is an undefined job' do
           let(:needs) { ['undefined'] }
 
           it_behaves_like 'returns errors', 'test1 job: undefined need: undefined'
+
+          context 'when need is optional' do
+            let(:needs) { [{ job: 'undefined', optional: true }] }
+
+            it { is_expected.to be_valid }
+          end
         end
 
         context 'needs to deploy' do
@@ -2408,9 +2728,33 @@ module Gitlab
         end
 
         context 'duplicate needs' do
-          let(:needs) { %w(build1 build1) }
+          context 'when needs are specified in an array' do
+            let(:needs) { %w(build1 build1) }
 
-          it_behaves_like 'returns errors', 'test1 has duplicate entries in the needs section.'
+            it_behaves_like 'returns errors', 'test1 has the following needs duplicated: build1.'
+          end
+
+          context 'when a job is specified multiple times' do
+            let(:needs) do
+              [
+                { job: "build2", artifacts: true, optional: false },
+                { job: "build2", artifacts: true, optional: false }
+              ]
+            end
+
+            it_behaves_like 'returns errors', 'test1 has the following needs duplicated: build2.'
+          end
+
+          context 'when job is specified multiple times with different attributes' do
+            let(:needs) do
+              [
+                { job: "build2", artifacts: false, optional: true },
+                { job: "build2", artifacts: true, optional: false }
+              ]
+            end
+
+            it_behaves_like 'returns errors', 'test1 has the following needs duplicated: build2.'
+          end
         end
 
         context 'needs and dependencies that are mismatching' do
@@ -2453,10 +2797,46 @@ module Gitlab
 
           it_behaves_like 'returns errors', 'jobs:test1 dependencies should be an array of strings'
         end
+
+        context 'needs with parallel:matrix' do
+          let(:config) do
+            {
+              build1: {
+                stage: 'build',
+                script: 'build',
+                parallel: { matrix: [{ 'PROVIDER': ['aws'], 'STACK': %w[monitoring app1 app2] }] }
+              },
+              test1: {
+                stage: 'test',
+                script: 'test',
+                needs: [{ job: 'build1', parallel: { matrix: [{ 'PROVIDER': ['aws'], 'STACK': ['app1'] }] } }]
+              }
+            }
+          end
+
+          it "does create jobs with valid specification" do
+            expect(subject.builds.size).to eq(4)
+            expect(subject.builds[3]).to eq(
+              stage: "test",
+              stage_idx: 2,
+              name: "test1",
+              only: { refs: %w[branches tags] },
+              options: { script: ["test"] },
+              needs_attributes: [
+                { name: "build1: [aws, app1]", artifacts: true, optional: false }
+              ],
+              when: "on_success",
+              allow_failure: false,
+              job_variables: [],
+              root_variables_inheritance: true,
+              scheduling_type: :dag
+            )
+          end
+        end
       end
 
       context 'with when/rules' do
-        subject { Gitlab::Ci::YamlProcessor.new(YAML.dump(config)).execute }
+        subject { described_class.new(YAML.dump(config)).execute }
 
         let(:config) do
           {
@@ -2576,7 +2956,7 @@ module Gitlab
       end
 
       describe "Hidden jobs" do
-        let(:config_processor) { Gitlab::Ci::YamlProcessor.new(config).execute }
+        let(:config_processor) { described_class.new(config).execute }
 
         subject { config_processor.builds }
 
@@ -2624,7 +3004,7 @@ module Gitlab
       end
 
       describe "YAML Alias/Anchor" do
-        let(:config_processor) { Gitlab::Ci::YamlProcessor.new(config).execute }
+        let(:config_processor) { described_class.new(config).execute }
 
         subject { config_processor.builds }
 
@@ -3168,7 +3548,7 @@ module Gitlab
       end
 
       describe '#execute' do
-        subject { Gitlab::Ci::YamlProcessor.new(content).execute }
+        subject { described_class.new(content).execute }
 
         context 'when the YAML could not be parsed' do
           let(:content) { YAML.dump('invalid: yaml: test') }
@@ -3213,7 +3593,7 @@ module Gitlab
 
           it 'returns errors and empty configuration' do
             expect(subject.valid?).to eq(false)
-            expect(subject.errors).to eq(['Unknown alias: bad_alias'])
+            expect(subject.errors).to all match(%r{unknown .+ bad_alias}i)
           end
         end
 
@@ -3225,6 +3605,88 @@ module Gitlab
             expect(subject.errors).to be_empty
             expect(subject.builds).to be_present
           end
+        end
+      end
+
+      describe 'verify project sha', :use_clean_rails_redis_caching do
+        include_context 'when a project repository contains a forked commit'
+
+        let(:config) { YAML.dump(job: { script: 'echo' }) }
+        let(:verify_project_sha) { true }
+        let(:sha) { forked_commit_sha }
+
+        let(:processor) { described_class.new(config, project: project, sha: sha, verify_project_sha: verify_project_sha) }
+
+        subject { processor.execute }
+
+        shared_examples 'when the processor is executed twice consecutively' do |branch_names_contains_sha = false|
+          it 'calls Gitaly only once for each ref type' do
+            expect(repository).to receive(:branch_names_contains).once.and_call_original
+            expect(repository).to receive(:tag_names_contains).once.and_call_original unless branch_names_contains_sha
+
+            2.times { processor.execute }
+          end
+        end
+
+        context 'when a project branch contains the forked commit sha' do
+          before_all do
+            repository.add_branch(project.owner, 'branch1', forked_commit_sha)
+          end
+
+          after(:all) do
+            repository.rm_branch(project.owner, 'branch1')
+          end
+
+          it { is_expected.to be_valid }
+
+          it_behaves_like 'when the processor is executed twice consecutively', true
+        end
+
+        context 'when a project tag contains the forked commit sha' do
+          before_all do
+            repository.add_tag(project.owner, 'tag1', forked_commit_sha)
+          end
+
+          after(:all) do
+            repository.rm_tag(project.owner, 'tag1')
+          end
+
+          it { is_expected.to be_valid }
+
+          it_behaves_like 'when the processor is executed twice consecutively'
+        end
+
+        context 'when a project ref does not contain the forked commit sha' do
+          it 'returns an error' do
+            is_expected.not_to be_valid
+            expect(subject.errors).to include(/Could not validate configuration/)
+          end
+
+          it_behaves_like 'when the processor is executed twice consecutively'
+        end
+
+        context 'when verify_project_sha option is false' do
+          let(:verify_project_sha) { false }
+
+          it { is_expected.to be_valid }
+        end
+
+        context 'when project is not provided' do
+          let(:project) { nil }
+
+          it { is_expected.to be_valid }
+        end
+
+        context 'when sha is not provided' do
+          let(:sha) { nil }
+
+          it { is_expected.to be_valid }
+        end
+
+        context 'when sha is invalid' do
+          let(:sha) { 'invalid-sha' }
+
+          it { is_expected.to be_valid }
         end
       end
     end

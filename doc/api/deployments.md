@@ -1,11 +1,13 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
-# Deployments API **(FREE)**
+# Deployments API **(FREE ALL)**
+
+> Support for [GitLab CI/CD job token](../ci/jobs/ci_job_token.md) authentication [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/414549) in GitLab 16.2.
 
 ## List project deployments
 
@@ -279,7 +281,7 @@ Example response:
 }
 ```
 
-When the [unified approval setting](../ci/environments/deployment_approvals.md#unified-approval-setting) is configured, deployments created by users on GitLab Premium or higher include the `approvals` and `pending_approval_count` properties:
+When the [unified approval setting](../ci/environments/deployment_approvals.md#unified-approval-setting-deprecated) is configured, deployments created by users on GitLab Premium or Ultimate include the `approvals` and `pending_approval_count` properties:
 
 ```json
 {
@@ -304,7 +306,7 @@ When the [unified approval setting](../ci/environments/deployment_approvals.md#u
 }
 ```
 
-When the [multiple approval rules](../ci/environments/deployment_approvals.md#multiple-approval-rules) is configured, deployments created by users on GitLab Premium or higher include the `approval_summary` property:
+When the [multiple approval rules](../ci/environments/deployment_approvals.md#multiple-approval-rules) is configured, deployments created by users on GitLab Premium or Ultimate include the `approval_summary` property:
 
 ```json
 {
@@ -359,7 +361,7 @@ POST /projects/:id/deployments
 | `sha`         | string         | yes      | The SHA of the commit that is deployed.                                                                         |
 | `ref`         | string         | yes      | The name of the branch or tag that is deployed.                                                                 |
 | `tag`         | boolean        | yes      | A boolean that indicates if the deployed ref is a tag (`true`) or not (`false`).                                |
-| `status`      | string         | yes      | The status to filter deployments by. One of `running`, `success`, `failed`, or `canceled`.                      |
+| `status`      | string         | yes      | The status of the deployment that is created. One of `running`, `success`, `failed`, or `canceled`        |
 
 ```shell
 curl --data "environment=production&sha=a91957a858320c0e17f3a0eca7cfacbff50ea29a&ref=main&tag=false&status=success" \
@@ -393,7 +395,7 @@ Example response:
 }
 ```
 
-Deployments created by users on GitLab Premium or higher include the `approvals` and `pending_approval_count` properties:
+Deployments created by users on GitLab Premium or Ultimate include the `approvals` and `pending_approval_count` properties:
 
 ```json
 {
@@ -447,7 +449,7 @@ Example response:
 }
 ```
 
-Deployments created by users on GitLab Premium or higher include the `approvals` and `pending_approval_count` properties:
+Deployments created by users on GitLab Premium or Ultimate include the `approvals` and `pending_approval_count` properties:
 
 ```json
 {
@@ -528,7 +530,7 @@ It supports the same parameters as the [Merge Requests API](merge_requests.md#li
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/deployments/42/merge_requests"
 ```
 
-## Approve or reject a blocked deployment **(PREMIUM)**
+## Approve or reject a blocked deployment **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/343864) in GitLab 14.7 [with a flag](../administration/feature_flags.md) named `deployment_approvals`. Disabled by default.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/347342) in GitLab 14.8.

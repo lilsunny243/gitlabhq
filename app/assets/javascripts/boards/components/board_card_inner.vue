@@ -8,6 +8,7 @@ import {
   GlSprintf,
 } from '@gitlab/ui';
 import { sortBy } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import boardCardInner from 'ee_else_ce/boards/mixins/board_card_inner';
 import { isScopedLabel } from '~/lib/utils/common_utils';
@@ -19,6 +20,7 @@ import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
 import IssuableBlockedIcon from '~/vue_shared/components/issuable_blocked_icon/issuable_blocked_icon.vue';
 import { ListType } from '../constants';
 import eventHub from '../eventhub';
+import { setError } from '../graphql/cache_updates';
 import IssueDueDate from './issue_due_date.vue';
 import IssueTimeEstimate from './issue_time_estimate.vue';
 
@@ -43,7 +45,15 @@ export default {
     GlTooltip: GlTooltipDirective,
   },
   mixins: [boardCardInner],
-  inject: ['rootPath', 'scopedLabelsAvailable', 'isEpicBoard', 'issuableType', 'isGroupBoard'],
+  inject: [
+    'allowSubEpics',
+    'rootPath',
+    'scopedLabelsAvailable',
+    'isEpicBoard',
+    'issuableType',
+    'isGroupBoard',
+    'isApolloBoard',
+  ],
   props: {
     item: {
       type: Object,
@@ -77,7 +87,10 @@ export default {
     };
   },
   computed: {
-    ...mapState(['isShowingLabels', 'allowSubEpics']),
+    ...mapState(['isShowingLabels']),
+    isLoading() {
+      return this.item.isLoading || this.item.iid === '-1';
+    },
     cappedAssignees() {
       // e.g. maxRender is 4,
       // Render up to all 4 assignees if there are only 4 assigness
@@ -164,7 +177,8 @@ export default {
     },
   },
   methods: {
-    ...mapActions(['performSearch', 'setError']),
+    ...mapActions(['performSearch']),
+    setError,
     isIndexLessThanlimit(index) {
       return index < this.limitBeforeCounter;
     },
@@ -201,7 +215,9 @@ export default {
         updateHistory({
           url: `${filterPath}${filter}`,
         });
-        this.performSearch();
+        if (!this.isApolloBoard) {
+          this.performSearch();
+        }
         eventHub.$emit('updateTokens');
       }
     },
@@ -236,14 +252,14 @@ export default {
           v-if="item.hidden"
           v-gl-tooltip
           name="spam"
-          :title="__('This issue is hidden because its author has been banned')"
+          :title="__('This issue is hidden because its author has been banned.')"
           class="gl-mr-2 hidden-icon gl-text-orange-500 gl-cursor-help"
           data-testid="hidden-icon"
         />
         <a
           :href="item.path || item.webUrl || ''"
           :title="item.title"
-          :class="{ 'gl-text-gray-400!': item.isLoading }"
+          :class="{ 'gl-text-gray-400!': isLoading }"
           class="js-no-trigger gl-text-body gl-hover-text-gray-900"
           @mousemove.stop
           >{{ item.title }}</a
@@ -272,10 +288,10 @@ export default {
       <div
         class="gl-display-flex align-items-start flex-wrap-reverse board-card-number-container gl-overflow-hidden"
       >
-        <gl-loading-icon v-if="item.isLoading" size="lg" class="gl-mt-5" />
+        <gl-loading-icon v-if="isLoading" size="lg" class="gl-mt-5" />
         <span
-          v-if="item.referencePath"
-          class="board-card-number gl-overflow-hidden gl-display-flex gl-mr-3 gl-mt-3 gl-text-secondary"
+          v-if="item.referencePath && !isLoading"
+          class="board-card-number gl-overflow-hidden gl-display-flex gl-gap-2 gl-mr-3 gl-mt-3 gl-font-sm gl-text-secondary"
           :class="{ 'gl-font-base': isEpicBoard }"
         >
           <work-item-type-icon
@@ -294,7 +310,7 @@ export default {
         </span>
         <span class="board-info-items gl-mt-3 gl-display-inline-block">
           <span v-if="shouldRenderEpicCountables" data-testid="epic-countables">
-            <gl-tooltip :target="() => $refs.countBadge" data-testid="epic-countables-tooltip">
+            <gl-tooltip :target="() => $refs.countBadge">
               <p v-if="allowSubEpics" class="gl-font-weight-bold gl-m-0">
                 {{ __('Epics') }} &#8226;
                 <span class="gl-font-weight-normal">

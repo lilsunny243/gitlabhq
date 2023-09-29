@@ -30,6 +30,7 @@ module TodosHelper
     when Todo::MEMBER_ACCESS_REQUESTED then format(
       s_("Todos|has requested access to %{what} %{which}"), what: _(todo.member_access_type), which: _(todo.target.name)
     )
+    when Todo::REVIEW_SUBMITTED then s_('Todos|reviewed your merge request')
     end
   end
 
@@ -232,13 +233,15 @@ module TodosHelper
         ''
       end
 
+    due_date =
+      if is_due_today
+        _("today")
+      else
+        l(todo.target.due_date, format: Date::DATE_FORMATS[:medium])
+      end
+
     content = content_tag(:span, class: css_class) do
-      format(s_("Todos|Due %{due_date}"), due_date: if is_due_today
-                                                      _("today")
-                                                    else
-                                                      l(todo.target.due_date,
-                                                    format: Date::DATE_FORMATS[:medium])
-                                                    end)
+      format(s_("Todos|Due %{due_date}"), due_date: due_date)
     end
 
     "#{content} &middot;".html_safe
@@ -269,9 +272,9 @@ module TodosHelper
   def show_todo_state?(todo)
     case todo.target
     when MergeRequest, Issue
-      %w(closed merged).include?(todo.target.state)
+      %w[closed merged].include?(todo.target.state)
     when AlertManagement::Alert
-      %i(resolved).include?(todo.target.state)
+      %i[resolved].include?(todo.target.state)
     else
       false
     end

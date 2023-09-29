@@ -30,6 +30,8 @@ class NotesFinder
     notes = init_collection
     notes = since_fetch_at(notes)
     notes = notes.with_notes_filter(@params[:notes_filter]) if notes_filter?
+    notes = redact_internal(notes)
+    notes = notes.without_hidden if without_hidden_notes?
     sort(notes)
   end
 
@@ -117,7 +119,7 @@ class NotesFinder
     when "snippet", "project_snippet"
       SnippetsFinder.new(@current_user, project: @project).execute # rubocop: disable CodeReuse/Finder
     when "personal_snippet"
-      PersonalSnippet.all
+      SnippetsFinder.new(@current_user, only_personal: true).execute # rubocop: disable CodeReuse/Finder
     else
       raise "invalid target_type '#{noteable_type}'"
     end
@@ -180,6 +182,20 @@ class NotesFinder
     return notes.fresh unless sort
 
     notes.order_by(sort)
+  end
+
+  def redact_internal(notes)
+    subject = @project || target
+    return notes if Ability.allowed?(@current_user, :read_internal_note, subject)
+
+    notes.not_internal
+  end
+
+  def without_hidden_notes?
+    return false unless Feature.enabled?(:hidden_notes)
+    return false if @current_user&.can_admin_all_resources?
+
+    true
   end
 end
 

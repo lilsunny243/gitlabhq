@@ -5,13 +5,11 @@ group: Distribution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Redis replication and failover with Omnibus GitLab **(PREMIUM SELF)**
+# Redis replication and failover with the Linux package **(PREMIUM SELF)**
 
-NOTE:
-This is the documentation for the Omnibus GitLab packages. For using your own
-non-bundled Redis, follow the [relevant documentation](replication_and_failover_external.md).
+This documentation is for the Linux package. To use your own
+non-bundled Redis, see [Redis replication and failover providing your own instance](replication_and_failover_external.md).
 
-NOTE:
 In Redis lingo, `primary` is called `master`. In this document, `primary` is used
 instead of `master`, except the settings where `master` is required.
 
@@ -73,7 +71,7 @@ whole cluster down, invalidating the failover effort.
 
 ## Recommended setup
 
-For a minimal setup, you need to install the Omnibus GitLab package in `3`
+For a minimal setup, you need to install the Linux package in `3`
 **independent** machines, both with **Redis** and **Sentinel**:
 
 - Redis Primary + Sentinel
@@ -85,7 +83,7 @@ from, read [Redis setup overview](#redis-setup-overview) and
 [Sentinel setup overview](#sentinel-setup-overview).
 
 For a recommended setup that can resist more failures, you need to install
-the Omnibus GitLab package in `5` **independent** machines, both with
+the Linux package in `5` **independent** machines, both with
 **Redis** and **Sentinel**:
 
 - Redis Primary + Sentinel
@@ -241,9 +239,9 @@ If you fail to replicate first, you may loose data (unprocessed background jobs)
 ### Step 1. Configuring the primary Redis instance
 
 1. SSH into the **Primary** Redis server.
-1. [Download/install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package you want using **steps 1 and 2** from the GitLab downloads page.
-   - Make sure you select the correct Omnibus package, with the same version
+   - Make sure you select the correct Linux package, with the same version
      and type (Community, Enterprise editions) of your current install.
    - Do not complete any other steps on the download page.
 
@@ -275,7 +273,7 @@ If you fail to replicate first, you may loose data (unprocessed background jobs)
    gitlab_rails['auto_migrate'] = false
    ```
 
-1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 NOTE:
 You can specify multiple roles like sentinel and Redis as:
@@ -285,9 +283,9 @@ Read more about [roles](https://docs.gitlab.com/omnibus/roles/).
 ### Step 2. Configuring the replica Redis instances
 
 1. SSH into the **replica** Redis server.
-1. [Download/install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package you want using **steps 1 and 2** from the GitLab downloads page.
-   - Make sure you select the correct Omnibus package, with the same version
+   - Make sure you select the correct Linux package, with the same version
      and type (Community, Enterprise editions) of your current install.
    - Do not complete any other steps on the download page.
 
@@ -332,7 +330,7 @@ Read more about [roles](https://docs.gitlab.com/omnibus/roles/).
    gitlab_rails['auto_migrate'] = false
    ```
 
-1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 1. Go through the steps again for all the other replica nodes.
 
 NOTE:
@@ -348,11 +346,7 @@ the same Sentinels.
 ### Step 3. Configuring the Redis Sentinel instances
 
 NOTE:
-If you are using an external Redis Sentinel instance, be sure
-to exclude the `requirepass` parameter from the Sentinel
-configuration. This parameter causes clients to report `NOAUTH
-Authentication required.`.
-[Redis Sentinel 3.2.x does not support password authentication](https://github.com/antirez/redis/issues/3279).
+[Support for Sentinel password authentication](https://gitlab.com/gitlab-org/gitlab/-/issues/235938) was introduced in GitLab 16.1.
 
 Now that the Redis servers are all set up, let's configure the Sentinel
 servers.
@@ -365,19 +359,17 @@ You must have at least `3` Redis Sentinel servers, and they need to
 be each in an independent machine. You can configure them in the same
 machines where you've configured the other Redis servers.
 
-With GitLab Enterprise Edition, you can use the Omnibus package to set up
+With GitLab Enterprise Edition, you can use the Linux package to set up
 multiple machines with the Sentinel daemon.
-
----
 
 1. SSH into the server that hosts Redis Sentinel.
 1. **You can omit this step if the Sentinels is hosted in the same node as
    the other Redis instances.**
 
-   [Download/install](https://about.gitlab.com/install/) the
-   Omnibus GitLab Enterprise Edition package using **steps 1 and 2** from the
+   [Download and install](https://about.gitlab.com/install/) the
+   Linux Enterprise Edition package using **steps 1 and 2** from the
    GitLab downloads page.
-   - Make sure you select the correct Omnibus package, with the same version
+   - Make sure you select the correct Linux package, with the same version
      the GitLab application is running.
    - Do not complete any other steps on the download page.
 
@@ -407,6 +399,9 @@ multiple machines with the Sentinel daemon.
 
    ## Configure Sentinel
    sentinel['bind'] = '10.0.0.1'
+
+   ## Optional password for Sentinel authentication. Defaults to no password required.
+   # sentinel['password'] = 'sentinel-password-goes here'
 
    # Port that Sentinel listens on, uncomment to change to non default. Defaults
    # to `26379`.
@@ -458,7 +453,7 @@ multiple machines with the Sentinel daemon.
 
    Only the primary GitLab application server should handle migrations.
 
-1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 1. Go through the steps again for all the other Sentinel nodes.
 
 ### Step 4. Configuring the GitLab application
@@ -493,9 +488,10 @@ which ideally should not have Redis or Sentinels on it for a HA setup.
      {'host' => '10.0.0.2', 'port' => 26379},
      {'host' => '10.0.0.3', 'port' => 26379}
    ]
+   # gitlab_rails['redis_sentinels_password'] = 'sentinel-password-goes-here' # uncomment and set it to the same value as in sentinel['password']
    ```
 
-1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 ### Step 5. Enable Monitoring
 
@@ -570,13 +566,14 @@ redis['master_password'] = 'redis-password-goes-here' # the same value defined i
 redis['master_ip'] = '10.0.0.1' # ip of the initial primary redis instance
 #redis['master_port'] = 6379 # port of the initial primary redis instance, uncomment to change to non default
 sentinel['bind'] = '10.0.0.1'
+# sentinel['password'] = 'sentinel-password-goes-here' # must be the same in every sentinel node, uncomment to set a password
 # sentinel['port'] = 26379 # uncomment to change default port
 sentinel['quorum'] = 2
 # sentinel['down_after_milliseconds'] = 10000
 # sentinel['failover_timeout'] = 60000
 ```
 
-[Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+[Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 ### Example configuration for Redis replica 1 and Sentinel 2
 
@@ -592,13 +589,14 @@ redis['master_ip'] = '10.0.0.1' # IP of primary Redis server
 #redis['master_port'] = 6379 # Port of primary Redis server, uncomment to change to non default
 redis['master_name'] = 'gitlab-redis' # must be the same in every sentinel node
 sentinel['bind'] = '10.0.0.2'
+# sentinel['password'] = 'sentinel-password-goes-here' # must be the same in every sentinel node, uncomment to set a password
 # sentinel['port'] = 26379 # uncomment to change default port
 sentinel['quorum'] = 2
 # sentinel['down_after_milliseconds'] = 10000
 # sentinel['failover_timeout'] = 60000
 ```
 
-[Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+[Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 ### Example configuration for Redis replica 2 and Sentinel 3
 
@@ -614,13 +612,14 @@ redis['master_ip'] = '10.0.0.1' # IP of primary Redis server
 #redis['master_port'] = 6379 # Port of primary Redis server, uncomment to change to non default
 redis['master_name'] = 'gitlab-redis' # must be the same in every sentinel node
 sentinel['bind'] = '10.0.0.3'
+# sentinel['password'] = 'sentinel-password-goes-here' # must be the same in every sentinel node, uncomment to set a password
 # sentinel['port'] = 26379 # uncomment to change default port
 sentinel['quorum'] = 2
 # sentinel['down_after_milliseconds'] = 10000
 # sentinel['failover_timeout'] = 60000
 ```
 
-[Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+[Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 ### Example configuration for the GitLab application
 
@@ -634,18 +633,18 @@ gitlab_rails['redis_sentinels'] = [
   {'host' => '10.0.0.2', 'port' => 26379},
   {'host' => '10.0.0.3', 'port' => 26379}
 ]
+# gitlab_rails['redis_sentinels_password'] = 'sentinel-password-goes-here' # uncomment and set it to the same value as in sentinel['password']
 ```
 
-[Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+[Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 ## Advanced configuration
 
-Omnibus GitLab configures some things behind the curtains to make the sysadmins'
-lives easier. If you want to know what happens underneath keep reading.
+This section covers configuration options that go beyond the recommended and minimal configurations.
 
 ### Running multiple Redis clusters
 
-Omnibus GitLab supports running separate Redis and Sentinel instances for different
+The Linux package supports running separate Redis and Sentinel instances for different
 persistence classes.
 
 | Class          | Purpose                                          |
@@ -655,8 +654,9 @@ persistence classes.
 | `shared_state` | Store session-related and other persistent data. |
 | `actioncable`  | Pub/Sub queue backend for ActionCable.           |
 | `trace_chunks` | Store [CI trace chunks](../job_logs.md#enable-or-disable-incremental-logging) data. |
-| `rate_limiting` | Store [rate limiting](../../user/admin_area/settings/user_and_ip_rate_limits.md) state. |
+| `rate_limiting` | Store [rate limiting](../settings/user_and_ip_rate_limits.md) state. |
 | `sessions` | Store [sessions](../../../ee/development/session.md#gitlabsession). |
+| `repository_cache` | Store cache data specific to repositories.   |
 
 To make this work with Sentinel:
 
@@ -671,6 +671,7 @@ To make this work with Sentinel:
    gitlab_rails['redis_trace_chunks_instance'] = REDIS_TRACE_CHUNKS_URL
    gitlab_rails['redis_rate_limiting_instance'] = REDIS_RATE_LIMITING_URL
    gitlab_rails['redis_sessions_instance'] = REDIS_SESSIONS_URL
+   gitlab_rails['redis_repository_cache_instance'] = REDIS_REPOSITORY_CACHE_URL
 
    # Configure the Sentinels
    gitlab_rails['redis_cache_sentinels'] = [
@@ -701,6 +702,19 @@ To make this work with Sentinel:
      { host: SESSIONS_SENTINEL_HOST, port: 26379 },
      { host: SESSIONS_SENTINEL_HOST2, port: 26379 }
    ]
+   gitlab_rails['redis_repository_cache_sentinels'] = [
+     { host: REPOSITORY_CACHE_SENTINEL_HOST, port: 26379 },
+     { host: REPOSITORY_CACHE_SENTINEL_HOST2, port: 26379 }
+   ]
+
+   # gitlab_rails['redis_cache_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_queues_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_shared_state_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_actioncable_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_trace_chunks_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_rate_limiting_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_sessions_sentinels_password'] = 'sentinel-password-goes-here'
+   # gitlab_rails['redis_repository_cache_sentinels_password'] = 'sentinel-password-goes-here'
    ```
 
    - Redis URLs should be in the format: `redis://:PASSWORD@SENTINEL_PRIMARY_NAME`, where:
@@ -765,6 +779,49 @@ redis['master'] = false
 ```
 
 You can find the relevant attributes defined in [`gitlab_rails.rb`](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/files/gitlab-cookbooks/gitlab/libraries/gitlab_rails.rb).
+
+### Control startup behavior
+
+> [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/6646) in GitLab 15.10.
+
+To prevent the bundled Redis service from starting at boot or restarting after changing its configuration:
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   redis['start_down'] = true
+   ```
+
+1. Reconfigure GitLab:
+
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+If you need to test a new replica node, you may set `start_down` to
+`true` and manually start the node. After the new replica node is confirmed
+working in the Redis cluster, set `start_down` to `false` and reconfigure GitLab
+to ensure the node starts and restarts as expected during operation.
+
+### Control replica configuration
+
+> [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/6646) in GitLab 15.10.
+
+To prevent the `replicaof` line from rendering in the Redis configuration file:
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   redis['set_replicaof'] = false
+   ```
+
+1. Reconfigure GitLab:
+
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+This setting can be used to prevent replication of a Redis node independently of other Redis settings.
 
 ## Troubleshooting
 

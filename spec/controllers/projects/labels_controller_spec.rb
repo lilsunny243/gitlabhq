@@ -297,6 +297,99 @@ RSpec.describe Projects::LabelsController, feature_category: :team_planning do
     end
   end
 
+  describe 'PUT #update' do
+    context 'when updating lock_on_merge' do
+      let_it_be(:params) { { lock_on_merge: true } }
+      let_it_be_with_reload(:label) { create(:label, project: project) }
+
+      subject(:update_request) { put :update, params: { namespace_id: project.namespace, project_id: project, id: label.to_param, label: params } }
+
+      context 'when feature flag is disabled' do
+        before do
+          stub_feature_flags(enforce_locked_labels_on_merge: false)
+        end
+
+        it 'does not allow setting lock_on_merge' do
+          update_request
+
+          expect(response).to redirect_to(namespace_project_labels_path)
+          expect(label.reload.lock_on_merge).to be_falsey
+        end
+      end
+
+      shared_examples 'allows setting lock_on_merge' do
+        it do
+          update_request
+
+          expect(response).to redirect_to(namespace_project_labels_path)
+          expect(label.reload.lock_on_merge).to be_truthy
+        end
+      end
+
+      context 'when feature flag is enabled' do
+        before do
+          stub_feature_flags(enforce_locked_labels_on_merge: project)
+        end
+
+        it_behaves_like 'allows setting lock_on_merge'
+      end
+
+      context 'when feature flag for ancestor group is enabled' do
+        before do
+          stub_feature_flags(enforce_locked_labels_on_merge: group)
+        end
+
+        it_behaves_like 'allows setting lock_on_merge'
+      end
+    end
+  end
+
+  describe 'DELETE #destroy' do
+    context 'when current user has ability to destroy the label' do
+      before do
+        sign_in(user)
+      end
+
+      it 'removes the label' do
+        label = create(:label, project: project)
+        delete :destroy, params: { namespace_id: group.to_param, project_id: project.to_param, id: label.to_param }
+
+        expect { label.reload }.to raise_error(ActiveRecord::RecordNotFound)
+      end
+
+      it 'does not remove the label if it is locked' do
+        label = create(:label, project: project, lock_on_merge: true)
+        delete :destroy, params: { namespace_id: group.to_param, project_id: project.to_param, id: label.to_param }
+
+        expect(label.reload).to eq label
+      end
+
+      context 'when label is succesfuly destroyed' do
+        it 'redirects to the project labels page' do
+          label = create(:label, project: project)
+          delete :destroy, params: { namespace_id: group.to_param, project_id: project.to_param, id: label.to_param }
+
+          expect(response).to redirect_to(project_labels_path(project))
+        end
+      end
+    end
+
+    context 'when current_user does not have ability to destroy the label' do
+      let(:another_user) { create(:user) }
+
+      before do
+        sign_in(another_user)
+      end
+
+      it 'responds with status 404' do
+        label = create(:label, project: project)
+        delete :destroy, params: { namespace_id: group.to_param, project_id: project.to_param, id: label.to_param }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
+  end
+
   def project_moved_message(redirect_route, project)
     "Project '#{redirect_route.path}' was moved to '#{project.full_path}'. Please update any links and bookmarks that may still have the old path."
   end

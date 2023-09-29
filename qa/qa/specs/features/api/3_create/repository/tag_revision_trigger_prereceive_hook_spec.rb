@@ -3,11 +3,7 @@
 module QA
   RSpec.describe 'Create' do
     describe 'Prereceive hook', product_group: :source_code do
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.initialize_with_readme = true
-        end
-      end
+      let(:project) { create(:project, :with_readme) }
 
       context 'when creating a tag for a ref' do
         context 'when it triggers a prereceive hook configured with a custom error' do
@@ -19,14 +15,13 @@ module QA
           end
 
           it 'returns a custom server hook error',
-             :skip_live_env,
-             except: { job: 'review-qa-*' },
-             testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/369053' do
+            :skip_live_env,
+            except: { job: 'review-qa-*' },
+            testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/369053' do
             expect { project.create_repository_tag('v1.2.3') }
-              .to raise_error
-                    .with_message(
-                      /rejecting prereceive hook for projects with GL_PROJECT_PATH matching pattern reject-prereceive/
-                    )
+              .to raise_error.with_message(
+                /rejecting prereceive hook for projects with GL_PROJECT_PATH matching pattern reject-prereceive/
+              )
           end
         end
       end

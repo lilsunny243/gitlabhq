@@ -20,5 +20,11 @@ FactoryBot.define do
     end
 
     initialize_with { new(**attributes) }
+
+    factory :alert_management_prometheus_integration, traits: [:prometheus] do
+      trait :legacy do
+        endpoint_identifier { 'legacy-prometheus' }
+      end
+    end
   end
 end

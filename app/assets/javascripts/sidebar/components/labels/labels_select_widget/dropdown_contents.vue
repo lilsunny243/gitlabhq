@@ -20,6 +20,11 @@ export default {
     GlDropdownItem,
     GlLink,
   },
+  inject: {
+    toggleAttrs: {
+      default: () => ({}),
+    },
+  },
   props: {
     labelsCreateTitle: {
       type: String,
@@ -96,7 +101,8 @@ export default {
     buttonText() {
       if (!this.localSelectedLabels.length) {
         return this.dropdownButtonText || __('Label');
-      } else if (this.localSelectedLabels.length > 1) {
+      }
+      if (this.localSelectedLabels.length > 1) {
         return sprintf(s__('LabelSelect|%{firstLabelName} +%{remainingLabelCount} more'), {
           firstLabelName: this.localSelectedLabels[0].title,
           remainingLabelCount: this.localSelectedLabels.length - 1,
@@ -188,6 +194,11 @@ export default {
     selectFirstItem() {
       this.$refs.dropdownContentsView.selectFirstItem();
     },
+    handleNewLabel(label) {
+      this.localSelectedLabels = [...this.localSelectedLabels, label];
+      this.toggleDropdownContent();
+      this.clearSearch();
+    },
   },
 };
 </script>
@@ -199,7 +210,7 @@ export default {
     class="gl-w-full"
     block
     data-testid="labels-select-dropdown-contents"
-    data-qa-selector="labels_dropdown_content"
+    :toggle-attrs="toggleAttrs"
     @hide="handleDropdownHide"
     @shown="setFocus"
   >
@@ -214,7 +225,7 @@ export default {
         @toggleDropdownContentsCreateView="toggleDropdownContent"
         @closeDropdown="hideDropdown"
         @input="debouncedSearchKeyUpdate"
-        @searchEnter="selectFirstItem"
+        @searchEnter.prevent="selectFirstItem"
       />
     </template>
     <template #default>
@@ -229,6 +240,7 @@ export default {
         :attr-workspace-path="attrWorkspacePath"
         :label-create-type="labelCreateType"
         @hideCreateView="toggleDropdownContent"
+        @labelCreated="handleNewLabel"
         @input="clearSearch"
       />
     </template>

@@ -9,6 +9,7 @@ RSpec.describe SearchController, type: :request, feature_category: :global_searc
   let_it_be(:projects) { create_list(:project, 5, :public, :repository, :wiki_repo) }
 
   before do
+    stub_feature_flags(super_sidebar_nav_enrolled: false)
     login_as(user)
   end
 
@@ -39,7 +40,8 @@ RSpec.describe SearchController, type: :request, feature_category: :global_searc
 
     context 'for issues scope' do
       let(:object) { :issue }
-      let(:creation_args) { { project: project, title: 'foo' } }
+      let(:labels) { create_list(:label, 3, project: project) }
+      let(:creation_args) { { project: project, title: 'foo', labels: labels } }
       let(:params) { { search: 'foo', scope: 'issues' } }
       # some N+1 queries still exist
       # each issue runs an extra query for group namespaces
@@ -50,8 +52,9 @@ RSpec.describe SearchController, type: :request, feature_category: :global_searc
 
     context 'for merge_requests scope' do
       let(:creation_traits) { [:unique_branches] }
+      let(:labels) { create_list(:label, 3, project: project) }
       let(:object) { :merge_request }
-      let(:creation_args) { { source_project: project, title: 'bar' } }
+      let(:creation_args) { { source_project: project, title: 'bar', labels: labels } }
       let(:params) { { search: 'bar', scope: 'merge_requests' } }
       # some N+1 queries still exist
       # each merge request runs an extra query for project routes
@@ -66,13 +69,9 @@ RSpec.describe SearchController, type: :request, feature_category: :global_searc
       let(:creation_args) { { name: 'project' } }
       let(:params) { { search: 'project', scope: 'projects' } }
       # some N+1 queries still exist
-      # each project requires 3 extra queries
-      #   - one count for forks
-      #   - one count for open MRs
-      #   - one count for open Issues
-      # there are 4 additional queries run for the logged in user:
-      # (1) user preferences, (1) user statuses, (1) user details, (1) users
-      let(:threshold) { 17 }
+      # 1 for users
+      # 1 for root ancestor for each project
+      let(:threshold) { 7 }
 
       it_behaves_like 'an efficient database result'
     end

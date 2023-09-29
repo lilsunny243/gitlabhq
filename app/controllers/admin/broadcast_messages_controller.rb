@@ -2,24 +2,22 @@
 
 module Admin
   class BroadcastMessagesController < ApplicationController
-    include BroadcastMessagesHelper
+    include Admin::BroadcastMessagesHelper
 
     before_action :find_broadcast_message, only: [:edit, :update, :destroy]
     before_action :find_broadcast_messages, only: [:index, :create]
-    before_action :push_features, only: [:index, :edit]
 
     feature_category :onboarding
     urgency :low
 
     def index
-      @broadcast_message = BroadcastMessage.new
+      @broadcast_message = System::BroadcastMessage.new
     end
 
-    def edit
-    end
+    def edit; end
 
     def create
-      @broadcast_message = BroadcastMessage.new(broadcast_message_params)
+      @broadcast_message = System::BroadcastMessage.new(broadcast_message_params)
       success = @broadcast_message.save
 
       respond_to do |format|
@@ -71,35 +69,32 @@ module Admin
     end
 
     def preview
-      @broadcast_message = BroadcastMessage.new(broadcast_message_params)
-      render partial: 'admin/broadcast_messages/preview'
+      @broadcast_message = System::BroadcastMessage.new(broadcast_message_params)
+      render plain: render_broadcast_message(@broadcast_message), status: :ok
     end
 
     protected
 
     def find_broadcast_message
-      @broadcast_message = BroadcastMessage.find(params[:id])
+      @broadcast_message = System::BroadcastMessage.find(params[:id])
     end
 
     def find_broadcast_messages
-      @broadcast_messages = BroadcastMessage.order(ends_at: :desc).page(params[:page]) # rubocop: disable CodeReuse/ActiveRecord
+      @broadcast_messages = System::BroadcastMessage.order(ends_at: :desc).page(params[:page]) # rubocop: disable CodeReuse/ActiveRecord
     end
 
     def broadcast_message_params
       params.require(:broadcast_message)
         .permit(%i[
-                  theme
-                  ends_at
-                  message
-                  starts_at
-                  target_path
-                  broadcast_type
-                  dismissable
-                ], target_access_levels: []).reverse_merge!(target_access_levels: [])
-    end
-
-    def push_features
-      push_frontend_feature_flag(:role_targeted_broadcast_messages, current_user)
+          theme
+          ends_at
+          message
+          starts_at
+          target_path
+          broadcast_type
+          dismissable
+          show_in_cli
+        ], target_access_levels: []).reverse_merge!(target_access_levels: [])
     end
   end
 end

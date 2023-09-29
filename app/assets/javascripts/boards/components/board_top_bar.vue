@@ -1,8 +1,10 @@
 <script>
 import BoardAddNewColumnTrigger from '~/boards/components/board_add_new_column_trigger.vue';
+import { s__ } from '~/locale';
 import BoardsSelector from 'ee_else_ce/boards/components/boards_selector.vue';
 import IssueBoardFilteredSearch from 'ee_else_ce/boards/components/issue_board_filtered_search.vue';
 import { getBoardQuery } from 'ee_else_ce/boards/boards_util';
+import { setError } from '../graphql/cache_updates';
 import ConfigToggle from './config_toggle.vue';
 import NewBoardButton from './new_board_button.vue';
 import ToggleFocus from './toggle_focus.vue';
@@ -35,6 +37,14 @@ export default {
       type: String,
       required: true,
     },
+    addColumnFormVisible: {
+      type: Boolean,
+      required: true,
+    },
+    isSwimlanesOn: {
+      type: Boolean,
+      required: true,
+    },
   },
   data() {
     return {
@@ -56,8 +66,35 @@ export default {
         return !this.isApolloBoard;
       },
       update(data) {
-        return data.workspace.board;
+        const { board } = data.workspace;
+        return {
+          ...board,
+          labels: board.labels?.nodes,
+        };
       },
+      error(error) {
+        setError({
+          error,
+          message: s__('Boards|An error occurred while fetching board details. Please try again.'),
+        });
+      },
+    },
+  },
+  computed: {
+    hasScope() {
+      if (this.board.labels?.length > 0) {
+        return true;
+      }
+      let hasScope = false;
+      ['assignee', 'iterationCadence', 'iteration', 'milestone', 'weight'].forEach((attr) => {
+        if (this.board[attr] !== null && this.board[attr] !== undefined) {
+          hasScope = true;
+        }
+      });
+      return hasScope;
+    },
+    isLoading() {
+      return this.$apollo.queries.board.loading;
     },
   },
 };
@@ -69,23 +106,41 @@ export default {
       class="issues-details-filters filtered-search-block gl-display-flex gl-flex-direction-column gl-lg-flex-direction-row row-content-block second-block"
     >
       <div
-        class="gl-display-flex gl-flex-direction-column gl-md-flex-direction-row gl-flex-grow-1 gl-lg-mb-0 gl-mb-3 gl-w-full"
+        class="gl-display-flex gl-flex-direction-column gl-md-flex-direction-row gl-flex-grow-1 gl-lg-mb-0 gl-mb-3 gl-w-full gl-min-w-0"
       >
-        <boards-selector :board-apollo="board" @switchBoard="$emit('switchBoard', $event)" />
+        <boards-selector
+          :board-apollo="board"
+          :is-current-board-loading="isLoading"
+          @switchBoard="$emit('switchBoard', $event)"
+        />
         <new-board-button />
         <issue-board-filtered-search
           v-if="isIssueBoard"
+          :board="board"
+          :is-swimlanes-on="isSwimlanesOn"
           @setFilters="$emit('setFilters', $event)"
         />
-        <epic-board-filtered-search v-else @setFilters="$emit('setFilters', $event)" />
+        <epic-board-filtered-search
+          v-else
+          :board="board"
+          @setFilters="$emit('setFilters', $event)"
+        />
       </div>
       <div
         class="filter-dropdown-container gl-md-display-flex gl-flex-direction-column gl-md-flex-direction-row gl-align-items-flex-start"
       >
         <toggle-labels />
-        <toggle-epics-swimlanes v-if="swimlanesFeatureAvailable && isSignedIn" />
-        <config-toggle />
-        <board-add-new-column-trigger v-if="canAdminList" />
+        <toggle-epics-swimlanes
+          v-if="swimlanesFeatureAvailable && isSignedIn"
+          :is-swimlanes-on="isSwimlanesOn"
+          @toggleSwimlanes="$emit('toggleSwimlanes', $event)"
+        />
+        <config-toggle :board-has-scope="hasScope" />
+        <board-add-new-column-trigger
+          v-if="canAdminList"
+          :is-new-list-showing="addColumnFormVisible"
+          @setAddColumnFormVisibility="$emit('setAddColumnFormVisibility', $event)"
+        />
         <toggle-focus />
       </div>
     </div>

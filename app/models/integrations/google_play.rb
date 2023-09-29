@@ -2,6 +2,8 @@
 
 module Integrations
   class GooglePlay < Integration
+    PACKAGE_NAME_REGEX = /\A[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*){1,20}\z/
+
     SECTION_TYPE_GOOGLE_PLAY = 'google_play'
 
     with_options if: :activated? do
@@ -9,14 +11,26 @@ module Integrations
         filename: "google_service_account_key", parse_json: true
       }
       validates :service_account_key_file_name, presence: true
+      validates :package_name, presence: true, format: { with: PACKAGE_NAME_REGEX }
+      validates :google_play_protected_refs, inclusion: [true, false]
     end
+
+    field :package_name,
+      section: SECTION_TYPE_CONNECTION,
+      placeholder: 'com.example.myapp',
+      required: true
 
     field :service_account_key_file_name,
       section: SECTION_TYPE_CONNECTION,
-      required: true,
-      is_secret: false
+      required: true
 
-    field :service_account_key, api_only: true, is_secret: false
+    field :service_account_key, api_only: true
+
+    field :google_play_protected_refs,
+      type: :checkbox,
+      section: SECTION_TYPE_CONFIGURATION,
+      title: -> { s_('GooglePlayStore|Protected branches and tags only') },
+      checkbox_label: -> { s_('GooglePlayStore|Only set variables on protected branches and tags') }
 
     def title
       s_('GooglePlay|Google Play')
@@ -28,6 +42,7 @@ module Integrations
 
     def help
       variable_list = [
+        '<code>SUPPLY_PACKAGE_NAME</code>',
         '<code>SUPPLY_JSON_KEY_DATA</code>'
       ]
 
@@ -36,7 +51,7 @@ module Integrations
         s_("Use the Google Play integration to connect to Google Play with fastlane in CI/CD pipelines."),
         s_("After you enable the integration, the following protected variable is created for CI/CD use:"),
         variable_list.join('<br>'),
-        s_(format("To generate a Google Play service account key and use this integration, see the <a href='%{url}' target='_blank'>integration documentation</a>.", url: "#")).html_safe
+        s_(format("To generate a Google Play service account key and use this integration, see the <a href='%{url}' target='_blank'>integration documentation</a>.", url: Rails.application.routes.url_helpers.help_page_url('user/project/integrations/google_play'))).html_safe
       ]
       # rubocop:enable Layout/LineLength
 
@@ -62,27 +77,38 @@ module Integrations
     end
 
     def test(*_args)
-      client.fetch_access_token!
+      client.list_reviews(package_name)
       { success: true }
-    rescue Signet::AuthorizationError => error
+    rescue Google::Apis::ClientError => error
       { success: false, message: error }
     end
 
-    def ci_variables
+    def ci_variables(protected_ref:)
       return [] unless activated?
+      return [] if google_play_protected_refs && !protected_ref
 
       [
-        { key: 'SUPPLY_JSON_KEY_DATA', value: service_account_key, masked: true, public: false }
+        { key: 'SUPPLY_JSON_KEY_DATA', value: service_account_key, masked: true, public: false },
+        { key: 'SUPPLY_PACKAGE_NAME', value: package_name, masked: false, public: false }
       ]
+    end
+
+    def initialize_properties
+      super
+      self.google_play_protected_refs = true if google_play_protected_refs.nil?
     end
 
     private
 
     def client
-      Google::Auth::ServiceAccountCredentials.make_creds(
+      service = Google::Apis::AndroidpublisherV3::AndroidPublisherService.new # rubocop: disable CodeReuse/ServiceClass
+
+      service.authorization = Google::Auth::ServiceAccountCredentials.make_creds(
         json_key_io: StringIO.new(service_account_key),
-        scope: ['https://www.googleapis.com/auth/androidpublisher']
+        scope: [Google::Apis::AndroidpublisherV3::AUTH_ANDROIDPUBLISHER]
       )
+
+      service
     end
   end
 end

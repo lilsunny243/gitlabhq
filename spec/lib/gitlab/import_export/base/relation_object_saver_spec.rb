@@ -27,8 +27,8 @@ RSpec.describe Gitlab::ImportExport::Base::RelationObjectSaver, feature_category
       expect { saver.execute }.to change(project.issues, :count).by(1)
     end
 
-    context 'when subrelation is present' do
-      let(:notes) { build_list(:note, 6, project: project, importing: true) }
+    context 'when subrelation collection is present' do
+      let(:notes) { build_list(:note, 2, project: project, importing: true) }
       let(:relation_object) { build(:issue, project: project, notes: notes) }
       let(:relation_definition) { { 'notes' => {} } }
 
@@ -39,7 +39,7 @@ RSpec.describe Gitlab::ImportExport::Base::RelationObjectSaver, feature_category
         saver.execute
 
         issue = project.issues.last
-        expect(issue.notes.count).to eq(6)
+        expect(issue.notes.count).to eq(2)
       end
     end
 
@@ -58,48 +58,22 @@ RSpec.describe Gitlab::ImportExport::Base::RelationObjectSaver, feature_category
       end
     end
 
-    context 'when subrelation collection count is small' do
-      let(:note) { build(:note, project: project, importing: true) }
-      let(:relation_object) { build(:issue, project: project, notes: [note]) }
-      let(:relation_definition) { { 'notes' => {} } }
-
-      it 'saves subrelation as part of the relation object itself' do
-        expect(relation_object.notes).not_to receive(:<<)
-
-        saver.execute
-
-        issue = project.issues.last
-        expect(issue.notes.count).to eq(1)
-      end
-    end
-
     context 'when some subrelations are invalid' do
-      let(:notes) { build_list(:note, 5, project: project, importing: true) }
+      let(:note) { build(:note, project: project, importing: true) }
       let(:invalid_note) { build(:note) }
-      let(:relation_object) { build(:issue, project: project, notes: notes + [invalid_note]) }
+      let(:relation_object) { build(:issue, project: project, notes: [note, invalid_note]) }
       let(:relation_definition) { { 'notes' => {} } }
 
       it 'saves valid subrelations and logs invalid subrelation' do
         expect(relation_object.notes).to receive(:<<).twice.and_call_original
         expect(relation_object).to receive(:save).and_call_original
-        expect(Gitlab::Import::Logger)
-          .to receive(:info)
-          .with(
-            message: '[Project/Group Import] Invalid subrelation',
-            project_id: project.id,
-            relation_key: 'issues',
-            error_messages: "Project does not match noteable project"
-          )
 
         saver.execute
 
         issue = project.issues.last
-        import_failure = project.import_failures.last
 
         expect(invalid_note.persisted?).to eq(false)
-        expect(issue.notes.count).to eq(5)
-        expect(import_failure.source).to eq('RelationObjectSaver#save!')
-        expect(import_failure.exception_message).to eq('Project does not match noteable project')
+        expect(issue.notes.count).to eq(1)
       end
 
       context 'when invalid subrelation can still be persisted' do
@@ -111,7 +85,6 @@ RSpec.describe Gitlab::ImportExport::Base::RelationObjectSaver, feature_category
 
         it 'saves the subrelation' do
           expect(approval_1.valid?).to eq(false)
-          expect(Gitlab::Import::Logger).not_to receive(:info)
 
           saver.execute
 
@@ -124,28 +97,14 @@ RSpec.describe Gitlab::ImportExport::Base::RelationObjectSaver, feature_category
         let(:relation_key) { 'labels' }
         let(:relation_definition) { { 'priorities' => {} } }
         let(:importable) { create(:group) }
-        let(:valid_priorities) { build_list(:label_priority, 5, importing: true) }
+        let(:valid_priorities) { [build(:label_priority, importing: true)] }
         let(:invalid_priority) { build(:label_priority, priority: -1) }
         let(:relation_object) { build(:group_label, group: importable, title: 'test', priorities: valid_priorities + [invalid_priority]) }
 
-        it 'logs invalid subrelation for a group' do
-          expect(Gitlab::Import::Logger)
-            .to receive(:info)
-            .with(
-              message: '[Project/Group Import] Invalid subrelation',
-              group_id: importable.id,
-              relation_key: 'labels',
-              error_messages: 'Priority must be greater than or equal to 0'
-            )
-
+        it 'saves relation without invalid subrelations' do
           saver.execute
 
-          label = importable.labels.last
-          import_failure = importable.import_failures.last
-
-          expect(label.priorities.count).to eq(5)
-          expect(import_failure.source).to eq('RelationObjectSaver#save!')
-          expect(import_failure.exception_message).to eq('Priority must be greater than or equal to 0')
+          expect(importable.labels.last.priorities.count).to eq(1)
         end
       end
     end

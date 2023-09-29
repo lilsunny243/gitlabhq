@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::MergeService do
+RSpec.describe MergeRequests::MergeService, feature_category: :code_review_workflow do
   include ExclusiveLeaseHelpers
 
   let_it_be(:user) { create(:user) }
@@ -25,7 +25,7 @@ RSpec.describe MergeRequests::MergeService do
     let(:lease_key) { "merge_requests_merge_service:#{merge_request.id}" }
     let!(:lease) { stub_exclusive_lease(lease_key) }
 
-    context 'valid params' do
+    shared_examples 'with valid params' do
       before do
         allow(service).to receive(:execute_hooks)
         expect(merge_request).to receive(:update_and_mark_in_progress_merge_commit_sha).twice.and_call_original
@@ -37,11 +37,6 @@ RSpec.describe MergeRequests::MergeService do
 
       it { expect(merge_request).to be_valid }
       it { expect(merge_request).to be_merged }
-
-      it 'persists merge_commit_sha and nullifies in_progress_merge_commit_sha' do
-        expect(merge_request.merge_commit_sha).not_to be_nil
-        expect(merge_request.in_progress_merge_commit_sha).to be_nil
-      end
 
       it 'does not update squash_commit_sha if it is not a squash' do
         expect(merge_request.squash_commit_sha).to be_nil
@@ -59,39 +54,106 @@ RSpec.describe MergeRequests::MergeService do
           expect(event.state).to eq('merged')
         end
       end
+    end
 
-      context 'when squashing' do
-        let(:merge_params) do
-          { commit_message: 'Merge commit message',
-            squash_commit_message: 'Squash commit message',
-            sha: merge_request.diff_head_sha }
+    shared_examples 'squashing' do
+      # A merge request with 5 commits
+      let(:merge_request) do
+        create(
+          :merge_request,
+          :simple,
+          author: user2,
+          assignees: [user2],
+          squash: true,
+          source_branch: 'improve/awesome',
+          target_branch: 'fix'
+        )
+      end
+
+      let(:merge_params) do
+        { commit_message: 'Merge commit message',
+          squash_commit_message: 'Squash commit message',
+          sha: merge_request.diff_head_sha }
+      end
+
+      before do
+        allow(service).to receive(:execute_hooks)
+        expect(merge_request).to receive(:update_and_mark_in_progress_merge_commit_sha).twice.and_call_original
+
+        perform_enqueued_jobs do
+          service.execute(merge_request)
         end
+      end
 
-        let(:merge_request) do
-          # A merge request with 5 commits
-          create(:merge_request, :simple,
-                 author: user2,
-                 assignees: [user2],
-                 squash: true,
-                 source_branch: 'improve/awesome',
-                 target_branch: 'fix')
-        end
+      it 'merges the merge request with squashed commits' do
+        expect(merge_request).to be_merged
 
-        it 'merges the merge request with squashed commits' do
-          expect(merge_request).to be_merged
+        merge_commit = merge_request.merge_commit
+        squash_commit = merge_request.merge_commit.parents.last
 
-          merge_commit = merge_request.merge_commit
-          squash_commit = merge_request.merge_commit.parents.last
+        expect(merge_commit.message).to eq('Merge commit message')
+        expect(squash_commit.message).to eq("Squash commit message\n")
+      end
 
-          expect(merge_commit.message).to eq('Merge commit message')
-          expect(squash_commit.message).to eq("Squash commit message\n")
-        end
+      it 'persists squash_commit_sha' do
+        squash_commit = merge_request.merge_commit.parents.last
 
-        it 'persists squash_commit_sha' do
-          squash_commit = merge_request.merge_commit.parents.last
+        expect(merge_request.squash_commit_sha).to eq(squash_commit.id)
+      end
+    end
 
-          expect(merge_request.squash_commit_sha).to eq(squash_commit.id)
-        end
+    context 'when merge strategy is merge commit' do
+      it 'persists merge_commit_sha and merged_commit_sha and nullifies in_progress_merge_commit_sha' do
+        service.execute(merge_request)
+
+        expect(merge_request.merge_commit_sha).not_to be_nil
+        expect(merge_request.merged_commit_sha).to eq merge_request.merge_commit_sha
+        expect(merge_request.in_progress_merge_commit_sha).to be_nil
+      end
+
+      it_behaves_like 'with valid params'
+
+      it_behaves_like 'squashing'
+    end
+
+    context 'when merge strategy is fast forward' do
+      before do
+        project.update!(merge_requests_ff_only_enabled: true)
+      end
+
+      let(:merge_request) do
+        create(
+          :merge_request,
+          source_branch: 'flatten-dir',
+          target_branch: 'improve/awesome',
+          assignees: [user2],
+          author: create(:user)
+        )
+      end
+
+      it 'does not create merge_commit_sha, but persists merged_commit_sha and nullifies in_progress_merge_commit_sha' do
+        service.execute(merge_request)
+
+        expect(merge_request.merge_commit_sha).to be_nil
+        expect(merge_request.merged_commit_sha).not_to be_nil
+        expect(merge_request.merged_commit_sha).to eq merge_request.diff_head_sha
+        expect(merge_request.in_progress_merge_commit_sha).to be_nil
+      end
+
+      it_behaves_like 'with valid params'
+
+      it 'updates squash_commit_sha and merged_commit_sha if it is a squash' do
+        expect(merge_request).to receive(:update_and_mark_in_progress_merge_commit_sha).twice.and_call_original
+
+        merge_request.update!(squash: true)
+
+        expect { service.execute(merge_request) }
+          .to change { merge_request.squash_commit_sha }
+                .from(nil)
+
+        expect(merge_request.merge_commit_sha).to be_nil
+        expect(merge_request.merged_commit_sha).to eq merge_request.squash_commit_sha
+        expect(merge_request.in_progress_merge_commit_sha).to be_nil
       end
     end
 
@@ -147,12 +209,15 @@ RSpec.describe MergeRequests::MergeService do
 
     context 'when an invalid sha is passed' do
       let(:merge_request) do
-        create(:merge_request, :simple,
-               author: user2,
-               assignees: [user2],
-               squash: true,
-               source_branch: 'improve/awesome',
-               target_branch: 'fix')
+        create(
+          :merge_request,
+          :simple,
+          author: user2,
+          assignees: [user2],
+          squash: true,
+          source_branch: 'improve/awesome',
+          target_branch: 'fix'
+        )
       end
 
       let(:merge_params) do
@@ -351,24 +416,31 @@ RSpec.describe MergeRequests::MergeService do
           service.execute(merge_request)
 
           expect(merge_request.merge_error).to eq(error_message)
-          expect(Gitlab::AppLogger).to have_received(:error)
-            .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                 message: a_string_matching(error_message)))
+          expect(Gitlab::AppLogger).to have_received(:error).with(
+            hash_including(
+              merge_request_info: merge_request.to_reference(full: true),
+              message: a_string_matching(error_message)
+            )
+          )
         end
       end
 
       it 'logs and saves error if there is an exception' do
         error_message = 'error message'
 
-        allow(service).to receive(:repository).and_raise(error_message)
-        allow(service).to receive(:execute_hooks)
+        allow_next_instance_of(MergeRequests::MergeStrategies::FromSourceBranch) do |strategy|
+          allow(strategy).to receive(:execute_git_merge!).and_raise(error_message)
+        end
 
         service.execute(merge_request)
 
         expect(merge_request.merge_error).to eq(described_class::GENERIC_ERROR_MESSAGE)
-        expect(Gitlab::AppLogger).to have_received(:error)
-          .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                               message: a_string_matching(error_message)))
+        expect(Gitlab::AppLogger).to have_received(:error).with(
+          hash_including(
+            merge_request_info: merge_request.to_reference(full: true),
+            message: a_string_matching(error_message)
+          )
+        )
       end
 
       it 'logs and saves error if user is not authorized' do
@@ -388,15 +460,19 @@ RSpec.describe MergeRequests::MergeService do
       it 'logs and saves error if there is an PreReceiveError exception' do
         error_message = 'error message'
 
-        allow(service).to receive(:repository).and_raise(Gitlab::Git::PreReceiveError, "GitLab: #{error_message}")
-        allow(service).to receive(:execute_hooks)
+        allow_next_instance_of(MergeRequests::MergeStrategies::FromSourceBranch) do |strategy|
+          allow(strategy).to receive(:execute_git_merge!).and_raise(Gitlab::Git::PreReceiveError, "GitLab: #{error_message}")
+        end
 
         service.execute(merge_request)
 
         expect(merge_request.merge_error).to include('Something went wrong during merge pre-receive hook')
-        expect(Gitlab::AppLogger).to have_received(:error)
-          .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                               message: a_string_matching(error_message)))
+        expect(Gitlab::AppLogger).to have_received(:error).with(
+          hash_including(
+            merge_request_info: merge_request.to_reference(full: true),
+            message: a_string_matching(error_message)
+          )
+        )
       end
 
       it 'logs and saves error if commit is not created' do
@@ -408,9 +484,12 @@ RSpec.describe MergeRequests::MergeService do
         expect(merge_request).to be_open
         expect(merge_request.merge_commit_sha).to be_nil
         expect(merge_request.merge_error).to include(described_class::GENERIC_ERROR_MESSAGE)
-        expect(Gitlab::AppLogger).to have_received(:error)
-          .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                               message: a_string_matching(described_class::GENERIC_ERROR_MESSAGE)))
+        expect(Gitlab::AppLogger).to have_received(:error).with(
+          hash_including(
+            merge_request_info: merge_request.to_reference(full: true),
+            message: a_string_matching(described_class::GENERIC_ERROR_MESSAGE)
+          )
+        )
       end
 
       context 'when squashing is required' do
@@ -429,9 +508,12 @@ RSpec.describe MergeRequests::MergeService do
           expect(merge_request.merge_commit_sha).to be_nil
           expect(merge_request.squash_commit_sha).to be_nil
           expect(merge_request.merge_error).to include(error_message)
-          expect(Gitlab::AppLogger).to have_received(:error)
-            .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                 message: a_string_matching(error_message)))
+          expect(Gitlab::AppLogger).to have_received(:error).with(
+            hash_including(
+              merge_request_info: merge_request.to_reference(full: true),
+              message: a_string_matching(error_message)
+            )
+          )
         end
       end
 
@@ -452,16 +534,20 @@ RSpec.describe MergeRequests::MergeService do
           expect(merge_request.merge_commit_sha).to be_nil
           expect(merge_request.squash_commit_sha).to be_nil
           expect(merge_request.merge_error).to include(error_message)
-          expect(Gitlab::AppLogger).to have_received(:error)
-            .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                 message: a_string_matching(error_message)))
+          expect(Gitlab::AppLogger).to have_received(:error).with(
+            hash_including(
+              merge_request_info: merge_request.to_reference(full: true),
+              message: a_string_matching(error_message)
+            )
+          )
         end
 
         it 'logs and saves error if there is an PreReceiveError exception' do
           error_message = 'error message'
 
-          allow(service).to receive(:repository).and_raise(Gitlab::Git::PreReceiveError, "GitLab: #{error_message}")
-          allow(service).to receive(:execute_hooks)
+          allow_next_instance_of(MergeRequests::MergeStrategies::FromSourceBranch) do |strategy|
+            allow(strategy).to receive(:execute_git_merge!).and_raise(Gitlab::Git::PreReceiveError, "GitLab: #{error_message}")
+          end
           merge_request.update!(squash: true)
 
           service.execute(merge_request)
@@ -470,9 +556,12 @@ RSpec.describe MergeRequests::MergeService do
           expect(merge_request.merge_commit_sha).to be_nil
           expect(merge_request.squash_commit_sha).to be_nil
           expect(merge_request.merge_error).to include('Something went wrong during merge pre-receive hook')
-          expect(Gitlab::AppLogger).to have_received(:error)
-            .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                 message: a_string_matching(error_message)))
+          expect(Gitlab::AppLogger).to have_received(:error).with(
+            hash_including(
+              merge_request_info: merge_request.to_reference(full: true),
+              message: a_string_matching(error_message)
+            )
+          )
         end
 
         context 'when fast-forward merge is not allowed' do
@@ -494,9 +583,12 @@ RSpec.describe MergeRequests::MergeService do
               expect(merge_request.merge_commit_sha).to be_nil
               expect(merge_request.squash_commit_sha).to be_nil
               expect(merge_request.merge_error).to include(error_message)
-              expect(Gitlab::AppLogger).to have_received(:error)
-                .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                     message: a_string_matching(error_message)))
+              expect(Gitlab::AppLogger).to have_received(:error).with(
+                hash_including(
+                  merge_request_info: merge_request.to_reference(full: true),
+                  message: a_string_matching(error_message)
+                )
+              )
             end
           end
         end
@@ -513,9 +605,12 @@ RSpec.describe MergeRequests::MergeService do
           it 'logs and saves error' do
             service.execute(merge_request)
 
-            expect(Gitlab::AppLogger).to have_received(:error)
-              .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                   message: a_string_matching(error_message)))
+            expect(Gitlab::AppLogger).to have_received(:error).with(
+              hash_including(
+                merge_request_info: merge_request.to_reference(full: true),
+                message: a_string_matching(error_message)
+              )
+            )
           end
         end
 
@@ -527,9 +622,12 @@ RSpec.describe MergeRequests::MergeService do
           it 'logs and saves error' do
             service.execute(merge_request)
 
-            expect(Gitlab::AppLogger).to have_received(:error)
-              .with(hash_including(merge_request_info: merge_request.to_reference(full: true),
-                                   message: a_string_matching(error_message)))
+            expect(Gitlab::AppLogger).to have_received(:error).with(
+              hash_including(
+                merge_request_info: merge_request.to_reference(full: true),
+                message: a_string_matching(error_message)
+              )
+            )
           end
 
           context 'when passing `skip_discussions_check: true` as `options` parameter' do
@@ -540,6 +638,14 @@ RSpec.describe MergeRequests::MergeService do
               expect(merge_request).to be_merged
             end
           end
+        end
+      end
+
+      context 'when passing `check_mergeability_retry_lease: true` as `options` parameter' do
+        it 'call mergeable? with check_mergeability_retry_lease' do
+          expect(merge_request).to receive(:mergeable?).with(hash_including(check_mergeability_retry_lease: true)).and_call_original
+
+          service.execute(merge_request, check_mergeability_retry_lease: true)
         end
       end
     end

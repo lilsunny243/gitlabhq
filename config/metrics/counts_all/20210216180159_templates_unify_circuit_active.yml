@@ -5,7 +5,6 @@ description: Count of active service templates for Unifiy Circuit
 product_section: dev
 product_stage: manage
 product_group: integrations
-product_category: integrations
 value_type: number
 status: removed
 milestone_removed: '14.4'
@@ -20,3 +19,4 @@ tier:
 - ultimate
 performance_indicator_type: []
 milestone: "<13.9"
+removed_by_url:

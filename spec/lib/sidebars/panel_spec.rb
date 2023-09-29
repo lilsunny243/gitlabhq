@@ -4,7 +4,7 @@ require 'spec_helper'
 
 RSpec.describe Sidebars::Panel, feature_category: :navigation do
   let(:context) { Sidebars::Context.new(current_user: nil, container: nil) }
-  let(:panel) { Sidebars::Panel.new(context) }
+  let(:panel) { described_class.new(context) }
   let(:menu1) { Sidebars::Menu.new(context) }
   let(:menu2) { Sidebars::Menu.new(context) }
   let(:menu3) { Sidebars::Menu.new(context) }
@@ -46,17 +46,25 @@ RSpec.describe Sidebars::Panel, feature_category: :navigation do
     end
   end
 
-  describe '#has_renderable_menus?' do
-    it 'returns false when no renderable menus' do
-      expect(panel.has_renderable_menus?).to be false
+  describe '#render?' do
+    it 'returns false with no menus' do
+      expect(panel.render?).to be false
     end
 
-    it 'returns true when no renderable menus' do
+    it 'returns false with no renderable menus' do
+      allow(menu1).to receive(:render?).and_return(false)
+
+      panel.add_menu(menu1)
+
+      expect(panel.render?).to be false
+    end
+
+    it 'returns true with renderable menus' do
       allow(menu1).to receive(:render?).and_return(true)
 
       panel.add_menu(menu1)
 
-      expect(panel.has_renderable_menus?).to be true
+      expect(panel.render?).to be true
     end
   end
 

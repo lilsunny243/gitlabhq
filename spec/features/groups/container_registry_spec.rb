@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Container Registry', :js, feature_category: :container_registry do
-  let(:user) { create(:user) }
+  let(:user) { create(:user, :no_super_sidebar) }
   let(:group) { create(:group) }
   let(:project) { create(:project, namespace: group) }
 
@@ -49,6 +49,7 @@ RSpec.describe 'Container Registry', :js, feature_category: :container_registry 
     it 'list page has a list of images' do
       visit_container_registry
 
+      expect(page).to have_content '1 Image repository'
       expect(page).to have_content 'my/image'
     end
 
@@ -95,7 +96,11 @@ RSpec.describe 'Container Registry', :js, feature_category: :container_registry 
         first('[data-testid="additional-actions"]').click
         first('[data-testid="single-delete-button"]').click
         expect(find('.modal .modal-title')).to have_content _('Remove tag')
+        stub_container_registry_tags(repository: %r{my/image}, tags: [], with_manifest: true)
         find('.modal .modal-footer .btn-danger').click
+
+        expect(page).to have_content '0 tags'
+        expect(page).not_to have_content '1 tag'
       end
     end
   end

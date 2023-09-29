@@ -51,13 +51,13 @@ module Banzai
       # See https://github.com/gollum/gollum/wiki
       #
       # Rubular: http://rubular.com/r/7dQnE5CUCH
-      TAGS_PATTERN = /\[\[(.+?)\]\]/.freeze
+      TAGS_PATTERN = /\[\[(.+?)\]\]/
 
       # Pattern to match allowed image extensions
-      ALLOWED_IMAGE_EXTENSIONS = /.+(jpg|png|gif|svg|bmp)\z/i.freeze
+      ALLOWED_IMAGE_EXTENSIONS = /.+(jpg|png|gif|svg|bmp)\z/i
 
       # Do not perform linking inside these tags.
-      IGNORED_ANCESTOR_TAGS = %w(pre code tt).to_set
+      IGNORED_ANCESTOR_TAGS = %w[pre code tt].to_set
 
       def call
         doc.xpath('descendant-or-self::text()').each do |node|
@@ -115,7 +115,7 @@ module Banzai
       end
 
       def url?(path)
-        path.start_with?(*%w(http https))
+        path.start_with?(*%w[http https])
       end
 
       # Attempt to process the tag as a page link tag.

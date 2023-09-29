@@ -54,11 +54,38 @@ module ContainerRegistry
       end
     end
 
+    def self.each_sub_repositories_with_tag_page(path:, page_size: 100, &block)
+      raise ArgumentError, 'block not given' unless block
+
+      # dummy uri to initialize the loop
+      next_page_uri = URI('')
+      page_count = 0
+
+      with_dummy_client(token_config: { type: :nested_repositories_token, path: path&.downcase }) do |client|
+        while next_page_uri
+          last = Rack::Utils.parse_nested_query(next_page_uri.query)['last']
+          current_page = client.sub_repositories_with_tag(path&.downcase, page_size: page_size, last: last)
+
+          if current_page&.key?(:response_body)
+            yield (current_page[:response_body] || [])
+            next_page_uri = current_page.dig(:pagination, :next, :uri)
+          else
+            # no current page. Break the loop
+            next_page_uri = nil
+          end
+
+          page_count += 1
+
+          raise 'too many pages requested' if page_count >= MAX_REPOSITORIES_PAGE_SIZE
+        end
+      end
+    end
+
     # https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs-gitlab/api.md#compliance-check
     def supports_gitlab_api?
       strong_memoize(:supports_gitlab_api) do
         registry_features = Gitlab::CurrentSettings.container_registry_features || []
-        next true if ::Gitlab.com? && registry_features.include?(REGISTRY_GITLAB_V1_API_FEATURE)
+        next true if ::Gitlab.com_except_jh? && registry_features.include?(REGISTRY_GITLAB_V1_API_FEATURE)
 
         with_token_faraday do |faraday_client|
           response = faraday_client.get('/gitlab/v1/')
@@ -121,13 +148,16 @@ module ContainerRegistry
     end
 
     # https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs-gitlab/api.md#list-repository-tags
-    def tags(path, page_size: 100, last: nil)
+    def tags(path, page_size: 100, last: nil, before: nil, name: nil, sort: nil)
       limited_page_size = [page_size, MAX_TAGS_PAGE_SIZE].min
       with_token_faraday do |faraday_client|
         url = "/gitlab/v1/repositories/#{path}/tags/list/"
         response = faraday_client.get(url) do |req|
           req.params['n'] = limited_page_size
           req.params['last'] = last if last
+          req.params['before'] = before if before
+          req.params['name'] = name if name
+          req.params['sort'] = sort if sort
         end
 
         unless response.success?

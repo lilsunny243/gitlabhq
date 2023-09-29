@@ -5,7 +5,6 @@ description: A count of package tags that have been published to the package reg
 product_section: ops
 product_stage: package
 product_group: package
-product_category: package registry
 value_type: number
 status: removed
 time_frame: all
@@ -18,3 +17,5 @@ tier:
 - premium
 - ultimate
 milestone: "<13.9"
+removed_by_url:
+milestone_removed: "<16.4"

@@ -7,11 +7,11 @@ module QA
         project.remove_via_api!
       end
 
-      let(:project) { Resource::Project.fabricate_via_api! }
+      let(:project) { create(:project) }
 
       shared_examples 'project license detection' do
         it 'displays the name of the license on the repository' do
-          license_path = File.join(Runtime::Path.fixtures_path, 'software_licenses', license_file_name)
+          license_path = Runtime::Path.fixture('software_licenses', license_file_name)
           Resource::Repository::Commit.fabricate_via_api! do |commit|
             commit.project = project
             commit.add_files([{ file_path: 'LICENSE', content: File.read(license_path) }])
@@ -19,8 +19,10 @@ module QA
 
           project.visit!
 
-          Page::Project::Show.perform do |show|
-            expect(show).to have_license(rendered_license_name)
+          Page::Project::Show.perform do |project|
+            Support::Waiter.wait_until(reload_page: project, message: 'Waiting for licence') do
+              project.has_license?(rendered_license_name)
+            end
           end
         end
       end

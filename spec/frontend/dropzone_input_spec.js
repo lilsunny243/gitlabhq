@@ -1,13 +1,14 @@
 import MockAdapter from 'axios-mock-adapter';
 import $ from 'jquery';
 import mock from 'xhr-mock';
-import { loadHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'spec/test_constants';
 import PasteMarkdownTable from '~/behaviors/markdown/paste_markdown_table';
 import dropzoneInput from '~/dropzone_input';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
+import htmlNewMilestone from 'test_fixtures_static/textarea.html';
 
 const TEST_FILE = new File([], 'somefile.jpg');
 TEST_FILE.upload = {};
@@ -48,9 +49,9 @@ describe('dropzone_input', () => {
     };
 
     beforeEach(() => {
-      loadHTMLFixture('issues/new-issue.html');
+      setHTMLFixture(htmlNewMilestone);
 
-      form = $('#new_issue');
+      form = $('#new_milestone');
       form.data('uploads-path', TEST_UPLOAD_PATH);
       dropzoneInput(form);
     });

@@ -9,10 +9,11 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
   let(:admin) { create(:admin) }
   let(:importer_user) { admin }
   let(:excluded_keys) { [] }
+  let(:additional_relation_attributes) { {} }
   let(:created_object) do
     described_class.create( # rubocop:disable Rails/SaveBang
       relation_sym: relation_sym,
-      relation_hash: relation_hash,
+      relation_hash: relation_hash.merge(additional_relation_attributes),
       relation_index: 1,
       object_builder: Gitlab::ImportExport::Project::ObjectBuilder,
       members_mapper: members_mapper,
@@ -63,6 +64,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
         'job_events' => false,
         'wiki_page_events' => true,
         'releases_events' => false,
+        'emoji_events' => false,
         'token' => token
       }
     end
@@ -170,6 +172,10 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
     it 'has preloaded target project' do
       expect(created_object.target_project).to equal(project)
     end
+
+    it 'has MWPS set to false' do
+      expect(created_object.merge_when_pipeline_succeeds).to eq(false)
+    end
   end
 
   context 'issue object' do
@@ -239,6 +245,34 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
         end
       end
     end
+
+    context 'when issue_type is provided in the hash' do
+      let(:additional_relation_attributes) { { 'issue_type' => 'task' } }
+
+      it 'sets the correct work_item_type' do
+        expect(created_object.work_item_type).to eq(WorkItems::Type.default_by_type(:task))
+      end
+    end
+
+    context 'when work_item_type is provided in the hash' do
+      let(:incident_type) { WorkItems::Type.default_by_type(:incident) }
+      let(:additional_relation_attributes) { { 'work_item_type' => incident_type } }
+
+      it 'sets the correct work_item_type' do
+        expect(created_object.work_item_type).to eq(incident_type)
+      end
+    end
+
+    context 'when issue_type is provided in the hash as well as a work_item_type' do
+      let(:incident_type) { WorkItems::Type.default_by_type(:incident) }
+      let(:additional_relation_attributes) do
+        { 'issue_type' => 'task', 'work_item_type' => incident_type }
+      end
+
+      it 'makes work_item_type take precedence over issue_type' do
+        expect(created_object.work_item_type).to eq(incident_type)
+      end
+    end
   end
 
   context 'label object' do
@@ -264,6 +298,38 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
 
     it 'has preloaded group' do
       expect(created_object.group).to equal(project.group)
+    end
+  end
+
+  context 'pipeline setup' do
+    let(:relation_sym) { :ci_pipelines }
+    let(:relation_hash) do
+      {
+        "id" => 1,
+        "status" => status
+      }
+    end
+
+    subject { created_object }
+
+    ::Ci::HasStatus::COMPLETED_STATUSES.each do |status|
+      context "when relation_hash has a completed status of #{status}}" do
+        let(:status) { status }
+
+        it "does not change the created object status" do
+          expect(created_object.status).to eq(status)
+        end
+      end
+    end
+
+    ::Ci::HasStatus::CANCELABLE_STATUSES.each do |status|
+      context "when relation_hash has cancelable status of #{status}}" do
+        let(:status) { status }
+
+        it "sets the created object status to canceled" do
+          expect(created_object.status).to eq('canceled')
+        end
+      end
     end
   end
 

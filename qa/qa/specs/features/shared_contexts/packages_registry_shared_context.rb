@@ -4,19 +4,23 @@ module QA
   RSpec.shared_context 'packages registry qa scenario' do
     let(:personal_access_token) { Runtime::Env.personal_access_token }
 
-    let(:package_project) do
-      Resource::Project.fabricate_via_api! do |project|
-        project.name = "#{package_type}_package_project"
-        project.initialize_with_readme = true
-        project.visibility = :private
+    let(:package_project) { create(:project, :private, :with_readme, name: "packages-#{SecureRandom.hex(8)}") }
+
+    let(:client_project) do
+      create(:project, :with_readme, name: "client-#{SecureRandom.hex(8)}", group: package_project.group)
+    end
+
+    let(:package_project_inbound_job_token_disabled) do
+      Resource::CICDSettings.fabricate_via_api! do |settings|
+        settings.project_path = package_project.full_path
+        settings.inbound_job_token_scope_enabled = false
       end
     end
 
-    let(:client_project) do
-      Resource::Project.fabricate_via_api! do |client_project|
-        client_project.name = "#{package_type}_client_project"
-        client_project.initialize_with_readme = true
-        client_project.group = package_project.group
+    let(:client_project_inbound_job_token_disabled) do
+      Resource::CICDSettings.fabricate_via_api! do |settings|
+        settings.project_path = client_project.full_path
+        settings.inbound_job_token_scope_enabled = false
       end
     end
 
@@ -37,8 +41,7 @@ module QA
     end
 
     let(:gitlab_address_with_port) do
-      uri = URI.parse(Runtime::Scenario.gitlab_address)
-      "#{uri.scheme}://#{uri.host}:#{uri.port}"
+      Support::GitlabAddress.address_with_port
     end
 
     let(:project_deploy_token) do

@@ -7,7 +7,13 @@ module API
     urgency :low
 
     rescue_from ActiveRecord::RecordInvalid do |e|
-      render_api_error!(e.message, 400)
+      render_structured_api_error!({ message: e.message, error: e.message }, 400)
+    end
+
+    helpers do
+      def endpoint_scope
+        :project
+      end
     end
 
     params do
@@ -44,8 +50,8 @@ module API
         present_package_file!(package_file)
       end
 
-      desc 'Create NPM package' do
-        detail 'This feature was introduced in GitLab 11.8'
+      desc 'Create or deprecate NPM package' do
+        detail 'Create was introduced in GitLab 11.8 & deprecate suppport was added in 16.0'
         success code: 200
         failure [
           { code: 400, message: 'Bad Request' },
@@ -61,16 +67,23 @@ module API
       end
       route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
       put ':package_name', requirements: ::API::Helpers::Packages::Npm::NPM_ENDPOINT_REQUIREMENTS do
-        authorize_create_package!(project)
+        if headers['Npm-Command'] == 'deprecate'
+          authorize_destroy_package!(project)
 
-        created_package = ::Packages::Npm::CreatePackageService
-          .new(project, current_user, params.merge(build: current_authenticated_job)).execute
-
-        if created_package[:status] == :error
-          render_api_error!(created_package[:message], created_package[:http_status])
+          ::Packages::Npm::DeprecatePackageService.new(project, declared(params)).execute(async: true)
         else
-          track_package_event('push_package', :npm, category: 'API::NpmPackages', project: project, user: current_user, namespace: project.namespace)
-          created_package
+          authorize_create_package!(project)
+
+          created_package = ::Packages::Npm::CreatePackageService
+            .new(project, current_user, params.merge(build: current_authenticated_job)).execute
+
+          if created_package[:status] == :error
+            render_structured_api_error!({ message: created_package[:message], error: created_package[:message] }, created_package[:http_status])
+          else
+            enqueue_sync_metadata_cache_worker(project, created_package.name)
+            track_package_event('push_package', :npm, category: 'API::NpmPackages', project: project, namespace: project.namespace)
+            created_package
+          end
         end
       end
 

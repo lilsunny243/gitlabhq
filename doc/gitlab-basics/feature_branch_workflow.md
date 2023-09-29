@@ -2,10 +2,9 @@
 stage: Create
 group: Source Code
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/workflow.html'
 ---
 
-# Feature branch workflow **(FREE)**
+# Feature branch workflow **(FREE ALL)**
 
 To merge changes from a local branch to a feature branch, follow this workflow.
 
@@ -35,6 +34,6 @@ To merge changes from a local branch to a feature branch, follow this workflow.
    git push origin feature_name
    ```
 
-1. Review your code: On the left sidebar, go to **Repository > Commits**.
+1. Review your code: On the left sidebar, go to **Code > Commits**.
 1. [Create a merge request](../user/project/merge_requests/creating_merge_requests.md).
 1. Your team lead reviews the code and merges it to the main branch.

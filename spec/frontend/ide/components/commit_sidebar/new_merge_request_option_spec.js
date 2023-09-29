@@ -1,4 +1,5 @@
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { GlFormCheckbox } from '@gitlab/ui';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
@@ -38,10 +39,6 @@ describe('NewMergeRequestOption component', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('when the `shouldHideNewMrOption` getter returns false', () => {
     beforeEach(() => {
       createComponent();
@@ -70,7 +67,7 @@ describe('NewMergeRequestOption component', () => {
       });
 
       it('disables the new MR checkbox', () => {
-        expect(findCheckbox().attributes('disabled')).toBe('true');
+        expect(findCheckbox().attributes('disabled')).toBeDefined();
       });
 
       it('adds `is-disabled` class to the fieldset', () => {

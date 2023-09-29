@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merged results pipelines **(PREMIUM)**
+# Merged results pipelines **(PREMIUM ALL)**
 
 > - [Renamed](https://gitlab.com/gitlab-org/gitlab/-/issues/351192) from `pipelines for merged results` to `merged results pipelines` in GitLab 14.8.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/91849) in GitLab 15.1, merged results pipelines also run on [Draft merge requests](../../user/project/merge_requests/drafts.md).
@@ -21,7 +21,6 @@ Over time, while you're working in the source branch, the target branch might ch
 Any time you want to be sure the merged results are accurate, you should re-run the pipeline.
 
 Merged results pipelines can't run when the target branch has changes that conflict with the changes in the source branch.
-
 In these cases, the pipeline runs as a [merge request pipeline](merge_request_pipelines.md)
 and [is labeled as `merge request`](merge_request_pipelines.md#types-of-merge-request-pipelines).
 
@@ -41,8 +40,8 @@ To use merged results pipelines:
 To enable merged results pipelines in a project, you must have at least the
 Maintainer role:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
 1. In the **Merge options** section, select **Enable merged results pipelines**.
 1. Select **Save changes**.
 
@@ -74,3 +73,10 @@ is not found in the merge ref.
 
 This behavior was improved in GitLab 12.4 by introducing [persistent pipeline refs](../troubleshooting.md#fatal-reference-is-not-a-tree-error).
 Upgrade to GitLab 12.4 or later to resolve the problem.
+
+### Successful merged results pipeline overrides a failed branch pipeline
+
+A failed branch pipeline is sometimes ignored when the
+[**Pipelines must succeed** setting](../../user/project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge)
+is activated.
+[Issue 385841](https://gitlab.com/gitlab-org/gitlab/-/issues/385841) is open to track this.

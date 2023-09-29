@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe API::DebianProjectPackages, feature_category: :package_registry do
@@ -44,9 +45,11 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/binary-:architecture/Packages' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/binary-#{architecture.name}/Packages" }
+      let(:target_component_file) { component_file }
+      let(:target_component_name) { component.name }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/binary-#{architecture.name}/Packages" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete Packages file/
+      it_behaves_like 'Debian packages index endpoint', /Description: This is an incomplete Packages file/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
@@ -57,30 +60,40 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/binary-:architecture/by-hash/SHA256/:file_sha256' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/binary-#{architecture.name}/by-hash/SHA256/#{component_file_older_sha256.file_sha256}" }
+      let(:target_component_file) { component_file_older_sha256 }
+      let(:target_component_name) { component.name }
+      let(:target_sha256) { target_component_file.file_sha256 }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/binary-#{architecture.name}/by-hash/SHA256/#{target_sha256}" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
+      it_behaves_like 'Debian packages index sha256 endpoint', /^Other SHA256$/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/source/Sources' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/source/Sources" }
+      let(:target_component_file) { component_file_sources }
+      let(:target_component_name) { component.name }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/source/Sources" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete Sources file/
+      it_behaves_like 'Debian packages index endpoint', /^Description: This is an incomplete Sources file$/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/source/by-hash/SHA256/:file_sha256' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/source/by-hash/SHA256/#{component_file_sources_older_sha256.file_sha256}" }
+      let(:target_component_file) { component_file_sources_older_sha256 }
+      let(:target_component_name) { component.name }
+      let(:target_sha256) { target_component_file.file_sha256 }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/source/by-hash/SHA256/#{target_sha256}" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
+      it_behaves_like 'Debian packages index sha256 endpoint', /^Other SHA256$/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/debian-installer/binary-:architecture/Packages' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/debian-installer/binary-#{architecture.name}/Packages" }
+      let(:target_component_file) { component_file_di }
+      let(:target_component_name) { component.name }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/debian-installer/binary-#{architecture.name}/Packages" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete D-I Packages file/
+      it_behaves_like 'Debian packages index endpoint', /Description: This is an incomplete D-I Packages file/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
@@ -91,9 +104,12 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
     end
 
     describe 'GET projects/:id/packages/debian/dists/*distribution/:component/debian-installer/binary-:architecture/by-hash/SHA256/:file_sha256' do
-      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{component.name}/debian-installer/binary-#{architecture.name}/by-hash/SHA256/#{component_file_di_older_sha256.file_sha256}" }
+      let(:target_component_file) { component_file_di_older_sha256 }
+      let(:target_component_name) { component.name }
+      let(:target_sha256) { target_component_file.file_sha256 }
+      let(:url) { "/projects/#{container.id}/packages/debian/dists/#{distribution.codename}/#{target_component_name}/debian-installer/binary-#{architecture.name}/by-hash/SHA256/#{target_sha256}" }
 
-      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
+      it_behaves_like 'Debian packages index sha256 endpoint', /^Other SHA256$/
       it_behaves_like 'accept GET request on private project with access to package registry for everyone'
     end
 
@@ -108,6 +124,7 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
         'sample_1.2.3~alpha2.dsc'             | /^Format: 3.0 \(native\)/
         'libsample0_1.2.3~alpha2_amd64.deb'   | /^!<arch>/
         'sample-udeb_1.2.3~alpha2_amd64.udeb' | /^!<arch>/
+        'sample-ddeb_1.2.3~alpha2_amd64.ddeb' | /^!<arch>/
         'sample_1.2.3~alpha2_amd64.buildinfo' | /Build-Tainted-By/
         'sample_1.2.3~alpha2_amd64.changes'   | /urgency=medium/
       end
@@ -130,12 +147,12 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
     describe 'PUT projects/:id/packages/debian/:file_name' do
       let(:method) { :put }
       let(:url) { "/projects/#{container.id}/packages/debian/#{file_name}" }
-      let(:snowplow_gitlab_standard_context) { { project: container, user: user, namespace: container.namespace } }
 
       context 'with a deb' do
         let(:file_name) { 'libsample0_1.2.3~alpha2_amd64.deb' }
 
         it_behaves_like 'Debian packages write endpoint', 'upload', :created, nil
+        it_behaves_like 'Debian packages endpoint catching ObjectStorage::RemoteStoreError'
 
         context 'with codename and component' do
           let(:extra_params) { { distribution: distribution.codename, component: 'main' } }
@@ -157,12 +174,14 @@ RSpec.describe API::DebianProjectPackages, feature_category: :package_registry d
 
         include_context 'Debian repository access', :public, :developer, :basic do
           it_behaves_like "Debian packages upload request", :created, nil
+        end
 
-          context 'with codename and component' do
-            let(:extra_params) { { distribution: distribution.codename, component: 'main' } }
+        context 'with codename and component' do
+          let(:extra_params) { { distribution: distribution.codename, component: 'main' } }
 
+          include_context 'Debian repository access', :public, :developer, :basic do
             it_behaves_like "Debian packages upload request", :bad_request,
-              /^file_name Only debs and udebs can be directly added to a distribution$/
+              /^file_name Only debs, udebs and ddebs can be directly added to a distribution$/
           end
         end
       end

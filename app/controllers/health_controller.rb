@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-# rubocop:disable Rails/ApplicationController
-class HealthController < ActionController::Base
+class HealthController < BaseActionController
   protect_from_forgery with: :exception, prepend: true
-  include RequiresWhitelistedMonitoringClient
+  include RequiresAllowlistedMonitoringClient
 
   CHECKS = [
     Gitlab::HealthChecks::MasterCheck
@@ -40,4 +39,3 @@ class HealthController < ActionController::Base
     render json: result.json, status: result.http_status
   end
 end
-# rubocop:enable Rails/ApplicationController

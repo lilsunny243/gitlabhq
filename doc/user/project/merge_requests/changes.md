@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: index, reference
 ---
 
-# Changes in merge requests **(FREE)**
+# Changes in merge requests **(FREE ALL)**
 
 A [merge request](index.md) proposes a set of changes to files in a branch in your repository. These
 changes are shown as a _diff_ (difference) between the current state and the proposed
@@ -16,6 +16,10 @@ to the files in the target branch, and shows only the parts of a file that have 
 
 ![Example screenshot of a source code diff](img/mr-diff-example_v15.png)
 
+For technical details on how GitLab calculates the diff between the two revisions,
+read [Working with diffs](../../../development/merge_request_concepts/diffs/index.md)
+in our development documentation.
+
 ## Show all changes in a merge request
 
 To view the diff of changes included in a merge request:
@@ -23,26 +27,20 @@ To view the diff of changes included in a merge request:
 1. Go to your merge request.
 1. Below the merge request title, select **Changes**.
 1. If the merge request changes many files, you can jump directly to a specific file:
-   1. Select **Show file browser** (**{file-tree}**) to display the file tree.
+   1. Select **Show file browser** (**{file-tree}**) or press <kbd>F</kbd> to display the file tree.
    1. Select the file you want to view.
-   1. To hide the file browser, select **Show file browser** again.
+   1. To hide the file browser, select **Show file browser** or press <kbd>F</kbd> again.
 
-In [GitLab 13.4](https://gitlab.com/gitlab-org/gitlab/-/issues/232820) and later, files
-with many changes are collapsed to improve performance. GitLab displays the message:
+Files with many changes are collapsed to improve performance. GitLab displays the message:
 **Some changes are not shown**. To view the changes for that file, select **Expand file**.
 
 ## Show one file at a time
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/222790) in GitLab 13.2.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/229848) in GitLab 13.7.
 
 For larger merge requests, you can review one file at a time. You can change this setting
 [temporarily in a merge request](#in-a-merge-request-show-only-one-file-at-a-time), or
 so it [applies to all merge requests](#in-all-merge-requests-show-only-one-file-at-a-time).
 
 ### In a merge request, show only one file at a time
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/233898) in GitLab 13.7.
 
 To temporarily change your viewing preferences for a specific merge request:
 
@@ -57,7 +55,7 @@ clear your browser's cookies or change this behavior again.
 
 To view one file at a time for all of your merge requests:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Preferences**.
 1. Scroll to the **Behavior** section and select the **Show one file at a time on merge request's Changes tab** checkbox.
 1. Select **Save changes**.
@@ -149,3 +147,28 @@ When there are conflicts between the source and target branch, we show an alert
 per conflicted file on the merge request diff:
 
 ![Example of a conflict alert shown in a merge request diff](img/conflict_ui_v15_6.png)
+
+## Add a comment to a merge request file
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/123515) in GitLab 16.1 [with a flag](../../../administration/feature_flags.md) named `comment_on_files`. Enabled by default.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/125130) in GitLab 16.2.
+
+You can add comments to a merge request diff file. These comments persist across
+rebases and file changes.
+
+To add a comment to a merge request file:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and find your merge request.
+1. Select **Changes**.
+1. In the header for the file you want to comment on, select **Comment** (**{comment}**).
+
+## Add a comment to an image
+
+In merge requests and commit detail views, you can add a comment to an image.
+This comment can also be a thread.
+
+1. Hover your mouse over the image.
+1. Select the location where you want to comment.
+
+An icon is displayed on the image and a comment field is displayed.

@@ -4,7 +4,7 @@ group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Application security **(ULTIMATE)**
+# Application security **(ULTIMATE ALL)**
 
 GitLab can check your application for security vulnerabilities including:
 
@@ -66,7 +66,7 @@ A source code analysis can:
 Analysis of the web application occurs on every code commit. As part of the CI/CD pipeline, your
 application is built, deployed to a test environment, and subjected to the following tests:
 
-- Test for known application vectors - [Dynamic Application Security Testing (DAST)](dast/index.md).
+- Test application for known attack vectors - [Dynamic Application Security Testing (DAST)](dast/index.md).
 - Analysis of APIs for known attack vectors - [API Security](dast_api/index.md).
 - Analysis of web APIs for unknown bugs and vulnerabilities - [API fuzzing](api_fuzzing/index.md).
 
@@ -82,7 +82,7 @@ Dependency analysis can run:
   image is built - [Container Scanning](container_scanning/index.md).
 
 For more details, see
-[Dependency Scanning compared to Container Scanning](dependency_scanning/index.md#dependency-scanning-compared-to-container-scanning).
+[Dependency Scanning compared to Container Scanning](comparison_dependency_and_container_scanning.md).
 
 Additionally, dependencies in operational container images can be analyzed for vulnerabilities
 on a regular schedule or cadence. For more details, see [Operational Container Scanning](../../user/clusters/agent/vulnerabilities.md).
@@ -101,9 +101,10 @@ The following vulnerability scanners and their databases are regularly updated:
 
 | Secure scanning tool                                            | Vulnerabilities database updates |
 |:----------------------------------------------------------------|:---------------------------------|
-| [Container Scanning](container_scanning/index.md)            | A job runs on a daily basis to build new images with the latest vulnerability database updates from the upstream scanner. For more details, see [Vulnerabilities database update](container_scanning/index.md#vulnerabilities-database). |
+| [Container Scanning](container_scanning/index.md)            | A job runs on a daily basis to build new images with the latest vulnerability database updates from the upstream scanner. GitLab monitors this job through an internal alert that tells the engineering team when the database becomes more than 48 hours old. For more information, see the [Vulnerabilities database update](container_scanning/index.md#vulnerabilities-database). |
 | [Dependency Scanning](dependency_scanning/index.md)          | Relies on the [GitLab Advisory Database](https://gitlab.com/gitlab-org/security-products/gemnasium-db). It is updated on a daily basis using [data from NVD, the `ruby-advisory-db` and the GitHub Advisory Database as data sources](https://gitlab.com/gitlab-org/security-products/gemnasium-db/-/blob/master/SOURCES.md). See our [current measurement of time from CVE being issued to our product being updated](https://about.gitlab.com/handbook/engineering/development/performance-indicators/#cve-issue-to-update). |
-| [Dynamic Application Security Testing (DAST)](dast/index.md) | The scanning engine is updated on a periodic basis. See the [version of the underlying tool `zaproxy`](https://gitlab.com/gitlab-org/security-products/dast/blob/main/Dockerfile#L1). The scanning rules are downloaded at scan runtime. |
+| [Dynamic Application Security Testing (DAST)](dast/index.md) | [DAST proxy-based](dast/proxy-based.md) and [browser-based](dast/browser_based.md) engines are updated on a periodic basis. [DAST proxy-based](dast/proxy-based.md) analyzer downloads the scanning rules at scan runtime. See the [version of the underlying tool `zaproxy`](https://gitlab.com/gitlab-org/security-products/dast/blob/main/Dockerfile#L27). [DAST browser-based](dast/browser_based.md) rules run [different vulnerability checks](dast/checks/index.md). |
+| [Secret Detection](secret_detection/index.md#detected-secrets) | GitLab maintains the [detection rules](secret_detection/index.md#detected-secrets) and [accepts community contributions](secret_detection/index.md#adding-new-patterns). The scanning engine is updated at least once per month if a relevant update is available. |
 | [Static Application Security Testing (SAST)](sast/index.md)  | The source of scan rules depends on which [analyzer](sast/analyzers.md) is used for each [supported programming language](sast/index.md#supported-languages-and-frameworks). GitLab maintains a ruleset for the Semgrep-based analyzer and updates it regularly based on internal research and user feedback. For other analyzers, the ruleset is sourced from the upstream open-source scanner. Each analyzer is updated at least once per month if a relevant update is available. |
 
 In versions of GitLab that use the same major version of the analyzer, you do not have to update
@@ -123,7 +124,6 @@ To enable all GitLab Security scanning tools, with default settings, enable
 - [Auto Secret Detection](../../topics/autodevops/stages.md#auto-secret-detection)
 - [Auto DAST](../../topics/autodevops/stages.md#auto-dast)
 - [Auto Dependency Scanning](../../topics/autodevops/stages.md#auto-dependency-scanning)
-- [Auto License Compliance](../../topics/autodevops/stages.md#auto-license-compliance)
 - [Auto Container Scanning](../../topics/autodevops/stages.md#auto-container-scanning)
 
 While you cannot directly customize Auto DevOps, you can [include the Auto DevOps template in your project's `.gitlab-ci.yml` file](../../topics/autodevops/customize.md#customize-gitlab-ciyml).
@@ -223,64 +223,94 @@ We do not recommend changing the job [`allow_failure` setting](../../ci/yaml/ind
 
 The artifact generated by the secure analyzer contains all findings it discovers on the target branch, regardless of whether they were previously found, dismissed, or completely new (it puts in everything that it finds).
 
-## View security scan information in merge requests **(FREE)**
+## View security scan information
+
+Security scan information appears in multiple locations and formats:
+
+- Merge request
+- Pipeline security tab
+- Security dashboard
+- Vulnerability report
+- GitLab Workflow extension for VS Code
+
+### Merge request **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4393) in GitLab Free 13.5.
 > - Made [available in all tiers](https://gitlab.com/gitlab-org/gitlab/-/issues/273205) in 13.6.
 > - Report download dropdown list [added](https://gitlab.com/gitlab-org/gitlab/-/issues/273418) in 13.7.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/249550) in GitLab 13.9.
 
-### All tiers
+#### All tiers
 
 Merge requests which have run security scans let you know that the generated
 reports are available to download. To download a report, select
 **Download results**, and select the desired report.
 
-![Security widget](img/security_widget_v13_7.png)
+![Security widget](img/security_widget_v16_4.png)
 
-### Ultimate
+Security scans produce at least one of these [CI `artifacts:reports` types](../../ci/yaml/artifacts_reports.md):
 
-A merge request contains a security widget which displays a summary of the new results. New results are determined by comparing the findings of the merge request against the findings of the most recent completed pipeline (`success`, `failed`, `canceled` or `skipped`) for the latest commit in the target branch.
+- `artifacts:reports:api_fuzzing`
+- `artifacts:reports:container_scanning`
+- `artifacts:reports:coverage_fuzzing`
+- `artifacts:reports:dast`
+- `artifacts:reports:dependency_scanning`
+- `artifacts:reports:sast`
+- `artifacts:reports:secret_detection`
 
-If security scans have not run for the most recent completed pipeline in the target branch there is no base for comparison. The vulnerabilities from the merge request findings are listed as new in the merge request security widget. We recommend you run a scan of the `default` (target) branch before enabling feature branch scans for your developers.
+In the Free tier, the reports above aren't parsed by GitLab. As a result, the widget does not change based on the results of the security scans.
+
+#### Ultimate
+
+A merge request contains a security widget which displays a summary of the _new_ results. New results are determined by comparing the findings of the merge request against the findings of the most recent completed pipeline (`success`, `failed`, `canceled` or `skipped`) for the commit when the feature branch was created from the target branch.
+
+If security scans have not run for the completed pipeline in the target branch when the feature branch was created, there is no base for comparison. The vulnerabilities from the merge request findings are listed as new in the merge request security widget. We recommend you run a scan of the `default` (target) branch before enabling feature branch scans for your developers.
 
 The merge request security widget displays only a subset of the vulnerabilities in the generated JSON artifact because it contains both new and existing findings.
 
-From the merge request security widget, select **Expand** to unfold the widget, displaying any new and no longer detected (removed) findings by scan type. Select **View full report** to go directly to the **Security** tab in the latest branch pipeline.
+From the merge request security widget, select **Expand** to unfold the widget, displaying any new and no longer detected (removed) findings by scan type.
+
+For each security report type, the widget displays the first 25 added and 25 fixed findings, sorted by severity. To see all
+findings, select **View full report** to go directly to the **Security** tab in the latest branch pipeline.
 
 ![Security scanning results in a merge request](img/mr_security_scanning_results_v14_3.png)
 
-## View security scan information in the pipeline Security tab
+### Pipeline security tab
 
 A pipeline's security tab lists all findings in the current branch. It includes new findings introduced by this branch
 and existing vulnerabilities already present when you created the branch. These results likely do not match the findings
 displayed in the Merge Request security widget, as those do not include the existing vulnerabilities. Refer to [View vulnerabilities in a pipeline](vulnerability_report/pipeline.md) for more information.
 
-## View security scan information in the Security Dashboard
+### Security dashboard
 
-The Security Dashboard show vulnerabilities present in a project's default branch. Data is updated every 24 hours. Vulnerability count updates resulting from any feature branches introducing new vulnerabilities that are merged to default are included after the daily data refresh.
+The security dashboard shows the vulnerabilities on a project's default branch. Data is updated every 24 hours. Vulnerability count updates resulting from any feature branches introducing new vulnerabilities that are merged to default are included after the daily data refresh.
 
 For more details, see [Security Dashboard](security_dashboard/index.md).
 
-## View security scan information in the Vulnerability Report
+### Vulnerability report
 
-The vulnerability report shows the results of the last completed pipeline on the default branch. It is updated on every pipeline completion. All detected vulnerabilities are shown as well as any previous ones that are no longer detected in the latest scan. Vulnerabilities that are no longer detected may have been remediated or otherwise removed and can be marked as `Resolved` after proper verification. Vulnerabilities that are no longer detected are denoted with an icon for filtering and review.
+The vulnerability report shows the results of the last completed pipeline on the default branch. It is updated on every pipeline completion. All detected vulnerabilities are shown and any previous ones that are no longer detected in the latest scan. Vulnerabilities that are no longer detected may have been remediated or otherwise removed and can be marked as `Resolved` after proper verification. Vulnerabilities that are no longer detected are denoted with an icon for filtering and review.
 
 By default, the vulnerability report does not show vulnerabilities of `dismissed` or `resolved` status so you can focus on open vulnerabilities. You can change the Status filter to see these.
 
 [Read more about the Vulnerability report](vulnerability_report/index.md).
 
+### GitLab Workflow extension for VS Code
+
+You can now see security findings directly in Visual Studio Code (VS Code) using [GitLab Workflow VS Code extension](../../editor_extensions/visual_studio_code/index.md), just as you would in a merge request.
+
+For more details, see [extension page](https://marketplace.visualstudio.com/items?itemName=gitlab.gitlab-workflow#security-findings).
+
 ## Security approvals in merge requests
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/9928) in GitLab 12.2.
 > - [Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/357300) the Vulnerability-Check feature in GitLab 15.0.
+> - [Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/397067) the License-Check feature in GitLab 16.0.
 
 You can enforce an additional approval for merge requests that would introduce one of the following
 security issues:
 
 - A security vulnerability. For more details, read [Scan result policies](policies/scan-result-policies.md).
-- A software license compliance violation. For more details, read
-  [Enabling license approvals within a project](../compliance/license_check_rules.md#enabling-license-approvals-within-a-project).
 
 ## Using private Maven repositories
 
@@ -404,7 +434,6 @@ For more information about overriding security jobs, see:
 - [Overriding Container Scanning jobs](container_scanning/index.md#overriding-the-container-scanning-template).
 - [Overriding Secret Detection jobs](secret_detection/index.md#configure-scan-settings).
 - [Overriding DAST jobs](dast/proxy-based.md#customize-dast-settings).
-- [Overriding License Compliance jobs](../compliance/license_compliance/index.md#overriding-the-template).
 
 All the security scanning tools define their stage, so this error can occur with all of them.
 
@@ -442,7 +471,7 @@ You can always find supported and deprecated schema versions in the [source code
 
 You can interact with the results of the security scanning tools in several locations:
 
-- [Scan information in merge requests](#view-security-scan-information-in-merge-requests)
+- [Scan information in merge requests](#merge-request)
 - [Project Security Dashboard](security_dashboard/index.md#view-vulnerabilities-over-time-for-a-project)
 - [Security pipeline tab](security_dashboard/index.md)
 - [Group Security Dashboard](security_dashboard/index.md#view-vulnerabilities-over-time-for-a-group)
@@ -499,14 +528,12 @@ GitLab provides two methods of accomplishing this, each with advantages and disa
   are recommended when:
 
   - Scan execution enforcement is required for DAST which uses a DAST site or scan profile.
-  - Scan execution enforcement is required for SAST, Secret Detection, Dependency Scanning, or Container Scanning with project-specific
+  - Scan execution enforcement is required for SAST, SAST IaC, Secret Detection, Dependency Scanning, or Container Scanning with project-specific
 variable customizations. To accomplish this, users must create a separate security policy per project.
   - Scans are required to run on a regular, scheduled cadence.
 
 - Either solution can be used equally well when:
 
-  - Scan execution enforcement is required for SAST or Secret Detection when custom rulesets are not
-    used.
   - Scan execution enforcement is required for Container Scanning with no project-specific variable
     customizations.
 
@@ -514,10 +541,10 @@ Additional details about the differences between the two solutions are outlined 
 
 | | Compliance Framework Pipelines | Scan Execution Policies |
 | ------ | ------ | ------ |
-| **Flexibility** | Supports anything that can be done in a CI file. | Limited to only the items for which GitLab has explicitly added support. DAST, SAST, Secret Detection, Dependency Scanning, and Container Scanning scans are supported. |
+| **Flexibility** | Supports anything that can be done in a CI file. | Limited to only the items for which GitLab has explicitly added support. DAST, SAST, SAST IaC, Secret Detection, Dependency Scanning, and Container Scanning scans are supported. |
 | **Usability** | Requires knowledge of CI YAML. | Follows a `rules` and `actions`-based YAML structure. |
 | **Inclusion in CI pipeline** | The compliance pipeline is executed instead of the project's `.gitlab-ci.yml` file. To include the project's `.gitlab-ci.yml` file, use an `include` statement. Defined variables aren't allowed to be overwritten by the included project's YAML file. | Forced inclusion of a new job into the CI pipeline. DAST jobs that must be customized on a per-project basis can have project-level Site Profiles and Scan Profiles defined. To ensure separation of duties, these profiles are immutable when referenced in a scan execution policy. All jobs can be customized as part of the security policy itself with the same variables that are usually available to the CI job. |
-| **Schedulable** | Can be scheduled through a scheduled pipeline on the group. | Can be scheduled natively through the policy configuration itself. |
+| **Schedulable** | Has to be scheduled through a scheduled pipeline on each project. | Can be scheduled natively through the policy configuration itself. |
 | **Separation of Duties** | Only group owners can create compliance framework labels. Only project owners can apply compliance framework labels to projects. The ability to make or approve changes to the compliance pipeline definition is limited to individuals who are explicitly given access to the project that contains the compliance pipeline. | Only project owners can define a linked security policy project. The ability to make or approve changes to security policies is limited to individuals who are explicitly given access to the security policy project. |
 | **Ability to apply one standard to multiple projects** | The same compliance framework label can be applied to multiple projects inside a group. | The same security policy project can be used for multiple projects across GitLab with no requirement of being located in the same group. |
 
@@ -525,23 +552,47 @@ Feedback is welcome on our vision for [unifying the user experience for these tw
 
 ## Troubleshooting
 
-<!-- NOTE: The below subsection(`### Secure job failing with exit code 1`) documentation URL is referred in the [/gitlab-org/security-products/analyzers/command](https://gitlab.com/gitlab-org/security-products/analyzers/command/-/blob/main/command.go#L19) repository. If this section/subsection changes, please ensure to update the corresponding URL in the mentioned repository.
--->
+### Logging level
 
-### Secure job failing with exit code 1
+The verbosity of logs output by GitLab analyzers is determined by the `SECURE_LOG_LEVEL` environment
+variable. Messages of this logging level or higher are output.
+
+From highest to lowest severity, the logging levels are:
+
+- `fatal`
+- `error`
+- `warn`
+- `info` (default)
+- `debug`
+
+#### Debug-level logging
 
 WARNING:
 Debug logging can be a serious security risk. The output may contain the content of
 environment variables and other secrets available to the job. The output is uploaded
-to the GitLab server and visible in job logs.
+to the GitLab server and is visible in job logs.
 
-If a Secure job is failing and it's unclear why, add `SECURE_LOG_LEVEL: "debug"` as a global CI/CD variable for
-more verbose output that is helpful for troubleshooting.
+To enable debug-level logging, add the following to your `.gitlab-ci.yml` file:
 
 ```yaml
 variables:
   SECURE_LOG_LEVEL: "debug"
 ```
+
+This indicates to all GitLab analyzers that they are to output **all** messages. For more details,
+see [logging level](#logging-level).
+
+<!-- NOTE: The below subsection(`### Secure job failing with exit code 1`) documentation URL is referred in the [/gitlab-org/security-products/analyzers/command](https://gitlab.com/gitlab-org/security-products/analyzers/command/-/blob/main/command.go#L19) repository. If this section/subsection changes, please ensure to update the corresponding URL in the mentioned repository.
+-->
+
+### Secure job failing with exit code 1
+
+If a Secure job is failing and it's unclear why:
+
+1. Enable [debug-level logging](#debug-level-logging).
+1. Run the job.
+1. Examine the job's output.
+1. Remove the `debug` log level to return to the default `info` value.
 
 ### Outdated security reports
 
@@ -577,7 +628,7 @@ Debug logging can be a serious security risk. The output may contain the content
 environment variables and other secrets available to the job. The output is uploaded
 to the GitLab server and visible in job logs.
 
-This message is often followed by the [error `No files to upload`](../../ci/pipelines/job_artifacts.md#error-message-no-files-to-upload),
+This message is often followed by the [error `No files to upload`](../../ci/jobs/job_artifacts_troubleshooting.md#error-message-no-files-to-upload),
 and preceded by other errors or warnings that indicate why the JSON report wasn't generated. Check
 the entire job log for such messages. If you don't find these messages, retry the failed job after
 setting `SECURE_LOG_LEVEL: "debug"` as a [custom CI/CD variable](../../ci/variables/index.md#for-a-project).
@@ -688,8 +739,8 @@ Instructions are available in the [legacy template project](https://gitlab.com/g
 In these circumstances, that the job succeeds is the default behavior. The job's status indicates
 success or failure of the analyzer itself. Analyzer results are displayed in the
 [job logs](../../ci/jobs/index.md#expand-and-collapse-job-log-sections),
-[Merge Request widget](#view-security-scan-information-in-merge-requests) or
-[Security Dashboard](security_dashboard/index.md).
+[merge request widget](#merge-request), or
+[security dashboard](security_dashboard/index.md).
 
 ### Error: job `is used for configuration only, and its script should not be executed`
 

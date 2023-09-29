@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::SystemNotes::TimeTrackingService do
+RSpec.describe ::SystemNotes::TimeTrackingService, feature_category: :team_planning do
   let_it_be(:author)  { create(:user) }
   let_it_be(:project) { create(:project, :repository) }
 
@@ -25,7 +25,7 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
 
       context 'when both dates are added' do
         it 'sets the correct note message' do
-          expect(note.note).to eq("changed start date to #{start_date.to_s(:long)} and changed due date to #{due_date.to_s(:long)}")
+          expect(note.note).to eq("changed start date to #{start_date.to_fs(:long)} and changed due date to #{due_date.to_fs(:long)}")
         end
       end
 
@@ -37,7 +37,7 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
         end
 
         it 'sets the correct note message' do
-          expect(note.note).to eq('removed start date and removed due date')
+          expect(note.note).to eq("removed start date #{start_date.to_fs(:long)} and removed due date #{due_date.to_fs(:long)}")
         end
       end
 
@@ -45,14 +45,14 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
         let(:changed_dates) { { 'due_date' => [nil, due_date] } }
 
         it 'sets the correct note message' do
-          expect(note.note).to eq("changed due date to #{due_date.to_s(:long)}")
+          expect(note.note).to eq("changed due date to #{due_date.to_fs(:long)}")
         end
 
         context 'and start date removed' do
           let(:changed_dates) { { 'due_date' => [nil, due_date], 'start_date' => [start_date, nil] } }
 
           it 'sets the correct note message' do
-            expect(note.note).to eq("removed start date and changed due date to #{due_date.to_s(:long)}")
+            expect(note.note).to eq("removed start date #{start_date.to_fs(:long)} and changed due date to #{due_date.to_fs(:long)}")
           end
         end
       end
@@ -73,14 +73,14 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
         end
 
         it 'sets the correct note message' do
-          expect(note.note).to eq("changed start date to #{start_date.to_s(:long)}")
+          expect(note.note).to eq("changed start date to #{start_date.to_fs(:long)}")
         end
 
         context 'and due date removed' do
           let(:changed_dates) { { 'due_date' => [due_date, nil], 'start_date' => [nil, start_date] } }
 
           it 'sets the correct note message' do
-            expect(note.note).to eq("changed start date to #{start_date.to_s(:long)} and removed due date")
+            expect(note.note).to eq("changed start date to #{start_date.to_fs(:long)} and removed due date #{due_date.to_fs(:long)}")
           end
         end
       end
@@ -118,10 +118,10 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
         subject
       end
 
-      it_behaves_like 'issue_edit snowplow tracking' do
-        let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_DUE_DATE_CHANGED }
+      it_behaves_like 'internal event tracking' do
+        let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_DUE_DATE_CHANGED }
         let(:user) { author }
-        subject(:service_action) { note }
+        let(:namespace) { project.namespace }
       end
 
       context 'when only start_date is added' do
@@ -231,10 +231,10 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
         subject
       end
 
-      it_behaves_like 'issue_edit snowplow tracking' do
-        let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TIME_ESTIMATE_CHANGED }
+      it_behaves_like 'internal event tracking' do
+        let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TIME_ESTIMATE_CHANGED }
         let(:user) { author }
-        let(:service_action) { subject }
+        let(:namespace) { project.namespace }
       end
     end
 
@@ -363,13 +363,10 @@ RSpec.describe ::SystemNotes::TimeTrackingService do
           subject
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TIME_SPENT_CHANGED }
+        it_behaves_like 'internal event tracking' do
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_TIME_SPENT_CHANGED }
           let(:user) { author }
-          let(:service_action) do
-            spend_time!(277200)
-            subject
-          end
+          let(:namespace) { project.namespace }
         end
       end
 

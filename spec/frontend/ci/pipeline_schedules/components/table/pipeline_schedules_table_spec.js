@@ -1,4 +1,4 @@
-import { GlTableLite } from '@gitlab/ui';
+import { GlTable } from '@gitlab/ui';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import PipelineSchedulesTable from '~/ci/pipeline_schedules/components/table/pipeline_schedules_table.vue';
 import { mockPipelineScheduleNodes, mockPipelineScheduleCurrentUser } from '../../mock_data';
@@ -19,15 +19,11 @@ describe('Pipeline schedules table', () => {
     });
   };
 
-  const findTable = () => wrapper.findComponent(GlTableLite);
+  const findTable = () => wrapper.findComponent(GlTable);
   const findScheduleDescription = () => wrapper.findByTestId('pipeline-schedule-description');
 
   beforeEach(() => {
     createComponent();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('displays table', () => {

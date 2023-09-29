@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Template selector menu', :js, feature_category: :projects do
+RSpec.describe 'Template selector menu', :js, feature_category: :groups_and_projects do
   let(:project) { create(:project, :repository) }
   let(:user) { create(:user) }
 
@@ -58,7 +58,7 @@ end
 
 def check_template_selector_menu_display(is_visible)
   count = is_visible ? 1 : 0
-  expect(page).to have_css('.template-selectors-menu', count: count)
+  expect(page).to have_css('[data-testid="template-selector"]', count: count)
 end
 
 def create_and_edit_file(file_name)

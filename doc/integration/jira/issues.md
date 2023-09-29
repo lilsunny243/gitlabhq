@@ -1,67 +1,103 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Jira issue management **(FREE)**
+# Jira issue management **(FREE ALL)**
 
-To integrate issue management with Jira, [configure Jira](index.md#jira-integration)
-and [enable the integration](configure.md) in GitLab.
-After you configure and enable the integration, you can reference and close Jira
-issues by mentioning the Jira ID in GitLab commits and merge requests.
+You can [manage Jira issues directly in GitLab](configure.md).
+You can then refer to Jira issues by ID in GitLab commits and merge requests.
+The Jira issue IDs must be in uppercase.
 
-The Jira integration requires to you format any Jira issue IDs in uppercase.
-
-## Reference Jira issues
+## Cross-reference GitLab activity and Jira issues
 
 With this integration, you can cross-reference Jira issues while you work in
-GitLab issues and merge requests. Mention a Jira issue in a GitLab issue,
-merge request, or comment, and GitLab adds a formatted comment to the Jira issue.
-The comment links back to your work in GitLab.
+GitLab issues, merge requests, and Git.
+When you mention a Jira issue in a GitLab issue, merge request, comment, or commit:
 
-For example, this commit references the Jira issue `GIT-1`:
+- GitLab links to the Jira issue from the mention in GitLab.
+- GitLab adds a formatted comment to the Jira issue that links back to the issue, merge request, or commit in GitLab.
+
+For example, when this commit refers to a `GIT-1` Jira issue:
 
 ```shell
 git commit -m "GIT-1 this is a test commit"
 ```
 
-GitLab adds a reference to the **Issue Links** section of Jira issue `GIT-1`:
+GitLab adds to that Jira issue:
 
-![Example of mentioning or closing the Jira issue](img/jira_issue_reference.png)
+- A reference in the **Web links** section.
+- A comment in the **Activity** section that follows this format:
 
-GitLab also adds a comment to the issue, and uses this format:
+  ```plaintext
+  USER mentioned this issue in RESOURCE_NAME of [PROJECT_NAME|COMMENTLINK]:
+  ENTITY_TITLE
+  ```
 
-```plaintext
-USER mentioned this issue in RESOURCE_NAME of [PROJECT_NAME|COMMENTLINK]:
-ENTITY_TITLE
-```
+  - `USER`: Name of the user who has mentioned the Jira issue with a link to their GitLab user profile.
+  - `RESOURCE_NAME`: Type of resource (for example, a GitLab commit, issue, or merge request) that has referenced the Jira issue.
+  - `PROJECT_NAME`: GitLab project name.
+  - `COMMENTLINK`: Link to where the Jira issue is mentioned.
+  - `ENTITY_TITLE`: Title of the GitLab commit (first line), issue, or merge request.
 
-- `USER`: The name of the user who mentioned the issue, linked to their GitLab user profile.
-- `COMMENTLINK`: A link to where the Jira issue was mentioned.
-- `RESOURCE_NAME`: The type of resource, such as a commit or merge request, which referenced the issue.
-- `PROJECT_NAME`: The GitLab project name.
-- `ENTITY_TITLE`: The title of the merge request, or the first line of the commit.
+Only a single cross-reference appears in Jira per GitLab issue, merge request, or commit.
+For example, multiple comments on a GitLab merge request that reference a Jira issue
+create only a single cross-reference back to that merge request in Jira.
 
 You can [disable comments](#disable-comments-on-jira-issues) on issues.
 
-### Require associated Jira issue for merge requests to be merged **(ULTIMATE)**
+### Require associated Jira issue for merge requests to be merged **(ULTIMATE ALL)**
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/280766) in GitLab 13.12, disabled behind `jira_issue_association_on_merge_request` [feature flag](../../administration/feature_flags.md).
-> - [Enabled by default](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/61722) in GitLab 14.1.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/335280) in GitLab 14.2.
+With this integration, you can prevent merge requests from being merged if they do not refer to a Jira issue.
+To enable this feature:
 
-You can prevent merge requests from being merged if they do not refer to a Jira issue.
-To enforce this:
-
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Merge requests**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Merge requests**.
 1. In the **Merge checks** section, select **Require an associated issue from Jira**.
 1. Select **Save**.
 
 After you enable this feature, a merge request that doesn't reference an associated
 Jira issue can't be merged. The merge request displays the message
 **To merge, a Jira issue key must be mentioned in the title or description.**
+
+## Customize Jira issue matching in GitLab
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/112826) in GitLab 15.10.
+
+You can configure custom rules for how GitLab matches Jira issue keys by defining:
+
+- [A regex pattern](#use-regular-expression)
+- [A prefix](#use-a-prefix)
+
+When you don't configure custom rules, the [default behavior](https://gitlab.com/gitlab-org/gitlab/-/blob/710d83af298d8896f2b940faf48a46d2feb4cbaf/lib/gitlab/regex.rb#L552) is used. For more information, see the [RE2 wiki](https://github.com/google/re2/wiki/Syntax).
+
+### Use regular expression
+
+To define a regex pattern for Jira issue keys:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
+1. Select **Jira**.
+1. Go to the **Jira issue matching** section.
+1. In the **Jira issue regex** text box, enter a regex pattern.
+1. Select **Save changes**.
+
+For more information, see the [Atlassian documentation](https://confluence.atlassian.com/adminjiraserver073/changing-the-project-key-format-861253229.html).
+
+### Use a prefix
+
+You can define a prefix for GitLab to match Jira issue keys. For example, if your Jira issue ID is `ALPHA-1`
+and you've set a `JIRA#` prefix, GitLab matches `JIRA#ALPHA-1` rather than `ALPHA-1`.
+
+To define a prefix for Jira issue keys:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
+1. Select **Jira**.
+1. Go to the **Jira issue matching** section.
+1. In the **Jira issue prefix** text box, enter a prefix.
+1. Select **Save changes**.
 
 ## Close Jira issues in GitLab
 
@@ -79,7 +115,7 @@ For example, use any of these trigger words to close the Jira issue `PROJECT-1`:
 - `Fixes PROJECT-1`
 
 The commit or merge request must target your project's [default branch](../../user/project/repository/branches/default.md).
-You can change your project's default branch under [project settings](img/jira_project_settings.png).
+You can change your project's default branch in [project settings](../../user/project/settings/index.md).
 
 ### Use case for closing issues
 
@@ -89,28 +125,25 @@ Consider this example:
 1. You create a merge request in GitLab to build the requested feature.
 1. In the merge request, you add the issue closing trigger `Closes PROJECT-7`.
 1. When the merge request is merged:
-   - GitLab closes the Jira issue for you:
-     ![The GitLab integration closes Jira issue](img/jira_service_close_issue.png)
+   - GitLab closes the Jira issue for you.
    - GitLab adds a formatted comment to Jira, linking back to the commit that
      resolved the issue. You can [disable comments](#disable-comments-on-jira-issues).
 
-## View Jira issues **(PREMIUM)**
+## View Jira issues **(PREMIUM ALL)**
 
-> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/3622) in GitLab 13.2.
+You can view and search issues from a selected Jira project directly in GitLab,
+provided your GitLab administrator [has configured the integration](configure.md#configure-the-integration).
 
-You can browse, search, and view issues from a selected Jira project directly in GitLab,
-if your GitLab administrator [has configured it](configure.md).
+To view Jira issues:
 
-To do this, in GitLab, go to your project and select **Issues > Jira issues**. The issue list
-sorts by **Created date** by default, with the newest issues listed at the top:
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Plan > Jira issues**.
 
-![Jira issues integration enabled](img/open_jira_issues_list_v14_6.png)
+The issues are sorted by **Created date** by default, with the most recently created issues listed at the top.
 
 - To display the most recently updated issues first, select **Updated date**.
-- You can [search and filter](#search-and-filter-the-issues-list) the issues list.
-- In GitLab [versions 13.10 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/299832),
-  you can select an issue from the list to view it in GitLab:
-  ![Jira issue detail view](img/jira_issue_detail_view_v13.10.png)
+- You can [search and filter the issue list](#search-and-filter-the-issue-list).
+- You can [select an issue from the list to view the issue in GitLab](https://gitlab.com/gitlab-org/gitlab/-/issues/299832).
 
 Issues are grouped into tabs based on their
 [Jira status](https://confluence.atlassian.com/adminjiraserver070/defining-status-field-values-749382903.html):
@@ -119,7 +152,7 @@ Issues are grouped into tabs based on their
 - **Closed** tab: All issues with a Jira status categorized as Done.
 - **All** tab: All issues of any status.
 
-### Search and filter the issues list **(PREMIUM)**
+### Search and filter the issue list **(PREMIUM ALL)**
 
 To refine the list of issues, use the search bar to search for any text
 contained in an issue summary (title) or description. Use any combination
@@ -138,13 +171,7 @@ of these filters:
 Enhancements to use these filters through the user interface
 [are planned](https://gitlab.com/groups/gitlab-org/-/epics/3622).
 
-## Create a Jira issue for a vulnerability **(ULTIMATE)**
-
-You can create a Jira issue for a vulnerability from a [Vulnerability Page](../../user/application_security/vulnerabilities/index.md#create-a-jira-issue-for-a-vulnerability).
-
 ## Automatic issue transitions
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/55773) in GitLab 13.11.
 
 When you configure automatic issue transitions, you can transition a referenced
 Jira issue to the next available status with a category of **Done**. To configure
@@ -182,3 +209,7 @@ adding a comment to the Jira issue:
 
 1. Refer to the [Configure GitLab](configure.md) instructions.
 1. Clear the **Enable comments** checkbox.
+
+## Related topics
+
+- [Create a Jira issue for a vulnerability](../../user/application_security/vulnerabilities/index.md#create-a-jira-issue-for-a-vulnerability)

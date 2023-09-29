@@ -1,16 +1,16 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Connect a cluster to GitLab **(FREE)**
+# Connect a cluster to GitLab **(FREE ALL)**
 
 The [certificate-based Kubernetes integration with GitLab](../index.md)
 was [deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8)
 in GitLab 14.5. To connect your clusters, use the [GitLab agent](../../../clusters/agent/index.md).
 
-## Cluster levels (DEPRECATED)
+## Cluster levels (deprecated)
 
 > [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 
@@ -34,17 +34,18 @@ your cluster's level.
 
 **Project-level clusters:**
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Operate > Kubernetes clusters**.
 
 **Group-level clusters:**
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Kubernetes**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Operate > Kubernetes clusters**.
 
 **Instance-level clusters:**
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Kubernetes**.
 
 ## Security implications for clusters connected with certificates

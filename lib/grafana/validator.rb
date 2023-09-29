@@ -9,13 +9,13 @@ module Grafana
 
     attr_reader :grafana_dashboard, :datasource, :panel, :query_params
 
-    UNSUPPORTED_GRAFANA_GLOBAL_VARS = %w(
+    UNSUPPORTED_GRAFANA_GLOBAL_VARS = %w[
       $__interval_ms
       $__timeFilter
       $__name
       $timeFilter
       $interval
-    ).freeze
+    ].freeze
 
     def initialize(grafana_dashboard, datasource, panel, query_params)
       @grafana_dashboard = grafana_dashboard
@@ -42,7 +42,6 @@ module Grafana
 
     private
 
-    # See defaults in Banzai::Filter::InlineGrafanaMetricsFilter.
     def validate_query_params!
       return if [:from, :to].all? { |param| query_params.include?(param) }
 

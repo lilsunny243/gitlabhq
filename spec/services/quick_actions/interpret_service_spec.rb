@@ -29,12 +29,15 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
   end
 
   before do
-    stub_licensed_features(multiple_issue_assignees: false,
-                           multiple_merge_request_reviewers: false,
-                           multiple_merge_request_assignees: false)
+    stub_licensed_features(
+      multiple_issue_assignees: false,
+      multiple_merge_request_reviewers: false,
+      multiple_merge_request_assignees: false
+    )
   end
 
   describe '#execute' do
+    let_it_be(:work_item) { create(:work_item, :task, project: project) }
     let(:merge_request) { create(:merge_request, source_project: project) }
 
     shared_examples 'reopen command' do
@@ -301,7 +304,7 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       it 'returns due_date message: Date.new(2016, 8, 28) if content contains /due 2016-08-28' do
         _, _, message = service.execute(content, issuable)
 
-        expect(message).to eq("Set the due date to #{expected_date.to_s(:medium)}.")
+        expect(message).to eq("Set the due date to #{expected_date.to_fs(:medium)}.")
       end
     end
 
@@ -534,11 +537,20 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
     shared_examples 'merge automatically command' do
       let(:project) { repository_project }
 
+      before do
+        stub_licensed_features(merge_request_approvers: true) if Gitlab.ee?
+      end
+
       it 'runs merge command if content contains /merge and returns merge message' do
         _, updates, message = service.execute(content, issuable)
 
         expect(updates).to eq(merge: merge_request.diff_head_sha)
-        expect(message).to eq('Scheduled to merge this merge request (Merge when pipeline succeeds).')
+
+        if Gitlab.ee?
+          expect(message).to eq('Scheduled to merge this merge request (Merge when checks pass).')
+        else
+          expect(message).to eq('Scheduled to merge this merge request (Merge when pipeline succeeds).')
+        end
       end
     end
 
@@ -1369,6 +1381,11 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       let(:issuable) { merge_request }
     end
 
+    it_behaves_like 'done command' do
+      let(:content) { '/done' }
+      let(:issuable) { work_item }
+    end
+
     it_behaves_like 'subscribe command' do
       let(:content) { '/subscribe' }
       let(:issuable) { issue }
@@ -1379,6 +1396,11 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       let(:issuable) { merge_request }
     end
 
+    it_behaves_like 'subscribe command' do
+      let(:content) { '/subscribe' }
+      let(:issuable) { work_item }
+    end
+
     it_behaves_like 'unsubscribe command' do
       let(:content) { '/unsubscribe' }
       let(:issuable) { issue }
@@ -1387,6 +1409,11 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
     it_behaves_like 'unsubscribe command' do
       let(:content) { '/unsubscribe' }
       let(:issuable) { merge_request }
+    end
+
+    it_behaves_like 'unsubscribe command' do
+      let(:content) { '/unsubscribe' }
+      let(:issuable) { work_item }
     end
 
     it_behaves_like 'failed command', 'Could not apply due command.' do
@@ -1399,34 +1426,11 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       let(:issuable) { issue }
     end
 
-    # /draft is a toggle (ff disabled)
-    it_behaves_like 'draft command' do
-      let(:content) { '/draft' }
-      let(:issuable) { merge_request }
-
-      before do
-        stub_feature_flags(draft_quick_action_non_toggle: false)
-      end
-    end
-
-    # /draft is a toggle (ff disabled)
-    it_behaves_like 'ready command' do
-      let(:content) { '/draft' }
-      let(:issuable) { merge_request }
-
-      before do
-        stub_feature_flags(draft_quick_action_non_toggle: false)
-        issuable.update!(title: issuable.draft_title)
-      end
-    end
-
-    # /draft is one way (ff enabled)
     it_behaves_like 'draft command' do
       let(:content) { '/draft' }
       let(:issuable) { merge_request }
     end
 
-    # /draft is one way (ff enabled)
     it_behaves_like 'draft/ready command no action' do
       let(:content) { '/draft' }
       let(:issuable) { merge_request }
@@ -1466,9 +1470,21 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       let(:issuable) { issue }
     end
 
-    it_behaves_like 'failed command' do
+    context 'when provided an invalid estimate' do
       let(:content) { '/estimate abc' }
       let(:issuable) { issue }
+
+      it 'populates {} if content contains an unsupported command' do
+        _, updates, _ = service.execute(content, issuable)
+
+        expect(updates[:time_estimate]).to be_nil
+      end
+
+      it "returns empty message" do
+        _, _, message = service.execute(content, issuable)
+
+        expect(message).to be_empty
+      end
     end
 
     it_behaves_like 'spend command' do
@@ -1610,6 +1626,12 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       context 'if issuable is an Issue' do
         it_behaves_like 'todo command' do
           let(:issuable) { issue }
+        end
+      end
+
+      context 'if issuable is a work item' do
+        it_behaves_like 'todo command' do
+          let(:issuable) { work_item }
         end
       end
 
@@ -1850,10 +1872,20 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
         let(:issuable) { merge_request }
       end
 
+      it_behaves_like 'award command' do
+        let(:content) { '/award :100:' }
+        let(:issuable) { work_item }
+      end
+
       context 'ignores command with no argument' do
         it_behaves_like 'failed command' do
           let(:content) { '/award' }
           let(:issuable) { issue }
+        end
+
+        it_behaves_like 'failed command' do
+          let(:content) { '/award' }
+          let(:issuable) { work_item }
         end
       end
 
@@ -1866,6 +1898,11 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
         it_behaves_like 'failed command' do
           let(:content) { '/award :lorem_ipsum:' }
           let(:issuable) { issue }
+        end
+
+        it_behaves_like 'failed command' do
+          let(:content) { '/award :lorem_ipsum:' }
+          let(:issuable) { work_item }
         end
       end
 
@@ -2150,115 +2187,47 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       end
     end
 
-    context 'relate command' do
-      let_it_be_with_refind(:group) { create(:group) }
+    it_behaves_like 'issues link quick action', :relate do
+      let(:user) { developer }
+    end
 
-      shared_examples 'relate command' do
-        it 'relates issues' do
-          service.execute(content, issue)
+    context 'unlink command' do
+      let_it_be(:private_issue) { create(:issue, project: create(:project, :private)) }
+      let_it_be(:other_issue) { create(:issue, project: project) }
+      let(:content) { "/unlink #{other_issue.to_reference(issue)}" }
 
-          expect(IssueLink.where(source: issue).map(&:target)).to match_array(issues_related)
+      subject(:unlink_issues) { service.execute(content, issue) }
+
+      shared_examples 'command with failure' do
+        it 'does not destroy issues relation' do
+          expect { unlink_issues }.not_to change { IssueLink.count }
+        end
+
+        it 'return correct execution message' do
+          expect(unlink_issues[2]).to eq('No linked issue matches the provided parameter.')
         end
       end
 
-      context 'user is member of group' do
-        before do
-          group.add_developer(developer)
+      context 'when command includes linked issue' do
+        let_it_be(:link1) { create(:issue_link, source: issue, target: other_issue) }
+        let_it_be(:link2) { create(:issue_link, source: issue, target: private_issue) }
+
+        it 'executes command successfully' do
+          expect { unlink_issues }.to change { IssueLink.count }.by(-1)
+          expect(unlink_issues[2]).to eq("Removed link with #{other_issue.to_reference(issue)}.")
+          expect(issue.notes.last.note).to eq("removed the relation with #{other_issue.to_reference}")
+          expect(other_issue.notes.last.note).to eq("removed the relation with #{issue.to_reference}")
         end
 
-        context 'relate a single issue' do
-          let(:other_issue) { create(:issue, project: project) }
-          let(:issues_related) { [other_issue] }
-          let(:content) { "/relate #{other_issue.to_reference}" }
+        context 'when user has no access' do
+          let(:content) { "/unlink #{private_issue.to_reference(issue)}" }
 
-          it_behaves_like 'relate command'
+          it_behaves_like 'command with failure'
         end
+      end
 
-        context 'relate multiple issues at once' do
-          let(:second_issue) { create(:issue, project: project) }
-          let(:third_issue) { create(:issue, project: project) }
-          let(:issues_related) { [second_issue, third_issue] }
-          let(:content) { "/relate #{second_issue.to_reference} #{third_issue.to_reference}" }
-
-          it_behaves_like 'relate command'
-        end
-
-        context 'when quick action target is unpersisted' do
-          let(:issue) { build(:issue, project: project) }
-          let(:other_issue) { create(:issue, project: project) }
-          let(:issues_related) { [other_issue] }
-          let(:content) { "/relate #{other_issue.to_reference}" }
-
-          it 'relates the issues after the issue is persisted' do
-            service.execute(content, issue)
-
-            issue.save!
-
-            expect(IssueLink.where(source: issue).map(&:target)).to match_array(issues_related)
-          end
-        end
-
-        context 'empty relate command' do
-          let(:issues_related) { [] }
-          let(:content) { '/relate' }
-
-          it_behaves_like 'relate command'
-        end
-
-        context 'already having related issues' do
-          let(:second_issue) { create(:issue, project: project) }
-          let(:third_issue) { create(:issue, project: project) }
-          let(:issues_related) { [second_issue, third_issue] }
-          let(:content) { "/relate #{third_issue.to_reference(project)}" }
-
-          before do
-            create(:issue_link, source: issue, target: second_issue)
-          end
-
-          it_behaves_like 'relate command'
-        end
-
-        context 'cross project' do
-          let(:another_group) { create(:group, :public) }
-          let(:other_project) { create(:project, group: another_group) }
-
-          before do
-            another_group.add_developer(developer)
-          end
-
-          context 'relate a cross project issue' do
-            let(:other_issue) { create(:issue, project: other_project) }
-            let(:issues_related) { [other_issue] }
-            let(:content) { "/relate #{other_issue.to_reference(project)}" }
-
-            it_behaves_like 'relate command'
-          end
-
-          context 'relate multiple cross projects issues at once' do
-            let(:second_issue) { create(:issue, project: other_project) }
-            let(:third_issue) { create(:issue, project: other_project) }
-            let(:issues_related) { [second_issue, third_issue] }
-            let(:content) { "/relate #{second_issue.to_reference(project)} #{third_issue.to_reference(project)}" }
-
-            it_behaves_like 'relate command'
-          end
-
-          context 'relate a non-existing issue' do
-            let(:issues_related) { [] }
-            let(:content) { "/relate imaginary##{non_existing_record_iid}" }
-
-            it_behaves_like 'relate command'
-          end
-
-          context 'relate a private issue' do
-            let(:private_project) { create(:project, :private) }
-            let(:other_issue) { create(:issue, project: private_project) }
-            let(:issues_related) { [] }
-            let(:content) { "/relate #{other_issue.to_reference(project)}" }
-
-            it_behaves_like 'relate command'
-          end
-        end
+      context 'when provided issue is not linked' do
+        it_behaves_like 'command with failure'
       end
     end
 
@@ -2507,6 +2476,8 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
         expect(message).to eq("Added ~\"Bug\" label.")
       end
     end
+
+    it_behaves_like 'quick actions that change work item type'
   end
 
   describe '#explain' do
@@ -2517,8 +2488,9 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       let(:content) { '/close' }
 
       it 'includes issuable name' do
-        _, explanations = service.explain(content, issue)
+        content_result, explanations = service.explain(content, issue)
 
+        expect(content_result).to eq('')
         expect(explanations).to eq(['Closes this issue.'])
       end
     end
@@ -2704,27 +2676,6 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
       end
     end
 
-    describe 'draft command toggle (deprecated)' do
-      let(:content) { '/draft' }
-
-      before do
-        stub_feature_flags(draft_quick_action_non_toggle: false)
-      end
-
-      it 'includes the new status' do
-        _, explanations = service.explain(content, merge_request)
-
-        expect(explanations).to match_array(['Marks this merge request as a draft.'])
-      end
-
-      it 'sets the ready status on a draft' do
-        merge_request.update!(title: merge_request.draft_title)
-        _, explanations = service.explain(content, merge_request)
-
-        expect(explanations).to match_array(["Marks this merge request as ready."])
-      end
-    end
-
     describe 'draft command set' do
       let(:content) { '/draft' }
 
@@ -2770,12 +2721,44 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
     end
 
     describe 'estimate command' do
-      let(:content) { '/estimate 79d' }
+      context 'positive estimation' do
+        let(:content) { '/estimate 79d' }
 
-      it 'includes the formatted duration' do
-        _, explanations = service.explain(content, merge_request)
+        it 'includes the formatted duration' do
+          _, explanations = service.explain(content, merge_request)
 
-        expect(explanations).to eq(['Sets time estimate to 3mo 3w 4d.'])
+          expect(explanations).to eq(['Sets time estimate to 3mo 3w 4d.'])
+        end
+      end
+
+      context 'zero estimation' do
+        let(:content) { '/estimate 0' }
+
+        it 'includes the formatted duration' do
+          _, explanations = service.explain(content, merge_request)
+
+          expect(explanations).to eq(['Removes time estimate.'])
+        end
+      end
+
+      context 'negative estimation' do
+        let(:content) { '/estimate -79d' }
+
+        it 'does not explain' do
+          _, explanations = service.explain(content, merge_request)
+
+          expect(explanations).to be_empty
+        end
+      end
+
+      context 'invalid estimation' do
+        let(:content) { '/estimate a' }
+
+        it 'does not explain' do
+          _, explanations = service.explain(content, merge_request)
+
+          expect(explanations).to be_empty
+        end
       end
     end
 
@@ -2943,6 +2926,99 @@ RSpec.describe QuickActions::InterpretService, feature_category: :team_planning 
 
             expect(explanations).to contain_exactly("Remove customer relation contact(s).")
           end
+        end
+      end
+    end
+
+    context 'with keep_actions' do
+      let(:content) { '/close' }
+
+      it 'keeps quick actions' do
+        content_result, explanations = service.explain(content, issue, keep_actions: true)
+
+        expect(content_result).to eq("\n/close")
+        expect(explanations).to eq(['Closes this issue.'])
+      end
+
+      it 'removes the quick action' do
+        content_result, explanations = service.explain(content, issue, keep_actions: false)
+
+        expect(content_result).to eq('')
+        expect(explanations).to eq(['Closes this issue.'])
+      end
+    end
+
+    describe 'type command' do
+      let_it_be(:project) { create(:project, :private) }
+      let_it_be(:work_item) { create(:work_item, :task, project: project) }
+
+      let(:command) { '/type issue' }
+
+      it 'has command available' do
+        _, explanations = service.explain(command, work_item)
+
+        expect(explanations)
+          .to contain_exactly("Converts work item to issue. Widgets not supported in new type are removed.")
+      end
+    end
+
+    describe 'relate and unlink commands' do
+      let_it_be(:other_issue) { create(:issue, project: project).to_reference(issue) }
+      let(:relate_content) { "/relate #{other_issue}" }
+      let(:unlink_content) { "/unlink #{other_issue}" }
+
+      context 'when user has permissions' do
+        it '/relate command is available' do
+          _, explanations = service.explain(relate_content, issue)
+
+          expect(explanations).to eq(["Marks this issue as related to #{other_issue}."])
+        end
+
+        it '/unlink command is available' do
+          _, explanations = service.explain(unlink_content, issue)
+
+          expect(explanations).to eq(["Removes link with #{other_issue}."])
+        end
+      end
+
+      context 'when user has insufficient permissions' do
+        before do
+          allow(Ability).to receive(:allowed?).and_call_original
+          allow(Ability).to receive(:allowed?).with(current_user, :admin_issue_link, issue).and_return(false)
+        end
+
+        it '/relate command is not available' do
+          _, explanations = service.explain(relate_content, issue)
+
+          expect(explanations).to be_empty
+        end
+
+        it '/unlink command is not available' do
+          _, explanations = service.explain(unlink_content, issue)
+
+          expect(explanations).to be_empty
+        end
+      end
+    end
+
+    describe 'promote_to command' do
+      let(:content) { '/promote_to issue' }
+
+      context 'when work item supports promotion' do
+        let_it_be(:task) { build(:work_item, :task, project: project) }
+
+        it 'includes the value' do
+          _, explanations = service.explain(content, task)
+          expect(explanations).to eq(['Promotes work item to issue.'])
+        end
+      end
+
+      context 'when work item does not support promotion' do
+        let_it_be(:incident) { build(:work_item, :incident, project: project) }
+
+        it 'does not include the value' do
+          _, explanations = service.explain(content, incident)
+          expect(explanations).to be_empty
         end
       end
     end

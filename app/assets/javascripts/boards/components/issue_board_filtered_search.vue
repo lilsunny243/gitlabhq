@@ -46,11 +46,23 @@ export default {
   },
   components: { BoardFilteredSearch },
   inject: ['isSignedIn', 'releasesFetchPath', 'fullPath', 'isGroupBoard'],
+  props: {
+    board: {
+      type: Object,
+      required: false,
+      default: () => {},
+    },
+    isSwimlanesOn: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
   computed: {
     tokensCE() {
       const { issue, incident } = this.$options.i18n;
       const { types } = this.$options;
-      const { fetchUsers, fetchLabels, fetchMilestones } = issueBoardFilters(
+      const { fetchUsers, fetchLabels } = issueBoardFilters(
         this.$apollo,
         this.fullPath,
         this.isGroupBoard,
@@ -63,6 +75,7 @@ export default {
           type: TOKEN_TYPE_ASSIGNEE,
           operators: OPERATORS_IS_NOT,
           token: UserToken,
+          dataType: 'user',
           unique: true,
           fetchUsers,
           preloadedUsers: this.preloadedUsers(),
@@ -74,6 +87,7 @@ export default {
           operators: OPERATORS_IS_NOT,
           symbol: '@',
           token: UserToken,
+          dataType: 'user',
           unique: true,
           fetchUsers,
           preloadedUsers: this.preloadedUsers(),
@@ -134,7 +148,8 @@ export default {
           token: MilestoneToken,
           unique: true,
           shouldSkipSort: true,
-          fetchMilestones,
+          isProject: !this.isGroupBoard,
+          fullPath: this.fullPath,
         },
         {
           icon: 'issues',
@@ -195,6 +210,8 @@ export default {
   <board-filtered-search
     data-testid="issue-board-filtered-search"
     :tokens="tokens"
+    :board="board"
+    :is-swimlanes-on="isSwimlanesOn"
     @setFilters="$emit('setFilters', $event)"
   />
 </template>

@@ -1,12 +1,10 @@
 ---
 data_category: optional
 key_path: counts.ci_runners_online
-name: "counts_online_runners"
 description: Total online Runners of all types
 product_section: ops
 product_stage: verify
 product_group: pipeline_execution
-product_category: continuous_integration
 value_type: number
 status: active
 milestone: "13.12"

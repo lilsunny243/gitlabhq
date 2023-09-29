@@ -43,11 +43,12 @@ class IssuableFinder
   include FinderMethods
   include CreatedAtFilter
   include Gitlab::Utils::StrongMemoize
+  include UpdatedAtFilter
 
   requires_cross_project_access unless: -> { params.project? }
 
   FULL_TEXT_SEARCH_TERM_PATTERN = '[\u0000-\u02FF\u1E00-\u1EFF\u2070-\u218F]*'
-  FULL_TEXT_SEARCH_TERM_REGEX = /\A#{FULL_TEXT_SEARCH_TERM_PATTERN}\z/.freeze
+  FULL_TEXT_SEARCH_TERM_REGEX = /\A#{FULL_TEXT_SEARCH_TERM_PATTERN}\z/
   NEGATABLE_PARAMS_HELPER_KEYS = %i[project_id scope status include_subgroups].freeze
 
   attr_accessor :current_user, :params
@@ -289,13 +290,6 @@ class IssuableFinder
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
-  def by_updated_at(items)
-    items = items.updated_after(params[:updated_after]) if params[:updated_after].present?
-    items = items.updated_before(params[:updated_before]) if params[:updated_before].present?
-
-    items
-  end
-
   def by_closed_at(items)
     items = items.closed_after(params[:closed_after]) if params[:closed_after].present?
     items = items.closed_before(params[:closed_before]) if params[:closed_before].present?
@@ -352,8 +346,7 @@ class IssuableFinder
 
   def use_full_text_search?
     klass.try(:pg_full_text_searchable_columns).present? &&
-      params[:search] =~ FULL_TEXT_SEARCH_TERM_REGEX &&
-      Feature.enabled?(:issues_full_text_search, params.project || params.group)
+      params[:search] =~ FULL_TEXT_SEARCH_TERM_REGEX
   end
 
   def filter_by_full_text_search(items)

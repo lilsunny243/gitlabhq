@@ -13,10 +13,12 @@ RSpec.describe BulkImports::RelationExportService, feature_category: :importers 
   let_it_be_with_reload(:export) { create(:bulk_import_export, group: group, relation: relation) }
 
   before do
+    FileUtils.mkdir_p(export_path)
+
     group.add_owner(user)
     project.add_maintainer(user)
 
-    allow(export).to receive(:export_path).and_return(export_path)
+    allow(subject).to receive(:export_path).and_return(export_path)
   end
 
   after :all do
@@ -35,6 +37,10 @@ RSpec.describe BulkImports::RelationExportService, feature_category: :importers 
 
       expect(export.reload.upload.export_file).to be_present
       expect(export.finished?).to eq(true)
+      expect(export.batched?).to eq(false)
+      expect(export.batches_count).to eq(0)
+      expect(export.batches.count).to eq(0)
+      expect(export.total_objects_count).to eq(0)
     end
 
     it 'removes temp export files' do
@@ -47,6 +53,16 @@ RSpec.describe BulkImports::RelationExportService, feature_category: :importers 
       subject.execute
 
       expect(export.upload.export_file).to be_present
+    end
+
+    context 'when relation is empty and there is nothing to export' do
+      let(:relation) { 'milestones' }
+
+      it 'creates empty file on disk' do
+        expect(FileUtils).to receive(:touch).with("#{export_path}/#{relation}.ndjson")
+
+        subject.execute
+      end
     end
 
     context 'when exporting a file relation' do
@@ -133,13 +149,23 @@ RSpec.describe BulkImports::RelationExportService, feature_category: :importers 
 
         include_examples 'tracks exception', ActiveRecord::RecordInvalid
       end
+    end
 
-      context 'when user is not allowed to perform export' do
-        let(:another_user) { create(:user) }
+    context 'when export was batched' do
+      let(:relation) { 'milestones' }
+      let(:export) { create(:bulk_import_export, group: group, relation: relation, batched: true, batches_count: 2) }
 
-        subject { described_class.new(another_user, group, relation, jid) }
+      it 'removes existing batches and marks export as not batched' do
+        create(:bulk_import_export_batch, batch_number: 1, export: export)
+        create(:bulk_import_export_batch, batch_number: 2, export: export)
 
-        include_examples 'tracks exception', Gitlab::ImportExport::Error
+        expect { described_class.new(user, group, relation, jid).execute }
+          .to change { export.reload.batches.count }
+          .from(2)
+          .to(0)
+
+        expect(export.batched?).to eq(false)
+        expect(export.batches_count).to eq(0)
       end
     end
   end

@@ -19,9 +19,9 @@ RSpec.describe GitlabSchema.types['Issue'] do
   it 'has specific fields' do
     fields = %i[id iid title description state reference author assignees updated_by participants labels milestone due_date
                 confidential hidden discussion_locked upvotes downvotes merge_requests_count user_notes_count user_discussions_count web_path web_url relative_position
-                emails_disabled subscribed time_estimate total_time_spent human_time_estimate human_total_time_spent closed_at created_at updated_at task_completion_status
+                emails_disabled emails_enabled subscribed time_estimate total_time_spent human_time_estimate human_total_time_spent closed_at created_at updated_at task_completion_status
                 design_collection alert_management_alert alert_management_alerts severity current_user_todos moved moved_to
-                closed_as_duplicate_of create_note_email timelogs project_id customer_relations_contacts escalation_status]
+                closed_as_duplicate_of create_note_email timelogs project_id customer_relations_contacts escalation_status external_author]
 
     fields.each do |field_name|
       expect(described_class).to have_graphql_field(field_name)
@@ -265,7 +265,9 @@ RSpec.describe GitlabSchema.types['Issue'] do
 
     context 'for an incident' do
       before do
-        issue.update!(issue_type: Issue.issue_types[:incident])
+        issue.update!(
+          work_item_type: WorkItems::Type.default_by_type(:incident)
+        )
       end
 
       it { is_expected.to be_nil }
@@ -274,46 +276,6 @@ RSpec.describe GitlabSchema.types['Issue'] do
         let!(:escalation_status) { create(:incident_management_issuable_escalation_status, issue: issue) }
 
         it { is_expected.to eq(escalation_status.status_name.to_s.upcase) }
-      end
-    end
-  end
-
-  describe 'type' do
-    let_it_be(:issue) { create(:issue, project: project) }
-
-    let(:query) do
-      %(
-        query {
-          issue(id: "#{issue.to_gid}") {
-            type
-          }
-        }
-      )
-    end
-
-    subject(:execute) { GitlabSchema.execute(query, context: { current_user: user }).as_json }
-
-    context 'when the issue_type_uses_work_item_types_table feature flag is enabled' do
-      it 'gets the type field from the work_item_types table' do
-        expect_next_instance_of(::IssuePresenter) do |presented_issue|
-          expect(presented_issue).to receive_message_chain(:work_item_type, :base_type)
-        end
-
-        execute
-      end
-    end
-
-    context 'when the issue_type_uses_work_item_types_table feature flag is disabled' do
-      before do
-        stub_feature_flags(issue_type_uses_work_item_types_table: false)
-      end
-
-      it 'does not get the type field from the work_item_types table' do
-        expect_next_instance_of(::IssuePresenter) do |presented_issue|
-          expect(presented_issue).not_to receive(:work_item_type)
-        end
-
-        execute
       end
     end
   end

@@ -1,10 +1,10 @@
 ---
-info: For assistance with this CSM Onboarding page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-other-projects-and-subjects.
+info: For assistance with this tutorial, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-other-projects-and-subjects.
 stage: none
-group: unassigned
+group: Tutorials
 ---
 
-# Get started administering GitLab **(FREE)**
+# Get started administering GitLab **(FREE SELF)**
 
 Get started with GitLab administration. Configure your organization and its authentication, then secure, monitor,
 and back up GitLab.
@@ -36,12 +36,12 @@ Watch an overview of [groups and projects](https://www.youtube.com/watch?v=cqb2m
 
 Get started:
 
-- Create a [project](../user/project/index.md#create-a-project).
-- Create a [group](../user/group/manage.md#create-a-group).
-- [Add members](../user/group/manage.md#add-users-to-a-group) to the group.
+- Create a [project](../user/project/index.md).
+- Create a [group](../user/group/index.md#create-a-group).
+- [Add members](../user/group/index.md#add-users-to-a-group) to the group.
 - Create a [subgroup](../user/group/subgroups/index.md#create-a-subgroup).
 - [Add members](../user/group/subgroups/index.md#subgroup-membership) to the subgroup.
-- Enable [external authorization control](../user/admin_area/settings/external_authorization.md#configuration).
+- Enable [external authorization control](../administration/settings/external_authorization.md#configuration).
 
 **More resources**
 
@@ -76,16 +76,16 @@ While this isn't an exhaustive list, following these steps gives you a solid sta
 - Use a long root password, stored in a vault.
 - Install trusted SSL certificate and establish a process for renewal and revocation.
 - [Configure SSH key restrictions](../security/ssh_keys_restrictions.md#restrict-allowed-ssh-key-technologies-and-minimum-length) per your organization's guidelines.
-- [Disable new sign-ups](../user/admin_area/settings/sign_up_restrictions.md#disable-new-sign-ups).
+- [Disable new sign-ups](settings/sign_up_restrictions.md#disable-new-sign-ups).
 - Require email confirmation.
 - Set password length limit, configure SSO or SAML user management.
 - Limit email domains if allowing sign-up.
 - Require two-factor authentication (2FA).
-- [Disable password authentication](../user/admin_area/settings/sign_in_restrictions.md#password-authentication-enabled) for Git over HTTPS.
-- Set up [email notification for unknown sign-ins](../user/admin_area/settings/sign_in_restrictions.md#email-notification-for-unknown-sign-ins).
+- [Disable password authentication](settings/sign_in_restrictions.md#password-authentication-enabled) for Git over HTTPS.
+- Set up [email notification for unknown sign-ins](settings/sign_in_restrictions.md#email-notification-for-unknown-sign-ins).
 - Configure [user and IP rate limits](https://about.gitlab.com/blog/2020/05/20/gitlab-instance-security-best-practices/#user-and-ip-rate-limits).
 - Limit [webhooks local access](https://about.gitlab.com/blog/2020/05/20/gitlab-instance-security-best-practices/#webhooks).
-- Set [rate limits for protected paths](../user/admin_area/settings/protected_paths.md).
+- Set [rate limits for protected paths](settings/protected_paths.md).
 - Sign up for [Security Alerts](https://about.gitlab.com/company/preference-center/) from the Communication Preference Center.
 - Keep track of security best practices on our [blog page](https://about.gitlab.com/blog/2020/05/20/gitlab-instance-security-best-practices/).
 
@@ -100,7 +100,6 @@ Unlike other monitoring solutions (for example, Zabbix or New Relic), Prometheus
 - Prometheus and its exporters are on by default. However, you need to [configure the service](../administration/monitoring/prometheus/index.md#configuring-prometheus).
 - Learn more about [GitLab architecture](../development/architecture.md).
 - Find out why [application performance metrics](https://about.gitlab.com/blog/2020/05/07/working-with-performance-metrics/) matter.
-- Create a [self-monitoring project](../administration/monitoring/gitlab_self_monitoring_project/index.md) to track the health of your instance.
 - Integrate Grafana to [build visual dashboards](https://youtu.be/f4R7s0An1qE) based on performance metrics.
 
 ### Components of monitoring
@@ -127,11 +126,11 @@ GitLab provides backup methods to keep your data safe and recoverable. Whether y
 
 ### Back up a GitLab self-managed instance
 
-The routine differs, depending on whether you deployed with Omnibus or the Helm chart.
+The routine differs, depending on whether you deployed with the Linux package or the Helm chart.
 
-When you backing up an Omnibus (single node) GitLab server, you can use a single Rake task.
+When backing up (single node) GitLab server installed using the Linux package, you can use a single Rake task.
 
-Learn about [backing up Omnibus or Helm variations](../raketasks/backup_restore.md).
+Learn about [backing up Linux package or Helm variations](../administration/backup_restore/index.md).
 This process backs up your entire instance, but does not back up the configuration files. Ensure those are backed up separately.
 Keep your configuration files and backup archives in a separate location to ensure the encryption keys are not kept with the encrypted data.
 
@@ -139,7 +138,7 @@ Keep your configuration files and backup archives in a separate location to ensu
 
 You can restore a backup only to **the exact same version and type** (Community Edition/Enterprise Edition) of GitLab on which it was created.
 
-- Review the [Omnibus backup and restore documentation](https://docs.gitlab.com/omnibus/settings/backups).
+- Review the [Linux package (Omnibus) backup and restore documentation](https://docs.gitlab.com/omnibus/settings/backups).
 - Review the [Helm Chart backup and restore documentation](https://docs.gitlab.com/charts/backup-restore/).
 
 ### Back up GitLab SaaS
@@ -151,7 +150,8 @@ Backups of GitLab databases and file systems are taken every 24 hours, and are k
 - You can use the project export option in:
   - [The UI](../user/project/settings/import_export.md#export-a-project-and-its-data).
   - [The API](../api/project_import_export.md#schedule-an-export).
-- [Group export](../user/group/settings/import_export.md) does *not* export the projects in it, but does export:
+- [Group export by uploading a file export](../user/group/import/index.md#migrate-groups-by-uploading-an-export-file-deprecated)
+  does **not** export the projects in it, but does export:
   - Epics
   - Milestones
   - Boards
@@ -163,7 +163,7 @@ For more information about GitLab SaaS backups, see our [Backup FAQ page](https:
 ### Alternative backup strategies
 
 In some situations the Rake task for backups may not be the most optimal solution. Here are some
-[alternatives](../raketasks/backup_restore.md) to consider if the Rake task does not work for you.
+[alternatives](../administration/backup_restore/index.md) to consider if the Rake task does not work for you.
 
 #### Option 1: File system snapshot
 
@@ -172,7 +172,7 @@ If your GitLab server contains a lot of Git repository data, you may find the Gi
 Slowness typically starts at a Git repository data size of around 200 GB. In this case, you might consider using file system snapshots as part of your backup strategy.
 For example, consider a GitLab server with the following components:
 
-- Using Omnibus GitLab
+- Using the Linux package.
 - Hosted on AWS with an EBS drive containing an ext4 file system mounted at `/var/opt/gitlab`.
 
 The EC2 instance meets the requirements for an application data backup by taking an EBS snapshot. The backup includes all repositories, uploads, and PostgreSQL data.
@@ -236,10 +236,10 @@ Rate limits also improve the security of your application.
 
 You can make changes to your default rate limits from the Admin Area. For more information about configuration, see the [Admin Area page](../security/rate_limits.md#configurable-limits).
 
-- Define [issues rate limits](../user/admin_area/settings/rate_limit_on_issues_creation.md) to set a maximum number of issue creation requests per minute, per user.
-- Enforce [user and IP rate limits](../user/admin_area/settings/user_and_ip_rate_limits.md) for unauthenticated web requests.
-- Review the [rate limit on raw endpoints](../user/admin_area/settings/rate_limits_on_raw_endpoints.md). The default setting is 300 requests per minute for raw file access.
-- Review the [import/export rate limits](../user/admin_area/settings/import_export_rate_limits.md) of the six active defaults.
+- Define [issues rate limits](settings/rate_limit_on_issues_creation.md) to set a maximum number of issue creation requests per minute, per user.
+- Enforce [user and IP rate limits](settings/user_and_ip_rate_limits.md) for unauthenticated web requests.
+- Review the [rate limit on raw endpoints](settings/rate_limits_on_raw_endpoints.md). The default setting is 300 requests per minute for raw file access.
+- Review the [import/export rate limits](settings/import_export_rate_limits.md) of the six active defaults.
 
 For more information about API and rate limits, see our [API page](../api/rest/index.md).
 

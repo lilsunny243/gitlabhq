@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'searching groups', :with_license, feature_category: :subgroups do
+RSpec.describe 'searching groups', :with_license, feature_category: :groups_and_projects do
   include GraphqlHelpers
 
   let_it_be(:user) { create(:user) }
@@ -12,7 +12,7 @@ RSpec.describe 'searching groups', :with_license, feature_category: :subgroups d
   let(:fields) do
     <<~FIELDS
       nodes {
-        #{all_graphql_fields_for('Group')}
+        #{all_graphql_fields_for('Group', excluded: %w[runners])}
       }
     FIELDS
   end

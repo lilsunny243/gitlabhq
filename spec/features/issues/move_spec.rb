@@ -103,11 +103,11 @@ RSpec.describe 'issue move to another project', feature_category: :team_planning
     let(:namespace) { create(:namespace) }
     let(:regular_project) { create(:project, title: project_title, service_desk_enabled: false) }
     let(:service_desk_project) { build(:project, :private, namespace: namespace, service_desk_enabled: true) }
-    let(:service_desk_issue) { create(:issue, project: service_desk_project, author: ::User.support_bot) }
+    let(:service_desk_issue) { create(:issue, project: service_desk_project, author: ::Users::Internal.support_bot) }
 
     before do
-      allow(Gitlab::IncomingEmail).to receive(:enabled?).and_return(true)
-      allow(Gitlab::IncomingEmail).to receive(:supports_wildcard?).and_return(true)
+      allow(Gitlab::Email::IncomingEmail).to receive(:enabled?).and_return(true)
+      allow(Gitlab::Email::IncomingEmail).to receive(:supports_wildcard?).and_return(true)
 
       regular_project.add_reporter(user)
       service_desk_project.add_reporter(user)

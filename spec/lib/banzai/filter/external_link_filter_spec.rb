@@ -2,25 +2,25 @@
 
 require 'spec_helper'
 
-RSpec.shared_examples 'an external link with rel attribute', feature_category: :team_planning do
-  it 'adds rel="nofollow" to external links' do
-    expect(doc.at_css('a')).to have_attribute('rel')
-    expect(doc.at_css('a')['rel']).to include 'nofollow'
-  end
-
-  it 'adds rel="noreferrer" to external links' do
-    expect(doc.at_css('a')).to have_attribute('rel')
-    expect(doc.at_css('a')['rel']).to include 'noreferrer'
-  end
-
-  it 'adds rel="noopener" to external links' do
-    expect(doc.at_css('a')).to have_attribute('rel')
-    expect(doc.at_css('a')['rel']).to include 'noopener'
-  end
-end
-
-RSpec.describe Banzai::Filter::ExternalLinkFilter do
+RSpec.describe Banzai::Filter::ExternalLinkFilter, feature_category: :team_planning do
   include FilterSpecHelper
+
+  shared_examples 'an external link with rel attribute' do
+    it 'adds rel="nofollow" to external links' do
+      expect(doc.at_css('a')).to have_attribute('rel')
+      expect(doc.at_css('a')['rel']).to include 'nofollow'
+    end
+
+    it 'adds rel="noreferrer" to external links' do
+      expect(doc.at_css('a')).to have_attribute('rel')
+      expect(doc.at_css('a')['rel']).to include 'noreferrer'
+    end
+
+    it 'adds rel="noopener" to external links' do
+      expect(doc.at_css('a')).to have_attribute('rel')
+      expect(doc.at_css('a')['rel']).to include 'noopener'
+    end
+  end
 
   it 'ignores elements without an href attribute' do
     exp = act = %q(<a id="ignored">Ignore Me</a>)
@@ -34,7 +34,7 @@ RSpec.describe Banzai::Filter::ExternalLinkFilter do
 
   it 'skips internal links' do
     internal = Gitlab.config.gitlab.url
-    exp = act = %Q(<a href="#{internal}/sign_in">Login</a>)
+    exp = act = %(<a href="#{internal}/sign_in">Login</a>)
     expect(filter(act).to_html).to eq exp
   end
 
@@ -90,7 +90,7 @@ RSpec.describe Banzai::Filter::ExternalLinkFilter do
     context 'with an impersonated username' do
       let(:internal) { Gitlab.config.gitlab.url }
 
-      let(:doc) { filter %Q(<a href="https://#{internal}@example.com" target="_blank">Reverse Tabnabbing</a>) }
+      let(:doc) { filter %(<a href="https://#{internal}@example.com" target="_blank">Reverse Tabnabbing</a>) }
 
       it_behaves_like 'an external link with rel attribute'
     end
@@ -112,8 +112,8 @@ RSpec.describe Banzai::Filter::ExternalLinkFilter do
     it 'skips internal links' do
       internal_link = Gitlab.config.gitlab.url + "/sign_in"
       url = internal_link.gsub(/\Ahttp/, 'HtTp')
-      act = %Q(<a href="#{url}">Login</a>)
-      exp = %Q(<a href="#{internal_link}">Login</a>)
+      act = %(<a href="#{url}">Login</a>)
+      exp = %(<a href="#{internal_link}">Login</a>)
       expect(filter(act).to_html).to eq(exp)
     end
 
@@ -131,7 +131,7 @@ RSpec.describe Banzai::Filter::ExternalLinkFilter do
 
   context 'links with RTLO character' do
     # In rendered text this looks like "http://example.com/evilexe.mp3"
-    let(:doc) { filter %Q(<a href="http://example.com/evil%E2%80%AE3pm.exe">http://example.com/evil\u202E3pm.exe</a>) }
+    let(:doc) { filter %(<a href="http://example.com/evil%E2%80%AE3pm.exe">http://example.com/evil\u202E3pm.exe</a>) }
 
     it_behaves_like 'an external link with rel attribute'
 
@@ -142,7 +142,7 @@ RSpec.describe Banzai::Filter::ExternalLinkFilter do
     end
 
     it 'does not mangle the link text' do
-      doc = filter %Q(<a href="http://example.com">One<span>and</span>\u202Eexe.mp3</a>)
+      doc = filter %(<a href="http://example.com">One<span>and</span>\u202Eexe.mp3</a>)
 
       expect(doc.to_html).to include('One<span>and</span>%E2%80%AEexe.mp3</a>')
     end

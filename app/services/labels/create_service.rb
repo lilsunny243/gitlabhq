@@ -13,6 +13,8 @@ module Labels
       project_or_group = target_params[:project] || target_params[:group]
 
       if project_or_group.present?
+        params.delete(:lock_on_merge) unless project_or_group.supports_lock_on_merge?
+
         project_or_group.labels.create(params)
       elsif target_params[:template]
         label = Label.new(params)

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::ReopenService do
+RSpec.describe MergeRequests::ReopenService, feature_category: :code_review_workflow do
   let(:user) { create(:user) }
   let(:user2) { create(:user) }
   let(:guest) { create(:user) }
@@ -38,6 +38,10 @@ RSpec.describe MergeRequests::ReopenService do
       it 'executes hooks with reopen action' do
         expect(service).to have_received(:execute_hooks)
                                .with(merge_request, 'reopen')
+      end
+
+      it 'does not call GroupMentionWorker' do
+        expect(Integrations::GroupMentionWorker).not_to receive(:perform_async)
       end
 
       it 'sends email to user2 about reopen of merge_request', :sidekiq_might_not_need_inline do
@@ -92,7 +96,11 @@ RSpec.describe MergeRequests::ReopenService do
     it 'refreshes the number of open merge requests for a valid MR' do
       service = described_class.new(project: project, current_user: user)
 
-      expect { service.execute(merge_request) }
+      expect do
+        service.execute(merge_request)
+
+        BatchLoader::Executor.clear_current
+      end
         .to change { project.open_merge_requests_count }.from(0).to(1)
     end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe GitlabSchema.types['PackageSettings'] do
+RSpec.describe GitlabSchema.types['PackageSettings'], feature_category: :package_registry do
   specify { expect(described_class.graphql_name).to eq('PackageSettings') }
 
   specify { expect(described_class.description).to eq('Namespace-level Package Registry settings') }
@@ -21,6 +21,8 @@ RSpec.describe GitlabSchema.types['PackageSettings'] do
       maven_duplicate_exception_regex
       generic_duplicates_allowed
       generic_duplicate_exception_regex
+      nuget_duplicates_allowed
+      nuget_duplicate_exception_regex
       maven_package_requests_forwarding
       lock_maven_package_requests_forwarding
       npm_package_requests_forwarding

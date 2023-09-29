@@ -2,8 +2,9 @@
 
 Encoding.default_external = 'UTF-8'
 
+require 'gitlab/utils/all'
+
 require_relative '../lib/gitlab_edition'
-require_relative '../lib/gitlab/utils'
 require_relative '../config/initializers/0_inject_enterprise_edition_module'
 
 require_relative 'lib/gitlab'
@@ -17,6 +18,7 @@ require 'rainbow/refinement'
 require 'active_support/core_ext/hash'
 require 'active_support/core_ext/object/blank'
 require 'active_support/core_ext/module/delegation'
+require 'active_support/parameter_filter'
 
 module QA
   root = "#{__dir__}/qa"
@@ -28,6 +30,7 @@ module QA
 
   loader.push_dir(root, namespace: QA)
 
+  loader.ignore("#{root}/factories")
   loader.ignore("#{root}/specs/features")
   loader.ignore("#{root}/specs/spec_helper.rb")
 
@@ -56,6 +59,7 @@ module QA
     "ssh_keys" => "SSHKeys",
     "ecdsa" => "ECDSA",
     "ed25519" => "ED25519",
+    "graphql" => "GraphQL",
     "rsa" => "RSA",
     "ldap" => "LDAP",
     "ldap_tls" => "LDAPTLS",
@@ -82,7 +86,9 @@ module QA
     "jetbrains" => "JetBrains",
     "vscode" => "VSCode",
     "registry_with_cdn" => "RegistryWithCDN",
-    "fips" => "FIPS"
+    "fips" => "FIPS",
+    "ci_cd_settings" => "CICDSettings",
+    "cli" => "CLI"
   )
 
   loader.setup

@@ -1,17 +1,10 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
-import { GlButton, GlTooltipDirective } from '@gitlab/ui';
+import { GlTooltipDirective } from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
-import { __ } from '~/locale';
-import eventHub from '../event_hub';
 import animateMixin from '../mixins/animate';
 
 export default {
-  i18n: {
-    editTitleAndDescription: __('Edit title and description'),
-  },
-  components: {
-    GlButton,
-  },
   directives: {
     GlTooltip: GlTooltipDirective,
     SafeHtml,
@@ -35,11 +28,6 @@ export default {
       type: String,
       required: true,
     },
-    showInlineEditButton: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
   },
   data() {
     return {
@@ -60,33 +48,24 @@ export default {
       currentPageTitleScope[0] = `${this.titleText} (${this.issuableRef}) `;
       this.titleEl.textContent = currentPageTitleScope.join('·');
     },
-    edit() {
-      eventHub.$emit('open.form');
-    },
   },
 };
 </script>
 
 <template>
-  <div class="title-container">
+  <div
+    class="gl-display-flex gl-align-items-flex-start gl-flex-direction-column gl-sm-flex-direction-row gl-gap-3 gl-pt-3"
+  >
     <h1
       v-safe-html="titleHtml"
       :class="{
         'issue-realtime-pre-pulse': preAnimation,
         'issue-realtime-trigger-pulse': pulseAnimation,
       }"
-      class="title gl-font-size-h-display"
-      data-qa-selector="title_content"
+      class="title gl-font-size-h-display gl-m-0!"
+      data-testid="issue-title"
       dir="auto"
     ></h1>
-    <gl-button
-      v-if="showInlineEditButton && canUpdate"
-      v-gl-tooltip.bottom
-      icon="pencil"
-      class="btn-edit js-issuable-edit"
-      :title="$options.i18n.editTitleAndDescription"
-      :aria-label="$options.i18n.editTitleAndDescription"
-      @click="edit"
-    />
+    <slot name="actions"></slot>
   </div>
 </template>

@@ -27,31 +27,13 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
   describe 'GET index' do
     subject { get :index, params: { namespace_id: project.namespace, project_id: project } }
 
-    context 'when feature flag is on' do
-      render_views
+    render_views
 
-      before do
-        stub_feature_flags(artifacts_management_page: true)
-      end
+    it 'renders the page with data for the artifacts app' do
+      subject
 
-      it 'renders the page with data for the artifacts app' do
-        subject
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(response).to render_template('projects/artifacts/index')
-      end
-    end
-
-    context 'when feature flag is off' do
-      before do
-        stub_feature_flags(artifacts_management_page: false)
-      end
-
-      it 'renders no content' do
-        subject
-
-        expect(response).to have_gitlab_http_status(:no_content)
-      end
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(response).to render_template('projects/artifacts/index')
     end
   end
 
@@ -122,7 +104,7 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
 
         download_artifact
 
-        expect(response.headers['Content-Disposition']).to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+        expect(response.headers['Content-Disposition']).to eq(%(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
       end
     end
 
@@ -153,7 +135,7 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
           download_artifact(file_type: 'archive')
 
           expect(response).to have_gitlab_http_status(:ok)
-          expect(response.headers['Content-Disposition']).to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+          expect(response.headers['Content-Disposition']).to eq(%(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
         end
       end
     end
@@ -186,7 +168,7 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
 
             download_artifact(file_type: file_type)
 
-            expect(response.headers['Content-Disposition']).to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+            expect(response.headers['Content-Disposition']).to eq(%(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
           end
         end
 
@@ -247,7 +229,9 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
       let(:job) { create(:ci_build, :success, :trace_artifact, pipeline: pipeline) }
 
       before do
-        create(:ci_job_variable, key: 'CI_DEBUG_TRACE', value: 'true', job: job)
+        allow_next_found_instance_of(Ci::Build) do |build|
+          allow(build).to receive(:debug_mode?).and_return(true)
+        end
       end
 
       context 'when the user does not have update_build permissions' do
@@ -280,7 +264,7 @@ RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts
 
           expect(response).to have_gitlab_http_status(:ok)
           expect(response.headers['Content-Disposition'])
-            .to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+            .to eq(%(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
         end
       end
     end

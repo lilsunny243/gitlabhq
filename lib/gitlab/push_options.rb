@@ -21,6 +21,9 @@ module Gitlab
       },
       ci: {
         keys: [:skip, :variable]
+      },
+      integrations: {
+        keys: [:skip_ci]
       }
     }).freeze
 
@@ -36,7 +39,7 @@ module Gitlab
       mr: :merge_request
     }).freeze
 
-    OPTION_MATCHER = /(?<namespace>[^\.]+)\.(?<key>[^=]+)=?(?<value>.*)/.freeze
+    OPTION_MATCHER = /(?<namespace>[^\.]+)\.(?<key>[^=]+)=?(?<value>.*)/
 
     CI_SKIP = 'ci.skip'
 

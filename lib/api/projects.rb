@@ -9,7 +9,7 @@ module API
 
     before { authenticate_non_get! }
 
-    feature_category :projects, %w[
+    feature_category :groups_and_projects, %w[
       /projects/:id/custom_attributes
       /projects/:id/custom_attributes/:key
       /projects/:id/share_locations
@@ -20,8 +20,6 @@ module API
     helpers do
       # EE::API::Projects would override this method
       def apply_filters(projects)
-        projects = projects.with_issues_available_for_user(current_user) if params[:with_issues_enabled]
-        projects = projects.with_merge_requests_enabled if params[:with_merge_requests_enabled]
         projects = projects.with_statistics if params[:statistics]
         projects = projects.joins(:statistics) if params[:order_by].include?('project_statistics') # rubocop: disable CodeReuse/ActiveRecord
         projects = projects.created_by(current_user).imported.with_import_state if params[:imported]
@@ -38,6 +36,23 @@ module API
 
       def verify_project_filters!(attrs)
         attrs.delete(:repository_storage) unless can?(current_user, :use_project_statistics_filters)
+      end
+
+      def validate_updated_at_order_and_filter!
+        return unless filter_by_updated_at? && provided_order_is_not_updated_at?
+
+        # This is necessary as not pairing this filter and ordering will produce an inneficient query
+        bad_request!('`updated_at` filter and `updated_at` sorting must be paired')
+      end
+
+      def provided_order_is_not_updated_at?
+        order_by_param = declared_params[:order_by]
+
+        order_by_param.present? && order_by_param.to_s != 'updated_at'
+      end
+
+      def filter_by_updated_at?
+        declared_params[:updated_before].present? || declared_params[:updated_after].present?
       end
 
       def verify_statistics_order_by_projects!
@@ -80,9 +95,8 @@ module API
       # Temporarily introduced for upload API: https://gitlab.com/gitlab-org/gitlab/-/issues/325788
       def project_attachment_size(user_project)
         return PROJECT_ATTACHMENT_SIZE_EXEMPT if exempt_from_global_attachment_size?(user_project)
-        return user_project.max_attachment_size if Feature.enabled?(:enforce_max_attachment_size_upload_api, user_project)
 
-        PROJECT_ATTACHMENT_SIZE_EXEMPT
+        user_project.max_attachment_size
       end
 
       # This is to help determine which projects to use in https://gitlab.com/gitlab-org/gitlab/-/issues/325788
@@ -96,8 +110,6 @@ module API
       end
 
       def validate_projects_api_rate_limit_for_unauthenticated_users!
-        return unless Feature.enabled?(:rate_limit_for_unauthenticated_projects_api_access)
-
         check_rate_limit!(:projects_api_rate_limit_unauthenticated, scope: [ip_address]) if current_user.blank?
       end
     end
@@ -145,6 +157,8 @@ module API
         optional :repository_storage, type: String, desc: 'Which storage shard the repository is on. Available only to admins'
         optional :topic, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'Comma-separated list of topics. Limit results to projects having all topics'
         optional :topic_id, type: Integer, desc: 'Limit results to projects with the assigned topic given by the topic ID'
+        optional :updated_before, type: DateTime, desc: 'Return projects updated before the specified datetime. Format: ISO 8601 YYYY-MM-DDTHH:MM:SSZ'
+        optional :updated_after, type: DateTime, desc: 'Return projects updated after the specified datetime. Format: ISO 8601 YYYY-MM-DDTHH:MM:SSZ'
 
         use :optional_filter_params_ee
       end
@@ -206,6 +220,8 @@ module API
 
       def translate_params_for_compatibility(params)
         params[:builds_enabled] = params.delete(:jobs_enabled) if params.key?(:jobs_enabled)
+        params[:emails_enabled] = !params.delete(:emails_disabled) if params.key?(:emails_disabled)
+
         params
       end
 
@@ -228,13 +244,35 @@ module API
         use :statistics_params
         use :with_custom_attributes
       end
-      get ":user_id/projects", feature_category: :projects, urgency: :low do
+      get ":user_id/projects", feature_category: :groups_and_projects, urgency: :low do
         user = find_user(params[:user_id])
         not_found!('User') unless user
 
         params[:user] = user
 
         present_projects load_projects
+      end
+
+      desc 'Get projects that a user has contributed to' do
+        success code: 200, model: Entities::BasicProjectDetails
+        failure [{ code: 404, message: '404 User Not Found' }]
+        tags %w[projects]
+        is_array true
+      end
+      params do
+        requires :user_id, type: String, desc: 'The ID or username of the user'
+        use :sort_params
+        use :pagination
+
+        optional :simple, type: Boolean, default: false,
+                          desc: 'Return only the ID, URL, name, and path of each project'
+      end
+      get ":user_id/contributed_projects", feature_category: :groups_and_projects, urgency: :low do
+        user = find_user(params[:user_id])
+        not_found!('User') unless user
+
+        contributed_projects = ContributedProjectsFinder.new(user).execute(current_user).joined(user)
+        present_projects contributed_projects
       end
 
       desc 'Get projects starred by a user' do
@@ -248,7 +286,7 @@ module API
         use :collection_params
         use :statistics_params
       end
-      get ":user_id/starred_projects", feature_category: :projects, urgency: :low do
+      get ":user_id/starred_projects", feature_category: :groups_and_projects, urgency: :low do
         user = find_user(params[:user_id])
         not_found!('User') unless user
 
@@ -262,6 +300,9 @@ module API
 
       desc 'Get a list of visible projects for authenticated user' do
         success code: 200, model: Entities::BasicProjectDetails
+        failure [
+          { code: 400, message: 'Bad request' }
+        ]
         tags %w[projects]
         is_array true
       end
@@ -271,8 +312,9 @@ module API
         use :with_custom_attributes
       end
       # TODO: Set higher urgency https://gitlab.com/gitlab-org/gitlab/-/issues/211495
-      get feature_category: :projects, urgency: :low do
+      get feature_category: :groups_and_projects, urgency: :low do
         validate_projects_api_rate_limit_for_unauthenticated_users!
+        validate_updated_at_order_and_filter!
 
         present_projects load_projects
       end
@@ -339,7 +381,7 @@ module API
         use :create_params
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post "user/:user_id", feature_category: :projects do
+      post "user/:user_id", feature_category: :groups_and_projects do
         Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/issues/21139')
         authenticated_as_admin!
         user = User.find_by(id: params.delete(:user_id))
@@ -396,7 +438,7 @@ module API
                            desc: 'Include project license data'
       end
       # TODO: Set higher urgency https://gitlab.com/gitlab-org/gitlab/-/issues/357622
-      get ":id", feature_category: :projects, urgency: :low do
+      get ":id", feature_category: :groups_and_projects, urgency: :low do
         options = {
           with: current_user ? Entities::ProjectWithAccess : Entities::BasicProjectDetails,
           current_user: current_user,
@@ -507,7 +549,7 @@ module API
 
         at_least_one_of(*Helpers::ProjectsHelpers.update_params_at_least_one_of)
       end
-      put ':id', feature_category: :projects do
+      put ':id', feature_category: :groups_and_projects do
         authorize_admin_project
         attrs = declared_params(include_missing: false)
         authorize! :rename_project, user_project if attrs[:name].present?
@@ -516,7 +558,6 @@ module API
         attrs = translate_params_for_compatibility(attrs)
         attrs = add_import_params(attrs)
         filter_attributes_using_license!(attrs)
-        filter_attributes_under_feature_flag!(attrs, user_project)
         verify_update_project_attrs!(user_project, attrs)
 
         user_project.remove_avatar! if attrs.key?(:avatar) && attrs[:avatar].nil?
@@ -539,7 +580,7 @@ module API
         ]
         tags %w[projects]
       end
-      post ':id/archive', feature_category: :projects do
+      post ':id/archive', feature_category: :groups_and_projects do
         authorize!(:archive_project, user_project)
 
         ::Projects::UpdateService.new(user_project, current_user, archived: true).execute
@@ -554,7 +595,7 @@ module API
         ]
         tags %w[projects]
       end
-      post ':id/unarchive', feature_category: :projects, urgency: :default do
+      post ':id/unarchive', feature_category: :groups_and_projects, urgency: :default do
         authorize!(:archive_project, user_project)
 
         ::Projects::UpdateService.new(user_project, current_user, archived: false).execute
@@ -570,7 +611,7 @@ module API
         ]
         tags %w[projects]
       end
-      post ':id/star', feature_category: :projects do
+      post ':id/star', feature_category: :groups_and_projects do
         if current_user.starred?(user_project)
           not_modified!
         else
@@ -589,7 +630,7 @@ module API
         ]
         tags %w[projects]
       end
-      post ':id/unstar', feature_category: :projects do
+      post ':id/unstar', feature_category: :groups_and_projects do
         if current_user.starred?(user_project)
           current_user.toggle_star(user_project)
           user_project.reset
@@ -613,7 +654,7 @@ module API
         optional :search, type: String, desc: 'Return list of users matching the search criteria', documentation: { example: 'user' }
         use :pagination
       end
-      get ':id/starrers', feature_category: :projects do
+      get ':id/starrers', feature_category: :groups_and_projects do
         starrers = UsersStarProjectsFinder.new(user_project, params, current_user: current_user).execute
 
         present paginate(starrers), with: Entities::UserStarsProject
@@ -641,7 +682,7 @@ module API
         ]
         tags %w[projects]
       end
-      delete ":id", feature_category: :projects do
+      delete ":id", feature_category: :groups_and_projects do
         authorize! :remove_project, user_project
 
         delete_project(user_project)
@@ -650,6 +691,7 @@ module API
       desc 'Mark this project as forked from another' do
         success code: 201, model: Entities::Project
         failure [
+          { code: 401, message: 'Unauthorized' },
           { code: 403, message: 'Unauthenticated' },
           { code: 404, message: 'Not found' }
         ]
@@ -659,7 +701,7 @@ module API
         requires :forked_from_id, type: String, desc: 'The ID of the project it was forked from', documentation: { example: 'gitlab' }
       end
       post ":id/fork/:forked_from_id", feature_category: :source_code_management do
-        authorize! :admin_project, user_project
+        authorize! :link_forked_project, user_project
 
         fork_from_project = find_project!(params[:forked_from_id])
 
@@ -667,7 +709,11 @@ module API
 
         authorize! :fork_project, fork_from_project
 
-        result = ::Projects::ForkService.new(fork_from_project, current_user).execute(user_project)
+        service = ::Projects::ForkService.new(fork_from_project, current_user)
+
+        unauthorized!('Target Namespace') unless service.valid_fork_target?(user_project.namespace)
+
+        result = service.execute(user_project)
 
         if result
           present_project user_project.reset, with: Entities::Project, current_user: current_user
@@ -709,7 +755,7 @@ module API
         requires :group_access, type: Integer, values: Gitlab::Access.values, as: :link_group_access, desc: 'The group access level'
         optional :expires_at, type: Date, desc: 'Share expiration date'
       end
-      post ":id/share", feature_category: :authentication_and_authorization do
+      post ":id/share", feature_category: :groups_and_projects do
         authorize! :admin_project, user_project
         shared_with_group = Group.find_by_id(params[:group_id])
 
@@ -739,7 +785,7 @@ module API
         requires :group_id, type: Integer, desc: 'The ID of the group'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete ":id/share/:group_id", feature_category: :authentication_and_authorization do
+      delete ":id/share/:group_id", feature_category: :groups_and_projects do
         authorize! :admin_project, user_project
 
         link = user_project.project_group_links.find_by(group_id: params[:group_id])
@@ -753,17 +799,19 @@ module API
 
       desc 'Import members from another project' do
         detail 'This feature was introduced in GitLab 14.2'
-        success code: 201
+        success code: 200
         failure [
           { code: 403, message: 'Unauthenticated' },
-          { code: 404, message: 'Not found' }
+          { code: 403, message: 'Forbidden - Project' },
+          { code: 404, message: 'Project Not Found' },
+          { code: 422, message: 'Import failed' }
         ]
         tags %w[projects]
       end
       params do
         requires :project_id, type: Integer, desc: 'The ID of the source project to import the members from.'
       end
-      post ":id/import_project_members/:project_id", feature_category: :projects do
+      post ":id/import_project_members/:project_id", feature_category: :groups_and_projects do
         ::Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/355916')
         authorize! :admin_project, user_project
 
@@ -773,10 +821,12 @@ module API
 
         result = ::Members::ImportProjectTeamService.new(current_user, params).execute
 
-        if result
-          { status: result, message: 'Successfully imported' }
+        if result.success?
+          { status: result.status }
+        elsif result.reason == :unprocessable_entity
+          render_api_error!(result.message, result.reason)
         else
-          render_api_error!('Import failed', :unprocessable_entity)
+          { status: result.status, message: result.message, total_members_count: result.payload[:total_members_count] }
         end
       end
 
@@ -830,7 +880,7 @@ module API
         optional :skip_users, type: Array[Integer], coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce, desc: 'Filter out users with the specified IDs'
         use :pagination
       end
-      get ':id/users', urgency: :low, feature_category: :authentication_and_authorization do
+      get ':id/users', urgency: :low, feature_category: :system_access do
         users = DeclarativePolicy.subject_scope { user_project.team.users }
         users = users.search(params[:search]) if params[:search].present?
         users = users.where_not_in(params[:skip_users]) if params[:skip_users].present?
@@ -927,7 +977,7 @@ module API
       params do
         requires :namespace, type: String, desc: 'The ID or path of the new namespace', documentation: { example: 'gitlab' }
       end
-      put ":id/transfer", feature_category: :projects do
+      put ":id/transfer", feature_category: :groups_and_projects do
         authorize! :change_namespace, user_project
 
         namespace = find_namespace!(params[:namespace])
@@ -952,13 +1002,13 @@ module API
         optional :search, type: String, desc: 'Return list of namespaces matching the search criteria', documentation: { example: 'search' }
         use :pagination
       end
-      get ":id/transfer_locations", feature_category: :projects do
+      get ":id/transfer_locations", feature_category: :groups_and_projects do
         authorize! :change_namespace, user_project
         args = declared_params(include_missing: false)
         args[:permission_scope] = :transfer_projects
 
         groups = ::Groups::UserGroupsFinder.new(current_user, current_user, args).execute
-        groups = groups.with_route
+        groups = groups.excluding_groups(user_project.group).with_route
 
         present_groups(groups)
       end

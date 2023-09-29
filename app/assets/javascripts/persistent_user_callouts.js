@@ -11,7 +11,7 @@ const PERSISTENT_USER_CALLOUTS = [
   '.js-eoa-bronze-plan-banner',
   '.js-security-newsletter-callout',
   '.js-approaching-seat-count-threshold',
-  '.js-storage-enforcement-banner',
+  '.js-storage-pre-enforcement-alert',
   '.js-user-over-limit-free-plan-alert',
   '.js-minute-limit-banner',
   '.js-submit-license-usage-data-banner',
@@ -19,9 +19,12 @@ const PERSISTENT_USER_CALLOUTS = [
   '.js-namespace-storage-alert',
   '.js-web-hook-disabled-callout',
   '.js-merge-request-settings-callout',
-  '.js-ultimate-feature-removal-banner',
   '.js-geo-enable-hashed-storage-callout',
   '.js-geo-migrate-hashed-storage-callout',
+  '.js-unlimited-members-during-trial-alert',
+  '.js-branch-rules-info-callout',
+  '.js-new-navigation-callout',
+  '.js-namespace-over-storage-users-combined-alert',
 ];
 
 const initCallouts = () => {

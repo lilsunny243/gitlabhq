@@ -134,18 +134,6 @@ describe('formatTimeAsSummary', () => {
   });
 });
 
-describe('durationTimeFormatted', () => {
-  it.each`
-    duration | expectedOutput
-    ${87}    | ${'00:01:27'}
-    ${141}   | ${'00:02:21'}
-    ${12}    | ${'00:00:12'}
-    ${60}    | ${'00:01:00'}
-  `('returns $expectedOutput when provided $duration', ({ duration, expectedOutput }) => {
-    expect(utils.durationTimeFormatted(duration)).toBe(expectedOutput);
-  });
-});
-
 describe('formatUtcOffset', () => {
   it.each`
     offset       | expected
@@ -163,4 +151,19 @@ describe('formatUtcOffset', () => {
   `('returns $expected given $offset', ({ offset, expected }) => {
     expect(utils.formatUtcOffset(offset)).toEqual(expected);
   });
+});
+
+describe('humanTimeframe', () => {
+  it.each`
+    startDate     | dueDate        | returnValue
+    ${'2021-1-1'} | ${'2021-2-28'} | ${'Jan 1 – Feb 28, 2021'}
+    ${'2021-1-1'} | ${'2022-2-28'} | ${'Jan 1, 2021 – Feb 28, 2022'}
+    ${'2021-1-1'} | ${null}        | ${'Jan 1, 2021 – No due date'}
+    ${null}       | ${'2021-2-28'} | ${'No start date – Feb 28, 2021'}
+  `(
+    'returns string "$returnValue" when startDate is $startDate and dueDate is $dueDate',
+    ({ startDate, dueDate, returnValue }) => {
+      expect(utils.humanTimeframe(startDate, dueDate)).toBe(returnValue);
+    },
+  );
 });

@@ -33,6 +33,12 @@ module Types
     field :external_url, GraphQL::Types::String, null: true,
                                                  description: 'External URL of the environment.'
 
+    field :kubernetes_namespace, GraphQL::Types::String, null: true,
+                                                 description: 'Kubernetes namespace of the environment.'
+
+    field :flux_resource_path, GraphQL::Types::String, null: true,
+                                                 description: 'Flux resource path of the environment.'
+
     field :created_at, Types::TimeType,
       description: 'When the environment was created.'
 
@@ -50,10 +56,6 @@ module Types
 
     field :environment_type, GraphQL::Types::String,
       description: 'Folder name of the environment.'
-
-    field :metrics_dashboard, Types::Metrics::DashboardType, null: true,
-                                                             description: 'Metrics dashboard schema for the environment.',
-                                                             resolver: Resolvers::Metrics::DashboardResolver
 
     field :latest_opened_most_severe_alert,
           Types::AlertManagement::AlertType,
@@ -77,6 +79,13 @@ module Types
           [Types::Ci::FreezePeriodType],
           null: true,
           description: 'Deployment freeze periods of the environment.'
+
+    field :cluster_agent,
+          Types::Clusters::AgentType,
+          description: 'Cluster agent of the environment.',
+          null: true do
+            extension ::Gitlab::Graphql::Limit::FieldCallCount, limit: 1
+          end
 
     def tier
       object.tier.to_sym

@@ -4,10 +4,11 @@ group: Pipeline Security
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Configure OpenID Connect with GCP Workload Identity Federation **(FREE)**
+# Configure OpenID Connect with GCP Workload Identity Federation **(FREE ALL)**
 
 WARNING:
-The `CI_JOB_JWT_V2` variable is under development [(alpha)](../../../policy/alpha-beta-support.md#alpha-features) and is not yet suitable for production use.
+`CI_JOB_JWT_V2` was [deprecated in GitLab 15.9](../../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated)
+and is scheduled to be removed in GitLab 17.0. Use [ID tokens](../../yaml/index.md#id_tokens) instead.
 
 This tutorial demonstrates authenticating to Google Cloud from a GitLab CI/CD job
 using a JSON Web Token (JWT) token and Workload Identity Federation. This configuration
@@ -30,7 +31,7 @@ To complete this tutorial:
 
 ## Create the Google Cloud Workload Identity Pool
 
-[Create a new Google Cloud Workload Identity Pool](https://cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds#oidc) with the following options:
+[Create a new Google Cloud Workload Identity Pool](https://cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds#create_the_workload_identity_pool_and_provider) with the following options:
 
 - **Name**: Human-friendly name for the Workload Identity Pool, such as `GitLab`.
 - **Pool ID**: Unique ID in the Google Cloud project for the Workload Identity Pool,
@@ -80,7 +81,7 @@ However, you have no permissions on Google Cloud (_authorization_).
 
 To grant your GitLab CI/CD job permissions on Google Cloud, you must:
 
-1. [Create a Google Cloud Service Account](https://www.google.com/search?q=google+cloud+create+service+account).
+1. [Create a Google Cloud Service Account](https://cloud.google.com/iam/docs/service-accounts-create).
    You can use whatever name and ID you prefer.
 1. [Grant IAM permissions](https://cloud.google.com/iam/docs/granting-changing-revoking-access) to your
    service account on Google Cloud resources. These permissions vary significantly based on
@@ -113,6 +114,17 @@ the assertion in the previous section.
 After you configure the OIDC and role, the GitLab CI/CD job can retrieve a temporary credential from the
 [Google Cloud Security Token Service (STS)](https://cloud.google.com/iam/docs/reference/sts/rest).
 
+Add `id_tokens` to your CI/CD job:
+
+```yaml
+job:
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.example.com
+```
+
+Get temporary credentials using the ID token:
+
 ```shell
 PAYLOAD="$(cat <<EOF
 {
@@ -121,7 +133,7 @@ PAYLOAD="$(cat <<EOF
   "requestedTokenType": "urn:ietf:params:oauth:token-type:access_token",
   "scope": "https://www.googleapis.com/auth/cloud-platform",
   "subjectTokenType": "urn:ietf:params:oauth:token-type:jwt",
-  "subjectToken": "${CI_JOB_JWT_V2}"
+  "subjectToken": "${GITLAB_OIDC_TOKEN}"
 }
 EOF
 )"
@@ -141,8 +153,7 @@ Where:
 - `PROJECT_NUMBER` is your Google Cloud project number (not name).
 - `POOL_ID` is the ID of the Workload Identity Pool created in the first section.
 - `PROVIDER_ID` is the ID of the Workload Identity Provider created in the second section.
-- `CI_JOB_JWT_V2` is injected into the CI/CD job by GitLab. For more information about
-  this variable, read [Connect to cloud services](../index.md).
+- `GITLAB_OIDC_TOKEN` is an OIDC [ID token](../../yaml/index.md#id_tokens).
 
 You can then use the resulting federated token to impersonate the service account created
 in the previous section:

@@ -44,7 +44,7 @@ RSpec.describe 'User comments on a diff', :js, feature_category: :code_review_wo
       end
 
       context 'in multiple files' do
-        it 'toggles comments' do
+        it 'toggles comments', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/393518' do
           first_line_element = find_by_scrolling("[id='#{sample_compare.changes[0][:line_code]}']").find(:xpath, "..")
           first_root_element = first_line_element.ancestor('[data-path]')
           click_diff_line(first_line_element)
@@ -128,6 +128,29 @@ RSpec.describe 'User comments on a diff', :js, feature_category: :code_review_wo
 
   context 'when adding comments' do
     include_examples 'comment on merge request file'
+
+    context 'when adding a diff suggestion in rich text editor' do
+      it 'works on the Overview tab' do
+        click_diff_line(find_by_scrolling("[id='#{sample_commit.line_code}']"))
+
+        page.within('.js-discussion-note-form') do
+          fill_in(:note_note, with: "```suggestion:-0+0\nchanged line\n```")
+          find('.js-comment-button').click
+        end
+
+        visit(merge_request_path(merge_request))
+
+        page.within('.notes .discussion') do
+          find('.js-vue-discussion-reply').click
+          click_button "Switch to rich text editing"
+          click_button "Insert suggestion"
+        end
+
+        within '[data-testid="content-editor"]' do
+          expect(page).to have_content('Suggested change From line')
+        end
+      end
+    end
   end
 
   context 'when adding multiline comments' do
@@ -248,7 +271,7 @@ RSpec.describe 'User comments on a diff', :js, feature_category: :code_review_wo
 
       page.within('.diff-file:nth-of-type(1) .discussion .note') do
         find('.more-actions').click
-        find('.more-actions .dropdown-menu li', match: :first)
+        find('.more-actions li', match: :first)
         find('.js-note-delete').click
       end
 

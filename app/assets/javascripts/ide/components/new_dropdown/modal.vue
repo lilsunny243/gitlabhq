@@ -1,7 +1,9 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlModal, GlButton } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState, mapGetters } from 'vuex';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, sprintf } from '~/locale';
 import { modalTypes } from '../../constants';
 import { trimPathComponents, getPathParent } from '../../utils';
@@ -30,7 +32,8 @@ export default {
 
       if (this.modalType === modalTypes.tree) {
         return __('Create new directory');
-      } else if (this.modalType === modalTypes.rename) {
+      }
+      if (this.modalType === modalTypes.rename) {
         return entry.type === modalTypes.tree ? __('Rename folder') : __('Rename file');
       }
 
@@ -41,7 +44,8 @@ export default {
 
       if (this.modalType === modalTypes.tree) {
         return __('Create directory');
-      } else if (this.modalType === modalTypes.rename) {
+      }
+      if (this.modalType === modalTypes.rename) {
         return entry.type === modalTypes.tree ? __('Rename folder') : __('Rename file');
       }
 
@@ -50,13 +54,13 @@ export default {
     actionPrimary() {
       return {
         text: this.buttonLabel,
-        attributes: [{ variant: 'confirm' }],
+        attributes: { variant: 'confirm' },
       };
     },
     actionCancel() {
       return {
         text: i18n.cancelButtonText,
-        attributes: [{ variant: 'default' }],
+        attributes: { variant: 'default' },
       };
     },
     isCreatingNewFile() {

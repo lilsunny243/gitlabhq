@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import {
   GlBadge,
@@ -10,7 +11,7 @@ import {
 import { __, s__ } from '~/locale';
 import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import deploymentDetails from '../graphql/queries/deployment_details.query.graphql';
 import DeploymentStatusBadge from './deployment_status_badge.vue';
 import Commit from './commit.vue';
@@ -208,7 +209,7 @@ export default {
           </div>
           <time-ago-tooltip v-if="createdAt" :time="createdAt" class="gl-display-flex">
             <template #default="{ timeAgo }">
-              <gl-icon name="calendar" />
+              <gl-icon name="calendar" class="gl-mr-2" />
               <span class="gl-mr-2 gl-white-space-nowrap">{{ timeAgo }}</span>
             </template>
           </time-ago-tooltip>

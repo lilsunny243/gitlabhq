@@ -1,5 +1,6 @@
 import { GlIcon } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { trimText } from 'helpers/text_helper';
@@ -59,8 +60,6 @@ describe('FrequentItemsListItemComponent', () => {
 
   afterEach(() => {
     unmockTracking();
-    wrapper.destroy();
-    wrapper = null;
   });
 
   describe('computed', () => {

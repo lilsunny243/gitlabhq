@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Item from '~/ide/components/merge_requests/item.vue';
 import { createRouter } from '~/ide/ide_router';
@@ -37,11 +38,6 @@ describe('IDE merge request item', () => {
   beforeEach(() => {
     store = createStore();
     router = createRouter(store);
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   describe('default', () => {

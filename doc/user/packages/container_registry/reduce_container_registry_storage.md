@@ -4,7 +4,7 @@ group: Container Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Reduce Container Registry storage **(FREE)**
+# Reduce Container Registry storage **(FREE ALL)**
 
 Container registries can grow in size over time if you don't manage your registry usage. For example,
 if you add a large number of images or tags:
@@ -18,30 +18,10 @@ to automatically manage your container registry usage.
 ## Check Container Registry storage use
 
 The Usage Quotas page (**Settings > Usage Quotas > Storage**) displays storage usage for Packages.
-This page includes the Container Registry usage, which is only available on GitLab.com.
+This page includes the [Container Registry usage](../../usage_quotas.md#container-registry-usage), which is only available on GitLab.com.
 Measuring usage is only possible on the new version of the GitLab Container Registry backed by a
-metadata database. Support for improvements is proposed in epic [5523](https://gitlab.com/groups/gitlab-org/-/epics/5523).
-You cannot use the Container Registry in self-managed instances, but epic [5521](https://gitlab.com/groups/gitlab-org/-/epics/5521) proposes to change this behavior.
-
-Image layers stored in the Container Registry are deduplicated at the root namespace level.
-
-An image is only counted once if:
-
-- You tag the same image more than once in the same repository.
-- You tag the same image across distinct repositories under the same root namespace.
-
-An image layer is only counted once if:
-
-- You share the image layer across multiple images in the same container repository, project, or group.
-- You share the image layer across different repositories.
-
-Only layers that are referenced by tagged images are accounted for. Untagged images and any layers
-referenced exclusively by them are subject to [online garbage collection](delete_container_registry_images.md).
-Untagged images are automatically deleted after 24 hours if they remain unreferenced during that period.
-
-Image layers are stored on the storage backend in the original (usually compressed) format. This
-means that the measured size for any given image layer should match the size displayed on the
-corresponding [image manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#example-image-manifest).
+metadata database, which is [available on GitLab.com](https://gitlab.com/groups/gitlab-org/-/epics/5523) since GitLab 15.7.
+For information on the planned availability for self-managed instances, see [epic 5521](https://gitlab.com/groups/gitlab-org/-/epics/5521).
 
 ## Cleanup policy
 
@@ -112,6 +92,43 @@ to work with all third-party registries in the same predictable way. If you use 
 Registry, this workaround is not required because we implemented a special tag delete operation. In
 this case, you can expect cleanup policies to be consistent and predictable.
 
+#### Example cleanup policy workflow
+
+The interaction between the keep and remove rules for the cleanup policy can be complex.
+For example, with a project with this cleanup policy configuration:
+
+- **Keep the most recent**: 1 tag per image name.
+- **Keep tags matching**: `production-.*`
+- **Remove tags older than**: 7 days.
+- **Remove tags matching**: `.*`.
+
+And a container repository with these tags:
+
+- `latest`, published 2 hours ago.
+- `production-v44`, published 3 days ago.
+- `production-v43`, published 6 days ago.
+- `production-v42`, published 11 days ago.
+- `dev-v44`, published 2 days ago.
+- `dev-v43`, published 5 day ago.
+- `dev-v42`, published 10 days ago.
+- `v44`, published yesterday.
+- `v43`, published 12 days ago.
+- `v42`, published 20 days ago.
+
+In this example, the tags that would be deleted in the next cleanup run are `dev-v42`, `v43`, and `v42`.
+You can interpret the rules as applying with this precedence:
+
+1. The keep rules have highest precedence. Tags must be kept when they match **any** rule.
+   - The `latest` tag must be kept, because `latest` tags are always kept.
+   - The `production-v44`, `production-v43`, and `production-v42` tags must be kept,
+     because they match the **Keep tags matching** rule.
+   - The `v44` tag must be kept because it's the most recent, matching the **Keep the most recent** rule.
+1. The remove rules have lower precedence, and tags are only deleted if **all** rules match.
+   For the tags not matching any keep rules (`dev-44`, `dev-v43`, `dev-v42`, `v43`, and `v42`):
+   - `dev-44` and `dev-43` do **not** match the **Remove tags older than**, and are kept.
+   - `dev-v42`, `v43`, and `v42` match both **Remove tags older than** and **Remove tags matching**
+     rules, so these three tags can be deleted.
+
 ### Create a cleanup policy
 
 You can create a cleanup policy in [the API](#use-the-cleanup-policy-api) or the UI.
@@ -119,8 +136,8 @@ You can create a cleanup policy in [the API](#use-the-cleanup-policy-api) or the
 To create a cleanup policy in the UI:
 
 1. For your project, go to **Settings > Packages and registries**.
-1. Expand the **Clean up image tags** section.
-1. Complete the fields.
+1. In the **Cleanup policies** section, select **Set cleanup rules**.
+1. Complete the fields:
 
    | Field                      | Description                                     |
    |----------------------------|-------------------------------------------------|
@@ -212,8 +229,10 @@ For self-managed instances, those settings can be updated in the [Rails console]
 
 They are also available in the [administrator area](../../admin_area/index.md):
 
-1. On the top bar, select **Main menu > Admin**.
-1. Go to **Settings > CI/CD > Container Registry**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. On the left sidebar, select **Settings > CI/CD**
+1. Expand **Container Registry**.
 
 ### Use the cleanup policy API
 
@@ -281,7 +300,7 @@ Here are some other options you can use to reduce the Container Registry storage
 
 If you see this error message, check the regex patterns to ensure they are valid.
 
-GitLab uses [RE2 syntax](https://github.com/google/re2/wiki/Syntax) for regular expressions in the cleanup policy. You can test them with the [regex101 regex tester](https://regex101.com/).
+GitLab uses [RE2 syntax](https://github.com/google/re2/wiki/Syntax) for regular expressions in the cleanup policy. You can test them with the [regex101 regex tester](https://regex101.com/) using the `Golang` flavor.
 View some common [regex pattern examples](#regex-pattern-examples).
 
 ### The cleanup policy doesn't delete any tags

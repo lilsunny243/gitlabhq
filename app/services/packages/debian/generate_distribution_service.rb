@@ -12,7 +12,7 @@ module Packages
       DEFAULT_LEASE_TIMEOUT = 1.hour.to_i.freeze
 
       # From https://salsa.debian.org/ftp-team/dak/-/blob/991aaa27a7f7aa773bb9c0cf2d516e383d9cffa0/setup/core-init.d/080_metadatakeys#L9
-      METADATA_KEYS = %w(
+      METADATA_KEYS = %w[
         Package
         Source
         Binary
@@ -60,7 +60,7 @@ module Packages
         Tag
         Package-Type
         Installer-Menu-Item
-      ).freeze
+      ].freeze
 
       def initialize(distribution)
         @distribution = distribution
@@ -163,26 +163,38 @@ module Packages
       end
 
       def reuse_or_create_component_file(component, component_file_type, architecture, content)
-        file_md5 = Digest::MD5.hexdigest(content)
         file_sha256 = Digest::SHA256.hexdigest(content)
-        component_file = component.files
-                                  .with_file_type(component_file_type)
-                                  .with_architecture(architecture)
-                                  .with_compression_type(nil)
-                                  .with_file_sha256(file_sha256)
-                                  .last
+        component_files = component.files
+                                   .with_file_type(component_file_type)
+                                   .with_architecture(architecture)
+                                   .with_compression_type(nil)
+                                   .order_updated_asc
+        component_file = component_files.with_file_sha256(file_sha256).last
+        last_component_file = component_files.last
 
-        if component_file
+        if content.empty? && (!last_component_file || last_component_file.file_sha256 == file_sha256)
+          # Do not create empty component file for empty content
+          # when there is no last component file or when the last component file is empty too
+          component_file = last_component_file || component.files.build(
+            updated_at: release_date,
+            file_type: component_file_type,
+            architecture: architecture,
+            compression_type: nil,
+            size: 0
+          )
+        elsif component_file
+          # Reuse existing component file
           component_file.touch(time: release_date)
         else
+          # Create a new component file
           component_file = component.files.create!(
             updated_at: release_date,
             file_type: component_file_type,
             architecture: architecture,
             compression_type: nil,
             file: CarrierWaveStringFile.new(content),
-            file_md5: file_md5,
-            file_sha256: file_sha256
+            file_sha256: file_sha256,
+            size: content.bytesize
           )
         end
 
@@ -201,10 +213,9 @@ module Packages
       end
 
       def release_content
-        strong_memoize(:release_content) do
-          release_header + release_sums
-        end
+        release_header + release_sums
       end
+      strong_memoize_attr :release_content
 
       def release_header
         [
@@ -223,10 +234,9 @@ module Packages
       end
 
       def release_date
-        strong_memoize(:release_date) do
-          Time.now.utc
-        end
+        Time.now.utc
       end
+      strong_memoize_attr :release_date
 
       def release_sums
         # NB: MD5Sum was removed for FIPS compliance
@@ -255,7 +265,7 @@ module Packages
 
       # used by ExclusiveLeaseGuard
       def lease_key
-        "packages:debian:generate_distribution_service:distribution:#{@distribution.id}"
+        "packages:debian:generate_distribution_service:#{@distribution.class.container_type}_distribution:#{@distribution.id}"
       end
 
       # used by ExclusiveLeaseGuard

@@ -184,6 +184,10 @@ module Gitlab
           options['lowercase_usernames']
         end
 
+        def sync_name
+          options['sync_name']
+        end
+
         def name_proc
           if allow_username_or_email_login
             proc { |name| name.gsub(/@.*\z/, '') }
@@ -194,8 +198,8 @@ module Gitlab
 
         def default_attributes
           {
-            'username' => %W(#{uid} uid sAMAccountName userid).uniq,
-            'email' => %w(mail email userPrincipalName),
+            'username' => %W[#{uid} uid sAMAccountName userid].uniq,
+            'email' => %w[mail email userPrincipalName],
             'name' => 'cn',
             'first_name' => 'givenName',
             'last_name' => 'sn'
@@ -260,7 +264,7 @@ module Gitlab
           return {} unless options['tls_options']
 
           # Dup so we don't overwrite the original value
-          custom_options = options['tls_options'].dup.delete_if { |_, value| value.nil? || value.blank? }
+          custom_options = options['tls_options'].to_hash.delete_if { |_, value| value.nil? || value.blank? }
           custom_options.symbolize_keys!
 
           if custom_options[:cert]

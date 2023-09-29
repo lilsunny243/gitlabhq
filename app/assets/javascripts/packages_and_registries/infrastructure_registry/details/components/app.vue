@@ -9,6 +9,7 @@ import {
   GlTabs,
   GlSprintf,
 } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import { numberToHumanSize } from '~/lib/utils/number_utils';
 import { objectToQuery } from '~/lib/utils/url_utility';
@@ -122,15 +123,15 @@ export default {
   modal: {
     packageDeletePrimaryAction: {
       text: __('Delete'),
-      attributes: [
-        { variant: 'danger' },
-        { category: 'primary' },
-        { 'data-qa-selector': 'delete_modal_button' },
-      ],
+      attributes: {
+        variant: 'danger',
+        category: 'primary',
+        'data-qa-selector': 'delete_modal_button',
+      },
     },
     fileDeletePrimaryAction: {
       text: __('Delete'),
-      attributes: [{ variant: 'danger' }, { category: 'primary' }],
+      attributes: { variant: 'danger', category: 'primary' },
     },
     cancelAction: {
       text: __('Cancel'),

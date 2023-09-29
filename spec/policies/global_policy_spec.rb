@@ -10,6 +10,8 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
   let_it_be(:service_account) { create(:user, :service_account) }
   let_it_be(:migration_bot) { create(:user, :migration_bot) }
   let_it_be(:security_bot) { create(:user, :security_bot) }
+  let_it_be(:security_policy_bot) { create(:user, :security_policy_bot) }
+  let_it_be(:llm_bot) { create(:user, :llm_bot) }
   let_it_be_with_reload(:current_user) { create(:user) }
   let_it_be(:user) { create(:user) }
 
@@ -238,6 +240,12 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
       it { is_expected.to be_disallowed(:access_api) }
     end
 
+    context 'llm bot' do
+      let(:current_user) { llm_bot }
+
+      it { is_expected.to be_disallowed(:access_api) }
+    end
+
     context 'user blocked pending approval' do
       before do
         current_user.block_pending_approval
@@ -292,6 +300,7 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
 
     context 'inactive user' do
       before do
+        stub_application_setting_enum('email_confirmation_setting', 'soft')
         current_user.update!(confirmed_at: nil, confirmation_sent_at: 5.days.ago)
       end
 
@@ -402,6 +411,12 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
       it { is_expected.to be_allowed(:access_git) }
     end
 
+    context 'security policy bot' do
+      let(:current_user) { security_policy_bot }
+
+      it { is_expected.to be_allowed(:access_git) }
+    end
+
     describe 'deactivated user' do
       before do
         current_user.deactivate
@@ -412,6 +427,7 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
 
     describe 'inactive user' do
       before do
+        stub_application_setting_enum('email_confirmation_setting', 'soft')
         current_user.update!(confirmed_at: nil)
       end
 
@@ -493,7 +509,7 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
     end
 
     context 'when internal' do
-      let(:current_user) { User.ghost }
+      let(:current_user) { Users::Internal.ghost }
 
       it { is_expected.to be_disallowed(:use_slash_commands) }
     end
@@ -516,6 +532,7 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
 
     describe 'inactive user' do
       before do
+        stub_application_setting_enum('email_confirmation_setting', 'soft')
         current_user.update!(confirmed_at: nil)
       end
 
@@ -614,6 +631,12 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
       it { is_expected.to be_disallowed(:log_in) }
     end
 
+    context 'llm bot' do
+      let(:current_user) { llm_bot }
+
+      it { is_expected.to be_disallowed(:log_in) }
+    end
+
     context 'user blocked pending approval' do
       before do
         current_user.block_pending_approval
@@ -623,101 +646,67 @@ RSpec.describe GlobalPolicy, feature_category: :shared do
     end
   end
 
-  describe 'create_instance_runners' do
-    context 'create_runner_workflow flag enabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: true)
+  describe 'create_instance_runner' do
+    context 'admin' do
+      let(:current_user) { admin_user }
+
+      context 'when admin mode is enabled', :enable_admin_mode do
+        it { is_expected.to be_allowed(:create_instance_runner) }
       end
 
-      context 'admin' do
-        let(:current_user) { admin_user }
-
-        context 'when admin mode is enabled', :enable_admin_mode do
-          it { is_expected.to be_allowed(:create_instance_runners) }
-        end
-
-        context 'when admin mode is disabled' do
-          it { is_expected.to be_disallowed(:create_instance_runners) }
-        end
-      end
-
-      context 'with project_bot' do
-        let(:current_user) { project_bot }
-
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
-
-      context 'with migration_bot' do
-        let(:current_user) { migration_bot }
-
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
-
-      context 'with security_bot' do
-        let(:current_user) { security_bot }
-
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
-
-      context 'with regular user' do
-        let(:current_user) { user }
-
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
-
-      context 'with anonymous' do
-        let(:current_user) { nil }
-
-        it { is_expected.to be_disallowed(:create_instance_runners) }
+      context 'when admin mode is disabled' do
+        it { is_expected.to be_disallowed(:create_instance_runner) }
       end
     end
 
-    context 'create_runner_workflow flag disabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: false)
-      end
+    context 'with project_bot' do
+      let(:current_user) { project_bot }
 
-      context 'admin' do
-        let(:current_user) { admin_user }
+      it { is_expected.to be_disallowed(:create_instance_runner) }
+    end
 
-        context 'when admin mode is enabled', :enable_admin_mode do
-          it { is_expected.to be_disallowed(:create_instance_runners) }
-        end
+    context 'with migration_bot' do
+      let(:current_user) { migration_bot }
 
-        context 'when admin mode is disabled' do
-          it { is_expected.to be_disallowed(:create_instance_runners) }
-        end
-      end
+      it { is_expected.to be_disallowed(:create_instance_runner) }
+    end
 
-      context 'with project_bot' do
-        let(:current_user) { project_bot }
+    context 'with security_bot' do
+      let(:current_user) { security_bot }
 
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_instance_runner) }
+    end
 
-      context 'with migration_bot' do
-        let(:current_user) { migration_bot }
+    context 'with llm_bot' do
+      let(:current_user) { llm_bot }
 
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_instance_runners) }
+    end
 
-      context 'with security_bot' do
-        let(:current_user) { security_bot }
+    context 'with regular user' do
+      let(:current_user) { user }
 
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_instance_runner) }
+    end
 
-      context 'with regular user' do
-        let(:current_user) { user }
+    context 'with anonymous' do
+      let(:current_user) { nil }
 
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
+      it { is_expected.to be_disallowed(:create_instance_runner) }
+    end
+  end
 
-      context 'with anonymous' do
-        let(:current_user) { nil }
+  describe 'create_organization' do
+    context 'with regular user' do
+      let(:current_user) { user }
 
-        it { is_expected.to be_disallowed(:create_instance_runners) }
-      end
+      it { is_expected.to be_allowed(:create_organization) }
+    end
+
+    context 'with anonymous' do
+      let(:current_user) { nil }
+
+      it { is_expected.to be_disallowed(:create_organizatinon) }
     end
   end
 end

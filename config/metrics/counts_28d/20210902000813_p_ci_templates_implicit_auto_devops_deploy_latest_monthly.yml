@@ -4,7 +4,6 @@ description: ''
 product_section: ''
 product_stage: ''
 product_group: ''
-product_category: ''
 value_type: number
 status: removed
 milestone: '14.3'
@@ -24,3 +23,4 @@ tier:
 options:
   events:
   - p_ci_templates_implicit_auto_devops_deploy_latest
+removed_by_url:

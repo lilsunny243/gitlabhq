@@ -5,7 +5,11 @@ module Gitlab
     module Saml
       class AuthHash < Gitlab::Auth::OAuth::AuthHash
         def groups
-          Array.wrap(get_raw(Gitlab::Auth::Saml::Config.groups))
+          Array.wrap(get_raw(Gitlab::Auth::Saml::Config.new(auth_hash.provider).groups))
+        end
+
+        def azure_group_overage_claim?
+          get_raw('http://schemas.microsoft.com/claims/groups.link').present?
         end
 
         def authn_context

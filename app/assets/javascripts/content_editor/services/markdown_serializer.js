@@ -8,11 +8,12 @@ import Bold from '../extensions/bold';
 import BulletList from '../extensions/bullet_list';
 import Code from '../extensions/code';
 import CodeBlockHighlight from '../extensions/code_block_highlight';
+import CodeSuggestion from '../extensions/code_suggestion';
 import DescriptionItem from '../extensions/description_item';
 import DescriptionList from '../extensions/description_list';
 import Details from '../extensions/details';
 import DetailsContent from '../extensions/details_content';
-import Comment from '../extensions/comment';
+import DrawioDiagram from '../extensions/drawio_diagram';
 import Diagram from '../extensions/diagram';
 import Emoji from '../extensions/emoji';
 import Figure from '../extensions/figure';
@@ -31,6 +32,7 @@ import InlineDiff from '../extensions/inline_diff';
 import Italic from '../extensions/italic';
 import Link from '../extensions/link';
 import ListItem from '../extensions/list_item';
+import Loading from '../extensions/loading';
 import MathInline from '../extensions/math_inline';
 import OrderedList from '../extensions/ordered_list';
 import Paragraph from '../extensions/paragraph';
@@ -51,7 +53,6 @@ import Text from '../extensions/text';
 import Video from '../extensions/video';
 import WordBreak from '../extensions/word_break';
 import {
-  renderComment,
   renderCodeBlock,
   renderHardBreak,
   renderTable,
@@ -66,6 +67,7 @@ import {
   renderContent,
   renderBulletList,
   renderReference,
+  renderReferenceLabel,
   preserveUnchanged,
   bold,
   italic,
@@ -132,8 +134,12 @@ const defaultSerializerConfig = {
     }),
     [BulletList.name]: preserveUnchanged(renderBulletList),
     [CodeBlockHighlight.name]: preserveUnchanged(renderCodeBlock),
-    [Comment.name]: renderComment,
     [Diagram.name]: preserveUnchanged(renderCodeBlock),
+    [CodeSuggestion.name]: preserveUnchanged(renderCodeBlock),
+    [DrawioDiagram.name]: preserveUnchanged({
+      render: renderImage,
+      inline: true,
+    }),
     [DescriptionList.name]: renderHTMLNode('dl', true),
     [DescriptionItem.name]: (state, node, parent, index) => {
       if (index === 1) state.ensureNewLine();
@@ -189,10 +195,11 @@ const defaultSerializerConfig = {
       inline: true,
     }),
     [ListItem.name]: preserveUnchanged(defaultMarkdownSerializer.nodes.list_item),
+    [Loading.name]: () => {},
     [OrderedList.name]: preserveUnchanged(renderOrderedList),
     [Paragraph.name]: preserveUnchanged(defaultMarkdownSerializer.nodes.paragraph),
     [Reference.name]: renderReference,
-    [ReferenceLabel.name]: renderReference,
+    [ReferenceLabel.name]: renderReferenceLabel,
     [ReferenceDefinition.name]: preserveUnchanged({
       render: (state, node, parent, index, same, sourceMarkdown) => {
         const nextSibling = parent.maybeChild(index + 1);
@@ -222,6 +229,7 @@ const defaultSerializerConfig = {
     [TableRow.name]: renderTableRow,
     [TaskItem.name]: preserveUnchanged((state, node) => {
       state.write(`[${node.attrs.checked ? 'x' : ' '}] `);
+      if (!node.textContent) state.write('&nbsp;');
       state.renderContent(node);
     }),
     [TaskList.name]: preserveUnchanged((state, node) => {
@@ -267,19 +275,22 @@ const createChangeTracker = (doc, pristineDoc) => {
   return changeTracker;
 };
 
-/**
- * Converts a ProseMirror document to Markdown. See the
- * following documentation to learn how to implement
- * custom node and mark serializer functions.
- *
- * https://github.com/prosemirror/prosemirror-markdown
- *
- * @param {Object} params.nodes ProseMirror node serializer functions
- * @param {Object} params.marks ProseMirror marks serializer config
- *
- * @returns a markdown serializer
- */
-export default ({ serializerConfig = {} } = {}) => ({
+export default class MarkdownSerializer {
+  /**
+   * Converts a ProseMirror document to Markdown. See the
+   * following documentation to learn how to implement
+   * custom node and mark serializer functions.
+   *
+   * https://github.com/prosemirror/prosemirror-markdown
+   *
+   * @param {Object} params.nodes ProseMirror node serializer functions
+   * @param {Object} params.marks ProseMirror marks serializer config
+   *
+   * @returns a markdown serializer
+   */
+  constructor({ serializerConfig = {} } = {}) {
+    this.serializerConfig = serializerConfig;
+  }
   /**
    * Serializes a ProseMirror document as Markdown. If a node contains
    * sourcemap metadata, the serializer is capable of restoring the
@@ -295,22 +306,23 @@ export default ({ serializerConfig = {} } = {}) => ({
    * changed.
    * @returns A String that represents the serialized document as Markdown
    */
-  serialize: ({ doc, pristineDoc }) => {
+  serialize({ doc, pristineDoc }) {
     const changeTracker = createChangeTracker(doc, pristineDoc);
     const serializer = new ProseMirrorMarkdownSerializer(
       {
         ...defaultSerializerConfig.nodes,
-        ...serializerConfig.nodes,
+        ...this.serializerConfig.nodes,
       },
       {
         ...defaultSerializerConfig.marks,
-        ...serializerConfig.marks,
+        ...this.serializerConfig.marks,
       },
     );
 
     return serializer.serialize(doc, {
       tightLists: true,
       changeTracker,
+      escapeExtraCharacters: /<|>/g,
     });
-  },
-});
+  }
+}

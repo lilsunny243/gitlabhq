@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Customize Auto DevOps **(FREE)**
+# Customize Auto DevOps **(FREE ALL)**
 
 You can customize components of Auto DevOps to fit your needs. For example, you can:
 

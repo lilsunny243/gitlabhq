@@ -8,9 +8,13 @@ class RegistrationsController < Devise::RegistrationsController
   include OneTrustCSP
   include BizibleCSP
   include GoogleAnalyticsCSP
+  include GoogleSyndicationCSP
   include PreferredLanguageSwitcher
-  include RegistrationsTracking
   include Gitlab::Tracking::Helpers::WeakPasswordErrorEvent
+  include SkipsAlreadySignedInMessage
+  include Gitlab::RackLoadBalancingHelpers
+  include ::Gitlab::Utils::StrongMemoize
+  include Onboarding::Redirectable
 
   layout 'devise'
 
@@ -27,7 +31,10 @@ class RegistrationsController < Devise::RegistrationsController
     push_frontend_feature_flag(:gitlab_gtm_datalayer, type: :ops)
   end
 
-  feature_category :authentication_and_authorization
+  feature_category :user_management
+
+  helper_method :arkose_labs_enabled?
+  helper_method :registration_path_params
 
   def new
     @resource = build_resource
@@ -38,10 +45,10 @@ class RegistrationsController < Devise::RegistrationsController
     set_resource_fields
 
     super do |new_user|
+      record_arkose_data
       accept_pending_invitations if new_user.persisted?
 
       persist_accepted_terms_if_required(new_user)
-      set_role_required(new_user)
       send_custom_confirmation_instructions
       track_weak_password_error(new_user, self.class.name, 'create')
 
@@ -50,13 +57,11 @@ class RegistrationsController < Devise::RegistrationsController
       end
 
       after_request_hook(new_user)
-
-      yield new_user if block_given?
     end
 
     # Devise sets a flash message on both successful & failed signups,
     # but we only want to show a message if the resource is blocked by a pending approval.
-    flash[:notice] = nil unless resource.blocked_pending_approval?
+    flash[:notice] = nil unless allow_flash_content?(resource)
   rescue Gitlab::Access::AccessDeniedError
     redirect_to(new_user_session_path)
   end
@@ -84,10 +89,6 @@ class RegistrationsController < Devise::RegistrationsController
 
     terms = ApplicationSetting::Term.latest
     Users::RespondToTermsService.new(new_user, terms).execute(accepted: true)
-  end
-
-  def set_role_required(new_user)
-    new_user.set_role_required! if new_user.persisted?
   end
 
   def destroy_confirmation_valid?
@@ -121,20 +122,25 @@ class RegistrationsController < Devise::RegistrationsController
   def after_sign_up_path_for(user)
     Gitlab::AppLogger.info(user_created_message(confirmed: user.confirmed?))
 
+    # Member#accept_invite! operates on the member record to change the association, so the user needs reloaded
+    # to update the collection.
+    user.reset
     after_sign_up_path
   end
 
   def after_inactive_sign_up_path_for(resource)
     Gitlab::AppLogger.info(user_created_message)
     return new_user_session_path(anchor: 'login-pane') if resource.blocked_pending_approval?
-    return dashboard_projects_path if Feature.enabled?(:soft_email_confirmation)
+    return dashboard_projects_path if Gitlab::CurrentSettings.email_confirmation_setting_soft?
 
-    # when email confirmation is enabled, path to redirect is saved
+    # when email_confirmation_setting is set to `hard`, path to redirect is saved
     # after user confirms and comes back, he will be redirected
     store_location_for(:redirect, after_sign_up_path)
 
-    if custom_confirmation_enabled?
+    if identity_verification_enabled?
       session[:verification_user_id] = resource.id # This is needed to find the user on the identity verification page
+      load_balancer_stick_request(::User, :user, resource.id)
+
       return identity_verification_redirect_path
     end
 
@@ -144,8 +150,18 @@ class RegistrationsController < Devise::RegistrationsController
 
   private
 
-  def after_sign_up_path
-    users_sign_up_welcome_path(glm_tracking_params)
+  def onboarding_status
+    Onboarding::Status.new(params.to_unsafe_h.deep_symbolize_keys, session, resource)
+  end
+  strong_memoize_attr :onboarding_status
+
+  def allow_flash_content?(user)
+    user.blocked_pending_approval? || onboarding_status.single_invite?
+  end
+
+  # overridden in EE
+  def registration_path_params
+    {}
   end
 
   def track_creation(user:)
@@ -175,8 +191,6 @@ class RegistrationsController < Devise::RegistrationsController
   end
 
   def check_captcha
-    ensure_correct_params!
-
     return unless show_recaptcha_sign_up?
     return unless Gitlab::Recaptcha.load_configurations!
 
@@ -185,6 +199,7 @@ class RegistrationsController < Devise::RegistrationsController
     flash[:alert] = _('There was an error with the reCAPTCHA. Please solve the reCAPTCHA again.')
     flash.delete :recaptcha_error
     add_gon_variables
+    set_minimum_password_length
     render action: 'new'
   end
 
@@ -214,6 +229,7 @@ class RegistrationsController < Devise::RegistrationsController
   end
 
   def sign_up_params
+    ensure_correct_params!
     params.require(:user).permit(sign_up_params_attributes)
   end
 
@@ -241,6 +257,7 @@ class RegistrationsController < Devise::RegistrationsController
 
     sign_up_params[:email] == invite_email
   end
+  strong_memoize_attr :registered_with_invite_email?
 
   def load_recaptcha
     Gitlab::Recaptcha.load_configurations!
@@ -288,16 +305,25 @@ class RegistrationsController < Devise::RegistrationsController
     current_user
   end
 
-  def identity_verification_redirect_path
+  def record_arkose_data
     # overridden by EE module
   end
 
-  def custom_confirmation_enabled?
+  def identity_verification_enabled?
+    # overridden by EE module
+    false
+  end
+
+  def identity_verification_redirect_path
     # overridden by EE module
   end
 
   def send_custom_confirmation_instructions
     # overridden by EE module
+  end
+
+  def arkose_labs_enabled?
+    false
   end
 end
 

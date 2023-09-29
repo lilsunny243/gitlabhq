@@ -4,11 +4,11 @@ module ApplicationSettingsHelper
   extend self
 
   delegate :allow_signup?,
-           :gravatar_enabled?,
-           :password_authentication_enabled_for_web?,
-           :akismet_enabled?,
-           :spam_check_endpoint_enabled?,
-           to: :'Gitlab::CurrentSettings.current_application_settings'
+    :gravatar_enabled?,
+    :password_authentication_enabled_for_web?,
+    :akismet_enabled?,
+    :spam_check_endpoint_enabled?,
+    to: :'Gitlab::CurrentSettings.current_application_settings'
 
   def user_oauth_applications?
     Gitlab::CurrentSettings.user_oauth_applications
@@ -99,11 +99,11 @@ module ApplicationSettingsHelper
         checked_value: level,
         unchecked_value: nil
       ) do |c|
-        c.label do
+        c.with_label do
           visibility_level_icon(level) + content_tag(:span, label, { class: 'gl-ml-2' })
         end
 
-        c.help_text do
+        c.with_help_text do
           restricted_visibility_levels_help_text.fetch(level)
         end
       end
@@ -238,9 +238,11 @@ module ApplicationSettingsHelper
       :container_expiration_policies_enable_historic_entries,
       :container_registry_expiration_policies_caching,
       :container_registry_token_expire_delay,
+      :decompress_archive_file_timeout,
       :default_artifacts_expire_in,
       :default_branch_name,
       :default_branch_protection,
+      :default_branch_protection_defaults,
       :default_ci_config_path,
       :default_group_visibility,
       :default_preferred_language,
@@ -250,6 +252,7 @@ module ApplicationSettingsHelper
       :default_snippet_visibility,
       :default_syntax_highlighting_theme,
       :delete_inactive_projects,
+      :deny_all_requests_except_allowed,
       :disable_admin_oauth_scopes,
       :disable_feed_token,
       :disabled_oauth_sign_in_sources,
@@ -304,7 +307,6 @@ module ApplicationSettingsHelper
       :housekeeping_optimize_repository_period,
       :html_emails_enabled,
       :import_sources,
-      :in_product_marketing_emails_enabled,
       :inactive_projects_delete_after_months,
       :inactive_projects_min_size_mb,
       :inactive_projects_send_warning_email_after_months,
@@ -316,6 +318,8 @@ module ApplicationSettingsHelper
       :max_attachment_size,
       :max_export_size,
       :max_import_size,
+      :max_import_remote_file_size,
+      :max_decompressed_archive_size,
       :max_pages_size,
       :max_pages_custom_domains_per_project,
       :max_terraform_state_size_bytes,
@@ -336,6 +340,8 @@ module ApplicationSettingsHelper
       :kroki_formats,
       :plantuml_enabled,
       :plantuml_url,
+      :diagramsnet_enabled,
+      :diagramsnet_url,
       :polling_interval_multiplier,
       :project_export_enabled,
       :prometheus_metrics_enabled,
@@ -348,6 +354,7 @@ module ApplicationSettingsHelper
       :repository_storages_weighted,
       :require_admin_approval_after_user_signup,
       :require_two_factor_authentication,
+      :remember_me_enabled,
       :restricted_visibility_levels,
       :rsa_key_restriction,
       :session_expire_delay,
@@ -355,6 +362,12 @@ module ApplicationSettingsHelper
       :shared_runners_text,
       :sign_in_text,
       :signup_enabled,
+      :silent_mode_enabled,
+      :slack_app_enabled,
+      :slack_app_id,
+      :slack_app_secret,
+      :slack_app_signing_secret,
+      :slack_app_verification_token,
       :sourcegraph_enabled,
       :sourcegraph_url,
       :sourcegraph_public_only,
@@ -400,8 +413,10 @@ module ApplicationSettingsHelper
       :throttle_protected_paths_period_in_seconds,
       :throttle_protected_paths_requests_per_period,
       :protected_paths_raw,
+      :protected_paths_for_get_request_raw,
       :time_tracking_limit_to_hours,
       :two_factor_grace_period,
+      :update_runner_versions_enabled,
       :unique_ips_limit_enabled,
       :unique_ips_limit_per_user,
       :unique_ips_limit_time_window,
@@ -422,6 +437,7 @@ module ApplicationSettingsHelper
       :mailgun_events_enabled,
       :snowplow_collector_hostname,
       :snowplow_cookie_domain,
+      :snowplow_database_collector_hostname,
       :snowplow_enabled,
       :snowplow_app_id,
       :push_event_hooks_limit,
@@ -441,8 +457,10 @@ module ApplicationSettingsHelper
       :group_export_limit,
       :group_download_export_limit,
       :wiki_page_max_content_bytes,
+      :wiki_asciidoc_allow_uri_includes,
       :container_registry_delete_tags_service_timeout,
       :rate_limiting_response_text,
+      :package_registry_allow_anyone_to_pull_option,
       :package_registry_cleanup_policies_worker_capacity,
       :container_registry_expiration_policies_worker_capacity,
       :container_registry_cleanup_tags_service_max_list_size,
@@ -462,12 +480,14 @@ module ApplicationSettingsHelper
       :sentry_dsn,
       :sentry_clientside_dsn,
       :sentry_environment,
+      :sentry_clientside_traces_sample_rate,
       :sidekiq_job_limiter_mode,
       :sidekiq_job_limiter_compression_threshold_bytes,
       :sidekiq_job_limiter_limit_bytes,
       :suggest_pipeline_enabled,
       :search_rate_limit,
       :search_rate_limit_unauthenticated,
+      :search_rate_limit_allowlist_raw,
       :users_get_by_id_limit,
       :users_get_by_id_limit_allowlist_raw,
       :runner_token_expiration_interval,
@@ -477,10 +497,17 @@ module ApplicationSettingsHelper
       :invitation_flow_enforcement,
       :can_create_group,
       :bulk_import_enabled,
+      :bulk_import_max_download_file_size,
       :allow_runner_registration_token,
       :user_defaults_to_private_profile,
       :deactivation_email_additional_text,
-      :projects_api_rate_limit_unauthenticated
+      :projects_api_rate_limit_unauthenticated,
+      :gitlab_dedicated_instance,
+      :ci_max_includes,
+      :allow_account_deletion,
+      :gitlab_shell_operation_limit,
+      :namespace_aggregation_schedule_lease_duration_in_seconds,
+      :ci_max_total_yaml_size_bytes
     ].tap do |settings|
       next if Gitlab.com?
 
@@ -537,28 +564,6 @@ module ApplicationSettingsHelper
     Rack::Attack.throttles.key?('protected paths')
   end
 
-  def self_monitoring_project_data
-    {
-      'create_self_monitoring_project_path' =>
-        create_self_monitoring_project_admin_application_settings_path,
-
-      'status_create_self_monitoring_project_path' =>
-        status_create_self_monitoring_project_admin_application_settings_path,
-
-      'delete_self_monitoring_project_path' =>
-        delete_self_monitoring_project_admin_application_settings_path,
-
-      'status_delete_self_monitoring_project_path' =>
-        status_delete_self_monitoring_project_admin_application_settings_path,
-
-      'self_monitoring_project_exists' =>
-        Gitlab::CurrentSettings.self_monitoring_project.present?.to_s,
-
-      'self_monitoring_project_full_path' =>
-        Gitlab::CurrentSettings.self_monitoring_project&.full_path
-    }
-  end
-
   def valid_runner_registrars
     Gitlab::CurrentSettings.valid_runner_registrars
   end
@@ -597,9 +602,7 @@ module ApplicationSettingsHelper
       supported_syntax_link_url: 'https://github.com/google/re2/wiki/Syntax',
       email_restrictions: @application_setting.email_restrictions.to_s,
       after_sign_up_text: @application_setting[:after_sign_up_text].to_s,
-      pending_user_count: pending_user_count,
-      project_sharing_help_link: help_page_path('user/group/access_and_permissions', anchor: 'prevent-a-project-from-being-shared-with-groups'),
-      group_sharing_help_link: help_page_path('user/group/access_and_permissions', anchor: 'prevent-group-sharing-outside-the-group-hierarchy')
+      pending_user_count: pending_user_count
     }
   end
 end

@@ -2,7 +2,7 @@
 
 require('spec_helper')
 
-RSpec.describe ProjectsController, feature_category: :projects do
+RSpec.describe ProjectsController, feature_category: :groups_and_projects do
   include ExternalAuthorizationServiceHelpers
   include ProjectForksHelper
   using RSpec::Parameterized::TableSyntax
@@ -161,6 +161,116 @@ RSpec.describe ProjectsController, feature_category: :projects do
           it "shows current notification setting" do
             get :show, params: { namespace_id: public_project.namespace, id: public_project }
             expect(assigns(:notification_setting).level).to eq("watch")
+          end
+        end
+
+        context 'when redirect_with_ref_type is disabled' do
+          before do
+            stub_feature_flags(redirect_with_ref_type: false)
+          end
+
+          context 'when there is a tag with the same name as the default branch' do
+            let_it_be(:tagged_project) { create(:project, :public, :custom_repo, files: ['somefile']) }
+            let(:tree_with_default_branch) do
+              branch = tagged_project.repository.find_branch(tagged_project.default_branch)
+              project_tree_path(tagged_project, branch.target)
+            end
+
+            before do
+              tagged_project.repository.create_file(
+                tagged_project.creator,
+                'file_for_tag',
+                'content for file',
+                message: "Automatically created file",
+                branch_name: 'branch-to-tag'
+              )
+
+              tagged_project.repository.add_tag(
+                tagged_project.creator,
+                tagged_project.default_branch, # tag name
+                'branch-to-tag' # target
+              )
+            end
+
+            it 'redirects to tree view for the default branch' do
+              get :show, params: { namespace_id: tagged_project.namespace, id: tagged_project }
+              expect(response).to redirect_to(tree_with_default_branch)
+            end
+          end
+
+          context 'when the default branch name is ambiguous' do
+            let_it_be(:project_with_default_branch) do
+              create(:project, :public, :custom_repo, files: ['somefile'])
+            end
+
+            shared_examples 'ambiguous ref redirects' do
+              let(:project) { project_with_default_branch }
+              let(:branch_ref) { "refs/heads/#{ref}" }
+              let(:repo) { project.repository }
+
+              before do
+                repo.create_branch(branch_ref, 'master')
+                repo.change_head(ref)
+              end
+
+              after do
+                repo.change_head('master')
+                repo.delete_branch(branch_ref)
+              end
+
+              subject do
+                get(
+                  :show,
+                  params: {
+                    namespace_id: project.namespace,
+                    id: project
+                  }
+                )
+              end
+
+              context 'when there is no conflicting ref' do
+                let(:other_ref) { 'non-existent-ref' }
+
+                it { is_expected.to have_gitlab_http_status(:ok) }
+              end
+
+              context 'and that other ref exists' do
+                let(:other_ref) { 'master' }
+
+                let(:project_default_root_tree_path) do
+                  sha = repo.find_branch(project.default_branch).target
+                  project_tree_path(project, sha)
+                end
+
+                it 'redirects to tree view for the default branch' do
+                  is_expected.to redirect_to(project_default_root_tree_path)
+                end
+              end
+            end
+
+            context 'when ref starts with ref/heads/' do
+              let(:ref) { "refs/heads/#{other_ref}" }
+
+              include_examples 'ambiguous ref redirects'
+            end
+
+            context 'when ref starts with ref/tags/' do
+              let(:ref) { "refs/tags/#{other_ref}" }
+
+              include_examples 'ambiguous ref redirects'
+            end
+
+            context 'when ref starts with heads/' do
+              let(:ref) { "heads/#{other_ref}" }
+
+              include_examples 'ambiguous ref redirects'
+            end
+
+            context 'when ref starts with tags/' do
+              let(:ref) { "tags/#{other_ref}" }
+
+              include_examples 'ambiguous ref redirects'
+            end
           end
         end
       end
@@ -864,7 +974,8 @@ RSpec.describe ProjectsController, feature_category: :projects do
             project: {
               project_setting_attributes: {
                 show_default_award_emojis: boolean_value,
-                enforce_auth_checks_on_uploads: boolean_value
+                enforce_auth_checks_on_uploads: boolean_value,
+                emails_enabled: boolean_value
               }
             }
           }
@@ -873,6 +984,8 @@ RSpec.describe ProjectsController, feature_category: :projects do
 
           expect(project.show_default_award_emojis?).to eq(result)
           expect(project.enforce_auth_checks_on_uploads?).to eq(result)
+          expect(project.emails_enabled?).to eq(result)
+          expect(project.emails_disabled?).to eq(!result)
         end
       end
     end
@@ -922,6 +1035,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
           releases_access_level
           monitor_access_level
           infrastructure_access_level
+          model_experiments_access_level
         ]
       end
 
@@ -1231,6 +1345,19 @@ RSpec.describe ProjectsController, feature_category: :projects do
         expect(response).to have_gitlab_http_status(:success)
       end
     end
+
+    context 'when sort param is invalid' do
+      let(:request) { get :refs, params: { namespace_id: project.namespace, id: project, sort: 'invalid' } }
+
+      it 'uses default sort by name' do
+        request
+
+        expect(response).to have_gitlab_http_status(:success)
+        expect(json_response['Branches']).to include('master')
+        expect(json_response['Tags']).to include('v1.0.0')
+        expect(json_response['Commits']).to be_nil
+      end
+    end
   end
 
   describe 'POST #preview_markdown' do
@@ -1465,7 +1592,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
         it 'returns 302' do
           post action, params: { namespace_id: project.namespace, id: project }
 
-          expect(response).to have_gitlab_http_status(:found)
+          expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
         end
 
         context 'when the project storage_size exceeds the application setting max_export_size' do
@@ -1475,7 +1602,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
 
             post action, params: { namespace_id: project.namespace, id: project }
 
-            expect(response).to have_gitlab_http_status(:found)
+            expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
             expect(flash[:alert]).to include('The project size exceeds the export limit.')
           end
         end
@@ -1487,7 +1614,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
 
             post action, params: { namespace_id: project.namespace, id: project }
 
-            expect(response).to have_gitlab_http_status(:found)
+            expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
             expect(flash[:alert]).to be_nil
           end
         end
@@ -1498,7 +1625,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
 
             post action, params: { namespace_id: project.namespace, id: project }
 
-            expect(response).to have_gitlab_http_status(:found)
+            expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
             expect(flash[:alert]).to be_nil
           end
         end
@@ -1541,7 +1668,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
             get action, params: { namespace_id: project.namespace, id: project }
 
             expect(flash[:alert]).to include('file containing the export is not available yet')
-            expect(response).to have_gitlab_http_status(:found)
+            expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
           end
         end
 
@@ -1620,7 +1747,7 @@ RSpec.describe ProjectsController, feature_category: :projects do
         it 'returns 302' do
           post action, params: { namespace_id: project.namespace, id: project }
 
-          expect(response).to have_gitlab_http_status(:found)
+          expect(response).to redirect_to(edit_project_path(project, anchor: 'js-project-advanced-settings'))
         end
       end
 
@@ -1697,8 +1824,8 @@ RSpec.describe ProjectsController, feature_category: :projects do
   it 'updates Service Desk attributes' do
     project.add_maintainer(user)
     sign_in(user)
-    allow(Gitlab::IncomingEmail).to receive(:enabled?) { true }
-    allow(Gitlab::IncomingEmail).to receive(:supports_wildcard?) { true }
+    allow(Gitlab::Email::IncomingEmail).to receive(:enabled?) { true }
+    allow(Gitlab::Email::IncomingEmail).to receive(:supports_wildcard?) { true }
     params = {
       service_desk_enabled: true
     }

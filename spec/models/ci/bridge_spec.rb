@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
-  let_it_be(:project) { create(:project) }
+  let_it_be(:project, refind: true) { create(:project, :repository, :in_group) }
   let_it_be(:target_project) { create(:project, name: 'project', namespace: create(:namespace, name: 'my')) }
   let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
 
@@ -12,9 +12,7 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
   end
 
   let(:bridge) do
-    create(:ci_bridge, :variables, status: :created,
-                                   options: options,
-                                   pipeline: pipeline)
+    create(:ci_bridge, :variables, status: :created, options: options, pipeline: pipeline)
   end
 
   let(:options) do
@@ -29,6 +27,10 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
 
   it_behaves_like 'a retryable job'
 
+  it_behaves_like 'a deployable job' do
+    let(:job) { bridge }
+  end
+
   it 'has one downstream pipeline' do
     expect(bridge).to have_one(:sourced_pipeline)
     expect(bridge).to have_one(:downstream_pipeline)
@@ -39,16 +41,6 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
 
     it 'returns true' do
       expect(bridge.retryable?).to eq(true)
-    end
-
-    context 'without ci_recreate_downstream_pipeline ff' do
-      before do
-        stub_feature_flags(ci_recreate_downstream_pipeline: false)
-      end
-
-      it 'returns false' do
-        expect(bridge.retryable?).to eq(false)
-      end
     end
   end
 
@@ -172,7 +164,9 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
       where(:downstream_status, :upstream_status) do
         [
           %w[success success],
-          *::Ci::Pipeline.completed_statuses.without(:success).map { |status| [status.to_s, 'failed'] }
+          %w[canceled canceled],
+          %w[failed failed],
+          %w[skipped failed]
         ]
       end
 
@@ -206,11 +200,18 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
   end
 
   describe '#downstream_variables' do
+    # A new pipeline needs to be created in each test.
+    # The pipeline #variables_builder is memoized. The builder internally also memoizes variables.
+    # Having pipeline in a let_it_be might lead to flaky tests
+    # because a test might expect new variables but the variables builder does not
+    # return the new variables due to memoized results from previous tests.
+    let(:pipeline) { create(:ci_pipeline, project: project) }
+
     subject(:downstream_variables) { bridge.downstream_variables }
 
     it 'returns variables that are going to be passed downstream' do
       expect(bridge.downstream_variables)
-        .to include(key: 'BRIDGE', value: 'cross')
+        .to contain_exactly(key: 'BRIDGE', value: 'cross')
     end
 
     context 'when using variables interpolation' do
@@ -251,14 +252,49 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
       end
     end
 
+    context 'when using variables interpolation on file variables' do
+      let(:yaml_variables) do
+        [
+          {
+            key: 'EXPANDED_FILE',
+            value: '$TEST_FILE_VAR'
+          }
+        ]
+      end
+
+      before do
+        bridge.yaml_variables = yaml_variables
+        create(:ci_variable, :file, project: bridge.pipeline.project, key: 'TEST_FILE_VAR', value: 'test-file-value')
+      end
+
+      it 'does not expand file variable and forwards the file variable' do
+        expected_vars = [
+          { key: 'EXPANDED_FILE', value: '$TEST_FILE_VAR' },
+          { key: 'TEST_FILE_VAR', value: 'test-file-value', variable_type: :file }
+        ]
+
+        expect(bridge.downstream_variables).to contain_exactly(*expected_vars)
+      end
+
+      context 'and feature flag is disabled' do
+        before do
+          stub_feature_flags(ci_prevent_file_var_expansion_downstream_pipeline: false)
+        end
+
+        it 'expands the file variable' do
+          expect(bridge.downstream_variables).to contain_exactly({ key: 'EXPANDED_FILE', value: 'test-file-value' })
+        end
+      end
+    end
+
     context 'when recursive interpolation has been used' do
       before do
-        bridge.yaml_variables << { key: 'EXPANDED', value: '$EXPANDED', public: true }
+        bridge.yaml_variables = [{ key: 'EXPANDED', value: '$EXPANDED', public: true }]
       end
 
       it 'does not expand variable recursively' do
         expect(bridge.downstream_variables)
-          .to include(key: 'EXPANDED', value: '$EXPANDED')
+          .to contain_exactly(key: 'EXPANDED', value: '$EXPANDED')
       end
     end
 
@@ -289,26 +325,82 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
           }
         end
 
+        before do
+          create(:ci_pipeline_variable, pipeline: pipeline, key: 'PVAR1', value: 'PVAL1')
+        end
+
         it 'returns variables according to the forward value' do
           expect(bridge.downstream_variables.map { |v| v[:key] }).to contain_exactly(*variables)
         end
       end
 
       context 'when sending a variable via both yaml and pipeline' do
-        let(:pipeline) { create(:ci_pipeline, project: project) }
-
         let(:options) do
           { trigger: { project: 'my/project', forward: { pipeline_variables: true } } }
         end
 
         before do
-          create(:ci_pipeline_variable, pipeline: pipeline, key: 'BRIDGE', value: 'new value')
+          bridge.yaml_variables = [{ key: 'SHARED_KEY', value: 'old_value' }]
+          create(:ci_pipeline_variable, pipeline: pipeline, key: 'SHARED_KEY', value: 'new value')
         end
 
         it 'uses the pipeline variable' do
-          expect(bridge.downstream_variables).to contain_exactly(
-            { key: 'BRIDGE', value: 'new value' }
-          )
+          expect(bridge.downstream_variables).to contain_exactly({ key: 'SHARED_KEY', value: 'new value' })
+        end
+      end
+
+      context 'when sending a file variable from pipeline variable' do
+        let(:options) do
+          { trigger: { project: 'my/project', forward: { pipeline_variables: true } } }
+        end
+
+        before do
+          bridge.yaml_variables = [{ key: 'FILE_VAR', value: 'old_value' }]
+          create(:ci_pipeline_variable, :file, pipeline: pipeline, key: 'FILE_VAR', value: 'new value')
+        end
+
+        # The current behaviour forwards the file variable as an environment variable.
+        # TODO: decide whether to forward as a file var in https://gitlab.com/gitlab-org/gitlab/-/issues/416334
+        it 'forwards the pipeline file variable' do
+          expect(bridge.downstream_variables).to contain_exactly({ key: 'FILE_VAR', value: 'new value' })
+        end
+      end
+
+      context 'when a pipeline variable interpolates a scoped file variable' do
+        let(:options) do
+          { trigger: { project: 'my/project', forward: { pipeline_variables: true } } }
+        end
+
+        before do
+          bridge.yaml_variables = [{ key: 'YAML_VAR', value: '$PROJECT_FILE_VAR' }]
+
+          create(:ci_variable, :file, project: pipeline.project, key: 'PROJECT_FILE_VAR', value: 'project file')
+          create(:ci_pipeline_variable, pipeline: pipeline, key: 'FILE_VAR', value: '$PROJECT_FILE_VAR')
+        end
+
+        it 'does not expand the scoped file variable and forwards the file variable' do
+          expected_vars = [
+            { key: 'FILE_VAR', value: '$PROJECT_FILE_VAR' },
+            { key: 'YAML_VAR', value: '$PROJECT_FILE_VAR' },
+            { key: 'PROJECT_FILE_VAR', value: 'project file', variable_type: :file }
+          ]
+
+          expect(bridge.downstream_variables).to contain_exactly(*expected_vars)
+        end
+
+        context 'and feature flag is disabled' do
+          before do
+            stub_feature_flags(ci_prevent_file_var_expansion_downstream_pipeline: false)
+          end
+
+          it 'expands the file variable' do
+            expected_vars = [
+              { key: 'FILE_VAR', value: 'project file' },
+              { key: 'YAML_VAR', value: 'project file' }
+            ]
+
+            expect(bridge.downstream_variables).to contain_exactly(*expected_vars)
+          end
         end
       end
 
@@ -325,10 +417,66 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
         end
 
         it 'adds the schedule variable' do
-          expect(bridge.downstream_variables).to contain_exactly(
+          expected_vars = [
             { key: 'BRIDGE', value: 'cross' },
             { key: 'schedule_var_key', value: 'schedule var value' }
-          )
+          ]
+
+          expect(bridge.downstream_variables).to contain_exactly(*expected_vars)
+        end
+      end
+    end
+
+    context 'when sending a file variable from pipeline schedule' do
+      let(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project) }
+      let(:pipeline) { create(:ci_pipeline, pipeline_schedule: pipeline_schedule) }
+
+      let(:options) do
+        { trigger: { project: 'my/project', forward: { pipeline_variables: true } } }
+      end
+
+      before do
+        bridge.yaml_variables = []
+        pipeline_schedule.variables.create!(key: 'schedule_var_key', value: 'schedule var value', variable_type: :file)
+      end
+
+      # The current behaviour forwards the file variable as an environment variable.
+      # TODO: decide whether to forward as a file var in https://gitlab.com/gitlab-org/gitlab/-/issues/416334
+      it 'forwards the schedule file variable' do
+        expect(bridge.downstream_variables).to contain_exactly({ key: 'schedule_var_key', value: 'schedule var value' })
+      end
+    end
+
+    context 'when a pipeline schedule variable interpolates a scoped file variable' do
+      let(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project) }
+      let(:pipeline) { create(:ci_pipeline, pipeline_schedule: pipeline_schedule) }
+
+      let(:options) do
+        { trigger: { project: 'my/project', forward: { pipeline_variables: true } } }
+      end
+
+      before do
+        bridge.yaml_variables = []
+        create(:ci_variable, :file, project: pipeline.project, key: 'PROJECT_FILE_VAR', value: 'project file')
+        pipeline_schedule.variables.create!(key: 'schedule_var_key', value: '$PROJECT_FILE_VAR')
+      end
+
+      it 'does not expand the scoped file variable and forwards the file variable' do
+        expected_vars = [
+          { key: 'schedule_var_key', value: '$PROJECT_FILE_VAR' },
+          { key: 'PROJECT_FILE_VAR', value: 'project file', variable_type: :file }
+        ]
+
+        expect(bridge.downstream_variables).to contain_exactly(*expected_vars)
+      end
+
+      context 'and feature flag is disabled' do
+        before do
+          stub_feature_flags(ci_prevent_file_var_expansion_downstream_pipeline: false)
+        end
+
+        it 'expands the file variable' do
+          expect(bridge.downstream_variables).to contain_exactly({ key: 'schedule_var_key', value: 'project file' })
         end
       end
     end
@@ -385,6 +533,91 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
           { key: 'VAR7', value: 'value7 $VAR1', raw: true }
         )
       end
+    end
+  end
+
+  describe '#variables' do
+    it 'returns bridge scoped variables and pipeline persisted variables' do
+      expect(bridge.variables.to_hash)
+        .to eq(bridge.scoped_variables.concat(bridge.pipeline.persisted_variables).to_hash)
+    end
+  end
+
+  describe '#pipeline_variables' do
+    it 'returns the pipeline variables' do
+      expect(bridge.pipeline_variables).to eq(bridge.pipeline.variables)
+    end
+  end
+
+  describe '#pipeline_schedule_variables' do
+    context 'when pipeline is on a schedule' do
+      let(:pipeline_schedule) { create(:ci_pipeline_schedule, project: project) }
+      let(:pipeline) { create(:ci_pipeline, pipeline_schedule: pipeline_schedule) }
+
+      it 'returns the pipeline schedule variables' do
+        create(:ci_pipeline_schedule_variable, key: 'FOO', value: 'foo', pipeline_schedule: pipeline.pipeline_schedule)
+
+        pipeline_schedule_variables = bridge.reload.pipeline_schedule_variables
+        expect(pipeline_schedule_variables).to match_array([have_attributes({ key: 'FOO', value: 'foo' })])
+      end
+    end
+
+    context 'when pipeline is not on a schedule' do
+      it 'returns empty array' do
+        expect(bridge.pipeline_schedule_variables).to eq([])
+      end
+    end
+  end
+
+  describe '#forward_yaml_variables?' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:forward, :result) do
+      true | true
+      false | false
+      nil | true
+    end
+
+    with_them do
+      let(:options) do
+        {
+          trigger: {
+            project: 'my/project',
+            branch: 'master',
+            forward: { yaml_variables: forward }.compact
+          }
+        }
+      end
+
+      let(:bridge) { build(:ci_bridge, options: options) }
+
+      it { expect(bridge.forward_yaml_variables?).to eq(result) }
+    end
+  end
+
+  describe '#forward_pipeline_variables?' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:forward, :result) do
+      true | true
+      false | false
+      nil | false
+    end
+
+    with_them do
+      let(:options) do
+        {
+          trigger: {
+            project: 'my/project',
+            branch: 'master',
+            forward: { pipeline_variables: forward }.compact
+          }
+        }
+      end
+
+      let(:bridge) { build(:ci_bridge, options: options) }
+
+      it { expect(bridge.forward_pipeline_variables?).to eq(result) }
     end
   end
 
@@ -564,11 +797,13 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
       let!(:prepare2) { create(:ci_build, name: 'prepare2', pipeline: pipeline, stage_idx: 0) }
       let!(:prepare3) { create(:ci_build, name: 'prepare3', pipeline: pipeline, stage_idx: 0) }
       let!(:bridge) do
-        create(:ci_bridge, pipeline: pipeline,
-                           stage_idx: 1,
-                           scheduling_type: 'dag',
-                           needs_attributes: [{ name: 'prepare1', artifacts: true },
-                                              { name: 'prepare2', artifacts: false }])
+        create(
+          :ci_bridge,
+          pipeline: pipeline,
+          stage_idx: 1,
+          scheduling_type: 'dag',
+          needs_attributes: [{ name: 'prepare1', artifacts: true }, { name: 'prepare2', artifacts: false }]
+        )
       end
 
       let!(:job_variable_1) { create(:ci_job_variable, :dotenv_source, job: prepare1) }
@@ -581,7 +816,7 @@ RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
     end
   end
 
-  describe 'metadata partitioning', :ci_partitioning do
+  describe 'metadata partitioning', :ci_partitionable do
     let(:pipeline) { create(:ci_pipeline, project: project, partition_id: ci_testing_partition_id) }
 
     let(:bridge) do

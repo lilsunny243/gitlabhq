@@ -52,11 +52,14 @@ export default {
 
       if (timeDifference === 0) {
         return __('Today');
-      } else if (timeDifference === 1) {
+      }
+      if (timeDifference === 1) {
         return __('Tomorrow');
-      } else if (timeDifference === -1) {
+      }
+      if (timeDifference === -1) {
         return __('Yesterday');
-      } else if (timeDifference > 0 && timeDifference < 7) {
+      }
+      if (timeDifference > 0 && timeDifference < 7) {
         return dateFormat(issueDueDate, 'dddd');
       }
 
@@ -95,9 +98,12 @@ export default {
         class="board-card-info-icon gl-mr-2"
         name="calendar"
       />
-      <time :class="{ 'text-danger': isPastDue }" datetime="date" class="board-card-info-text">{{
-        body
-      }}</time>
+      <time
+        :class="{ 'text-danger': isPastDue }"
+        datetime="date"
+        class="gl-font-sm board-card-info-text"
+        >{{ body }}</time
+      >
     </span>
     <gl-tooltip :target="() => $refs.issueDueDate" :placement="tooltipPlacement">
       <span class="bold">{{ __('Due date') }}</span>

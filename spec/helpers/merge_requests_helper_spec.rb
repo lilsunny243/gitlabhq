@@ -3,7 +3,14 @@
 require 'spec_helper'
 
 RSpec.describe MergeRequestsHelper, feature_category: :code_review_workflow do
+  include Users::CalloutsHelper
+  include ApplicationHelper
+  include PageLayoutHelper
+  include ProjectsHelper
   include ProjectForksHelper
+  include IconsHelper
+
+  let_it_be(:current_user) { create(:user) }
 
   describe '#format_mr_branch_names' do
     describe 'within the same project' do
@@ -27,7 +34,31 @@ RSpec.describe MergeRequestsHelper, feature_category: :code_review_workflow do
     end
   end
 
+  describe '#diffs_tab_pane_data' do
+    subject { diffs_tab_pane_data(project, merge_request, {}) }
+
+    context 'for endpoint_diff_for_path' do
+      context 'when sub-group project namespace' do
+        let_it_be(:group) { create(:group, :public) }
+        let_it_be(:subgroup) { create(:group, :private, parent: group) }
+        let_it_be(:project) { create(:project, :private, group: subgroup) }
+        let_it_be(:merge_request) { create(:merge_request, source_project: project, target_project: project) }
+
+        it 'returns expected values' do
+          expect(
+            subject[:endpoint_diff_for_path]
+          ).to include("#{project.full_path}/-/merge_requests/#{merge_request.iid}/diff_for_path.json")
+        end
+      end
+    end
+  end
+
   describe '#merge_path_description' do
+    # Using let_it_be(:project) raises the following error, so we use need to use let(:project):
+    #  ActiveRecord::InvalidForeignKey:
+    #    PG::ForeignKeyViolation: ERROR:  insert or update on table "fork_network_members" violates foreign key
+    #      constraint "fk_rails_a40860a1ca"
+    #    DETAIL:  Key (fork_network_id)=(8) is not present in table "fork_networks".
     let(:project) { create(:project) }
     let(:forked_project) { fork_project(project) }
     let(:merge_request_forked) { create(:merge_request, source_project: forked_project, target_project: project) }
@@ -148,6 +179,98 @@ RSpec.describe MergeRequestsHelper, feature_category: :code_review_workflow do
       it 'returns reviewer label only with include_value: false' do
         expect(helper.reviewers_label(merge_request, include_value: false)).to eq("Reviewers")
       end
+    end
+  end
+
+  describe '#merge_request_source_branch' do
+    let(:malicious_branch_name) { 'name<script>test</script>' }
+    let(:project) { create(:project) }
+    let(:merge_request) { create(:merge_request, source_project: project, target_project: project) }
+    let(:forked_project) { fork_project(project) }
+    let(:merge_request_forked) do
+      create(
+        :merge_request,
+        source_project: forked_project,
+        source_branch: malicious_branch_name,
+        target_project: project
+      )
+    end
+
+    context 'when merge request is a fork' do
+      subject { merge_request_source_branch(merge_request_forked) }
+
+      it 'does show the fork icon' do
+        expect(subject).to match(/fork/)
+      end
+
+      it 'escapes properly' do
+        expect(subject).to include(html_escape(malicious_branch_name))
+      end
+    end
+
+    context 'when merge request is not a fork' do
+      subject { merge_request_source_branch(merge_request) }
+
+      it 'does not show the fork icon' do
+        expect(subject).not_to match(/fork/)
+      end
+    end
+  end
+
+  describe '#tab_count_display' do
+    let(:merge_request) { create(:merge_request) }
+
+    context 'when merge request is preparing' do
+      before do
+        allow(merge_request).to receive(:preparing?).and_return(true)
+      end
+
+      it { expect(tab_count_display(merge_request, 0)).to eq('-') }
+      it { expect(tab_count_display(merge_request, '0')).to eq('-') }
+    end
+
+    context 'when merge request is prepared' do
+      it { expect(tab_count_display(merge_request, 10)).to eq(10) }
+      it { expect(tab_count_display(merge_request, '10')).to eq('10') }
+    end
+  end
+
+  describe '#allow_collaboration_unavailable_reason' do
+    subject { allow_collaboration_unavailable_reason(merge_request) }
+
+    let(:merge_request) do
+      create(:merge_request, author: author, source_project: project, source_branch: generate(:branch))
+    end
+
+    let_it_be(:public_project) { create(:project, :small_repo, :public) }
+    let(:project) { public_project }
+    let(:forked_project) { fork_project(project) }
+    let(:author) { project.creator }
+
+    context 'when the merge request allows collaboration for the user' do
+      before do
+        allow(merge_request).to receive(:can_allow_collaboration?).with(current_user).and_return(true)
+      end
+
+      it { is_expected.to be_nil }
+    end
+
+    context 'when the project is private' do
+      let(:project) { create(:project, :empty_repo, :private) }
+
+      it { is_expected.to eq(_('Not available for private projects')) }
+    end
+
+    context 'when the source branch is protected' do
+      let!(:protected_branch) { create(:protected_branch, project: project, name: merge_request.source_branch) }
+
+      it { is_expected.to eq(_('Not available for protected branches')) }
+    end
+
+    context 'when the merge request author cannot push to the source project' do
+      let(:author) { create(:user) }
+
+      it { is_expected.to eq(_('Merge request author cannot push to target project')) }
     end
   end
 end

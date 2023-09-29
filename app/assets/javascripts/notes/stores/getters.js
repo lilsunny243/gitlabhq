@@ -1,8 +1,8 @@
 import { flattenDeep, clone } from 'lodash';
 import { match } from '~/diffs/utils/diff_file';
-import { badgeState } from '~/issuable/components/status_box.vue';
 import { isInMRPage } from '~/lib/utils/common_utils';
 import { doesHashExistInUrl } from '~/lib/utils/url_utility';
+import { badgeState } from '~/merge_requests/components/merge_request_status_badge.vue';
 import * as constants from '../constants';
 import { collapseSystemNotes } from './collapse_utils';
 
@@ -22,9 +22,47 @@ const getDraftComments = (state) => {
     .sort((a, b) => a.id - b.id);
 };
 
+const hideActivity = (filters, discussion) => {
+  const firstNote = discussion.notes[0];
+
+  return constants.MR_FILTER_OPTIONS.some((f) => {
+    if (filters.includes(f.value) || f.value === '*') return false;
+
+    if (
+      // For all of the below firstNote is the first note of a discussion, whether that be
+      // the first in a discussion or a single note
+      // If the filter option filters based on icon check against the first notes system note icon
+      f.systemNoteIcons?.includes(firstNote.system_note_icon_name) ||
+      // If the filter option filters based on note type user the first notes type
+      f.noteType?.includes(firstNote.type) ||
+      // If the filter option filters based on the note text then check if it is sytem
+      // and filter based on the text of the system note
+      (firstNote.system && f.noteText?.some((t) => firstNote.note.includes(t))) ||
+      // For individual notes we filter if the discussion is a single note and is not a sytem
+      (f.individualNote === discussion.individual_note && !firstNote.system)
+    ) {
+      return true;
+    }
+
+    return false;
+  });
+};
+
 export const discussions = (state, getters, rootState) => {
   let discussionsInState = clone(state.discussions);
   // NOTE: not testing bc will be removed when backend is finished.
+
+  if (state.noteableData.targetType === 'merge_request') {
+    discussionsInState = discussionsInState.reduce((acc, discussion) => {
+      if (hideActivity(state.mergeRequestFilters, discussion)) {
+        return acc;
+      }
+
+      acc.push(discussion);
+
+      return acc;
+    }, []);
+  }
 
   if (state.isTimelineEnabled) {
     discussionsInState = discussionsInState

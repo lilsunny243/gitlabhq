@@ -1,25 +1,24 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
-import { GlButton, GlLink, GlLoadingIcon, GlSprintf, GlIcon } from '@gitlab/ui';
-import EditorModeDropdown from './editor_mode_dropdown.vue';
+import { GlButton, GlLoadingIcon, GlSprintf, GlIcon, GlTooltipDirective } from '@gitlab/ui';
+import { updateText } from '~/lib/utils/text_markdown';
+import EditorModeSwitcher from './editor_mode_switcher.vue';
 
 export default {
   components: {
     GlButton,
-    GlLink,
     GlLoadingIcon,
     GlSprintf,
     GlIcon,
-    EditorModeDropdown,
+    EditorModeSwitcher,
+  },
+  directives: {
+    GlTooltip: GlTooltipDirective,
   },
   props: {
     markdownDocsPath: {
       type: String,
       required: true,
-    },
-    quickActionsDocsPath: {
-      type: String,
-      required: false,
-      default: '',
     },
     canAttachFile: {
       type: Boolean,
@@ -38,14 +37,21 @@ export default {
     },
   },
   computed: {
-    hasQuickActionsDocsPath() {
-      return this.quickActionsDocsPath !== '';
+    showEditorModeSwitcher() {
+      return this.showContentEditorSwitcher;
     },
   },
   methods: {
-    handleEditorModeChanged(mode) {
-      if (mode === 'richText') {
-        this.$emit('enableContentEditor');
+    insertIntoTextarea(...lines) {
+      const text = lines.join('\n');
+      const textArea = this.$el.closest('.md-area')?.querySelector('textarea');
+      if (textArea && !textArea.value) {
+        updateText({
+          textArea,
+          tag: text,
+          cursorOffset: 0,
+          wrap: false,
+        });
       }
     },
   },
@@ -53,94 +59,82 @@ export default {
 </script>
 
 <template>
-  <div v-if="showCommentToolBar" class="comment-toolbar clearfix">
-    <div class="toolbar-text">
-      <template v-if="!hasQuickActionsDocsPath && markdownDocsPath">
-        <gl-sprintf
-          :message="
-            s__('MarkdownToolbar|Supports %{markdownDocsLinkStart}Markdown%{markdownDocsLinkEnd}')
-          "
-        >
-          <template #markdownDocsLink="{ content }">
-            <gl-link :href="markdownDocsPath" target="_blank">{{ content }}</gl-link>
-          </template>
-        </gl-sprintf>
-      </template>
-      <template v-if="hasQuickActionsDocsPath && markdownDocsPath">
-        <gl-sprintf
-          :message="
-            s__(
-              'NoteToolbar|Supports %{markdownDocsLinkStart}Markdown%{markdownDocsLinkEnd}. For %{quickActionsDocsLinkStart}quick actions%{quickActionsDocsLinkEnd}, type %{keyboardStart}/%{keyboardEnd}.',
-            )
-          "
-        >
-          <template #markdownDocsLink="{ content }">
-            <gl-link :href="markdownDocsPath" target="_blank">{{ content }}</gl-link>
-          </template>
-          <template #keyboard="{ content }">
-            <kbd>{{ content }}</kbd>
-          </template>
-          <template #quickActionsDocsLink="{ content }">
-            <gl-link :href="quickActionsDocsPath" target="_blank">{{ content }}</gl-link>
-          </template>
-        </gl-sprintf>
-      </template>
-    </div>
-    <span v-if="canAttachFile" class="uploading-container gl-line-height-32">
-      <span class="uploading-progress-container hide">
-        <gl-icon name="paperclip" />
-        <span class="attaching-file-message"></span>
-        <!-- eslint-disable-next-line @gitlab/vue-require-i18n-strings -->
-        <span class="uploading-progress">0%</span>
-        <gl-loading-icon size="sm" inline />
-      </span>
-      <span class="uploading-error-container hide">
-        <span class="uploading-error-icon">
-          <gl-icon name="paperclip" />
-        </span>
-        <span class="uploading-error-message"></span>
-
-        <gl-sprintf
-          :message="
-            __(
-              '%{retryButtonStart}Try again%{retryButtonEnd} or %{newFileButtonStart}attach a new file%{newFileButtonEnd}.',
-            )
-          "
-        >
-          <template #retryButton="{ content }">
-            <gl-button
-              variant="link"
-              category="primary"
-              class="retry-uploading-link gl-vertical-align-baseline"
-            >
-              {{ content }}
-            </gl-button>
-          </template>
-          <template #newFileButton="{ content }">
-            <gl-button
-              variant="link"
-              category="primary"
-              class="markdown-selector attach-new-file gl-vertical-align-baseline"
-            >
-              {{ content }}
-            </gl-button>
-          </template>
-        </gl-sprintf>
-      </span>
-      <gl-button
-        variant="link"
-        category="primary"
-        class="button-cancel-uploading-files gl-vertical-align-baseline hide"
-      >
-        {{ __('Cancel') }}
-      </gl-button>
-    </span>
-    <editor-mode-dropdown
-      v-if="showContentEditorSwitcher"
+  <div
+    v-if="showCommentToolBar"
+    class="comment-toolbar gl-display-flex gl-flex-direction-row gl-px-2 gl-rounded-bottom-left-base gl-rounded-bottom-right-base"
+    :class="
+      showContentEditorSwitcher
+        ? 'gl-justify-content-space-between gl-align-items-center gl-border-t gl-border-gray-100'
+        : 'gl-justify-content-end gl-my-2'
+    "
+  >
+    <editor-mode-switcher
+      v-if="showEditorModeSwitcher"
       size="small"
-      class="gl-float-right gl-line-height-28 gl-display-block"
       value="markdown"
-      @input="handleEditorModeChanged"
+      @switch="$emit('enableContentEditor')"
     />
+    <div class="gl-display-flex">
+      <div v-if="canAttachFile" class="uploading-container gl-font-sm gl-line-height-32 gl-mr-3">
+        <span class="uploading-progress-container hide">
+          <gl-icon name="paperclip" />
+          <span class="attaching-file-message"></span>
+          <!-- eslint-disable-next-line @gitlab/vue-require-i18n-strings -->
+          <span class="uploading-progress">0%</span>
+          <gl-loading-icon size="sm" inline />
+        </span>
+        <span class="uploading-error-container hide">
+          <span class="uploading-error-icon">
+            <gl-icon name="paperclip" />
+          </span>
+          <span class="uploading-error-message"></span>
+
+          <gl-sprintf
+            :message="
+              __(
+                '%{retryButtonStart}Try again%{retryButtonEnd} or %{newFileButtonStart}attach a new file%{newFileButtonEnd}.',
+              )
+            "
+          >
+            <template #retryButton="{ content }">
+              <gl-button
+                variant="link"
+                category="primary"
+                class="retry-uploading-link gl-vertical-align-baseline gl-font-sm!"
+              >
+                {{ content }}
+              </gl-button>
+            </template>
+            <template #newFileButton="{ content }">
+              <gl-button
+                variant="link"
+                category="primary"
+                class="markdown-selector attach-new-file gl-vertical-align-baseline gl-font-sm!"
+              >
+                {{ content }}
+              </gl-button>
+            </template>
+          </gl-sprintf>
+        </span>
+        <gl-button
+          variant="link"
+          category="primary"
+          class="button-cancel-uploading-files gl-vertical-align-baseline hide gl-font-sm!"
+        >
+          {{ __('Cancel') }}
+        </gl-button>
+      </div>
+      <gl-button
+        v-if="markdownDocsPath"
+        v-gl-tooltip
+        icon="markdown-mark"
+        :href="markdownDocsPath"
+        target="_blank"
+        category="tertiary"
+        size="small"
+        :title="__('Markdown is supported')"
+        class="gl-px-3!"
+      />
+    </div>
   </div>
 </template>

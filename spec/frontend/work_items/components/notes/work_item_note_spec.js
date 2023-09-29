@@ -1,19 +1,32 @@
-import { GlAvatarLink, GlDropdown } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
+import { GlAvatarLink } from '@gitlab/ui';
 import mockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { updateDraft } from '~/lib/utils/autosave';
+import { updateDraft, clearDraft } from '~/lib/utils/autosave';
 import EditedAt from '~/issues/show/components/edited.vue';
 import WorkItemNote from '~/work_items/components/notes/work_item_note.vue';
+import WorkItemNoteAwardsList from '~/work_items/components/notes/work_item_note_awards_list.vue';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
 import NoteBody from '~/work_items/components/notes/work_item_note_body.vue';
 import NoteHeader from '~/notes/components/note_header.vue';
 import NoteActions from '~/work_items/components/notes/work_item_note_actions.vue';
 import WorkItemCommentForm from '~/work_items/components/notes/work_item_comment_form.vue';
 import updateWorkItemNoteMutation from '~/work_items/graphql/notes/update_work_item_note.mutation.graphql';
-import { mockWorkItemCommentNote } from 'jest/work_items/mock_data';
+import updateWorkItemMutation from '~/work_items/graphql/update_work_item.mutation.graphql';
+import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
+import {
+  mockAssignees,
+  mockWorkItemCommentNote,
+  updateWorkItemMutationResponse,
+  workItemByIidResponseFactory,
+  workItemQueryResponse,
+  mockWorkItemCommentNoteByContributor,
+  mockWorkItemCommentByMaintainer,
+} from 'jest/work_items/mock_data';
+import { i18n, TRACKING_CATEGORY_SHOW } from '~/work_items/constants';
+import { mockTracking } from 'helpers/tracking_helper';
 
 Vue.use(VueApollo);
 jest.mock('~/lib/utils/autosave');
@@ -22,6 +35,24 @@ describe('Work Item Note', () => {
   let wrapper;
   const updatedNoteText = '# Some title';
   const updatedNoteBody = '<h1 data-sourcepos="1:1-1:12" dir="auto">Some title</h1>';
+  const mockWorkItemId = workItemQueryResponse.data.workItem.id;
+
+  const mockWorkItemByDifferentUser = {
+    data: {
+      workItem: {
+        ...workItemQueryResponse.data.workItem,
+        author: {
+          avatarUrl:
+            'http://127.0.0.1:3000/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+          id: 'gid://gitlab/User/2',
+          name: 'User 1',
+          username: 'user1',
+          webUrl: 'http://127.0.0.1:3000/user1',
+          __typename: 'UserCore',
+        },
+      },
+    },
+  };
 
   const successHandler = jest.fn().mockResolvedValue({
     data: {
@@ -35,32 +66,55 @@ describe('Work Item Note', () => {
       },
     },
   });
+
+  const workItemResponseHandler = jest.fn().mockResolvedValue(workItemByIidResponseFactory());
+  const workItemByAuthoredByDifferentUser = jest
+    .fn()
+    .mockResolvedValue(mockWorkItemByDifferentUser);
+
+  const updateWorkItemMutationSuccessHandler = jest
+    .fn()
+    .mockResolvedValue(updateWorkItemMutationResponse);
+
   const errorHandler = jest.fn().mockRejectedValue('Oops');
 
-  const findAuthorAvatarLink = () => wrapper.findComponent(GlAvatarLink);
+  const findAwardsList = () => wrapper.findComponent(WorkItemNoteAwardsList);
   const findTimelineEntryItem = () => wrapper.findComponent(TimelineEntryItem);
   const findNoteHeader = () => wrapper.findComponent(NoteHeader);
   const findNoteBody = () => wrapper.findComponent(NoteBody);
   const findNoteActions = () => wrapper.findComponent(NoteActions);
-  const findDropdown = () => wrapper.findComponent(GlDropdown);
   const findCommentForm = () => wrapper.findComponent(WorkItemCommentForm);
   const findEditedAt = () => wrapper.findComponent(EditedAt);
-
-  const findDeleteNoteButton = () => wrapper.find('[data-testid="delete-note-action"]');
   const findNoteWrapper = () => wrapper.find('[data-testid="note-wrapper"]');
 
   const createComponent = ({
     note = mockWorkItemCommentNote,
     isFirstNote = false,
     updateNoteMutationHandler = successHandler,
+    workItemId = mockWorkItemId,
+    updateWorkItemMutationHandler = updateWorkItemMutationSuccessHandler,
+    assignees = mockAssignees,
+    workItemByIidResponseHandler = workItemResponseHandler,
   } = {}) => {
     wrapper = shallowMount(WorkItemNote, {
+      provide: {
+        fullPath: 'test-project-path',
+      },
       propsData: {
+        workItemId,
+        workItemIid: '1',
         note,
         isFirstNote,
         workItemType: 'Task',
+        markdownPreviewPath: '/group/project/preview_markdown?target_type=WorkItem',
+        autocompleteDataSources: {},
+        assignees,
       },
-      apolloProvider: mockApollo([[updateWorkItemNoteMutation, updateNoteMutationHandler]]),
+      apolloProvider: mockApollo([
+        [workItemByIidQuery, workItemByIidResponseHandler],
+        [updateWorkItemNoteMutation, updateNoteMutationHandler],
+        [updateWorkItemMutation, updateWorkItemMutationHandler],
+      ]),
     });
   };
 
@@ -97,6 +151,13 @@ describe('Work Item Note', () => {
       expect(findCommentForm().exists()).toBe(false);
       expect(findNoteWrapper().exists()).toBe(true);
     });
+
+    it('should show the awards list when in edit mode', async () => {
+      createComponent({ note: mockWorkItemCommentNote, workItemsMvc2: true });
+      findNoteActions().vm.$emit('startEditing');
+      await nextTick();
+      expect(findAwardsList().exists()).toBe(true);
+    });
   });
 
   describe('when submitting a form to edit a note', () => {
@@ -105,7 +166,7 @@ describe('Work Item Note', () => {
       findNoteActions().vm.$emit('startEditing');
       await nextTick();
 
-      findCommentForm().vm.$emit('submitForm', updatedNoteText);
+      findCommentForm().vm.$emit('submitForm', { commentText: updatedNoteText });
 
       expect(successHandler).toHaveBeenCalledWith({
         input: {
@@ -120,10 +181,11 @@ describe('Work Item Note', () => {
       findNoteActions().vm.$emit('startEditing');
       await nextTick();
 
-      findCommentForm().vm.$emit('submitForm', updatedNoteText);
+      findCommentForm().vm.$emit('submitForm', { commentText: updatedNoteText });
       await waitForPromises();
 
       expect(findCommentForm().exists()).toBe(false);
+      expect(clearDraft).toHaveBeenCalledWith(`${mockWorkItemCommentNote.id}-comment`);
     });
 
     describe('when mutation fails', () => {
@@ -132,7 +194,7 @@ describe('Work Item Note', () => {
         findNoteActions().vm.$emit('startEditing');
         await nextTick();
 
-        findCommentForm().vm.$emit('submitForm', updatedNoteText);
+        findCommentForm().vm.$emit('submitForm', { commentText: updatedNoteText });
         await waitForPromises();
       });
 
@@ -178,8 +240,7 @@ describe('Work Item Note', () => {
         },
       });
 
-      expect(findEditedAt().exists()).toBe(true);
-      expect(findEditedAt().props()).toEqual({
+      expect(findEditedAt().props()).toMatchObject({
         updatedAt: '2023-02-12T07:47:40Z',
         updatedByName: 'Administrator',
         updatedByPath: 'test-path',
@@ -187,8 +248,9 @@ describe('Work Item Note', () => {
     });
 
     describe('main comment', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         createComponent({ isFirstNote: true });
+        await waitForPromises();
       });
 
       it('should have the note header, actions and body', () => {
@@ -198,12 +260,12 @@ describe('Work Item Note', () => {
         expect(findNoteActions().exists()).toBe(true);
       });
 
-      it('should not have the Avatar link for main thread inside the timeline-entry', () => {
-        expect(findAuthorAvatarLink().exists()).toBe(false);
-      });
-
       it('should have the reply button props', () => {
         expect(findNoteActions().props('showReply')).toBe(true);
+      });
+
+      it('should have the project name', () => {
+        expect(findNoteActions().props('projectName')).toBe('Project name');
       });
     });
 
@@ -212,6 +274,19 @@ describe('Work Item Note', () => {
         createComponent();
       });
 
+      it('should show avatar link with popover support', () => {
+        const avatarLink = findTimelineEntryItem().findComponent(GlAvatarLink);
+        const { author } = mockWorkItemCommentNote;
+
+        expect(avatarLink.exists()).toBe(true);
+        expect(avatarLink.classes()).toContain('js-user-link');
+        expect(avatarLink.attributes()).toMatchObject({
+          href: author.webUrl,
+          'data-user-id': '1',
+          'data-username': `${author.username}`,
+        });
+      });
+
       it('should have the note header, actions and body', () => {
         expect(findTimelineEntryItem().exists()).toBe(true);
         expect(findNoteHeader().exists()).toBe(true);
@@ -219,43 +294,152 @@ describe('Work Item Note', () => {
         expect(findNoteActions().exists()).toBe(true);
       });
 
-      it('should have the Avatar link for comment threads', () => {
-        expect(findAuthorAvatarLink().exists()).toBe(true);
-      });
-
       it('should not have the reply button props', () => {
         expect(findNoteActions().props('showReply')).toBe(false);
       });
     });
 
-    it('should display a dropdown if user has a permission to delete a note', () => {
-      createComponent({
-        note: {
-          ...mockWorkItemCommentNote,
-          userPermissions: { ...mockWorkItemCommentNote.userPermissions, adminNote: true },
-        },
+    describe('assign/unassign to commenting user', () => {
+      it('calls a mutation with correct variables', async () => {
+        createComponent({ assignees: mockAssignees });
+        await waitForPromises();
+        findNoteActions().vm.$emit('assignUser');
+
+        await waitForPromises();
+
+        expect(updateWorkItemMutationSuccessHandler).toHaveBeenCalledWith({
+          input: {
+            id: mockWorkItemId,
+            assigneesWidget: {
+              assigneeIds: [mockAssignees[1].id],
+            },
+          },
+        });
       });
 
-      expect(findDropdown().exists()).toBe(true);
+      it('emits an error and resets assignees if mutation was rejected', async () => {
+        createComponent({
+          updateWorkItemMutationHandler: errorHandler,
+          assignees: [mockAssignees[0]],
+        });
+
+        await waitForPromises();
+
+        expect(findNoteActions().props('isAuthorAnAssignee')).toEqual(true);
+
+        findNoteActions().vm.$emit('assignUser');
+
+        await waitForPromises();
+
+        expect(wrapper.emitted('error')).toEqual([[i18n.updateError]]);
+        expect(findNoteActions().props('isAuthorAnAssignee')).toEqual(true);
+      });
+
+      it('tracks the event', async () => {
+        createComponent();
+        await waitForPromises();
+        const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+        findNoteActions().vm.$emit('assignUser');
+
+        await waitForPromises();
+
+        expect(trackingSpy).toHaveBeenCalledWith(TRACKING_CATEGORY_SHOW, 'unassigned_user', {
+          category: TRACKING_CATEGORY_SHOW,
+          label: 'work_item_note_actions',
+          property: 'type_Task',
+        });
+      });
     });
 
-    it('should not display a dropdown if user has no permission to delete a note', () => {
+    describe('report abuse props', () => {
+      it.each`
+        currentUserId | canReportAbuse | sameAsAuthor
+        ${1}          | ${false}       | ${'same as'}
+        ${4}          | ${true}        | ${'not same as'}
+      `(
+        'should be $canReportAbuse when the author is $sameAsAuthor as the author of the note',
+        ({ currentUserId, canReportAbuse }) => {
+          window.gon = {
+            current_user_id: currentUserId,
+          };
+          createComponent();
+
+          expect(findNoteActions().props('canReportAbuse')).toBe(canReportAbuse);
+        },
+      );
+    });
+
+    describe('internal note', () => {
+      it('does not have the internal note class set by default', () => {
+        createComponent();
+        expect(findTimelineEntryItem().classes()).not.toContain('internal-note');
+      });
+
+      it('timeline entry item and note header has the class for internal notes', () => {
+        createComponent({
+          note: {
+            ...mockWorkItemCommentNote,
+            internal: true,
+          },
+        });
+        expect(findTimelineEntryItem().classes()).toContain('internal-note');
+        expect(findNoteHeader().props('isInternalNote')).toBe(true);
+      });
+    });
+
+    it('confidential information on note', async () => {
       createComponent();
-
-      expect(findDropdown().exists()).toBe(false);
+      await findNoteActions().vm.$emit('startEditing');
+      const { confidential } = workItemByIidResponseFactory().data.workspace.workItems.nodes[0];
+      expect(findCommentForm().props('isWorkItemConfidential')).toBe(confidential);
     });
 
-    it('should emit `deleteNote` event when delete note action is clicked', () => {
-      createComponent({
-        note: {
-          ...mockWorkItemCommentNote,
-          userPermissions: { ...mockWorkItemCommentNote.userPermissions, adminNote: true },
-        },
+    describe('author and user role badges', () => {
+      describe('author badge props', () => {
+        it.each`
+          isWorkItemAuthor | sameAsCurrentUser | workItemByIidResponseHandler
+          ${true}          | ${'same as'}      | ${workItemResponseHandler}
+          ${false}         | ${'not same as'}  | ${workItemByAuthoredByDifferentUser}
+        `(
+          'should pass correct isWorkItemAuthor `$isWorkItemAuthor` to note actions when author is $sameAsCurrentUser as current note',
+          async ({ isWorkItemAuthor, workItemByIidResponseHandler }) => {
+            createComponent({ workItemByIidResponseHandler });
+            await waitForPromises();
+
+            expect(findNoteActions().props('isWorkItemAuthor')).toBe(isWorkItemAuthor);
+          },
+        );
       });
 
-      findDeleteNoteButton().vm.$emit('click');
+      describe('Max access level badge', () => {
+        it('should pass the max access badge props', async () => {
+          createComponent({ note: mockWorkItemCommentByMaintainer });
+          await waitForPromises();
 
-      expect(wrapper.emitted('deleteNote')).toEqual([[]]);
+          expect(findNoteActions().props('maxAccessLevelOfAuthor')).toBe(
+            mockWorkItemCommentByMaintainer.maxAccessLevelOfAuthor,
+          );
+        });
+      });
+
+      describe('Contributor badge', () => {
+        it('should pass the contributor props', async () => {
+          createComponent({ note: mockWorkItemCommentNoteByContributor });
+          await waitForPromises();
+
+          expect(findNoteActions().props('isAuthorContributor')).toBe(
+            mockWorkItemCommentNoteByContributor.authorIsContributor,
+          );
+        });
+      });
+    });
+
+    it('passes note props to awards list', () => {
+      createComponent({ note: mockWorkItemCommentNote, workItemsMvc2: true });
+
+      expect(findAwardsList().props('note')).toBe(mockWorkItemCommentNote);
+      expect(findAwardsList().props('workItemIid')).toBe('1');
     });
   });
 });

@@ -27,7 +27,8 @@ module EnforcesTwoFactorAuthentication
         render_error(
           format(
             _("Authentication error: enable 2FA in your profile settings to continue using GitLab: %{mfa_help_page}"),
-             mfa_help_page: mfa_help_page_url),
+            mfa_help_page: mfa_help_page_url
+          ),
           status: :unauthorized
         )
       else
@@ -76,7 +77,7 @@ module EnforcesTwoFactorAuthentication
   end
 
   def two_factor_verifier
-    @two_factor_verifier ||= Gitlab::Auth::TwoFactorAuthVerifier.new(current_user) # rubocop:disable Gitlab/ModuleWithInstanceVariables
+    @two_factor_verifier ||= Gitlab::Auth::TwoFactorAuthVerifier.new(current_user, request) # rubocop:disable Gitlab/ModuleWithInstanceVariables
   end
 
   def mfa_help_page_url

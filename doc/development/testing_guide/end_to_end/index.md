@@ -18,11 +18,13 @@ together.
 We use [Omnibus GitLab](https://gitlab.com/gitlab-org/omnibus-gitlab) to build GitLab packages and then we test these packages
 using the [GitLab QA orchestrator](https://gitlab.com/gitlab-org/gitlab-qa) tool to run the end-to-end tests located in the `qa` directory.
 
+Additionally, we use the [GitLab Development Kit](https://gitlab.com/gitlab-org/gitlab-development-kit) (GDK) as a test environment that can be deployed quickly for faster test feedback.
+
 ### Testing nightly builds
 
 We run scheduled pipelines each night to test nightly builds created by Omnibus.
-You can find these pipelines at <https://gitlab.com/gitlab-org/quality/nightly/pipelines>
-(requires the Developer role). Results are reported in the `#qa-nightly` Slack channel.
+You can find these pipelines at <https://gitlab.com/gitlab-org/gitlab/-/pipeline_schedules>
+(requires the Developer role). Results are reported in the `#qa-master` Slack channel.
 
 ### Testing staging
 
@@ -43,10 +45,9 @@ Docker image built from your merge request's changes.**
 Manual action that starts end-to-end tests is also available
 in [`gitlab-org/omnibus-gitlab` merge requests](https://docs.gitlab.com/omnibus/build/team_member_docs.html#i-have-an-mr-in-the-omnibus-gitlab-project-and-want-a-package-or-docker-image-to-test-it).
 
-#### How does it work?
+##### How does it work?
 
-Currently, we are using _multi-project pipeline_-like approach to run end-to-end
-pipelines.
+Currently, we are using _multi-project pipeline_-like approach to run end-to-end pipelines against Omnibus GitLab.
 
 ```mermaid
 graph TB
@@ -54,17 +55,17 @@ graph TB
     A2 -.->|1. Triggers an `omnibus-gitlab-mirror` pipeline<br>and wait for it to be done| B1
     B2[`Trigger-qa` stage<br>`Trigger:qa-test` job] -.->|2. Triggers a `gitlab-qa-mirror` pipeline<br>and wait for it to be done| C1
 
-subgraph "`gitlab-org/gitlab` pipeline"
+subgraph " `gitlab-org/gitlab` pipeline"
     A1[`build-images` stage<br>`build-qa-image` and `build-assets-image` jobs]
     A2[`qa` stage<br>`e2e:package-and-test` job]
     end
 
-subgraph "`gitlab-org/build/omnibus-gitlab-mirror` pipeline"
+subgraph " `gitlab-org/build/omnibus-gitlab-mirror` pipeline"
     B1[`Trigger-docker` stage<br>`Trigger:gitlab-docker` job] -->|once done| B2
     end
 
-subgraph "`gitlab-org/gitlab-qa-mirror` pipeline"
-    C1>End-to-end jobs run]
+subgraph " `gitlab-org/gitlab-qa-mirror` pipeline"
+    C1[End-to-end jobs run]
     end
 ```
 
@@ -97,8 +98,23 @@ This problem was discovered in <https://gitlab.com/gitlab-org/gitlab-qa/-/issues
 work-around was suggested in <https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/4717>.
 A feature proposal to segregate access control regarding running pipelines from ability to push/merge was also created at <https://gitlab.com/gitlab-org/gitlab/-/issues/24585>.
 
-For more technical details on CI/CD setup and documentation on adding new test jobs to `package-and-test` pipeline, see
-[`package_and_test` setup documentation](package_and_test_pipeline.md).
+For more technical details on CI/CD setup and documentation on adding new test jobs to `e2e:package-and-test` pipeline, see
+[`e2e:package_and_test` setup documentation](test_pipelines.md).
+
+#### Using the `test-on-gdk` job
+
+The `e2e:test-on-gdk` job is run automatically in most merge requests, which triggers a [child-pipeline](../../../ci/pipelines/downstream_pipelines.md#parent-child-pipelines)
+that builds and installs a GDK instance from your merge request's changes, and then executes end-to-end tests against that GDK instance.
+
+##### How does it work?
+
+In the [`gitlab-org/gitlab` pipeline](https://gitlab.com/gitlab-org/gitlab):
+
+1. The [`build-gdk-image` job](https://gitlab.com/gitlab-org/gitlab/-/blob/07504c34b28ac656537cd60810992aa15e9e91b8/.gitlab/ci/build-images.gitlab-ci.yml#L32)
+   uses the code from the merge request to build a Docker image for a GDK instance.
+1. The `e2e:test-on-gdk` trigger job creates a child pipeline that executes the end-to-end tests against GDK instances launched from the image built in the previous job.
+
+For more details, see the [documentation for the `e2e:test-on-gdk` pipeline](test_pipelines.md#e2etest-on-gdk).
 
 #### With merged results pipelines
 
@@ -165,8 +181,8 @@ In order to limit amount of tests executed in a merge request, dynamic selection
 on changed files and merge request labels. Following criteria determine which tests will run:
 
 1. Changes in `qa` framework code would execute the full suite
-1. Changes in particular `_spec.rb` file in `qa` folder would execute only that particular test
-1. Merge request with backend changes and label `devops::manage` would execute all e2e tests related to `manage` stage
+1. Changes in particular `_spec.rb` file in `qa` folder would execute only that particular test. In this case knapsack will not be used to run jobs in parallel.
+1. Merge request with backend changes and label `devops::manage` would execute all e2e tests related to `manage` stage. Jobs will be run in parallel in this case using knapsack.
 
 #### Overriding selective test execution
 
@@ -198,7 +214,7 @@ Use these environment variables to configure metrics export:
 | -------- | -------- | ----------- |
 | `QA_INFLUXDB_URL` | `true` | Should be set to `https://influxdb.quality.gitlab.net`. No default value. |
 | `QA_INFLUXDB_TOKEN` | `true` | InfluxDB write token that can be found under `Influxdb auth tokens` document in `Gitlab-QA` `1Password` vault. No default value. |
-| `QA_RUN_TYPE` | `false` | Arbitrary name for test execution, like `package-and-test`. Automatically inferred from the project name for live environment test executions. No default value. |
+| `QA_RUN_TYPE` | `false` | Arbitrary name for test execution, like `e2e:package-and-test`. Automatically inferred from the project name for live environment test executions. No default value. |
 | `QA_EXPORT_TEST_METRICS` | `false` | Flag to enable or disable metrics export to InfluxDB. Defaults to `false`. |
 | `QA_SAVE_TEST_METRICS` | `false` | Flag to enable or disable saving metrics as JSON file. Defaults to `false`. |
 

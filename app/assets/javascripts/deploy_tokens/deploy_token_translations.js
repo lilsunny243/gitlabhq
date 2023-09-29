@@ -2,6 +2,7 @@ import { s__ } from '~/locale';
 
 const translations = {
   addTokenButton: s__('DeployTokens|Create deploy token'),
+  cancelTokenCreation: s__('DeployTokens|Cancel'),
   addTokenExpiryLabel: s__('DeployTokens|Expiration date (optional)'),
   addTokenExpiryDescription: s__(
     'DeployTokens|Enter an expiration date for your token. Defaults to never expire.',
@@ -23,7 +24,7 @@ const translations = {
   newTokenDescription: s__(
     'DeployTokens|Use this token as a password. Save it. This password can %{i_start}not%{i_end} be recovered.',
   ),
-  newTokenMessage: s__('DeployTokens|Your New Deploy Token'),
+  newTokenMessage: s__('DeployTokens|Your new deploy token'),
   newTokenUsernameCopy: s__('DeployTokens|Copy username'),
   newTokenUsernameDescription: s__(
     'DeployTokens|This username supports access. %{link_start}What kind of access?%{link_end}',
@@ -32,8 +33,11 @@ const translations = {
   readRegistryHelp: s__('DeployTokens|Allows read-only access to registry images.'),
   writeRegistryHelp: s__('DeployTokens|Allows read and write access to registry images.'),
   readPackageRegistryHelp: s__('DeployTokens|Allows read-only access to the package registry.'),
-  writePackageRegistryHelp: s__(
+  groupWritePackageRegistryHelp: s__(
     'DeployTokens|Allows read and write access to the package registry.',
+  ),
+  projectWritePackageRegistryHelp: s__(
+    'DeployTokens|Allows read, write and delete access to the package registry.',
   ),
   createTokenFailedAlert: s__('DeployTokens|Failed to create a new deployment token'),
 };

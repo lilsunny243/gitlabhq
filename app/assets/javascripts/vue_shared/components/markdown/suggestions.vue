@@ -1,7 +1,8 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import Vue from 'vue';
 import SafeHtml from '~/vue_shared/directives/safe_html';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __ } from '~/locale';
 import SuggestionDiff from './suggestion_diff.vue';
 
@@ -40,7 +41,8 @@ export default {
     },
     defaultCommitMessage: {
       type: String,
-      required: true,
+      required: false,
+      default: null,
     },
     suggestionsCount: {
       type: Number,
@@ -124,7 +126,7 @@ export default {
           suggestion,
           batchSuggestionsInfo,
           helpPagePath,
-          defaultCommitMessage,
+          defaultCommitMessage: defaultCommitMessage || '',
           suggestionsCount,
           failedToLoadMetadata,
         },
@@ -176,6 +178,12 @@ export default {
 <template>
   <div>
     <div class="flash-container js-suggestions-flash"></div>
-    <div v-show="isRendered" ref="container" v-safe-html="noteHtml" class="md suggestions"></div>
+    <div
+      v-show="isRendered"
+      ref="container"
+      v-safe-html="noteHtml"
+      data-testid="suggestions-container"
+      class="md suggestions"
+    ></div>
   </div>
 </template>

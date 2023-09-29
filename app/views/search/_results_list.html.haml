@@ -1,11 +1,16 @@
+.advanced-search-promote
+  = render_if_exists 'shared/promotions/promote_advanced_search'
+
 - if @timeout
   = render partial: "search/results/timeout"
 - elsif @search_results.respond_to?(:failed?) && @search_results.failed?
   = render partial: "search/results/error"
-- elsif @search_objects.to_a.empty?
+- elsif @search_objects.blank?
   = render partial: "search/results/empty"
 - else
-  .gl-md-pl-5
+  - statusBarClass = !show_super_sidebar? ? 'gl-lg-pl-5' : ''
+
+  .section{ class: statusBarClass }
     - if @scope == 'commits'
       %ul.content-list.commit-list
         = render partial: "search/results/commit", collection: @search_objects

@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab Flavored Markdown (GLFM) **(FREE)**
+# GitLab Flavored Markdown (GLFM) **(FREE ALL)**
 
 > The abbreviation [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/24592) from `GFM` to `GLFM` in GitLab 14.10.
 
@@ -58,7 +58,7 @@ Features not found in standard Markdown:
 
 - [Color chips written in `HEX`, `RGB` or `HSL`](#colors)
 - [Diagrams and flowcharts](#diagrams-and-flowcharts)
-- [Emoji](#emojis)
+- [Emoji](#emoji)
 - [Front matter](#front-matter)
 - [Inline diffs](#inline-diff)
 - [Math equations and symbols written in LaTeX](#math)
@@ -130,7 +130,7 @@ You can generate diagrams from text by using:
 - [PlantUML](https://plantuml.com)
 - [Kroki](https://kroki.io) to create a wide variety of diagrams.
 
-In wikis you can also add diagrams created by using the [diagrams.net online editor](#create-or-edit-diagrams-by-using-diagramsnet-editor).
+In wikis, you can also add and edit diagrams created with the [diagrams.net editor](#diagramsnet-editor).
 
 #### Mermaid
 
@@ -207,39 +207,52 @@ installation of GitLab, a GitLab administrator [must enable it](../administratio
 To make Kroki available in GitLab, a GitLab administrator must enable it.
 For more information, see the [Kroki integration](../administration/integration/kroki.md) page.
 
-### Emojis
+### Emoji
 
-[View this topic in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#emojis).
+[View this topic in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#emoji).
+
+::Tabs
+
+:::TabTitle Rendered Markdown
+
+Sometimes you want to <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/monkey.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":monkey:" alt=":monkey:"> around a bit and add some <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/star2.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":star2:" alt=":star2:"> to your <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/speech_balloon.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speech_balloon:" alt=":speech_balloon:">. Well we have a gift for you:
+
+<img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/zap.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;"  title=":zap:" alt=":zap:">You can use emoji anywhere GitLab Flavored Markdown is supported. <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/v.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":v:" alt=":v:">
+
+You can use it to point out a <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/bug.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":bug:" alt=":bug:"> or warn about <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/speak_no_evil.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speak_no_evil:" alt=":speak_no_evil:"> patches. If someone improves your really <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/snail.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":snail:" alt=":snail:"> code, send them some <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/birthday.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":birthday:" alt=":birthday:">. People <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/heart.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":heart:" alt=":heart:"> you for that.
+
+If you're new to this, don't be <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/fearful.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":fearful:" alt=":fearful:">. You can join the emoji <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/family.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":family:" alt=":family:">. Just look up one of the supported codes.
+
+Consult the [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/) for a list of all supported emoji codes. <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/thumbsup.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":thumbsup:" alt=":thumbsup:">
+
+:::TabTitle Code
 
 ```markdown
-Sometimes you want to :monkey: around a bit and add some :star2: to your :speech_balloon:. Well we have a gift for you:
+Sometimes you want to :monkey: around a bit and add some :star2: to your
+:speech_balloon:. Well we have a gift for you:
 
 :zap: You can use emoji anywhere GitLab Flavored Markdown is supported. :v:
 
-You can use it to point out a :bug: or warn about :speak_no_evil: patches. And if someone improves your really :snail: code, send them some :birthday:. People :heart: you for that.
+You can use it to point out a :bug: or warn about :speak_no_evil: patches.
+And if someone improves your really :snail: code, send them some :birthday:.
+People :heart: you for that.
 
-If you're new to this, don't be :fearful:. You can join the emoji :family:. Just look up one of the supported codes.
+If you're new to this, don't be :fearful:. You can join the emoji :family:.
+Just look up one of the supported codes.
 
-Consult the [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/) for a list of all supported emoji codes. :thumbsup:
+Consult the [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/)
+for a list of all supported emoji codes. :thumbsup:
 ```
 
-Sometimes you want to <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/monkey.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> around a bit and add some <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/star2.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> to your <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/speech_balloon.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">. Well we have a gift for you:
+::EndTabs
 
-<img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/zap.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">You can use emoji anywhere GitLab Flavored Markdown is supported. <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/v.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">
+#### Emoji and your operating system
 
-You can use it to point out a<img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/bug.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> or warn about <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/speak_no_evil.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> patches. If someone improves your really <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/snail.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> code, send them some <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/birthday.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">. People <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/heart.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> you for that.
-
-If you're new to this, don't be <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/fearful.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">. You can join the emoji <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/family.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">. Just look up one of the supported codes.
-
-Consult the [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/) for a list of all supported emoji codes. <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/thumbsup.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">
-
-#### Emojis and your operating system
-
-The previous emoji example uses hard-coded images. Rendered emojis
+The previous emoji example uses hard-coded images. Rendered emoji
 in GitLab may be different depending on the OS and browser used.
 
-Most emojis are natively supported on macOS, Windows, iOS, Android, and fall back on image-based
-emojis where there is no support.
+Most emoji are natively supported on macOS, Windows, iOS, Android, and fall back on image-based
+emoji where there is no support.
 
 <!-- vale gitlab.Spelling = NO -->
 
@@ -248,6 +261,8 @@ to get full native emoji support. Ubuntu 18.04 (like many modern Linux distribut
 this font installed by default.
 
 <!-- vale gitlab.Spelling = YES -->
+
+To learn more about adding custom emoji, see [Custom emoji](emoji_reactions.md#custom-emoji).
 
 ### Front matter
 
@@ -362,6 +377,10 @@ _KaTeX only supports a [subset](https://katex.org/docs/supported.html) of LaTeX.
 This syntax also works for the Asciidoctor `:stem: latexmath`. For details, see
 the [Asciidoctor user manual](https://asciidoctor.org/docs/user-manual/#activating-stem-support).
 
+To prevent malicious activity, GitLab renders only the first 50 inline math instances.
+The number of math blocks is also limited based on render time. If the limit is exceeded,
+GitLab renders the excess math instances as text.
+
 Math written between dollar signs with backticks (``$`...`$``) or single dollar signs (`$...$`)
 is rendered inline with the text.
 
@@ -371,15 +390,15 @@ the language declared as `math` is rendered on a separate line:
 ````markdown
 This math is inline: $`a^2+b^2=c^2`$.
 
-This math is on a separate line:
+This math is on a separate line using a ```` ```math ```` block:
 
 ```math
 a^2+b^2=c^2
 ```
 
-This math is on a separate line: $$a^2+b^2=c^2$$
+This math is on a separate line using inline `$$`: $$a^2+b^2=c^2$$
 
-This math is on a separate line:
+This math is on a separate line using a `$$...$$` block:
 
 $$
 a^2+b^2=c^2
@@ -388,23 +407,15 @@ $$
 
 This math is inline: $`a^2+b^2=c^2`$.
 
-This math is on a separate line:
+This math is on a separate line using a ```` ```math ```` block:
 
 ```math
 a^2+b^2=c^2
 ```
 
-This math is on a separate line: $$a^2+b^2=c^2$$
+This math is on a separate line using inline `$$`: $$a^2+b^2=c^2$$
 
-This math is on a separate line:
-
-$$
-a^2+b^2=c^2
-$$
-
-This math is on a separate line: $$a^2+b^2=c^2$$
-
-This math is on a separate line:
+This math is on a separate line using a `$$...$$` block:
 
 $$
 a^2+b^2=c^2
@@ -548,35 +559,56 @@ This example links to `<wiki_root>/miscellaneous.md`:
 [Link to Related Page](/miscellaneous.md)
 ```
 
-#### Create or edit diagrams by using diagrams.net editor
+#### diagrams.net editor
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322174) in GitLab 15.10.
 
-NOTE:
-Use of the diagrams.net editor is not available on offline environments.
+In wikis, you can use the [diagrams.net](https://www.diagrams.net/) editor to create diagrams. You
+can also edit diagrams created with the diagrams.net editor. The diagram editor is available in both
+the plain text editor and the rich text editor.
 
-On wikis, you can use the [diagrams.net](https://www.diagrams.net/) editor
-to create diagrams. You can also edit diagrams previously created with the
-editor.
+For more information, see [Diagrams.net](../administration/integration/diagrams_net.md).
 
-To create a diagram:
+##### Plain text editor
 
-1. Select **Insert or edit diagram** in the Markdown editor.
-1. Use the diagrams.net editor to build the diagram.
+To create a diagram in the plain text editor:
+
+1. In the editor's toolbar, select **Insert or edit diagram** (**{diagram}**).
+1. Use the diagrams.net editor to create the diagram.
 1. Select **Save & exit**.
 
-A Markdown image declaration pointing to the diagram is inserted in the wiki content.
+A Markdown image reference to the diagram is inserted in the wiki content.
 
-To edit a diagram:
+To edit a diagram in the plain text editor:
 
-1. Place the Markdown editor’s text field cursor in a Markdown image declaration
+1. Place the plain text editor's text field cursor in a Markdown image reference
 that contains the diagram.
-1. Select **Insert or edit diagram** in the Markdown editor.
+1. Select **Insert or edit diagram** (**{diagram}**) in the plain text editor.
 1. Use the diagrams.net editor to edit the diagram.
 1. Select **Save & exit**.
 
-A Markdown image declaration pointing to the diagram is inserted in the wiki content,
+A Markdown image reference to the diagram is inserted in the wiki content,
 replacing the previous diagram.
+
+##### Rich text editor
+
+To create a diagram in the rich text editor:
+
+1. In the editor's toolbar, select **More options** (**{plus}**).
+1. In the dropdown list, select **Create or edit diagram**.
+1. Use the diagrams.net editor to create the diagram.
+1. Select **Save & exit**.
+
+The diagram as visualized in the diagrams.net editor is inserted in the wiki content.
+
+To edit a diagram in the rich text editor:
+
+1. Select the diagram that you want to edit.
+1. In the floating toolbar, select **Edit diagram** (**{diagram}**).
+1. Use the diagrams.net editor to edit the diagram.
+1. Select **Save & exit**.
+
+The selected diagram is replaced with an updated version.
 
 ## GitLab-specific references
 
@@ -594,7 +626,7 @@ GitLab Flavored Markdown recognizes the following:
 |:----------------------------------------------------------------------------|:------------------------------|:----------------------------------------|:-------------------------------|
 | specific user                                                               | `@user_name`                  |                                         |                                |
 | specific group                                                              | `@group_name`                 |                                         |                                |
-| entire team                                                                 | `@all`                        |                                         |                                |
+| entire team                                                                 | [`@all`](discussions/index.md#mentioning-all-members)                        |                                         |                                |
 | project                                                                     | `namespace/project>`          |                                         |                                |
 | issue                                                                       | ``#123``                      | `namespace/project#123`                 | `project#123`                  |
 | merge request                                                               | `!123`                        | `namespace/project!123`                 | `project!123`                  |
@@ -632,19 +664,21 @@ In addition to this, links to some objects are also recognized and formatted. So
 
 ### Show the issue, merge request, or epic title in the reference
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15694) in GitLab 14.6.
+> - Support for issues, merge requests, and epics [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15694) in GitLab 14.6.
+> - Support for work items [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/390854) in GitLab 16.0.
 
-To include the title in the rendered link of an issue, merge request, or epic, add a plus (`+`)
+To include the title in the rendered link of an issue, work item, merge request, or epic, add a plus (`+`)
 at the end of the reference. For example, a reference like `#123+` is rendered as
 `The issue title (#123)`.
 
 URL references like `https://gitlab.com/gitlab-org/gitlab/-/issues/1234+` are also expanded.
 
-### Show the issue or merge request summary in the reference
+### Show the issue, work item or merge request summary in the reference
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/386937) in GitLab 15.10.
+> - Support for issues and merge requests [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/386937) in GitLab 15.10.
+> - Support for work items [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/390854) in GitLab 16.0.
 
-To include an extended summary in the rendered link of an issue or merge request, add a `+s`
+To include an extended summary in the rendered link of an issue, work item, or merge request, add a `+s`
 at the end of the reference. Summary includes information about **assignees**, **milestone**
 and **health status** of referenced item.
 
@@ -653,10 +687,19 @@ For example, a reference like `#123+s` is rendered as
 
 URL references like `https://gitlab.com/gitlab-org/gitlab/-/issues/1234+s` are also expanded.
 
-### Embedding metrics in GitLab Flavored Markdown
+To update the rendered references if the assignee, milestone, or health status changed,
+edit the comment or description and save it.
+For more information, see issue [420807](https://gitlab.com/gitlab-org/gitlab/-/issues/420807).
 
-Metric charts can be embedded in GitLab Flavored Markdown. Read
-[Embedding Metrics in GitLab flavored Markdown](../operations/metrics/embed.md) for more details.
+### Embedding Observability dashboards
+
+You can embed GitLab Observability UI dashboards descriptions and comments, for example in epics, issues, and MRs.
+
+To embed an Observability dashboard URL:
+
+1. In GitLab Observability UI, copy the URL in the address bar.
+
+1. Paste your link wherever you want to embed your dashboard. GitLab Flavored Markdown recognizes the URL and displays the source.
 
 ## Features extended from standard Markdown
 
@@ -704,13 +747,17 @@ you can quote that without having to manually prepend `>` to every line!
 
 ```
 
->>>
-If you paste a message from somewhere else
+<!--
+Use a standard blockquote here until https://gitlab.com/gitlab-org/gitlab/-/issues/390290
+gets properly fixed. The mixture of HTML comments and HTML tags
+trigger this problem.
+-->
 
-that spans multiple lines,
-
-you can quote that without having to manually prepend `>` to every line!
->>>
+> If you paste a message from somewhere else
+>
+> that spans multiple lines,
+>
+> you can quote that without having to manually prepend `>` to every line!
 
 ### Code spans and blocks
 
@@ -775,7 +822,7 @@ Tildes are OK too.
 If this section isn't rendered correctly,
 [view it in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#colored-code-and-syntax-highlighting).
 
-GitLab uses the [Rouge Ruby library](http://rouge.jneen.net/) for more colorful syntax
+GitLab uses the [Rouge Ruby library](https://github.com/rouge-ruby/rouge) for more colorful syntax
 highlighting in code blocks. For a list of supported languages visit the
 [Rouge project wiki](https://github.com/rouge-ruby/rouge/wiki/List-of-supported-languages-and-lexers).
 Syntax highlighting is supported only in code blocks, so you can't highlight inline code.
@@ -1030,6 +1077,8 @@ The following codeblock uses HTML to skip the Vale ReferenceLinks test.
 Do not change it back to a markdown codeblock.
 -->
 
+<!-- markdownlint-disable proper-names -->
+
 <pre class="highlight"><code>Inline-style (hover to see title text):
 
 ![alt text](img/markdown_logo.png "Title Text")
@@ -1040,6 +1089,8 @@ Reference-style (hover to see title text):
 
 &#91;logo]: img/markdown_logo.png "Title Text"
 </code></pre>
+
+<!-- markdownlint-enable proper-names -->
 
 <!--
 DO NOT change the name of markdown_logo.png. This file is used for a test in
@@ -1642,7 +1693,7 @@ use `<br>` tags to force a cell to have multiple lines:
 | Item2 | This item has:<br>- Multiple items<br>- That we want listed separately |
 
 You can use HTML formatting in GitLab itself to add [task lists](#task-lists) with checkboxes,
-but they do not render properly on `docs.gitlab.com`. Note that these tasks will not save their
+but they do not render properly on `docs.gitlab.com`. These tasks will not save their
 state when selected, like regular GitLab task lists.
 
 ```markdown

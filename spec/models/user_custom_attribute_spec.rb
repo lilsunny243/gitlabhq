@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UserCustomAttribute do
+RSpec.describe UserCustomAttribute, feature_category: :user_profile do
   describe 'assocations' do
     it { is_expected.to belong_to(:user) }
   end
@@ -22,26 +22,76 @@ RSpec.describe UserCustomAttribute do
     let(:custom_attribute) { create(:user_custom_attribute, key: 'blocked_at', value: blocked_at, user_id: user.id) }
 
     describe '.by_user_id' do
-      subject { UserCustomAttribute.by_user_id(user.id) }
+      subject { described_class.by_user_id(user.id) }
 
       it { is_expected.to match_array([custom_attribute]) }
     end
 
     describe '.by_updated_at' do
-      subject { UserCustomAttribute.by_updated_at(Date.today.all_day) }
+      subject { described_class.by_updated_at(Date.today.all_day) }
 
       it { is_expected.to match_array([custom_attribute]) }
     end
 
     describe '.by_key' do
-      subject { UserCustomAttribute.by_key('blocked_at') }
+      subject { described_class.by_key('blocked_at') }
 
       it { is_expected.to match_array([custom_attribute]) }
     end
   end
 
+  describe '.set_banned_by_abuse_report' do
+    let_it_be(:user) { create(:user) }
+    let(:abuse_report) { create(:abuse_report, user: user) }
+
+    subject { described_class.set_banned_by_abuse_report(abuse_report) }
+
+    it 'adds the abuse report ID to user custom attributes' do
+      subject
+
+      custom_attribute = user.custom_attributes.by_key(UserCustomAttribute::AUTO_BANNED_BY_ABUSE_REPORT_ID)
+      expect(custom_attribute.map(&:value)).to match([abuse_report.id.to_s])
+    end
+
+    context 'when abuse report is nil' do
+      let(:abuse_report) { nil }
+
+      it 'does not update custom attributes' do
+        subject
+
+        custom_attribute = user.custom_attributes.by_key(UserCustomAttribute::AUTO_BANNED_BY_ABUSE_REPORT_ID).first
+        expect(custom_attribute).to be_nil
+      end
+    end
+  end
+
+  describe '.set_banned_by_spam_log' do
+    let_it_be(:user) { create(:user) }
+    let(:spam_log) { create(:spam_log, user: user) }
+
+    subject { described_class.set_banned_by_spam_log(spam_log) }
+
+    it 'adds the spam log ID to user custom attributes' do
+      subject
+
+      custom_attribute = user.custom_attributes.by_key(UserCustomAttribute::AUTO_BANNED_BY_SPAM_LOG_ID)
+      expect(custom_attribute.map(&:value)).to match([spam_log.id.to_s])
+    end
+
+    context 'when the spam log is nil' do
+      let(:spam_log) { nil }
+
+      it 'does not update custom attributes' do
+        subject
+
+        custom_attribute = user.custom_attributes.by_key(UserCustomAttribute::AUTO_BANNED_BY_SPAM_LOG_ID).first
+        expect(custom_attribute).to be_nil
+      end
+    end
+  end
+
   describe '#upsert_custom_attributes' do
-    subject { UserCustomAttribute.upsert_custom_attributes(custom_attributes) }
+    subject { described_class.upsert_custom_attributes(custom_attributes) }
 
     let_it_be_with_reload(:user) { create(:user) }
 

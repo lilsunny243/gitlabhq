@@ -7,9 +7,7 @@ module QA
         Runtime::Browser.visit(:gitlab, Page::Main::Login)
         Page::Main::Login.perform(&:sign_in_using_credentials)
 
-        target_project = Resource::Project.fabricate_via_api! do |project|
-          project.name = 'push-mirror-target-project'
-        end
+        target_project = create(:project, name: 'push-mirror-target-project')
         target_project_uri = target_project.repository_http_location.uri
         target_project_uri.user = Runtime::User.username
 
@@ -27,6 +25,7 @@ module QA
             mirror_settings.repository_url = target_project_uri
             mirror_settings.mirror_direction = 'Push'
             mirror_settings.authentication_method = 'Password'
+            mirror_settings.username = Runtime::User.username
             mirror_settings.password = Runtime::User.password
             mirror_settings.mirror_repository
             mirror_settings.update(target_project_uri) # rubocop:disable Rails/SaveBang

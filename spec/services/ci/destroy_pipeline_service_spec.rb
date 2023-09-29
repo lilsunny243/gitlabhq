@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::Ci::DestroyPipelineService do
+RSpec.describe ::Ci::DestroyPipelineService, feature_category: :continuous_integration do
   let_it_be(:project) { create(:project, :repository) }
 
   let!(:pipeline) { create(:ci_pipeline, :success, project: project, sha: project.commit.id) }
@@ -96,17 +96,15 @@ RSpec.describe ::Ci::DestroyPipelineService do
       let!(:child_build) { create(:ci_build, :running, pipeline: child_pipeline) }
 
       it 'cancels the pipelines sync' do
-        # turn off deletion for all instances of pipeline to allow for testing cancellation
-        allow(pipeline).to receive_message_chain(:reset, :destroy!)
-        allow_next_found_instance_of(Ci::Pipeline) { |p| allow(p).to receive_message_chain(:reset, :destroy!) }
+        cancel_pipeline_service = instance_double(::Ci::CancelPipelineService)
+        expect(::Ci::CancelPipelineService)
+          .to receive(:new)
+          .with(pipeline: pipeline, current_user: user, cascade_to_children: true, execute_async: false)
+          .and_return(cancel_pipeline_service)
 
-        # ensure cancellation happens sync so we accumulate minutes
-        expect(::Ci::CancelPipelineWorker).not_to receive(:perform)
+        expect(cancel_pipeline_service).to receive(:force_execute)
 
         subject
-
-        expect(build.reload.status).to eq('canceled')
-        expect(child_build.reload.status).to eq('canceled')
       end
     end
   end

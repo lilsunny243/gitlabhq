@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
@@ -31,19 +31,21 @@ similarly mitigated by a rate limit.
 
 You can set these rate limits in the Admin Area of your instance:
 
-- [Import/Export rate limits](../user/admin_area/settings/import_export_rate_limits.md)
-- [Issue rate limits](../user/admin_area/settings/rate_limit_on_issues_creation.md)
-- [Note rate limits](../user/admin_area/settings/rate_limit_on_notes_creation.md)
-- [Protected paths](../user/admin_area/settings/protected_paths.md)
-- [Raw endpoints rate limits](../user/admin_area/settings/rate_limits_on_raw_endpoints.md)
-- [User and IP rate limits](../user/admin_area/settings/user_and_ip_rate_limits.md)
-- [Package registry rate limits](../user/admin_area/settings/package_registry_rate_limits.md)
-- [Git LFS rate limits](../user/admin_area/settings/git_lfs_rate_limits.md)
-- [Files API rate limits](../user/admin_area/settings/files_api_rate_limits.md)
-- [Deprecated API rate limits](../user/admin_area/settings/deprecated_api_rate_limits.md)
+- [Import/Export rate limits](../administration/settings/import_export_rate_limits.md)
+- [Issue rate limits](../administration/settings/rate_limit_on_issues_creation.md)
+- [Note rate limits](../administration/settings/rate_limit_on_notes_creation.md)
+- [Protected paths](../administration/settings/protected_paths.md)
+- [Raw endpoints rate limits](../administration/settings/rate_limits_on_raw_endpoints.md)
+- [User and IP rate limits](../administration/settings/user_and_ip_rate_limits.md)
+- [Package registry rate limits](../administration/settings/package_registry_rate_limits.md)
+- [Git LFS rate limits](../administration/settings/git_lfs_rate_limits.md)
+- [Rate limits on Git SSH operations](../administration/settings/rate_limits_on_git_ssh_operations.md)
+- [Files API rate limits](../administration/settings/files_api_rate_limits.md)
+- [Deprecated API rate limits](../administration/settings/deprecated_api_rate_limits.md)
 - [GitLab Pages rate limits](../administration/pages/index.md#rate-limits)
-- [Pipeline rate limits](../user/admin_area/settings/rate_limit_on_pipelines_creation.md)
-- [Incident management rate limits](../user/admin_area/settings/incident_management_rate_limits.md)
+- [Pipeline rate limits](../administration/settings/rate_limit_on_pipelines_creation.md)
+- [Incident management rate limits](../administration/settings/incident_management_rate_limits.md)
+- [Unauthenticated access to Projects List API rate limits](../administration/settings/rate_limit_on_projects_api.md)
 
 You can set these rate limits using the Rails console:
 
@@ -71,24 +73,6 @@ For configuration information, see
 [Omnibus GitLab configuration options](https://docs.gitlab.com/omnibus/settings/configuration.html#configure-a-failed-authentication-ban).
 
 ## Non-configurable limits
-
-### Git operations using SSH
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78373) in GitLab 14.7 [with a flag](../administration/feature_flags.md) named `rate_limit_gitlab_shell`. Available by default without a feature flag from 15.8.
-
-GitLab applies rate limits to Git operations that use SSH by user account and project. When the rate limit is exceeded, GitLab rejects
-further connection requests from that user for the project.
-
-The rate limit applies at the Git command ([plumbing](https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain)) level.
-Each command has a rate limit of 600 per minute. For example:
-
-- `git push` has a rate limit of 600 per minute.
-- `git pull` has its own rate limit of 600 per minute.
-
-Because the same commands are shared by `git-upload-pack`, `git pull`, and `git clone`, they share a rate limit.
-
-The requests per minute threshold for this rate limit is not configurable. Self-managed customers can disable this
-rate limit.
 
 ### Repository archives
 
@@ -137,16 +121,28 @@ The **rate limit** is 20 calls per minute per IP address.
 
 ### Project Jobs API endpoint
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104912) in GitLab 15.7 [with a flag](../administration/feature_flags.md) named `ci_enforce_rate_limits_jobs_api`. Disabled by default.
-
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available,
-ask an administrator to [enable the feature flag](../administration/feature_flags.md) named `ci_enforce_rate_limits_jobs_api`.
-The feature is not ready for production use.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/382985) in GitLab 15.7 [with a flag](../administration/feature_flags.md) named `ci_enforce_rate_limits_jobs_api`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/384186) in GitLab 16.0. Feature flag `ci_enforce_rate_limits_jobs_api` removed.
 
 There is a rate limit for the endpoint `project/:id/jobs`, which is enforced to reduce timeouts when retrieving jobs.
 
 The **rate limit** is 600 calls per minute per authenticated user.
+
+### AI action
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/118010) in GitLab 16.0.
+
+There is a rate limit for the GraphQL `aiAction` mutation, which is enforced to prevent from abusing this endpoint.
+
+The **rate limit** is 160 calls per 8 hours per authenticated user.
+
+### Delete a member using the API
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/118296) in GitLab 16.0.
+
+There is a rate limit for [removing project or group members using the API endpoints](../api/members.md#remove-a-member-from-a-group-or-project) `/groups/:id/members` or `/project/:id/members`.
+
+The **rate limit** is 60 deletions per minute.
 
 ## Troubleshooting
 
@@ -193,7 +189,7 @@ To remove a blocked IP:
    keys *rack::attack*
    ```
 
-  By default, the [`keys` command is disabled](https://docs.gitlab.com/omnibus/settings/redis.html#renamed-commands).
+   By default, the [`keys` command is disabled](https://docs.gitlab.com/omnibus/settings/redis.html#renamed-commands).
 
 1. Optionally, add [the IP to the allowlist](https://docs.gitlab.com/omnibus/settings/configuration.html#configuring-rack-attack)
    to prevent it being denylisted again.

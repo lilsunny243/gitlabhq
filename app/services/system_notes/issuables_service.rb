@@ -32,8 +32,7 @@ module SystemNotes
     #
     # Returns the created Note object
     def relate_issuable(noteable_ref)
-      issuable_type = noteable.to_ability_name.humanize(capitalize: false)
-      body = "marked this #{issuable_type} as related to #{noteable_ref.to_reference(noteable.resource_parent)}"
+      body = "marked this #{noteable_name} as related to #{noteable_ref.to_reference(noteable.resource_parent)}"
 
       track_issue_event(:track_issue_related_action)
 
@@ -351,12 +350,12 @@ module SystemNotes
     # Returns the created Note object
     def change_issue_confidentiality
       if noteable.confidential
-        body = 'made the issue confidential'
+        body = "made the #{noteable_name} confidential"
         action = 'confidential'
 
         track_issue_event(:track_issue_made_confidential_action)
       else
-        body = 'made the issue visible to everyone'
+        body = "made the #{noteable_name} visible to everyone"
         action = 'visible'
 
         track_issue_event(:track_issue_made_visible_action)
@@ -456,8 +455,10 @@ module SystemNotes
       create_resource_state_event(status: 'closed', close_auto_resolve_prometheus_alert: true)
     end
 
-    def change_issue_type
-      body = "changed issue type to #{noteable.issue_type.humanize(capitalize: false)}"
+    def change_issue_type(previous_type)
+      previous = previous_type.humanize(capitalize: false)
+      new = noteable.issue_type.humanize(capitalize: false)
+      body = "changed type from #{previous} to #{new}"
 
       create_note(NoteSummary.new(noteable, project, author, body, action: 'issue_type'))
     end
@@ -531,6 +532,12 @@ module SystemNotes
       return unless noteable.is_a?(Issue)
 
       issue_activity_counter.public_send(event_name, author: author, project: project || noteable.project) # rubocop: disable GitlabSecurity/PublicSend
+    end
+
+    def noteable_name
+      name = noteable.try(:issue_type) || noteable.to_ability_name
+
+      name.humanize(capitalize: false)
     end
   end
 end

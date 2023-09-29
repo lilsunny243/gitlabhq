@@ -280,23 +280,6 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
     end
   end
 
-  describe 'GET #index' do
-    before do
-      stub_application_setting(auto_devops_enabled: false)
-    end
-
-    context 'with runners_availability_section experiment' do
-      it 'tracks the assignment', :experiment do
-        stub_experiments(runners_availability_section: true)
-
-        expect(experiment(:runners_availability_section))
-          .to track(:assignment).with_context(namespace: project.namespace).on_next_instance
-
-        get :index, params: { namespace_id: project.namespace, project_id: project }
-      end
-    end
-  end
-
   describe 'GET #show' do
     def get_pipeline_html
       get :show, params: { namespace_id: project.namespace, project_id: project, id: pipeline }, format: :html
@@ -345,7 +328,7 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
         expect do
           get_pipeline_html
           expect(response).to have_gitlab_http_status(:ok)
-        end.not_to exceed_all_query_limit(control)
+        end.not_to exceed_all_query_limit(control).with_threshold(3)
       end
     end
 
@@ -786,22 +769,6 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
 
     [
       {
-        chart_param: '',
-        event: 'p_analytics_ci_cd_pipelines'
-      },
-      {
-        chart_param: 'pipelines',
-        event: 'p_analytics_ci_cd_pipelines'
-      },
-      {
-        chart_param: 'deployment-frequency',
-        event: 'p_analytics_ci_cd_deployment_frequency'
-      },
-      {
-        chart_param: 'lead-time',
-        event: 'p_analytics_ci_cd_lead_time'
-      },
-      {
         chart_param: 'time-to-restore-service',
         event: 'p_analytics_ci_cd_time_to_restore_service'
       },
@@ -824,6 +791,38 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
         let(:namespace) { project.namespace }
         let(:label) { 'redis_hll_counters.analytics.analytics_total_unique_counts_monthly' }
         let(:property) { 'p_analytics_pipelines' }
+      end
+    end
+
+    [
+      {
+        chart_param: '',
+        event: 'p_analytics_ci_cd_pipelines'
+      },
+      {
+        chart_param: 'pipelines',
+        event: 'p_analytics_ci_cd_pipelines'
+      },
+      {
+        chart_param: 'deployment-frequency',
+        event: 'p_analytics_ci_cd_deployment_frequency'
+      },
+      {
+        chart_param: 'lead-time',
+        event: 'p_analytics_ci_cd_lead_time'
+      }
+    ].each do |tab|
+      it_behaves_like 'tracking unique visits', :charts do
+        let(:request_params) { { namespace_id: project.namespace, project_id: project, id: pipeline.id, chart: tab[:chart_param] } }
+        let(:target_id) { ['p_analytics_pipelines', tab[:event]] }
+      end
+
+      it_behaves_like 'internal event tracking' do
+        subject { get :charts, params: request_params, format: :html }
+
+        let(:request_params) { { namespace_id: project.namespace, project_id: project, id: pipeline.id, chart: tab[:chart_param] } }
+        let(:event) { tab[:event] }
+        let(:namespace) { project.namespace }
       end
     end
   end
@@ -1165,7 +1164,7 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
 
     def clear_controller_memoization
       controller.clear_memoization(:pipeline_test_report)
-      controller.instance_variable_set(:@pipeline, nil)
+      controller.remove_instance_variable(:@pipeline)
     end
   end
 
@@ -1292,148 +1291,6 @@ RSpec.describe Projects::PipelinesController, feature_category: :continuous_inte
                          project_id: project,
                          id: pipeline.id
                        }
-    end
-  end
-
-  describe 'GET config_variables.json', :use_clean_rails_memory_store_caching do
-    include ReactiveCachingHelpers
-
-    let(:ci_config) { '' }
-    let(:files) {  { '.gitlab-ci.yml' => YAML.dump(ci_config) } }
-    let(:project)  { create(:project, :auto_devops_disabled, :custom_repo, files: files) }
-    let(:service)  { Ci::ListConfigVariablesService.new(project, user) }
-
-    before do
-      allow(Ci::ListConfigVariablesService)
-        .to receive(:new)
-        .and_return(service)
-    end
-
-    context 'when sending a valid ref' do
-      let(:ref) { 'master' }
-      let(:ci_config) do
-        {
-          variables: {
-            KEY1: { value: 'val 1', description: 'description 1' }
-          },
-          test: {
-            stage: 'test',
-            script: 'echo'
-          }
-        }
-      end
-
-      before do
-        synchronous_reactive_cache(service)
-      end
-
-      it 'returns variable list' do
-        get_config_variables
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response['KEY1']).to eq({ 'value' => 'val 1', 'description' => 'description 1' })
-      end
-    end
-
-    context 'when sending an invalid ref' do
-      let(:ref) { 'invalid-ref' }
-
-      before do
-        synchronous_reactive_cache(service)
-      end
-
-      it 'returns empty json' do
-        get_config_variables
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response).to eq({})
-      end
-    end
-
-    context 'when sending an invalid config' do
-      let(:ref) { 'master' }
-      let(:ci_config) do
-        {
-          variables: {
-            KEY1: { value: 'val 1', description: 'description 1' }
-          },
-          test: {
-            stage: 'invalid',
-            script: 'echo'
-          }
-        }
-      end
-
-      before do
-        synchronous_reactive_cache(service)
-      end
-
-      it 'returns empty result' do
-        get_config_variables
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response).to eq({})
-      end
-    end
-
-    context 'when the cache is empty' do
-      let(:ref) { 'master' }
-      let(:ci_config) do
-        {
-          variables: {
-            KEY1: { value: 'val 1', description: 'description 1' }
-          },
-          test: {
-            stage: 'test',
-            script: 'echo'
-          }
-        }
-      end
-
-      it 'returns no content' do
-        get_config_variables
-
-        expect(response).to have_gitlab_http_status(:no_content)
-      end
-    end
-
-    context 'when project uses external project ci config' do
-      let(:other_project) { create(:project, :custom_repo, files: other_project_files) }
-      let(:other_project_files) { { '.gitlab-ci.yml' => YAML.dump(other_project_ci_config) } }
-      let(:ref) { 'master' }
-
-      let(:other_project_ci_config) do
-        {
-          variables: {
-            KEY1: { value: 'val 1', description: 'description 1' }
-          },
-          test: {
-            stage: 'test',
-            script: 'echo'
-          }
-        }
-      end
-
-      before do
-        other_project.add_developer(user)
-        project.update!(ci_config_path: ".gitlab-ci.yml@#{other_project.full_path}:master")
-        synchronous_reactive_cache(service)
-      end
-
-      it 'returns other project config variables' do
-        get_config_variables
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response['KEY1']).to eq({ 'value' => 'val 1', 'description' => 'description 1' })
-      end
-    end
-
-    private
-
-    def get_config_variables
-      get :config_variables, params: {
-        namespace_id: project.namespace, project_id: project, sha: ref
-      }, format: :json
     end
   end
 

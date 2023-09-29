@@ -8,7 +8,7 @@ import {
 } from '~/lib/utils/url_utility';
 import { darkModeEnabled } from '~/lib/utils/color_utils';
 import { setAttributes, isElementVisible } from '~/lib/utils/dom_utils';
-import { createAlert, VARIANT_WARNING } from '~/flash';
+import { createAlert, VARIANT_WARNING } from '~/alert';
 import { unrestrictedPages } from './constants';
 
 // Renders diagrams and flowcharts from text using Mermaid in any element with the
@@ -72,11 +72,14 @@ function fixElementSource(el) {
 
 export function getSandboxFrameSrc() {
   const path = joinPaths(gon.relative_url_root || '', SANDBOX_FRAME_PATH);
-  if (!darkModeEnabled()) {
-    return path;
+  let absoluteUrl = relativePathToAbsolute(path, getBaseURL());
+  if (darkModeEnabled()) {
+    absoluteUrl = setUrlParams({ darkMode: darkModeEnabled() }, absoluteUrl);
   }
-  const absoluteUrl = relativePathToAbsolute(path, getBaseURL());
-  return setUrlParams({ darkMode: darkModeEnabled() }, absoluteUrl);
+  if (window.gon?.relative_url_root) {
+    absoluteUrl = setUrlParams({ relativeRootPath: window.gon.relative_url_root }, absoluteUrl);
+  }
+  return absoluteUrl;
 }
 
 function renderMermaidEl(el, source) {

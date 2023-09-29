@@ -11,7 +11,7 @@ module Banzai
       include Gitlab::Utils::StrongMemoize
 
       NUMBER_OF_SUMMARY_ASSIGNEES = 2
-      VISIBLE_STATES = %w(closed merged).freeze
+      VISIBLE_STATES = %w[closed merged].freeze
       EXTENDED_FORMAT_XPATH = Gitlab::Utils::Nokogiri.css_to_xpath('a[data-reference-format="+s"]')
 
       def call
@@ -45,7 +45,7 @@ module Banzai
 
       # Example: Issue Title (#123 - closed)
       def expand_reference_with_title_and_state(node, issuable)
-        node.content = "#{issuable.title.truncate(50)} (#{node.content}"
+        node.content = "#{expand_emoji(issuable.title).truncate(50)} (#{node.content}"
         node.content += " - #{issuable_state_text(issuable)}" if VISIBLE_STATES.include?(issuable.state)
         node.content += ')'
       end
@@ -90,7 +90,7 @@ module Banzai
       end
 
       def moved_issue?(issuable)
-        issuable.instance_of?(Issue) && issuable.moved?
+        issuable.is_a?(Issue) && issuable.moved?
       end
 
       def should_expand?(node, issuable)
@@ -123,6 +123,13 @@ module Banzai
 
       def group
         context[:group]
+      end
+
+      def expand_emoji(string)
+        string.gsub(/(?<!\w):(\w+):(?!\w)/) do |match|
+          emoji_codepoint = TanukiEmoji.find_by_alpha_code(::Regexp.last_match(1))&.codepoints
+          !emoji_codepoint.nil? ? emoji_codepoint : match
+        end
       end
     end
   end

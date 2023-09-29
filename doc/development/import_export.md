@@ -1,6 +1,6 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -12,10 +12,11 @@ General development guidelines and tips for the [Import/Export feature](../user/
 
 ## Security
 
-The Import/Export feature is constantly updated (adding new things to export), however
-the code hasn't been refactored in a long time. We should perform a code audit (see
-[confidential issue](../user/project/issues/confidential_issues.md) `https://gitlab.com/gitlab-org/gitlab/-/issues/20720`).
+The Import/Export feature is constantly updated (adding new things to export). However,
+the code hasn't been refactored in a long time. We should perform a code audit
 to make sure its dynamic nature does not increase the number of security concerns.
+GitLab team members can view more information in this confidential issue:
+`https://gitlab.com/gitlab-org/gitlab/-/issues/20720`.
 
 ### Security in the code
 
@@ -46,8 +47,9 @@ The `AttributeConfigurationSpec` checks and confirms the addition of new columns
 <<-MSG
   It looks like #{relation_class}, which is exported using the project Import/Export, has new attributes:
 
-  Please add the attribute(s) to SAFE_MODEL_ATTRIBUTES if you consider this can be exported.
-  Otherwise, please blacklist the attribute(s) in IMPORT_EXPORT_CONFIG by adding it to its correspondent
+  Please add the attribute(s) to SAFE_MODEL_ATTRIBUTES if they can be exported.
+
+  Please denylist the attribute(s) in IMPORT_EXPORT_CONFIG by adding it to its corresponding
   model in the +excluded_attributes+ section.
 
   SAFE_MODEL_ATTRIBUTES: #{File.expand_path(safe_attributes_file)}

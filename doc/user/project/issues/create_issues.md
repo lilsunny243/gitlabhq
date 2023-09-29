@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Create an issue **(FREE)**
+# Create an issue **(FREE ALL)**
 
 When you create an issue, you are prompted to enter the fields of the issue.
 If you know the values you want to assign to an issue, you can use
@@ -28,11 +28,11 @@ Prerequisites:
 
 To create an issue:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. Either:
 
-   - On the left sidebar, select **Issues**, and then, in the upper-right corner, select **New issue**.
-   - On the top bar, select the plus sign (**{plus-square}**) and then, under **This project**,
+   - On the left sidebar, select **Plan > Issues**, and then, in the upper-right corner, select **New issue**.
+   - On the left sidebar, at the top, select the plus sign (**{plus}**) and then, under **In this project**,
      select **New issue**.
 
 1. Complete the [fields](#fields-in-the-new-issue-form).
@@ -51,8 +51,8 @@ Prerequisites:
 
 To create an issue from a group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Issues**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Plan > Issues**.
 1. In the upper-right corner, select **Select project to create issue**.
 1. Select the project you'd like to create an issue for. The button now reflects the selected
    project.
@@ -78,7 +78,7 @@ Prerequisites:
 
 To create an issue from another issue:
 
-1. In an existing issue, select the vertical ellipsis (**{ellipsis_v}**).
+1. In an existing issue, select **Issue actions** (**{ellipsis_v}**).
 1. Select **New related issue**.
 1. Complete the [fields](#fields-in-the-new-issue-form).
    The new issue form has a **Relate to issue #123** checkbox, where `123` is the ID of the
@@ -98,17 +98,17 @@ Prerequisites:
 
 To create an issue from a project issue board:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. Select **Issues > Boards**.
-1. At the top of a board list, select **List actions** (**{ellipsis_v}**) **> Create new issue**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issue boards**.
+1. At the top of a board list, select **Create new issue** (**{plus-square}**).
 1. Enter the issue's title.
 1. Select **Create issue**.
 
 To create an issue from a group issue board:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. Select **Issues > Boards**.
-1. At the top of a board list, select **List actions** (**{ellipsis_v}**) **> Create new issue**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Plan > Issue boards**.
+1. At the top of a board list, select **Create new issue** (**{plus-square}**).
 1. Enter the issue's title.
 1. Under **Projects**, select the project in the group that the issue should belong to.
 1. Select **Create issue**.
@@ -130,8 +130,8 @@ Prerequisites:
 
 To email an issue to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. Select **Issues**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**.
 1. At the bottom of the page, select **Email a new issue to this project**.
 1. To copy the email address, select **Copy** (**{copy-to-clipboard}**).
 1. From your email client, send an email to this address.
@@ -192,12 +192,12 @@ To create an issue in the GitLab project:
 
 ## Using Service Desk
 
-To offer email support, enable [Service Desk](../service_desk.md) for your project.
+To offer email support, enable [Service Desk](../service_desk/index.md) for your project.
 
 Now, when your customer sends a new email, a new issue can be created in
 the appropriate project and followed up from there.
 
-### Fields in the new issue form
+## Fields in the new issue form
 
 > - Adding the new issue to an epic [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13847) in GitLab 13.1.
 > - Iteration field [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/233517) in GitLab 15.6.

@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import Vue from 'vue';
-import { VARIANT_DANGER, VARIANT_INFO, createAlert } from '~/flash';
+import { VARIANT_DANGER, VARIANT_INFO, createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import { parseRailsFormFields } from '~/lib/utils/forms';
@@ -30,7 +30,6 @@ export default class Profile {
 
   bindEvents() {
     $('.js-preferences-form').on('change.preference', 'input[type=radio]', this.submitForm);
-    $('#user_email_opted_in').on('change', this.submitForm);
     $('#user_notified_of_own_activity').on('change', this.submitForm);
     this.form.on('submit', this.onSubmitForm);
   }

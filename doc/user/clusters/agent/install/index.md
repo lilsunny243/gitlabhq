@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Installing the agent for Kubernetes **(FREE)**
+# Installing the agent for Kubernetes **(FREE ALL)**
 
 > - [Moved](https://gitlab.com/groups/gitlab-org/-/epics/6290) from GitLab Premium to GitLab Free in 14.5.
 > - [Introduced](https://gitlab.com/gitlab-org/cluster-integration/gitlab-agent/-/merge_requests/594) multi-arch images in GitLab 14.8. The first multi-arch release is `v14.8.1`. It supports AMD64 and ARM64 architectures.
@@ -29,7 +29,7 @@ Before you can install the agent in your cluster, you need:
 
 To install the agent in your cluster:
 
-1. Optional. [Create an agent configuration file](#create-an-agent-configuration-file).
+1. [Create an agent configuration file](#create-an-agent-configuration-file).
 1. [Register the agent with GitLab](#register-the-agent-with-gitlab).
 1. [Install the agent in your cluster](#install-the-agent-in-the-cluster).
 
@@ -42,10 +42,9 @@ To install the agent in your cluster:
 
 For configuration settings, the agent uses a YAML file in the GitLab project. You must create this file if:
 
-- You use [a GitOps workflow](../gitops.md#gitops-workflow-steps).
-- You use [a GitLab CI/CD workflow](../ci_cd_workflow.md#gitlab-cicd-workflow-steps) and want to authorize a different project to use the agent.
-
-Otherwise it is optional.
+- You use [a GitOps workflow](../gitops/agent.md#gitops-workflow-steps).
+- You use [a GitLab CI/CD workflow](../ci_cd_workflow.md#use-gitlab-cicd-with-your-cluster) and want to authorize a different project to use the agent.
+- You [allow specific project or group members to access Kubernetes](../user_access.md).
 
 To create an agent configuration file:
 
@@ -58,13 +57,11 @@ To create an agent configuration file:
    - Start with an alphanumeric character.
    - End with an alphanumeric character.
 
-1. In the repository, in the default branch, create this directory at the root:
+1. In the repository, in the default branch, create an agent configuration file at the root:
 
    ```plaintext
-   .gitlab/agents/<agent-name>
+   .gitlab/agents/<agent-name>/config.yaml
    ```
-
-1. In the directory, create a `config.yaml` file. Ensure the filename ends in `.yaml`, not `.yml`.
 
 You can leave the file blank for now, and [configure it](#configure-your-agent) later.
 
@@ -79,14 +76,14 @@ In GitLab 14.10, a [flag](../../../../administration/feature_flags.md) named `ce
 Prerequisites:
 
 - For a [GitLab CI/CD workflow](../ci_cd_workflow.md), ensure that
-  [GitLab CI/CD is enabled](../../../../ci/enable_or_disable_ci.md#enable-cicd-in-a-project).
+  [GitLab CI/CD is not disabled](../../../../ci/enable_or_disable_ci.md#disable-cicd-in-a-project).
 
 You must register an agent before you can install the agent in your cluster. To register an agent:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
    If you have an [agent configuration file](#create-an-agent-configuration-file),
    it must be in this project. Your cluster manifest files should also be in this project.
-1. From the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. Select **Operate > Kubernetes clusters**.
 1. Select **Connect a cluster (agent)**.
    - If you want to create a configuration with CI/CD defaults, type a name.
    - If you already have an [agent configuration file](#create-an-agent-configuration-file), select it from the list.
@@ -117,26 +114,47 @@ To connect to multiple clusters, you must configure, register, and install an ag
 
 #### Install the agent with Helm
 
+WARNING:
+For simplicity, the default Helm chart configuration sets up a service account for the agent with `cluster-admin` rights. You should not use this on production systems. To deploy to a production system, follow the instructions in [Customize the Helm installation](#customize-the-helm-installation) to create a service account with the minimum permissions required for your deployment and specify that during installation.
+
 To install the agent on your cluster using Helm:
 
 1. [Install Helm](https://helm.sh/docs/intro/install/).
 1. In your computer, open a terminal and [connect to your cluster](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 1. Run the command you copied when you [registered your agent with GitLab](#register-the-agent-with-gitlab).
-
-Optionally, you can [customize the Helm installation](#customize-the-helm-installation). If you install the agent on a production system, you should customize the Helm installation to skip creating the service account.
+1. Optional. [Customize the Helm installation](#customize-the-helm-installation).
+   If you install the agent on a production system, you should customize the Helm installation to restrict the permissions of the service account. See [How to deploy the GitLab Agent for Kubernetes with limited permissions](https://about.gitlab.com/blog/2021/09/10/setting-up-the-k-agent/).
 
 ##### Customize the Helm installation
 
 By default, the Helm installation command generated by GitLab:
 
 - Creates a namespace `gitlab-agent` for the deployment (`--namespace gitlab-agent`). You can skip creating the namespace by omitting the `--create-namespace` flag.
-- Sets up a service account for the agent with `cluster-admin` rights. You can:
+- Sets up a service account for the agent and assigns it the `cluster-admin` role. You can:
   - Skip creating the service account by adding `--set serviceAccount.create=false` to the `helm install` command. In this case, you must set `serviceAccount.name` to a pre-existing service account.
-  - Skip creating the RBAC permissions by adding `--set rbac.create=false` to the `helm install` command. In this case, you must bring your own RBAC permissions for the agent. Otherwise, it has no permissions at all.
+  - Customise the role assigned to the service account by adding `--set rbac.useExistingRole <your role name>` to the `helm install` command. In this case, you should have a pre-created role with restricted permissions that can be used by the service account.
+  - Skip role assignment altogether by adding `--set rbac.create=false` to your `helm install` command. In this case, you must create `ClusterRoleBinding` manually.
 - Creates a `Secret` resource for the agent's access token. To instead bring your own secret with a token, omit the token (`--set token=...`) and instead use `--set config.secretName=<your secret name>`.
 - Creates a `Deployment` resource for the `agentk` pod.
 
 To see the full list of customizations available, see the Helm chart's [default values file](https://gitlab.com/gitlab-org/charts/gitlab-agent/-/blob/main/values.yaml).
+
+##### Use the agent when KAS is behind a self-signed certificate
+
+When [KAS](../../../../administration/clusters/kas.md) is behind a self-signed certificate,
+you can set the value of `config.caCert` to the certificate. For example:
+
+```shell
+helm upgrade --install gitlab-agent gitlab/gitlab-agent \
+  --set-file config.caCert=my-custom-ca.pem
+```
+
+In this example, `my-custom-ca.pem` is the path to a local file that contains
+the CA certificate used by KAS. The certificate is automatically stored in a
+config map and mounted in the `agentk` pod.
+
+If KAS is installed with the GitLab chart, and the chart is configured to provide
+an [auto-generated self-signed wildcard certificate](https://docs.gitlab.com/charts/installation/tls.html#option-4-use-auto-generated-self-signed-wildcard-certificate), you can extract the CA certificate from the `RELEASE-wildcard-tls-ca` secret.
 
 ##### Use the agent behind an HTTP proxy
 
@@ -156,7 +174,7 @@ helm upgrade --install gitlab-agent gitlab/gitlab-agent \
 ```
 
 NOTE:
-DNS rebind protection is disabled when either the HTTP_PROXY or the HTTPS_PROXY environment variable is set,
+DNS rebind protection is disabled when either the `HTTP_PROXY` or the `HTTPS_PROXY` environment variable is set,
 and the domain DNS can't be resolved.
 
 #### Advanced installation method
@@ -167,7 +185,7 @@ GitLab also provides a [KPT package for the agent](https://gitlab.com/gitlab-org
 
 To configure your agent, add content to the `config.yaml` file:
 
-- For a GitOps workflow, [view the configuration reference](../gitops.md#gitops-configuration-reference).
+- For a GitOps workflow, [view the configuration reference](../gitops/agent.md#gitops-configuration-reference).
 - For a GitLab CI/CD workflow, [authorize the agent to access your projects](../ci_cd_workflow.md#authorize-the-agent). Then
   [add `kubectl` commands to your `.gitlab-ci.yml` file](../ci_cd_workflow.md#update-your-gitlab-ciyml-file-to-run-kubectl-commands).
 
@@ -223,6 +241,10 @@ helm upgrade gitlab-agent gitlab/gitlab-agent \
   --reuse-values \
   --set image.tag=v14.9.1
 ```
+
+The Helm chart is updated separately from the agent for Kubernetes, and might occasionally lag behind the latest version of the agent. If you run `helm repo update` and don't specify an image tag, your agent runs the version specified in the chart.
+
+To use the latest release of the agent for Kubernetes, set the image tag to match the most recent agent image.
 
 ## Uninstall the agent
 

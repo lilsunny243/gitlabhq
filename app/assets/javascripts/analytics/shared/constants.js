@@ -1,4 +1,5 @@
-import { masks } from '~/lib/dateformat';
+import dateFormat, { masks } from '~/lib/dateformat';
+import { nDaysBefore, getStartOfDay } from '~/lib/utils/datetime_utility';
 import { s__ } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
 
@@ -13,12 +14,19 @@ export const dateFormats = {
   month: 'mmmm',
 };
 
+const startOfToday = getStartOfDay(new Date(), { utc: true });
+const last180Days = nDaysBefore(startOfToday, DATE_RANGE_LIMIT, { utc: true });
+const formatDateParam = (d) => dateFormat(d, dateFormats.isoDate, true);
+
 export const METRIC_POPOVER_LABEL = s__('ValueStreamAnalytics|View details');
 
-export const KEY_METRICS = {
+export const ISSUES_COMPLETED_TYPE = 'issues_completed';
+
+export const FLOW_METRICS = {
   LEAD_TIME: 'lead_time',
   CYCLE_TIME: 'cycle_time',
   ISSUES: 'issues',
+  ISSUES_COMPLETED: ISSUES_COMPLETED_TYPE,
   COMMITS: 'commits',
   DEPLOYS: 'deploys',
 };
@@ -30,18 +38,27 @@ export const DORA_METRICS = {
   CHANGE_FAILURE_RATE: 'change_failure_rate',
 };
 
-export const VSA_METRICS_GROUPS = [
-  {
-    key: 'key_metrics',
-    title: s__('ValueStreamAnalytics|Key metrics'),
-    keys: Object.values(KEY_METRICS),
-  },
-  {
-    key: 'dora_metrics',
-    title: s__('ValueStreamAnalytics|DORA metrics'),
-    keys: Object.values(DORA_METRICS),
-  },
-];
+const VSA_FLOW_METRICS_GROUP = {
+  key: 'lifecycle_metrics',
+  title: s__('ValueStreamAnalytics|Lifecycle metrics'),
+  keys: Object.values(FLOW_METRICS),
+};
+
+export const VSA_METRICS_GROUPS = [VSA_FLOW_METRICS_GROUP];
+
+export const VULNERABILITY_CRITICAL_TYPE = 'vulnerability_critical';
+export const VULNERABILITY_HIGH_TYPE = 'vulnerability_high';
+
+export const VULNERABILITY_METRICS = {
+  CRITICAL: VULNERABILITY_CRITICAL_TYPE,
+  HIGH: VULNERABILITY_HIGH_TYPE,
+};
+
+export const MERGE_REQUEST_THROUGHPUT_TYPE = 'merge_request_throughput';
+
+export const MERGE_REQUEST_METRICS = {
+  THROUGHPUT: MERGE_REQUEST_THROUGHPUT_TYPE,
+};
 
 export const METRIC_TOOLTIPS = {
   [DORA_METRICS.DEPLOYMENT_FREQUENCY]: {
@@ -76,7 +93,7 @@ export const METRIC_TOOLTIPS = {
     projectLink: '-/pipelines/charts?chart=change-failure-rate',
     docsLink: helpPagePath('user/analytics/dora_metrics', { anchor: 'change-failure-rate' }),
   },
-  [KEY_METRICS.LEAD_TIME]: {
+  [FLOW_METRICS.LEAD_TIME]: {
     description: s__('ValueStreamAnalytics|Median time from issue created to issue closed.'),
     groupLink: '-/analytics/value_stream_analytics',
     projectLink: '-/value_stream_analytics',
@@ -84,7 +101,7 @@ export const METRIC_TOOLTIPS = {
       anchor: 'view-the-lead-time-and-cycle-time-for-issues',
     }),
   },
-  [KEY_METRICS.CYCLE_TIME]: {
+  [FLOW_METRICS.CYCLE_TIME]: {
     description: s__(
       "ValueStreamAnalytics|Median time from the earliest commit of a linked issue's merge request to when that issue is closed.",
     ),
@@ -94,17 +111,47 @@ export const METRIC_TOOLTIPS = {
       anchor: 'view-the-lead-time-and-cycle-time-for-issues',
     }),
   },
-  [KEY_METRICS.ISSUES]: {
+  [FLOW_METRICS.ISSUES]: {
     description: s__('ValueStreamAnalytics|Number of new issues created.'),
     groupLink: '-/issues_analytics',
     projectLink: '-/analytics/issues_analytics',
     docsLink: helpPagePath('user/analytics/issue_analytics'),
   },
-  [KEY_METRICS.DEPLOYS]: {
+  [FLOW_METRICS.ISSUES_COMPLETED]: {
+    description: s__('ValueStreamAnalytics|Number of issues closed by month.'),
+    groupLink: '-/analytics/value_stream_analytics',
+    projectLink: '-/value_stream_analytics',
+    docsLink: helpPagePath('user/analytics/value_streams_dashboard', {
+      anchor: 'dashboard-metrics-and-drill-down-reports',
+    }),
+  },
+  [FLOW_METRICS.DEPLOYS]: {
     description: s__('ValueStreamAnalytics|Total number of deploys to production.'),
     groupLink: '-/analytics/productivity_analytics',
     projectLink: '-/analytics/merge_request_analytics',
     docsLink: helpPagePath('user/analytics/merge_request_analytics'),
+  },
+  [VULNERABILITY_METRICS.CRITICAL]: {
+    description: s__('ValueStreamAnalytics|Critical vulnerabilities over time.'),
+    groupLink: '-/security/vulnerabilities?severity=CRITICAL',
+    projectLink: '-/security/vulnerability_report?severity=CRITICAL',
+    docsLink: helpPagePath('user/application_security/vulnerabilities/severities.html'),
+  },
+  [VULNERABILITY_METRICS.HIGH]: {
+    description: s__('ValueStreamAnalytics|High vulnerabilities over time.'),
+    groupLink: '-/security/vulnerabilities?severity=HIGH',
+    projectLink: '-/security/vulnerability_report?severity=HIGH',
+    docsLink: helpPagePath('user/application_security/vulnerabilities/severities.html'),
+  },
+  [MERGE_REQUEST_METRICS.THROUGHPUT]: {
+    description: s__('ValueStreamAnalytics|The number of merge requests merged by month.'),
+    groupLink: '-/analytics/productivity_analytics',
+    projectLink: `-/analytics/merge_request_analytics?start_date=${formatDateParam(
+      last180Days,
+    )}&end_date=${formatDateParam(startOfToday)}`,
+    docsLink: helpPagePath('user/analytics/merge_request_analytics', {
+      anchor: 'view-the-number-of-merge-requests-in-a-date-range',
+    }),
   },
 };
 

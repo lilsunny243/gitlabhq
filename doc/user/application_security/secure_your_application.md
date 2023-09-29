@@ -4,12 +4,12 @@ group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Secure your application **(FREE)**
+# Secure your application **(FREE ALL)**
 
 GitLab can check your applications for security vulnerabilities.
 
 - [Get started](get-started-security.md)
-- [Security Configuration](configuration/index.md)
+- [Security configuration](configuration/index.md)
 - [Container Scanning](container_scanning/index.md)
 - [Dependency Scanning](dependency_scanning/index.md)
 - [Static Application Security Testing](sast/index.md)
@@ -27,3 +27,4 @@ GitLab can check your applications for security vulnerabilities.
 - [Policies](policies/index.md)
 - [Security scanner integration](../../development/integrations/secure.md)
 - [Secure and Govern Terminology](terminology/index.md)
+- [GitLab Advisory Database](gitlab_advisory_database/index.md)

@@ -11,7 +11,6 @@ module Enums
           config_error: 1,
           external_validation_failure: 2,
           user_not_verified: 3,
-          activity_limit_exceeded: 20,
           size_limit_exceeded: 21,
           job_activity_limit_exceeded: 22,
           deployments_limit_exceeded: 23,
@@ -70,6 +69,10 @@ module Enums
         ci_sources.merge(sources.slice(:parent_pipeline))
       end
 
+      def self.ci_and_security_orchestration_sources
+        ci_sources.merge(sources.slice(:security_orchestration_policy))
+      end
+
       # Returns the `Hash` to use for creating the `config_sources` enum for
       # `Ci::Pipeline`.
       def self.config_sources
@@ -82,7 +85,8 @@ module Enums
           external_project_source: 5,
           bridge_source: 6,
           parameter_source: 7,
-          compliance_source: 8
+          compliance_source: 8,
+          security_policies_default_source: 9
         }
       end
     end

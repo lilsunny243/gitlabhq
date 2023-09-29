@@ -32,6 +32,24 @@ The [Scalability team](https://about.gitlab.com/handbook/engineering/infrastruct
 currently maintains the `feature_categories.yml` file. They will automatically be
 notified on Slack when the file becomes outdated.
 
+## Gemfile
+
+For each Ruby gem dependency we should specify which feature category requires
+this dependency. This should clarify ownership and we can delegate upgrading
+to the respective group owning the feature.
+
+### Tooling feature category
+
+For Engineering Productivity internal tooling we use `feature_category: :tooling`.
+For example, `knapsack` and `crystalball` are both used to run RSpec test
+suites in CI and they don't belong to any product groups.
+
+### Shared feature category
+
+For gems that are used across different product groups we use
+`feature_category: :shared`. For example, `rails` is used through out the
+application and it's shared with multiple groups.
+
 ## Sidekiq workers
 
 The declaration uses the `feature_category` class method, as shown below.
@@ -226,3 +244,8 @@ For example in [`spec/tooling/danger/specs_spec.rb`](https://gitlab.com/gitlab-o
 
 For features that support developers and they are not specific to a product group we use `feature_category: :shared`
 For example [`spec/lib/gitlab/job_waiter_spec.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/lib/gitlab/job_waiter_spec.rb)
+
+### Admin section
+
+Adding feature categories is equally important when adding new parts to the Admin section. Historically, Admin sections were often marked as `not_owned` in the code. Now
+you must ensure each new addition to the Admin section is properly annotated using `feature_category` notation.

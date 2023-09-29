@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe AvatarsHelper do
+RSpec.describe AvatarsHelper, feature_category: :source_code_management do
   include UploadHelpers
 
   let_it_be(:user) { create(:user) }
@@ -88,7 +88,7 @@ RSpec.describe AvatarsHelper do
   describe '#avatar_icon_for' do
     let!(:user) { create(:user, avatar: File.open(uploaded_image_temp_path), email: 'bar@example.com') }
     let(:email) { 'foo@example.com' }
-    let!(:another_user) { create(:user, avatar: File.open(uploaded_image_temp_path), email: email) }
+    let!(:another_user) { create(:user, :public_email, avatar: File.open(uploaded_image_temp_path), email: email) }
 
     it 'prefers the user to retrieve the avatar_url' do
       expect(helper.avatar_icon_for(user, email).to_s)
@@ -102,7 +102,7 @@ RSpec.describe AvatarsHelper do
   end
 
   describe '#avatar_icon_for_email', :clean_gitlab_redis_cache do
-    let(:user) { create(:user, avatar: File.open(uploaded_image_temp_path)) }
+    let(:user) { create(:user, :public_email, :commit_email, avatar: File.open(uploaded_image_temp_path)) }
 
     subject { helper.avatar_icon_for_email(user.email).to_s }
 
@@ -111,6 +111,22 @@ RSpec.describe AvatarsHelper do
         context 'when there is a matching user' do
           it 'returns a relative URL for the avatar' do
             expect(subject).to eq(user.avatar.url)
+          end
+        end
+
+        context 'when a private email is used' do
+          it 'calls gravatar_icon' do
+            expect(helper).to receive(:gravatar_icon).with(user.commit_email, 20, 2)
+
+            helper.avatar_icon_for_email(user.commit_email, 20, 2)
+          end
+        end
+
+        context 'when by_commit_email is true' do
+          it 'returns a relative URL for the avatar' do
+            avatar = helper.avatar_icon_for_email(user.commit_email, by_commit_email: true).to_s
+
+            expect(avatar).to eq(user.avatar.url)
           end
         end
 
@@ -123,11 +139,20 @@ RSpec.describe AvatarsHelper do
         end
 
         context 'without an email passed' do
-          it 'calls gravatar_icon' do
-            expect(helper).to receive(:gravatar_icon).with(nil, 20, 2)
-            expect(User).not_to receive(:find_by_any_email)
+          it 'returns the default avatar' do
+            expect(helper).to receive(:default_avatar)
+            expect(User).not_to receive(:with_public_email)
 
             helper.avatar_icon_for_email(nil, 20, 2)
+          end
+        end
+
+        context 'with a blank email address' do
+          it 'returns the default avatar' do
+            expect(helper).to receive(:default_avatar)
+            expect(User).not_to receive(:with_public_email)
+
+            helper.avatar_icon_for_email('', 20, 2)
           end
         end
       end
@@ -136,7 +161,7 @@ RSpec.describe AvatarsHelper do
     it_behaves_like "returns avatar for email"
 
     it "caches the request" do
-      expect(User).to receive(:find_by_any_email).once.and_call_original
+      expect(User).to receive(:with_public_email).once.and_call_original
 
       expect(helper.avatar_icon_for_email(user.email).to_s).to eq(user.avatar.url)
       expect(helper.avatar_icon_for_email(user.email).to_s).to eq(user.avatar.url)
@@ -297,22 +322,26 @@ RSpec.describe AvatarsHelper do
     subject { helper.user_avatar_without_link(options) }
 
     it 'displays user avatar' do
-      is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                src: avatar_icon_for_user(user, 16),
-                                data: { container: 'body' },
-                                class: 'avatar s16 has-tooltip',
-                                title: user.name)
+      is_expected.to eq tag.img(
+        alt: "#{user.name}'s avatar",
+        src: avatar_icon_for_user(user, 16),
+        data: { container: 'body' },
+        class: 'avatar s16 has-tooltip',
+        title: user.name
+      )
     end
 
     context 'with css_class parameter' do
       let(:options) { { user: user, css_class: '.cat-pics' } }
 
       it 'uses provided css_class' do
-        is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                  src: avatar_icon_for_user(user, 16),
-                                  data: { container: 'body' },
-                                  class: "avatar s16 #{options[:css_class]} has-tooltip",
-                                  title: user.name)
+        is_expected.to eq tag.img(
+          alt: "#{user.name}'s avatar",
+          src: avatar_icon_for_user(user, 16),
+          data: { container: 'body' },
+          class: "avatar s16 #{options[:css_class]} has-tooltip",
+          title: user.name
+        )
       end
     end
 
@@ -320,11 +349,13 @@ RSpec.describe AvatarsHelper do
       let(:options) { { user: user, size: 99 } }
 
       it 'uses provided size' do
-        is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                  src: avatar_icon_for_user(user, options[:size]),
-                                  data: { container: 'body' },
-                                  class: "avatar s#{options[:size]} has-tooltip",
-                                  title: user.name)
+        is_expected.to eq tag.img(
+          alt: "#{user.name}'s avatar",
+          src: avatar_icon_for_user(user, options[:size]),
+          data: { container: 'body' },
+          class: "avatar s#{options[:size]} has-tooltip",
+          title: user.name
+        )
       end
     end
 
@@ -332,11 +363,13 @@ RSpec.describe AvatarsHelper do
       let(:options) { { user: user, url: '/over/the/rainbow.png' } }
 
       it 'uses provided url' do
-        is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                  src: options[:url],
-                                  data: { container: 'body' },
-                                  class: "avatar s16 has-tooltip",
-                                  title: user.name)
+        is_expected.to eq tag.img(
+          alt: "#{user.name}'s avatar",
+          src: options[:url],
+          data: { container: 'body' },
+          class: "avatar s16 has-tooltip",
+          title: user.name
+        )
       end
     end
 
@@ -344,11 +377,13 @@ RSpec.describe AvatarsHelper do
       let(:options) { { user: user, lazy: true } }
 
       it 'adds `lazy` class to class list, sets `data-src` with avatar URL and `src` with placeholder image' do
-        is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                  src: LazyImageTagHelper.placeholder_image,
-                                  data: { container: 'body', src: avatar_icon_for_user(user, 16) },
-                                  class: "avatar s16 has-tooltip lazy",
-                                  title: user.name)
+        is_expected.to eq tag.img(
+          alt: "#{user.name}'s avatar",
+          src: LazyImageTagHelper.placeholder_image,
+          data: { container: 'body', src: avatar_icon_for_user(user, 16) },
+          class: "avatar s16 has-tooltip lazy",
+          title: user.name
+        )
       end
     end
 
@@ -357,11 +392,13 @@ RSpec.describe AvatarsHelper do
         let(:options) { { user: user, has_tooltip: true } }
 
         it 'adds has-tooltip' do
-          is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                    src: avatar_icon_for_user(user, 16),
-                                    data: { container: 'body' },
-                                    class: "avatar s16 has-tooltip",
-                                    title: user.name)
+          is_expected.to eq tag.img(
+            alt: "#{user.name}'s avatar",
+            src: avatar_icon_for_user(user, 16),
+            data: { container: 'body' },
+            class: "avatar s16 has-tooltip",
+            title: user.name
+          )
         end
       end
 
@@ -369,10 +406,12 @@ RSpec.describe AvatarsHelper do
         let(:options) { { user: user, has_tooltip: false } }
 
         it 'does not add has-tooltip or data container' do
-          is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                    src: avatar_icon_for_user(user, 16),
-                                    class: "avatar s16",
-                                    title: user.name)
+          is_expected.to eq tag.img(
+            alt: "#{user.name}'s avatar",
+            src: avatar_icon_for_user(user, 16),
+            class: "avatar s16",
+            title: user.name
+          )
         end
       end
     end
@@ -384,20 +423,24 @@ RSpec.describe AvatarsHelper do
         let(:options) { { user: user, user_name: 'Tinky Winky' } }
 
         it 'prefers user parameter' do
-          is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                    src: avatar_icon_for_user(user, 16),
-                                    data: { container: 'body' },
-                                    class: "avatar s16 has-tooltip",
-                                    title: user.name)
+          is_expected.to eq tag.img(
+            alt: "#{user.name}'s avatar",
+            src: avatar_icon_for_user(user, 16),
+            data: { container: 'body' },
+            class: "avatar s16 has-tooltip",
+            title: user.name
+          )
         end
       end
 
       it 'uses user_name and user_email parameter if user is not present' do
-        is_expected.to eq tag.img(alt: "#{options[:user_name]}'s avatar",
-                                  src: helper.avatar_icon_for_email(options[:user_email], 16),
-                                  data: { container: 'body' },
-                                  class: "avatar s16 has-tooltip",
-                                  title: options[:user_name])
+        is_expected.to eq tag.img(
+          alt: "#{options[:user_name]}'s avatar",
+          src: helper.avatar_icon_for_email(options[:user_email], 16),
+          data: { container: 'body' },
+          class: "avatar s16 has-tooltip",
+          title: options[:user_name]
+        )
       end
     end
 
@@ -408,11 +451,13 @@ RSpec.describe AvatarsHelper do
         let(:options) { { user: user_with_avatar, only_path: false } }
 
         it 'will return avatar with a full path' do
-          is_expected.to eq tag.img(alt: "#{user_with_avatar.name}'s avatar",
-                                    src: avatar_icon_for_user(user_with_avatar, 16, only_path: false),
-                                    data: { container: 'body' },
-                                    class: "avatar s16 has-tooltip",
-                                    title: user_with_avatar.name)
+          is_expected.to eq tag.img(
+            alt: "#{user_with_avatar.name}'s avatar",
+            src: avatar_icon_for_user(user_with_avatar, 16, only_path: false),
+            data: { container: 'body' },
+            class: "avatar s16 has-tooltip",
+            title: user_with_avatar.name
+          )
         end
       end
 
@@ -420,11 +465,13 @@ RSpec.describe AvatarsHelper do
         let(:options) { { user_email: user_with_avatar.email, user_name: user_with_avatar.username, only_path: false } }
 
         it 'will return avatar with a full path' do
-          is_expected.to eq tag.img(alt: "#{user_with_avatar.username}'s avatar",
-                                    src: helper.avatar_icon_for_email(user_with_avatar.email, 16, only_path: false),
-                                    data: { container: 'body' },
-                                    class: "avatar s16 has-tooltip",
-                                    title: user_with_avatar.username)
+          is_expected.to eq tag.img(
+            alt: "#{user_with_avatar.username}'s avatar",
+            src: helper.avatar_icon_for_email(user_with_avatar.email, 16, only_path: false),
+            data: { container: 'body' },
+            class: "avatar s16 has-tooltip",
+            title: user_with_avatar.username
+          )
         end
       end
     end
@@ -447,11 +494,13 @@ RSpec.describe AvatarsHelper do
       let(:resource) { user.namespace }
 
       it 'displays user avatar' do
-        is_expected.to eq tag.img(alt: "#{user.name}'s avatar",
-                                  src: avatar_icon_for_user(user, 32),
-                                  data: { container: 'body' },
-                                  class: 'avatar s32 has-tooltip',
-                                  title: user.name)
+        is_expected.to eq tag.img(
+          alt: "#{user.name}'s avatar",
+          src: avatar_icon_for_user(user, 32),
+          data: { container: 'body' },
+          class: 'avatar s32 has-tooltip',
+          title: user.name
+        )
       end
     end
 

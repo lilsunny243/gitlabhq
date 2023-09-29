@@ -1,15 +1,13 @@
 <script>
 import { isEmpty } from 'lodash';
-import { GlButtonGroup } from '@gitlab/ui';
 import getToolbarItemsQuery from '~/editor/graphql/get_items.query.graphql';
-import { EDITOR_TOOLBAR_LEFT_GROUP, EDITOR_TOOLBAR_RIGHT_GROUP } from '~/editor/constants';
+import { EDITOR_TOOLBAR_BUTTON_GROUPS } from '~/editor/constants';
 import SourceEditorToolbarButton from './source_editor_toolbar_button.vue';
 
 export default {
   name: 'SourceEditorToolbar',
   components: {
     SourceEditorToolbarButton,
-    GlButtonGroup,
   },
   data() {
     return {
@@ -34,8 +32,7 @@ export default {
       return nodes.map((item) => {
         return {
           ...item,
-          group:
-            (this.$options.groups.includes(item.group) && item.group) || EDITOR_TOOLBAR_RIGHT_GROUP,
+          group: EDITOR_TOOLBAR_BUTTON_GROUPS[item.group] || EDITOR_TOOLBAR_BUTTON_GROUPS.settings,
         };
       });
     },
@@ -46,24 +43,41 @@ export default {
       return !isEmpty(this.getGroupItems(group));
     },
   },
-  groups: [EDITOR_TOOLBAR_LEFT_GROUP, EDITOR_TOOLBAR_RIGHT_GROUP],
+  groups: EDITOR_TOOLBAR_BUTTON_GROUPS,
 };
 </script>
 <template>
   <section
     v-if="isVisible"
     id="se-toolbar"
-    class="gl-py-3 gl-px-5 gl-bg-white gl-border-t gl-border-b gl-display-flex gl-justify-content-space-between gl-align-items-center"
+    class="file-buttons gl-display-flex gl-align-items-center gl-justify-content-end"
   >
-    <div v-for="group in $options.groups" :key="group">
-      <gl-button-group v-if="hasGroupItems(group)">
-        <source-editor-toolbar-button
-          v-for="item in getGroupItems(group)"
-          :key="item.id"
-          :button="item"
-          @click="$emit('click', item)"
-        />
-      </gl-button-group>
+    <div v-if="hasGroupItems($options.groups.file)">
+      <source-editor-toolbar-button
+        v-for="item in getGroupItems($options.groups.file)"
+        :key="item.id"
+        :button="item"
+        @click="$emit('click', item)"
+      />
+    </div>
+    <div
+      v-if="hasGroupItems($options.groups.edit)"
+      class="md-header-toolbar gl-display-flex gl-flex-wrap gl-gap-3 gl-ml-auto"
+    >
+      <source-editor-toolbar-button
+        v-for="item in getGroupItems($options.groups.edit)"
+        :key="item.id"
+        :button="item"
+        @click="$emit('click', item)"
+      />
+    </div>
+    <div v-if="hasGroupItems($options.groups.settings)" class="gl-align-self-start">
+      <source-editor-toolbar-button
+        v-for="item in getGroupItems($options.groups.settings)"
+        :key="item.id"
+        :button="item"
+        @click="$emit('click', item)"
+      />
     </div>
   </section>
 </template>

@@ -34,10 +34,6 @@ describe('User Avatar Link Component', () => {
     createWrapper();
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('should render GlLink with correct props', () => {
     const link = wrapper.findComponent(GlAvatarLink);
     expect(link.exists()).toBe(true);
@@ -97,6 +93,20 @@ describe('User Avatar Link Component', () => {
 
     it('should render provided `avatar-badge` slot content', () => {
       expect(wrapper.html()).toContain(badge);
+    });
+  });
+
+  describe('when popover props provided', () => {
+    beforeEach(() => {
+      createWrapper({ popoverUserId: 1, popoverUsername: defaultProps.username });
+    });
+
+    it('should render GlAvatarLink with popover support', () => {
+      expect(wrapper.attributes()).toMatchObject({
+        href: defaultProps.linkHref,
+        'data-user-id': '1',
+        'data-username': `${defaultProps.username}`,
+      });
     });
   });
 });

@@ -1,18 +1,18 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Emails on push **(FREE)**
+# Emails on push **(FREE ALL)**
 
 When you enable emails on push, you receive email notifications for every change
 that is pushed to your project.
 
 To enable emails on push:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **Emails on push**.
 1. In the **Recipients** section, provide a list of emails separated by spaces or newlines.
 1. Configure the following options:

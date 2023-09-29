@@ -2,7 +2,6 @@
 
 class ProjectHook < WebHook
   include TriggerableHooks
-  include WebHooks::AutoDisabling
   include Presentable
   include Limitable
   extend ::Gitlab::Utils::Override
@@ -22,7 +21,8 @@ class ProjectHook < WebHook
     :wiki_page_hooks,
     :deployment_hooks,
     :feature_flag_hooks,
-    :release_hooks
+    :release_hooks,
+    :emoji_hooks
   ]
 
   belongs_to :project

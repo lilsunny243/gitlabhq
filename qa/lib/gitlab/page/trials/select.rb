@@ -4,11 +4,10 @@ module Gitlab
   module Page
     module Trials
       class Select < Chemlab::Page
-        path '/-/trials/select'
+        path '/-/trials/new?step=trial'
 
         button :select_group, 'data-testid': 'base-dropdown-toggle'
         div :group_dropdown, 'data-testid': 'base-dropdown-menu'
-        text_field :new_group_name
         button :start_your_free_trial
         radio :trial_company
         radio :trial_individual

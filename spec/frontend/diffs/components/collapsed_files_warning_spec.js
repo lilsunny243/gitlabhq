@@ -1,5 +1,6 @@
 import { shallowMount, mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import CollapsedFilesWarning from '~/diffs/components/collapsed_files_warning.vue';
 import { EVT_EXPAND_ALL_FILES } from '~/diffs/constants';
@@ -44,10 +45,6 @@ describe('CollapsedFilesWarning', () => {
       store,
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('when there is more than one file', () => {
     it.each`

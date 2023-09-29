@@ -3,8 +3,9 @@
 require 'spec_helper'
 
 RSpec.describe Projects::CommitsController, feature_category: :source_code_management do
-  let(:project) { create(:project, :repository) }
-  let(:user) { create(:user) }
+  let_it_be(:project) { create(:project, :repository) }
+  let_it_be(:repository) { project.repository }
+  let_it_be(:user) { create(:user) }
 
   before do
     project.add_maintainer(user)
@@ -39,6 +40,12 @@ RSpec.describe Projects::CommitsController, feature_category: :source_code_manag
           it { is_expected.to respond_with(:success) }
         end
 
+        context "HEAD, valid file" do
+          let(:id) { 'HEAD/README.md' }
+
+          it { is_expected.to respond_with(:success) }
+        end
+
         context "valid branch, invalid file" do
           let(:id) { 'master/invalid-path.rb' }
 
@@ -66,8 +73,7 @@ RSpec.describe Projects::CommitsController, feature_category: :source_code_manag
             "master",
             path: "README.md",
             limit: described_class::COMMITS_DEFAULT_LIMIT,
-            offset: 0,
-            include_referenced_by: ["refs/tags/"]
+            offset: 0
           ).and_call_original
 
           get :show, params: { namespace_id: project.namespace, project_id: project, id: id, limit: "foo" }
@@ -81,8 +87,7 @@ RSpec.describe Projects::CommitsController, feature_category: :source_code_manag
               "master",
               path: "README.md",
               limit: described_class::COMMITS_DEFAULT_LIMIT,
-              offset: 0,
-              include_referenced_by: ['refs/tags/']
+              offset: 0
             ).and_call_original
 
             get :show, params: {
@@ -97,19 +102,25 @@ RSpec.describe Projects::CommitsController, feature_category: :source_code_manag
         end
       end
 
-      context 'when the show_tags_on_commits_view flag is disabled' do
-        let(:id) { "master/README.md" }
-
-        before do
-          stub_feature_flags(show_tags_on_commits_view: false)
+      it 'loads tags for commits' do
+        expect_next_instance_of(CommitCollection) do |collection|
+          expect(collection).to receive(:load_tags)
         end
 
-        it 'does not use the include_referenced_by option' do
-          allow_any_instance_of(Repository).to receive(:commits).and_call_original
-          expect_any_instance_of(Repository).not_to receive(:commits).with(
-            a_hash_including(include_referenced_by: any_args)).and_call_original
+        get :show, params: { namespace_id: project.namespace, project_id: project, id: 'master/README.md' }
 
-          get :show, params: { namespace_id: project.namespace, project_id: project, id: id }
+        expect(response).to have_gitlab_http_status(:ok)
+      end
+
+      context 'when tag has a non-ASCII encoding' do
+        before do
+          repository.add_tag(user, 'tést', 'master')
+        end
+
+        it 'does not raise an exception' do
+          get :show, params: { namespace_id: project.namespace, project_id: project, id: 'master' }
+
+          expect(response).to have_gitlab_http_status(:ok)
         end
       end
 

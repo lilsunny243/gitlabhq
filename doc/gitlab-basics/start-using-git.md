@@ -6,7 +6,7 @@ type: howto, tutorial
 description: "Introduction to using Git through the command line."
 ---
 
-# Command line Git **(FREE)**
+# Command line Git **(FREE ALL)**
 
 [Git](https://git-scm.com/) is an open-source distributed version control system. GitLab is built
 on top of Git.
@@ -15,7 +15,7 @@ You can do many Git operations directly in GitLab. However, the command line is 
 like fixing complex merge conflicts or rolling back commits.
 
 If you're new to Git and want to learn by working in your own project,
-[learn how to make your first commit](../tutorials/make_your_first_git_commit.md).
+[learn how to make your first commit](../tutorials/make_first_git_commit/index.md).
 
 For a quick reference of Git commands, download a [Git Cheat Sheet](https://about.gitlab.com/images/press/git-cheat-sheet.pdf).
 
@@ -103,7 +103,7 @@ To use the repository in the examples on this page:
 
 The project becomes available at `https://gitlab.com/<your-namespace>/sample-project/`.
 
-You can [fork](../user/project/repository/forking_workflow.md#creating-a-fork) any project you have access to.
+You can [fork](../user/project/repository/forking_workflow.md#create-a-fork) any project you have access to.
 
 ## Clone a repository
 
@@ -152,7 +152,7 @@ between your computer and GitLab.
    If you have enabled two-factor authentication (2FA) on your account, you cannot use your account password. Instead, you can do one of the following:
 
    - [Clone using a token](#clone-using-a-token) with `read_repository` or `write_repository` permissions.
-   - Install [Git Credential Manager](../user/profile/account/two_factor_authentication.md#git-credential-manager).
+   - Install an [OAuth credential helper](../user/profile/account/two_factor_authentication.md#oauth-credential-helpers).
 
    If you have not enabled 2FA, use your account password.
 
@@ -211,7 +211,7 @@ The remote tells Git where to push or pull from.
 
 To add a remote to your local copy:
 
-1. In GitLab, [create a project](../user/project/index.md#create-a-project) to hold your files.
+1. In GitLab, [create a project](../user/project/index.md) to hold your files.
 1. Visit this project's homepage, scroll down to **Push an existing folder**, and copy the command that starts with `git remote add`.
 1. On your computer, open the terminal in the directory you've initialized, paste the command you copied, and press <kbd>enter</kbd>:
 
@@ -275,8 +275,10 @@ To create a feature branch:
 git checkout -b <name-of-branch>
 ```
 
-Branch names cannot contain empty spaces and special characters. Use only lowercase letters, numbers,
-hyphens (`-`), and underscores (`_`).
+GitLab enforces [branch naming rules](../user/project/repository/branches/index.md#name-your-branch)
+to prevent problems, and provides
+[branch naming patterns](../user/project/repository/branches/index.md#prefix-branch-names-with-issue-numbers)
+to streamline merge request creation.
 
 ### Switch to a branch
 

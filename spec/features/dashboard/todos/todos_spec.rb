@@ -5,9 +5,9 @@ require 'spec_helper'
 RSpec.describe 'Dashboard Todos', feature_category: :team_planning do
   include DesignManagementTestHelpers
 
-  let_it_be(:user) { create(:user, username: 'john') }
-  let_it_be(:user2) { create(:user, username: 'diane') }
-  let_it_be(:author) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar, username: 'john') }
+  let_it_be(:user2) { create(:user, :no_super_sidebar, username: 'diane') }
+  let_it_be(:author) { create(:user, :no_super_sidebar) }
   let_it_be(:project) { create(:project, :public) }
   let_it_be(:issue) { create(:issue, project: project, due_date: Date.today, title: "Fix bug") }
 
@@ -15,7 +15,7 @@ RSpec.describe 'Dashboard Todos', feature_category: :team_planning do
     project.add_developer(user)
   end
 
-  it_behaves_like 'a dashboard page with sidebar', :dashboard_todos_path, :todos
+  it_behaves_like 'a "Your work" page with sidebar and breadcrumbs', :dashboard_todos_path, :todos
 
   context 'User does not have todos' do
     before do
@@ -443,12 +443,15 @@ RSpec.describe 'Dashboard Todos', feature_category: :team_planning do
     let_it_be(:target) { create(:design, issue: issue, project: project) }
     let_it_be(:note) { create(:note, project: project, note: 'I am note, hear me roar') }
     let_it_be(:todo) do
-      create(:todo, :mentioned,
-             user: user,
-             project: project,
-             target: target,
-             author: author,
-             note: note)
+      create(
+        :todo,
+        :mentioned,
+        user: user,
+        project: project,
+        target: target,
+        author: author,
+        note: note
+      )
     end
 
     before do
@@ -467,10 +470,12 @@ RSpec.describe 'Dashboard Todos', feature_category: :team_planning do
   context 'User requested access' do
     shared_examples 'has todo present with access request content' do
       specify do
-        create(:todo, :member_access_requested,
-               user: user,
-               target: target,
-               author: author
+        create(
+          :todo,
+          :member_access_requested,
+          user: user,
+          target: target,
+          author: author
         )
         target.add_owner(user)
 

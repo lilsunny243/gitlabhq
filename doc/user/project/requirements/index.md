@@ -5,7 +5,7 @@ group: Product Planning
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Requirements management **(ULTIMATE)**
+# Requirements management **(ULTIMATE ALL)**
 
 NOTE:
 In 14.4, Requirements was moved under **Issues**.
@@ -24,12 +24,17 @@ If an industry standard *requires* that your application has a certain feature o
 [create a requirement](#create-a-requirement) to reflect this.
 When a feature is no longer necessary, you can [archive the related requirement](#archive-a-requirement).
 
+NOTE:
+Requirements and [test cases](../../../ci/test_cases/index.md) are being
+[migrated to work items](https://gitlab.com/groups/gitlab-org/-/epics/5171).
+[Issue 323790](https://gitlab.com/gitlab-org/gitlab/-/issues/323790) proposes to link requirements to test cases.
+For more information, see [Product Stage Direction - Plan](https://about.gitlab.com/direction/plan/).
+
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
 For an overview, see [GitLab 12.10 Introduces Requirements Management](https://www.youtube.com/watch?v=uSS7oUNSEoU).
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
-For a more in-depth walkthrough using a [demonstration project](https://gitlab.com/gitlab-org/requiremeents-mgmt),
-see [GitLab Requirements Traceability Walkthrough](https://youtu.be/VIiuTQYFVa0) (Feb 2021).
+For a more in-depth walkthrough see [GitLab Requirements Traceability Walkthrough](https://youtu.be/VIiuTQYFVa0) (Feb 2021).
 
 ![requirements list view](img/requirements_list_v13_5.png)
 
@@ -44,7 +49,7 @@ Prerequisite:
 
 To create a requirement:
 
-1. In a project, go to **Issues > Requirements**.
+1. In a project, go to **Plan > Requirements**.
 1. Select **New requirement**.
 1. Enter a title and description and select **Create requirement**.
 
@@ -119,7 +124,7 @@ You can search for a requirement from the requirements list page based on the fo
 
 To search for a requirement:
 
-1. In a project, go to **Issues > Requirements > List**.
+1. In a project, go to **Plan > Requirements > List**.
 1. Select the **Search or filter results** field. A dropdown list appears.
 1. Select the requirement author or status from the dropdown list or enter plain text to search by requirement title.
 1. Press <kbd>Enter</kbd> on your keyboard to filter the list.
@@ -132,7 +137,7 @@ You can also sort the requirements list by:
 ## Allow requirements to be satisfied from a CI job
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2859) in GitLab 13.1.
-> - [Added](https://gitlab.com/gitlab-org/gitlab/-/issues/215514) ability to specify individual requirements and their statuses in GitLab 13.2.
+> - Ability to specify individual requirements and their statuses [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/215514) in GitLab 13.2.
 
 GitLab supports [requirements test reports](../../../ci/yaml/artifacts_reports.md#artifactsreportsrequirements) now.
 You can add a job to your CI pipeline that, when triggered, marks all existing
@@ -234,7 +239,7 @@ Before you import your file:
 
 To import requirements:
 
-1. In a project, go to **Issues > Requirements**.
+1. In a project, go to **Plan > Requirements**.
    - For a project with requirements, in the
      upper-right corner, select the import icon (**{import}**).
    - For a project without requirements, in the middle of the page, select **Import CSV**.
@@ -295,7 +300,7 @@ Prerequisite:
 
 To export requirements:
 
-1. In a project, go to **Issues > Requirements**.
+1. In a project, go to **Plan > Requirements**.
 1. In the upper-right corner, select **Export as CSV** (**{export}**).
 
    A confirmation modal appears.

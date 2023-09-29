@@ -6,13 +6,13 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 # `gitlab-sshd` **(FREE SELF)**
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/299109) in GitLab 14.5 as an **Alpha** release for self-managed customers.
-> - Ready for production use with [Cloud Native GitLab in GitLab 15.1](https://gitlab.com/gitlab-org/charts/gitlab/-/issues/2540) and [Omnibus GitLab in GitLab 15.9](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/5937).
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/299109) in GitLab 14.5 as an Experiment for self-managed customers.
+> - Ready for production use with [Cloud Native GitLab in GitLab 15.1](https://gitlab.com/gitlab-org/charts/gitlab/-/issues/2540) and [Linux packages in GitLab 15.9](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/5937).
 
 `gitlab-sshd` is [a standalone SSH server](https://gitlab.com/gitlab-org/gitlab-shell/-/tree/main/internal/sshd)
 written in Go. It is provided as a part of the `gitlab-shell` package. It has a lower memory
 use as a OpenSSH alternative, and supports
-[group access restriction by IP address](../../user/group/index.md) for applications
+[group access restriction by IP address](../../user/group/access_and_permissions.md#restrict-group-access-by-ip-address) for applications
 running behind the proxy.
 
 `gitlab-sshd` is a lightweight alternative to OpenSSH for providing
@@ -27,8 +27,8 @@ If you are considering switching from OpenSSH to `gitlab-sshd`, consider these c
 
 - `gitlab-sshd` supports the PROXY protocol. It can run behind proxy servers that rely
   on it, such as HAProxy. The PROXY protocol is not enabled by default, but [it can be enabled](#proxy-protocol-support).
-- `gitlab-sshd` **does not** support SSH certificates. For more details, read
-  [issue #495](https://gitlab.com/gitlab-org/gitlab-shell/-/issues/495).
+- `gitlab-sshd` does not support SSH certificates. For discussion about adding them,
+  see [issue 655](https://gitlab.com/gitlab-org/gitlab-shell/-/issues/655).
 
 ## Enable `gitlab-sshd`
 
@@ -47,7 +47,7 @@ The following instructions enable `gitlab-sshd` on a different port than OpenSSH
    gitlab_sshd['listen_address'] = '[::]:2222' # Adjust the port accordingly
    ```
 
-1. Optional. By default, Omnibus GitLab generates SSH host keys for `gitlab-sshd` if
+1. Optional. By default, Linux package installations generate SSH host keys for `gitlab-sshd` if
 they do not exist in `/var/opt/gitlab/gitlab-sshd`. If you wish to disable this automatic generation, add this line:
 
    ```ruby
@@ -110,11 +110,11 @@ To enable the PROXY protocol:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
-    ```ruby
-    gitlab_sshd['proxy_protocol'] = true
-    # # Proxy protocol policy ("use", "require", "reject", "ignore"), "use" is the default value
-    gitlab_sshd['proxy_policy'] = "use"
-    ```
+   ```ruby
+   gitlab_sshd['proxy_protocol'] = true
+   # Proxy protocol policy ("use", "require", "reject", "ignore"), "use" is the default value
+   gitlab_sshd['proxy_policy'] = "use"
+   ```
 
 1. Save the file and reconfigure GitLab:
 

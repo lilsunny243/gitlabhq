@@ -11,15 +11,14 @@ module Gitlab
 
             def initialize(params, context)
               @location = params[:component]
-              super
-            end
 
-            def matching?
-              super && ::Feature.enabled?(:ci_include_components, context.project)
+              super
             end
 
             def content
               return unless component_result.success?
+
+              ::Gitlab::UsageDataCounters::HLLRedisCounter.track_event('cicd_component_usage', values: context.user.id)
 
               component_result.payload.fetch(:content)
             end
@@ -48,9 +47,7 @@ module Gitlab
             end
 
             def validate_content!
-              return if content.present?
-
-              errors.push(component_result.message)
+              errors.push(component_result.message) unless content.present?
             end
 
             private

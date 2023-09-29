@@ -1,7 +1,8 @@
 import MockAdapter from 'axios-mock-adapter';
+import { mapValues } from 'lodash';
 import testAction from 'helpers/vuex_action_helper';
 import Api from '~/api';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import * as logger from '~/lib/logger';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
@@ -31,9 +32,10 @@ import {
   MOCK_RECEIVE_AGGREGATIONS_SUCCESS_MUTATION,
   MOCK_RECEIVE_AGGREGATIONS_ERROR_MUTATION,
   MOCK_AGGREGATIONS,
+  MOCK_LABEL_AGGREGATIONS,
 } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/lib/utils/url_utility', () => ({
   setUrlParams: jest.fn(),
   joinPaths: jest.fn().mockReturnValue(''),
@@ -47,7 +49,7 @@ describe('Global Search Store Actions', () => {
   let mock;
   let state;
 
-  const flashCallback = (callCount) => {
+  const alertCallback = (callCount) => {
     expect(createAlert).toHaveBeenCalledTimes(callCount);
     createAlert.mockClear();
   };
@@ -63,12 +65,12 @@ describe('Global Search Store Actions', () => {
   });
 
   describe.each`
-    action                   | axiosMock                                                                  | type         | expectedMutations                                                                                       | flashCallCount
+    action                   | axiosMock                                                                  | type         | expectedMutations                                                                                       | alertCallCount
     ${actions.fetchGroups}   | ${{ method: 'onGet', code: HTTP_STATUS_OK, res: MOCK_GROUPS }}             | ${'success'} | ${[{ type: types.REQUEST_GROUPS }, { type: types.RECEIVE_GROUPS_SUCCESS, payload: MOCK_GROUPS }]}       | ${0}
     ${actions.fetchGroups}   | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR, res: null }} | ${'error'}   | ${[{ type: types.REQUEST_GROUPS }, { type: types.RECEIVE_GROUPS_ERROR }]}                               | ${1}
     ${actions.fetchProjects} | ${{ method: 'onGet', code: HTTP_STATUS_OK, res: MOCK_PROJECTS }}           | ${'success'} | ${[{ type: types.REQUEST_PROJECTS }, { type: types.RECEIVE_PROJECTS_SUCCESS, payload: MOCK_PROJECTS }]} | ${0}
     ${actions.fetchProjects} | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR, res: null }} | ${'error'}   | ${[{ type: types.REQUEST_PROJECTS }, { type: types.RECEIVE_PROJECTS_ERROR }]}                           | ${1}
-  `(`axios calls`, ({ action, axiosMock, type, expectedMutations, flashCallCount }) => {
+  `(`axios calls`, ({ action, axiosMock, type, expectedMutations, alertCallCount }) => {
     describe(action.name, () => {
       describe(`on ${type}`, () => {
         beforeEach(() => {
@@ -76,7 +78,7 @@ describe('Global Search Store Actions', () => {
         });
         it(`should dispatch the correct mutations`, () => {
           return testAction({ action, state, expectedMutations }).then(() =>
-            flashCallback(flashCallCount),
+            alertCallback(alertCallCount),
           );
         });
       });
@@ -84,12 +86,12 @@ describe('Global Search Store Actions', () => {
   });
 
   describe.each`
-    action                          | axiosMock                                                       | type         | expectedMutations                               | flashCallCount
+    action                          | axiosMock                                                       | type         | expectedMutations                               | alertCallCount
     ${actions.loadFrequentGroups}   | ${{ method: 'onGet', code: HTTP_STATUS_OK }}                    | ${'success'} | ${[PROMISE_ALL_EXPECTED_MUTATIONS.resGroups]}   | ${0}
     ${actions.loadFrequentGroups}   | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR }} | ${'error'}   | ${[]}                                           | ${1}
     ${actions.loadFrequentProjects} | ${{ method: 'onGet', code: HTTP_STATUS_OK }}                    | ${'success'} | ${[PROMISE_ALL_EXPECTED_MUTATIONS.resProjects]} | ${0}
     ${actions.loadFrequentProjects} | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR }} | ${'error'}   | ${[]}                                           | ${1}
-  `('Promise.all calls', ({ action, axiosMock, type, expectedMutations, flashCallCount }) => {
+  `('Promise.all calls', ({ action, axiosMock, type, expectedMutations, alertCallCount }) => {
     describe(action.name, () => {
       describe(`on ${type}`, () => {
         beforeEach(() => {
@@ -103,7 +105,7 @@ describe('Global Search Store Actions', () => {
 
         it(`should dispatch the correct mutations`, () => {
           return testAction({ action, state, expectedMutations }).then(() => {
-            flashCallback(flashCallCount);
+            alertCallback(alertCallCount);
           });
         });
       });
@@ -132,7 +134,7 @@ describe('Global Search Store Actions', () => {
 
     describe('when groupId is set', () => {
       it('calls Api.groupProjects with expected parameters', () => {
-        actions.fetchProjects({ commit: mockCommit, state }, undefined);
+        actions.fetchProjects({ commit: mockCommit, state }, MOCK_QUERY.search);
         expect(Api.groupProjects).toHaveBeenCalledWith(state.query.group_id, state.query.search, {
           order_by: 'similarity',
           include_subgroups: true,
@@ -180,25 +182,36 @@ describe('Global Search Store Actions', () => {
   });
 
   describe('applyQuery', () => {
-    it('calls visitUrl and setParams with the state.query', () => {
-      return testAction(actions.applyQuery, null, state, [], [], () => {
-        expect(urlUtils.setUrlParams).toHaveBeenCalledWith({ ...state.query, page: null });
-        expect(urlUtils.visitUrl).toHaveBeenCalled();
-      });
+    it('calls visitUrl and setParams with the state.query', async () => {
+      await testAction(actions.applyQuery, null, state, [], []);
+      expect(urlUtils.setUrlParams).toHaveBeenCalledWith(
+        { ...state.query, page: null },
+        'http://test.host/',
+        false,
+        true,
+      );
+      expect(urlUtils.visitUrl).toHaveBeenCalled();
     });
   });
 
   describe('resetQuery', () => {
-    it('calls visitUrl and setParams with empty values', () => {
-      return testAction(actions.resetQuery, null, state, [], [], () => {
-        expect(urlUtils.setUrlParams).toHaveBeenCalledWith({
+    it('calls visitUrl and setParams with empty values', async () => {
+      await testAction(actions.resetQuery, null, state, [], []);
+      const resetParams = SIDEBAR_PARAMS.reduce((acc, param) => {
+        acc[param] = null;
+        return acc;
+      }, {});
+
+      expect(urlUtils.setUrlParams).toHaveBeenCalledWith(
+        {
           ...state.query,
           page: null,
-          state: null,
-          confidential: null,
-        });
-        expect(urlUtils.visitUrl).toHaveBeenCalled();
-      });
+          ...resetParams,
+        },
+        undefined,
+        true,
+      );
+      expect(urlUtils.visitUrl).toHaveBeenCalled();
     });
   });
 
@@ -275,7 +288,7 @@ describe('Global Search Store Actions', () => {
   describe.each`
     action                       | axiosMock                                                       | type         | scope         | expectedMutations                    | errorLogs
     ${actions.fetchSidebarCount} | ${{ method: 'onGet', code: HTTP_STATUS_OK }}                    | ${'success'} | ${'issues'}   | ${[MOCK_NAVIGATION_ACTION_MUTATION]} | ${0}
-    ${actions.fetchSidebarCount} | ${{ method: null, code: 0 }}                                    | ${'success'} | ${'projects'} | ${[]}                                | ${0}
+    ${actions.fetchSidebarCount} | ${{ method: null, code: 0 }}                                    | ${'error'}   | ${'projects'} | ${[]}                                | ${1}
     ${actions.fetchSidebarCount} | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR }} | ${'error'}   | ${'issues'}   | ${[]}                                | ${1}
   `('fetchSidebarCount', ({ action, axiosMock, type, expectedMutations, scope, errorLogs }) => {
     describe(`on ${type}`, () => {
@@ -290,9 +303,9 @@ describe('Global Search Store Actions', () => {
         }
       });
 
-      it(`should ${expectedMutations.length === 0 ? 'NOT ' : ''}dispatch ${
-        expectedMutations.length === 0 ? '' : 'the correct '
-      }mutations for ${scope}`, () => {
+      it(`should ${expectedMutations.length === 0 ? 'NOT' : ''} dispatch ${
+        expectedMutations.length === 0 ? '' : 'the correct'
+      } mutations for ${scope}`, () => {
         return testAction({ action, state, expectedMutations }).then(() => {
           expect(logger.logError).toHaveBeenCalledTimes(errorLogs);
         });
@@ -300,12 +313,27 @@ describe('Global Search Store Actions', () => {
     });
   });
 
+  describe('fetchSidebarCount with no count_link', () => {
+    beforeEach(() => {
+      state.navigation = mapValues(MOCK_NAVIGATION_DATA, (navItem) => ({
+        ...navItem,
+        count_link: null,
+      }));
+    });
+
+    it('should not request anything', async () => {
+      await testAction({ action: actions.fetchSidebarCount, state, expectedMutations: [] });
+
+      expect(mock.history.get.length).toBe(0);
+    });
+  });
+
   describe.each`
-    action                              | axiosMock                                                       | type         | expectedMutations                             | errorLogs
-    ${actions.fetchLanguageAggregation} | ${{ method: 'onGet', code: HTTP_STATUS_OK }}                    | ${'success'} | ${MOCK_RECEIVE_AGGREGATIONS_SUCCESS_MUTATION} | ${0}
-    ${actions.fetchLanguageAggregation} | ${{ method: 'onPut', code: 0 }}                                 | ${'error'}   | ${MOCK_RECEIVE_AGGREGATIONS_ERROR_MUTATION}   | ${1}
-    ${actions.fetchLanguageAggregation} | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR }} | ${'error'}   | ${MOCK_RECEIVE_AGGREGATIONS_ERROR_MUTATION}   | ${1}
-  `('fetchLanguageAggregation', ({ action, axiosMock, type, expectedMutations, errorLogs }) => {
+    action                         | axiosMock                                                       | type         | expectedMutations                             | errorLogs
+    ${actions.fetchAllAggregation} | ${{ method: 'onGet', code: HTTP_STATUS_OK }}                    | ${'success'} | ${MOCK_RECEIVE_AGGREGATIONS_SUCCESS_MUTATION} | ${0}
+    ${actions.fetchAllAggregation} | ${{ method: 'onPut', code: 0 }}                                 | ${'error'}   | ${MOCK_RECEIVE_AGGREGATIONS_ERROR_MUTATION}   | ${1}
+    ${actions.fetchAllAggregation} | ${{ method: 'onGet', code: HTTP_STATUS_INTERNAL_SERVER_ERROR }} | ${'error'}   | ${MOCK_RECEIVE_AGGREGATIONS_ERROR_MUTATION}   | ${1}
+  `('fetchAllAggregation', ({ action, axiosMock, type, expectedMutations, errorLogs }) => {
     describe(`on ${type}`, () => {
       beforeEach(() => {
         if (axiosMock.method) {
@@ -326,25 +354,48 @@ describe('Global Search Store Actions', () => {
     });
   });
 
-  describe('resetLanguageQueryWithRedirect', () => {
-    it('calls visitUrl and setParams with the state.query', () => {
-      return testAction(actions.resetLanguageQueryWithRedirect, null, state, [], [], () => {
-        expect(urlUtils.setUrlParams).toHaveBeenCalledWith({ ...state.query, page: null });
-        expect(urlUtils.visitUrl).toHaveBeenCalled();
+  describe('closeLabel', () => {
+    beforeEach(() => {
+      state = createState({
+        query: MOCK_QUERY,
+        aggregations: MOCK_LABEL_AGGREGATIONS,
       });
+    });
+
+    it('removes correct labels from query and sets sidebar dirty', () => {
+      const expectedResult = [
+        {
+          payload: {
+            key: 'labels',
+            value: ['37'],
+          },
+          type: 'SET_QUERY',
+        },
+        {
+          payload: true,
+          type: 'SET_SIDEBAR_DIRTY',
+        },
+      ];
+      return testAction(actions.closeLabel, { key: '60' }, state, expectedResult, []);
     });
   });
 
-  describe('resetLanguageQuery', () => {
-    it('calls commit SET_QUERY with value []', () => {
-      state = { ...state, query: { ...state.query, language: ['YAML', 'Text', 'Markdown'] } };
-      return testAction(
-        actions.resetLanguageQuery,
-        null,
-        state,
-        [{ type: types.SET_QUERY, payload: { key: 'language', value: [] } }],
-        [],
-      );
+  describe('setLabelFilterSearch', () => {
+    beforeEach(() => {
+      state = createState({
+        query: MOCK_QUERY,
+        aggregations: MOCK_LABEL_AGGREGATIONS,
+      });
+    });
+
+    it('sets search string', () => {
+      const expectedResult = [
+        {
+          payload: 'test',
+          type: 'SET_LABEL_SEARCH_STRING',
+        },
+      ];
+      return testAction(actions.setLabelFilterSearch, { value: 'test' }, state, expectedResult, []);
     });
   });
 });

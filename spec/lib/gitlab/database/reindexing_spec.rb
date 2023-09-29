@@ -6,6 +6,10 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
   include ExclusiveLeaseHelpers
   include Database::DatabaseHelpers
 
+  before do
+    stub_feature_flags(disallow_database_ddl_feature_flags: false)
+  end
+
   describe '.invoke' do
     let(:databases) { Gitlab::Database.database_base_models_with_gitlab_shared }
     let(:databases_count) { databases.count }
@@ -39,6 +43,14 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
     context 'when async index creation is disabled' do
       it 'does not execute async index creation' do
         stub_feature_flags(database_async_index_creation: false)
+
+        expect(Gitlab::Database::AsyncIndexes).not_to receive(:create_pending_indexes!)
+
+        described_class.invoke
+      end
+
+      it 'does not execute async index creation when disable ddl flag is enabled' do
+        stub_feature_flags(disallow_database_ddl_feature_flags: true)
 
         expect(Gitlab::Database::AsyncIndexes).not_to receive(:create_pending_indexes!)
 
@@ -86,6 +98,14 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
 
         described_class.invoke
       end
+
+      it 'does not execute async index creation when disable ddl flag is enabled' do
+        stub_feature_flags(disallow_database_ddl_feature_flags: true)
+
+        expect(Gitlab::Database::AsyncIndexes).not_to receive(:validate_pending_entries!)
+
+        described_class.invoke
+      end
     end
   end
 
@@ -99,14 +119,14 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
     end
 
     before do
-      allow(Gitlab::Database::Reindexing).to receive(:cleanup_leftovers!)
-      allow(Gitlab::Database::Reindexing).to receive(:perform_from_queue).and_return(0)
-      allow(Gitlab::Database::Reindexing).to receive(:perform_with_heuristic).and_return(0)
+      allow(described_class).to receive(:cleanup_leftovers!)
+      allow(described_class).to receive(:perform_from_queue).and_return(0)
+      allow(described_class).to receive(:perform_with_heuristic).and_return(0)
     end
 
     it 'cleans up leftovers, before consuming the queue' do
-      expect(Gitlab::Database::Reindexing).to receive(:cleanup_leftovers!).ordered
-      expect(Gitlab::Database::Reindexing).to receive(:perform_from_queue).ordered
+      expect(described_class).to receive(:cleanup_leftovers!).ordered
+      expect(described_class).to receive(:perform_from_queue).ordered
 
       subject
     end
@@ -120,8 +140,8 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
         let(:limit) { 1 }
 
         it 'does not perform reindexing with heuristic' do
-          expect(Gitlab::Database::Reindexing).to receive(:perform_from_queue).and_return(limit)
-          expect(Gitlab::Database::Reindexing).not_to receive(:perform_with_heuristic)
+          expect(described_class).to receive(:perform_from_queue).and_return(limit)
+          expect(described_class).not_to receive(:perform_with_heuristic)
 
           subject
         end
@@ -131,8 +151,8 @@ RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_t
         let(:limit) { 2 }
 
         it 'continues if the queue did not have enough records' do
-          expect(Gitlab::Database::Reindexing).to receive(:perform_from_queue).ordered.and_return(1)
-          expect(Gitlab::Database::Reindexing).to receive(:perform_with_heuristic).with(maximum_records: 1).ordered
+          expect(described_class).to receive(:perform_from_queue).ordered.and_return(1)
+          expect(described_class).to receive(:perform_with_heuristic).with(maximum_records: 1).ordered
 
           subject
         end

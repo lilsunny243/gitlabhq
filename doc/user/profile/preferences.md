@@ -5,226 +5,343 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: concepts, howto
 ---
 
-# Profile preferences **(FREE)**
+# Profile preferences **(FREE ALL)**
 
-A user's profile preferences page allows the user to customize various aspects
-of GitLab to their liking.
+You can update your preferences to change the look and feel of GitLab.
 
-To navigate to your profile's preferences:
+## Change the color theme
 
-1. In the upper-right corner, select your avatar.
-1. Select **Preferences**.
-
-## Navigation theme
-
-The GitLab navigation theme setting allows you to personalize your GitLab experience.
-You can choose from several color themes that add unique colors to the top navigation
-and left side navigation.
+You can change the color theme of the GitLab UI. These colors are displayed on the left sidebar.
 Using individual color themes might help you differentiate between your different
 GitLab instances.
 
-The default theme is Indigo. You can choose between 10 themes:
+To change the color theme:
 
-- Indigo
-- Light Indigo
-- Blue
-- Light Blue
-- Green
-- Light Green
-- Red
-- Light Red
-- Dark
-- Light
-- [Dark Mode](#dark-mode)
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. In the **Color theme** section, select a theme.
 
-## Dark mode
+### Dark mode
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/28252) in GitLab 13.1 as an [Alpha](../../policy/alpha-beta-support.md#alpha-features) release.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/28252) in GitLab 13.1 as an [Experiment](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/28252).
 
-GitLab has started work on dark mode! The dark mode Alpha release is available in the
-spirit of iteration and the lower expectations of
-[Alpha versions](../../policy/alpha-beta-support.md#alpha-features).
+Dark mode makes elements on the GitLab UI stand out on a dark background.
 
-Progress on dark mode is tracked in the [Dark theme epic](https://gitlab.com/groups/gitlab-org/-/epics/2902).
-See the epic for:
+- To turn on Dark mode, Select **Preferences > Color theme > Dark Mode**.
 
-- A list of known issues.
-- Our planned direction and next steps.
+Dark mode works only with the **Dark** Syntax highlighting theme. You can report and view issues, send feedback, and track progress in [epic 2092](https://gitlab.com/groups/gitlab-org/-/epics/2902).
 
-If you find an issue that isn't listed, leave a comment on the epic or create a
-new issue.
+## Change the syntax highlighting theme
 
-Dark mode is available as a navigation theme, for MVC and compatibility reasons.
-[An issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/219512)
-to make it configurable in its own section along with support for
-different navigation themes.
+> Changing the default syntax highlighting theme for authenticated and unauthenticated users [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/25129) in GitLab 15.1.
 
-Dark theme only works with the **Dark** syntax highlighting theme.
+Syntax highlighting is a feature in code editors and IDEs. The highlighter assigns a color to each type of code, such as strings and comments.
 
-## Syntax highlighting theme
+To change the syntax highlighting theme:
 
-GitLab uses the [rouge Ruby library](http://rouge.jneen.net/ "Rouge website")
-for syntax highlighting outside of any Editor context. The WebIDE (like Snippets)
-uses [Monaco Editor](https://microsoft.github.io/monaco-editor/) and it's provided
-[Monarch](https://microsoft.github.io/monaco-editor/monarch.html) library for
-syntax highlighting. For a list of supported languages, see the documentation of
-the respective libraries.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. In the **Syntax highlighting theme** section, select a theme.
+1. Select **Save changes**.
 
-Changing this setting allows you to customize the color theme when viewing any
-syntax highlighted code on GitLab.
+To view the updated syntax highlighting theme, refresh your project's page.
 
-The default syntax theme is White, and you can choose among 5 different themes:
+To customize the syntax highlighting theme, you can also [use the Application settings API](../../api/settings.md#list-of-settings-that-can-be-accessed-via-api-calls). Use `default_syntax_highlighting_theme` to change the syntax highlighting colors on a more granular level.
 
-<!-- vale gitlab.Spelling = NO -->
+If these steps do not work, your programming language might not be supported by the syntax highlighters.
+For more information, view [Rouge Ruby Library](https://github.com/rouge-ruby/rouge) for guidance on code files and Snippets. View [Monaco Editor](https://microsoft.github.io/monaco-editor/) and [Monarch](https://microsoft.github.io/monaco-editor/monarch.html) for guidance on the Web IDE.
 
-- White
-- Dark
-- Solarized light
-- Solarized dark
-- Monokai
+## Change the diff colors
 
-<!-- vale gitlab.Spelling = YES -->
+Diffs use two different background colors to show changes between versions of code. By default, the original file is in red, and the changes are in green.
 
-![Profile preferences syntax highlighting themes](img/profile-preferences-syntax-themes.png)
+To change the diff colors:
 
-Introduced in GitLab 13.6, the themes [Solarized](https://gitlab.com/gitlab-org/gitlab/-/issues/221034) and [Monokai](https://gitlab.com/gitlab-org/gitlab/-/issues/221034) also apply to the [Web IDE](../project/web_ide/index.md) and [Snippets](../snippets.md).
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Diff colors** section.
+1. Select a color or enter a color code.
+1. Select **Save changes**.
 
-## Diff colors
-
-A diff compares the old/removed content with the new/added content (for example, when
-[reviewing a merge request](../project/merge_requests/reviews/index.md#review-a-merge-request) or in a
-[Markdown inline diff](../markdown.md#inline-diff)).
-Typically, the colors red and green are used for removed and added lines in diffs.
-The exact colors depend on the selected [syntax highlighting theme](#syntax-highlighting-theme).
-The colors may lead to difficulties in case of red-green color blindness.
-
-For this reason, you can customize the following colors:
-
-- Color for removed lines
-- Color for added lines
+To change back to the default colors, clear the **Color for removed lines** and **Color for added lines** text boxes and select **Save changes**.
 
 ## Behavior
 
-The following settings allow you to customize the behavior of the GitLab layout
-and default views of your dashboard and the projects' landing pages.
+Use the **Behavior** section to customize the behavior and layout of your GitLab self-managed instance. You can change your layout width and choose the default content for your homepage, group and project overview pages. You have options to customize appearance and function, like whitespace rendering, file display, and text automation.
 
-### Layout width
+### Change the layout width on the UI
 
-GitLab can be set up to use different widths depending on your liking. Choose
-between the fixed (max. `1280px`) and the fluid (`100%`) application layout.
+You can stretch content on the GitLab UI to fill the entire page. By default, page content is fixed at 1280 pixels wide.
 
-NOTE:
-While `1280px` is the standard max width when using fixed layout, some pages still use 100% width, depending on the content.
+To change the layout width of your UI:
 
-### Dashboard
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Under **Layout width**, choose **Fixed** or **Fluid**.
+1. Select **Save changes**.
 
-For users who have access to a large number of projects but only keep up with a
-select few, the amount of activity on the your dashboard can be
-overwhelming. From the **Dashboard** dropdown list, select what you'd like displayed on your
-personal dashboard.
+### Choose your homepage
 
-### Group overview content
+Control what page you view when you select the GitLab logo (**{tanuki}**). You can set your homepage to be Projects (default), Your Groups, Your Activity, and other content.
 
-The **Group overview content** dropdown list allows you to choose what information is
-displayed on a group's home page.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. For **Homepage**, select a default.
+1. Select **Save changes**.
 
-You can choose between 2 options:
+### Customize default content on your group overview page
 
-- Details (default)
-- [Security dashboard](../application_security/security_dashboard/index.md)
+You can change the main content on your group overview page. Your group overview page is the page that shows when you select **Groups** on the left sidebar. You can customize the default content for your group overview page to the:
 
-### Project overview content
+- Details Dashboard (default), which includes an overview of group activities and projects.
+- Security Dashboard, which might include group security policies and other security topics.
 
-The **Project overview content** setting allows you to choose what content you want to
-see on a project's home page.
+For more information, view [Groups](../../user/group/index.md).
 
-### Tab width
+To change the default content on your group overview page:
 
-You can set the displayed width of tab characters across various parts of
-GitLab, for example, blobs, diffs, and snippets.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. For **Group overview content**, select an option.
+1. Select **Save changes**.
 
-NOTE:
-Some parts of GitLab do not respect this setting, including the WebIDE, file
-editor and Markdown editor.
+### Customize default content on your project overview page
+
+Your project overview page is the page you view when you select **Project overview** on the left sidebar. You can set your main project overview page to the Activity page, the README file, and other content.
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. For **Project overview content**, select an option.
+1. Select **Save changes**.
+
+### Hide shortcut buttons
+
+Shortcut buttons precede the list of files on a project's overview page. These buttons provide links to parts of a project, such as the README file or license agreements.
+
+To hide shortcut buttons on the project overview page:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Clear the **Show shortcut buttons above files on project overview** checkbox.
+1. Select **Save changes**.
+
+### Show whitespace characters in the Web IDE
+
+Whitespace characters are any blank characters in a text, such as spaces and indentations. You might use whitespace to structure content in code. If your programming language is sensitive to whitespaces, the Web IDE can detect changes to them.
+
+To render whitespace in the Web IDE:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Select the **Render whitespace characters in the Web IDE** checkbox.
+1. Select **Save changes**.
+
+You can view changes to whitespace in diffs.
+
+To view diffs on the Web IDE, follow these steps:
+
+1. On the left sidebar, select **Source Control** (**{branch}**).
+1. Under the **Changes** tab, select your file.
+
+### Show whitespace changes in diffs
+
+View changes to whitespace in diff files. For more information on whitespaces, view the previous task.
+
+To view changes to whitespace in diffs:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Select the **Show whitespace changes in diffs** checkbox.
+1. Select **Save changes**.
+
+For more information on diffs, view [Change the diff colors](#change-the-diff-colors).
+
+### Show one file per page in a merge request
+
+The **Changes** tab lets you view all file changes in a merge request on one page.
+Instead, you can choose to view one file at a time.
+
+To show one file per page on the **Changes** tab:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Select the **Show one file at a time on merge request's Changes tab** checkbox.
+1. Select **Save changes**.
+
+Then, to move between files on the **Changes** tab, below each file, select the **Previous** and **Next** buttons.
+
+### Auto-enclose characters
+
+Automatically add the corresponding closing character to text when you type the opening character. For example, you can automatically insert a closing bracket when you type an opening bracket. This setting works only in description and comment boxes and for the following characters: `**"`, `'`, ```, `(`, `[`, `{`, `<`, `*`, `_**`.
+
+To auto-enclose characters in description and comment boxes:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Select the **Surround text selection when typing quotes or brackets** checkbox.
+1. Select **Save changes**.
+
+In a description or comment box, you can now type a word, highlight it, then type an
+opening character. Instead of replacing the text, the closing character is added to the end.
+
+### Automate new list items
+
+Create a new list item when you press <kbd>Enter</kbd> in a list in description and comment boxes.
+
+To add a new list item when you press the <kbd>Enter</kbd> key:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. Select the **Automatically add new list items** checkbox.
+1. Select **Save changes**.
+
+### Change the tab width
+
+Change the default size of tabs in diffs, blobs, and snippets. The WebIDE, file editor, and Markdown editor do not support this feature.
+
+To adjust the default tab width:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Behavior** section.
+1. For **Tab width**, enter a value.
+1. Select **Save changes**.
 
 ## Localization
 
-### Language
+Change localization settings such as your language, calendar start day, and time preferences.
 
-Select your preferred language from a list of supported languages.
+### Change your display language on the GitLab UI
 
-*This feature is experimental and translations are not complete yet.*
+GitLab supports multiple languages on the UI. To help improve translations or request support for an unlisted language, view [Translating GitLab](../../development/i18n/translation.md).
 
-### First day of the week
+To choose a language for the GitLab UI:
 
-The first day of the week can be customized for calendar views and date pickers.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Localization** section.
+1. Under **Language**, select an option.
+1. Select **Save changes**.
 
-You can choose one of the following options as the first day of the week:
+You might need to refresh your page to view the updated language.
 
-- Saturday
-- Sunday
-- Monday
+### Customize your contribution calendar start day
 
-If you select **System Default**, the [instance default](../admin_area/settings/index.md#default-first-day-of-the-week) setting is used.
+Choose which day of the week the contribution calendar starts with. The contribution calendar shows project contributions over the past year. You can view this calendar on each user profile. To access your user profile:
 
-## Time preferences
+- On the left sidebar, select your avatar > select your name or username.
 
-### Use relative times
+To change your contribution calendar start day:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Localization** section.
+1. Under **First day of the week**, select an option.
+1. Select **Save changes**.
+
+After you change your calendar start day, refresh your user profile page.
+
+### Show exact times instead of relative times
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/65570) in GitLab 14.1.
 
-You can select your preferred time format for the GitLab user interface:
+Customize the format used to display times of activities on your group and project overview pages and user profiles. You can display times in a:
 
-- Relative times, for example, `30 minutes ago`.
-- Absolute times, for example, `May 18, 2021, 3:57 PM`.
+- Relative format, for example `30 minutes ago`.
+- Absolute format, for example `September 3, 2022, 3:57 PM`.
 
-The times are formatted depending on your chosen language and browser locale.
+To use relative times on the GitLab UI:
 
-To set your time preference:
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Go to the **Time preferences** section.
+1. Clear the **Use relative times** checkbox.
+1. Select **Save changes**.
 
-1. On the **Preferences** page, go to **Time preferences**.
-1. Select the **Use relative times** checkbox to use relative times,
-   or clear the checkbox to use absolute times.
+## User identities in CI job JSON web tokens
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/387537) in GitLab 16.0.
+
+CI/CD jobs generate JSON web tokens, which can include a list of your external identities.
+Instead of making separate API calls to get individual accounts, you can find your user identities in a single authentication token.
+
+External identities are not included by default.
+To enable including external identities, see [Token payload](../../ci/secrets/id_token_authentication.md#token-payload).
+
+## Control follower engagement
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325558) in GitLab 16.0.
+
+Turn off the ability to follow or be followed by other GitLab users. By default, your user profile, including your name and profile photo, is public in the **Following** tabs of other users. When you deactivate this setting:
+
+- GitLab deletes all of your followers and followed connections.
+- GitLab automatically removes your user profile from the pages of each connection.
+
+To remove the ability to be followed by and follow other users:
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Clear the **Enable follow users** checkbox.
+1. Select **Save changes**.
+
+To access your **Followers** and **Following** tabs:
+
+- On the left sidebar, select your avatar > select your name or username.
+- Select **Followers** or **Following**.
+
+## Enable Code Suggestions
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/121079) in GitLab 16.1 as [Beta](../../policy/experiment-beta-support.md#beta).
+
+To enable [Code Suggestions](../../user/project/repository/code_suggestions/index.md):
+
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Select the **Enable Code Suggestions** checkbox.
 1. Select **Save changes**.
 
 NOTE:
-This feature is experimental, and choosing absolute times might break certain layouts.
-Open an issue if you notice that using absolute times breaks a layout.
+If Code Suggestions are turned off [for the group](../../user/group/manage.md#enable-code-suggestions), then you cannot enable them for yourself. (Your setting has no effect.)
 
-## Web IDE
+## Integrate your GitLab instance with third-party services
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/370139) in GitLab 15.7 [with a flag](../../administration/feature_flags.md) named `vscode_web_ide`. Disabled by default.
+Give third-party services access to your GitLab account.
 
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `vscode_web_ide`. On GitLab.com, this feature is available.
+### Integrate your GitLab instance with Gitpod
 
-The [Web IDE Beta](../project/web_ide_beta/index.md) is
-the default editing environment when the `vscode_web_ide` feature
-flag is enabled.
+Configure your GitLab instance with Gitpod when you want to launch and manage code directly from your GitLab browser. Gitpod automatically prepares and builds development environments for your projects.
 
-To stop using the Web IDE Beta:
+To integrate with Gitpod:
 
-1. In the **Web IDE** section, select the **Opt out of the Web IDE Beta** checkbox.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Find the **Integrations** section.
+1. Select the **Enable Gitpod integration** checkbox.
 1. Select **Save changes**.
 
-## Integrations
+### Integrate your GitLab instance with Sourcegraph
 
-Configure your preferences with third-party services which provide enhancements to your GitLab experience.
+GitLab supports Sourcegraph integration for all public projects on GitLab.
 
-### Sourcegraph
+To integrate with Sourcegraph:
 
-NOTE:
-This setting is only visible if Sourcegraph has been enabled by a GitLab administrator.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences**.
+1. Find the **Integrations** section.
+1. Select the **Enable integrated code intelligence on code views** checkbox.
+1. Select **Save changes**.
 
-Manage the availability of integrated code intelligence features powered by
-Sourcegraph. View [the Sourcegraph feature documentation](../../integration/sourcegraph.md#enable-sourcegraph-in-user-preferences)
-for more information.
-
-### Gitpod
-
-Enable and disable the [GitLab-Gitpod integration](../../integration/gitpod.md). This is only
-visible after the integration is configured by a GitLab administrator. View
-[the Gitpod feature documentation](../../integration/gitpod.md) for more information.
+You must be the administrator of the GitLab instance to configure GitLab with Sourcegraph.
 
 <!-- ## Troubleshooting
 

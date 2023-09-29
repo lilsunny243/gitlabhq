@@ -2,15 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe Note do
+RSpec.describe Note, feature_category: :team_planning do
   include RepoHelpers
 
   describe 'associations' do
     it { is_expected.to belong_to(:project) }
+    it { is_expected.to belong_to(:namespace) }
     it { is_expected.to belong_to(:noteable).touch(false) }
     it { is_expected.to belong_to(:author).class_name('User') }
 
     it { is_expected.to have_many(:todos) }
+    it { is_expected.to have_one(:note_metadata).inverse_of(:note).class_name('Notes::NoteMetadata') }
     it { is_expected.to belong_to(:review).inverse_of(:notes) }
   end
 
@@ -31,6 +33,7 @@ RSpec.describe Note do
     it { is_expected.to validate_length_of(:note).is_at_most(1_000_000) }
     it { is_expected.to validate_presence_of(:note) }
     it { is_expected.to validate_presence_of(:project) }
+    it { is_expected.to validate_presence_of(:namespace) }
 
     context 'when note is on commit' do
       before do
@@ -52,8 +55,7 @@ RSpec.describe Note do
 
     context 'when noteable and note project differ' do
       subject do
-        build(:note, noteable: build_stubbed(:issue),
-                     project: build_stubbed(:project))
+        build(:note, noteable: build_stubbed(:issue), project: build_stubbed(:project))
       end
 
       it { is_expected.to be_invalid }
@@ -308,6 +310,70 @@ RSpec.describe Note do
         let(:confidential) { nil }
 
         it { is_expected.to be false }
+      end
+    end
+
+    describe '#ensure_namespace_id' do
+      context 'for a project noteable' do
+        let_it_be(:issue) { create(:issue) }
+
+        it 'copies the project_namespace_id of the project' do
+          note = build(:note, noteable: issue, project: issue.project)
+
+          note.valid?
+
+          expect(note.namespace_id).to eq(issue.project.project_namespace_id)
+        end
+
+        context 'when noteable is changed' do
+          let_it_be(:another_issue) { create(:issue) }
+
+          it 'updates the namespace_id' do
+            note = create(:note, noteable: issue, project: issue.project)
+
+            note.noteable = another_issue
+            note.project = another_issue.project
+            note.valid?
+
+            expect(note.namespace_id).to eq(another_issue.project.project_namespace_id)
+          end
+        end
+
+        context 'when project is missing' do
+          it 'does not raise an exception' do
+            note = build(:note, noteable: issue, project: nil)
+
+            expect { note.valid? }.not_to raise_error
+          end
+        end
+      end
+
+      context 'for a personal snippet note' do
+        let_it_be(:snippet) { create(:personal_snippet) }
+
+        it 'copies the personal namespace_id of the author' do
+          note = build(:note, noteable: snippet, project: nil)
+
+          note.valid?
+
+          expect(note.namespace_id).to eq(snippet.author.namespace.id)
+        end
+
+        context 'when snippet author is missing' do
+          it 'does not raise an exception' do
+            note = build(:note, noteable: build(:personal_snippet, author: nil), project: nil)
+
+            expect { note.valid? }.not_to raise_error
+          end
+        end
+      end
+
+      context 'when noteable is missing' do
+        it 'does not raise an exception' do
+          note = build(:note, noteable: nil, project: nil)
+
+          expect { note.valid? }.not_to raise_error
+        end
       end
     end
   end
@@ -795,24 +861,44 @@ RSpec.describe Note do
         expect(note.system_note_visible_for?(nil)).to be_truthy
       end
     end
+
+    context 'when referenced resource is not present' do
+      let(:note) do
+        create :note, noteable: ext_issue, project: ext_proj, note: "mentioned in merge request !1", system: true
+      end
+
+      it "returns true for other users" do
+        expect(note.system_note_visible_for?(private_user)).to be_truthy
+      end
+
+      it "returns true if user visible reference count set" do
+        note.user_visible_reference_count = 0
+        note.total_reference_count = 0
+
+        expect(note).not_to receive(:reference_mentionables)
+        expect(note.system_note_visible_for?(ext_issue.author)).to be_truthy
+      end
+    end
   end
 
   describe '#system_note_with_references?' do
     it 'falsey for user-generated notes' do
-      note = create(:note, system: false)
+      note = build_stubbed(:note, system: false)
 
       expect(note.system_note_with_references?).to be_falsy
     end
 
     context 'when the note might contain cross references' do
       SystemNoteMetadata.new.cross_reference_types.each do |type|
-        let(:note) { create(:note, :system) }
-        let!(:metadata) { create(:system_note_metadata, note: note, action: type) }
+        context "with #{type}" do
+          let(:note) { build_stubbed(:note, :system) }
+          let!(:metadata) { build_stubbed(:system_note_metadata, note: note, action: type) }
 
-        it 'delegates to the cross-reference regex' do
-          expect(note).to receive(:matches_cross_reference_regex?).and_return(false)
+          it 'delegates to the cross-reference regex' do
+            expect(note).to receive(:matches_cross_reference_regex?).and_return(false)
 
-          note.system_note_with_references?
+            note.system_note_with_references?
+          end
         end
       end
     end
@@ -927,6 +1013,107 @@ RSpec.describe Note do
       expect(discussion).not_to be_nil
       expect(discussion.notes).to match_array([note, note2])
       expect(discussion.first_note.discussion_id).to eq(note.discussion_id)
+    end
+  end
+
+  describe '#check_for_spam' do
+    let_it_be(:project) { create(:project, :public) }
+    let_it_be(:group)   { create(:group, :public) }
+    let(:issue)     { create(:issue, project: project) }
+    let(:note)      { create(:note, note: "test", noteable: issue, project: project) }
+    let(:note_text) { 'content changed' }
+
+    subject do
+      note.assign_attributes(note: note_text)
+      note.check_for_spam?(user: note.author)
+    end
+
+    before do
+      allow(issue).to receive(:group).and_return(group)
+    end
+
+    context 'when note is public' do
+      it 'returns true' do
+        is_expected.to be_truthy
+      end
+    end
+
+    context 'when note is public and spammable attributes are not changed' do
+      let(:note_text) { 'test' }
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when project does not exist' do
+      before do
+        allow(note).to receive(:project).and_return(nil)
+      end
+
+      it 'returns true' do
+        is_expected.to be_truthy
+      end
+    end
+
+    context 'when project is not public' do
+      before do
+        allow(project).to receive(:public?).and_return(false)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when group is not public' do
+      before do
+        allow(group).to receive(:public?).and_return(false)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when note is confidential' do
+      before do
+        allow(note).to receive(:confidential?).and_return(true)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when noteable is confidential' do
+      before do
+        allow(issue).to receive(:confidential?).and_return(true)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when noteable is not public' do
+      before do
+        allow(issue).to receive(:public?).and_return(false)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
+    end
+
+    context 'when note is a system note' do
+      before do
+        allow(note).to receive(:system?).and_return(true)
+      end
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
     end
   end
 
@@ -1097,6 +1284,16 @@ RSpec.describe Note do
       create(:track_mr_picking_note, project: create(:project), commit_id: '456def')
 
       expect(MergeRequest.id_in(described_class.cherry_picked_merge_requests('456abc'))).to eq([note.noteable])
+    end
+  end
+
+  describe '#for_work_item?' do
+    it 'returns true for a work item' do
+      expect(build(:note_on_work_item).for_work_item?).to be true
+    end
+
+    it 'returns false for an issue' do
+      expect(build(:note_on_issue).for_work_item?).to be false
     end
   end
 
@@ -1464,35 +1661,30 @@ RSpec.describe Note do
     end
   end
 
-  describe 'expiring ETag cache' do
+  describe 'broadcasting note changes' do
     let_it_be(:issue) { create(:issue) }
 
     let(:note) { build(:note, project: issue.project, noteable: issue) }
 
-    def expect_expiration(noteable)
-      expect_any_instance_of(Gitlab::EtagCaching::Store)
-        .to receive(:touch)
-        .with("/#{noteable.project.namespace.to_param}/#{noteable.project.to_param}/noteable/#{noteable.class.name.underscore}/#{noteable.id}/notes")
-    end
-
-    it "expires cache for note's issue when note is saved" do
-      expect_expiration(note.noteable)
+    it 'broadcasts an Action Cable event for the noteable' do
+      expect(Noteable::NotesChannel).to receive(:broadcast_to).with(note.noteable, event: 'updated')
 
       note.save!
     end
 
-    it "expires cache for note's issue when note is destroyed" do
+    it 'broadcast an Action Cable event for the noteable when note is destroyed' do
       note.save!
-      expect_expiration(note.noteable)
+
+      expect(Noteable::NotesChannel).to receive(:broadcast_to).with(note.noteable, event: 'updated')
 
       note.destroy!
     end
 
-    context 'when issuable etag caching is disabled' do
-      it 'does not store cache key' do
-        allow(note.noteable).to receive(:etag_caching_enabled?).and_return(false)
+    context 'when issuable real_time_notes is disabled' do
+      it 'does not broadcast an Action Cable event' do
+        allow(note.noteable).to receive(:real_time_notes_enabled?).and_return(false)
 
-        expect_any_instance_of(Gitlab::EtagCaching::Store).not_to receive(:touch)
+        expect(Noteable::NotesChannel).not_to receive(:broadcast_to)
 
         note.save!
       end
@@ -1504,8 +1696,8 @@ RSpec.describe Note do
       context 'when adding a note to the MR' do
         let(:note) { build(:note, noteable: merge_request, project: merge_request.project) }
 
-        it 'expires the MR note etag cache' do
-          expect_expiration(merge_request)
+        it 'broadcasts an Action Cable event for the MR' do
+          expect(Noteable::NotesChannel).to receive(:broadcast_to).with(merge_request, event: 'updated')
 
           note.save!
         end
@@ -1514,8 +1706,8 @@ RSpec.describe Note do
       context 'when adding a note to a commit on the MR' do
         let(:note) { build(:note_on_commit, commit_id: merge_request.commits.first.id, project: merge_request.project) }
 
-        it 'expires the MR note etag cache' do
-          expect_expiration(merge_request)
+        it 'broadcasts an Action Cable event for the MR' do
+          expect(Noteable::NotesChannel).to receive(:broadcast_to).with(merge_request, event: 'updated')
 
           note.save!
         end
@@ -1653,6 +1845,56 @@ RSpec.describe Note do
         it 'includes additional diff associations' do
           expect { subject.reload }.to match_query_count(1).for_model(NoteDiffFile).and(
             match_query_count(1).for_model(DiffNotePosition))
+        end
+      end
+    end
+
+    describe '.without_hidden' do
+      subject { described_class.without_hidden }
+
+      context 'when a note with a banned author exists' do
+        let_it_be(:banned_user) { create(:banned_user).user }
+        let_it_be(:banned_note) { create(:note, author: banned_user) }
+
+        context 'when the :hidden_notes feature is disabled' do
+          before do
+            stub_feature_flags(hidden_notes: false)
+          end
+
+          it { is_expected.to include(banned_note, note1) }
+        end
+
+        context 'when the :hidden_notes feature is enabled' do
+          before do
+            stub_feature_flags(hidden_notes: true)
+          end
+
+          it { is_expected.not_to include(banned_note) }
+          it { is_expected.to include(note1) }
+        end
+      end
+    end
+
+    describe '.authored_by' do
+      subject(:notes_by_author) { described_class.authored_by(author) }
+
+      let(:author) { create(:user) }
+
+      it 'returns the notes with the matching author' do
+        note = create(:note, author: author)
+        create(:note)
+
+        expect(notes_by_author).to contain_exactly(note)
+      end
+
+      context 'With ID integer' do
+        subject(:notes_by_author) { described_class.authored_by(author.id) }
+
+        it 'returns the notes with the matching author' do
+          note = create(:note, author: author)
+          create(:note)
+
+          expect(notes_by_author).to contain_exactly(note)
         end
       end
     end

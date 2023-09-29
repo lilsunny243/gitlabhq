@@ -1,10 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Releases **(FREE)**
+# Releases **(FREE ALL)**
 
 In GitLab, a release enables you to create a snapshot of your project for your users, including
 installation packages and release notes. You can create a GitLab release on any branch. Creating a
@@ -25,7 +25,7 @@ When you [create a release](#create-a-release):
 
 - GitLab automatically archives source code and associates it with the release.
 - GitLab automatically creates a JSON file that lists everything in the release,
-  so you can compare and audit releases. This file is called [release evidence](#release-evidence).
+  so you can compare and audit releases. This file is called [release evidence](release_evidence.md).
 
 When you create a release, or after, you can:
 
@@ -38,15 +38,15 @@ When you create a release, or after, you can:
 
 To view a list of releases:
 
-- On the left sidebar, select **Deployments > Releases**, or
+- On the left sidebar, select **Deploy > Releases**, or
 
 - On the project's overview page, if at least one release exists, select the number of releases.
 
   ![Number of Releases](img/releases_count_v13_2.png "Incremental counter of Releases")
 
   - On public projects, this number is visible to all users.
-  - On private projects, this number is visible to users with Reporter
-    [permissions](../../permissions.md#project-members-permissions) or higher.
+  - On private projects, this number is visible to users with at least the Reporter
+    [role](../../permissions.md#project-members-permissions).
 
 ### Sort releases
 
@@ -63,7 +63,7 @@ You can create a release:
 - [In the Releases page](#create-a-release-in-the-releases-page).
 - Using the [Releases API](../../../api/releases/index.md#create-a-release).
 
-We recommend creating a release as one of the last steps in your CI/CD pipeline.
+You should create a release as one of the last steps in your CI/CD pipeline.
 
 ### Create a release in the Releases page
 
@@ -74,16 +74,17 @@ Prerequisites:
 
 To create a release in the Releases page:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Deployments > Releases** and select **New release**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Releases** and select **New release**.
 1. From the [**Tag name**](release_fields.md#tag-name) dropdown list, either:
    - Select an existing Git tag. Selecting an existing tag that is already associated with a release
      results in a validation error.
    - Enter a new Git tag name.
-     1. From the **Create from** dropdown list, select a branch or commit SHA to use when
+     1. From the **Create tag** popover, select a branch or commit SHA to use when
         creating the new tag.
      1. Optional. In the **Set tag message** text box, enter a message to create an
         [annotated tag](https://git-scm.com/book/en/v2/Git-Basics-Tagging#_annotated_tags).
+     1. Select **Save**.
 1. Optional. Enter additional information about the release, including:
    - [Title](release_fields.md#title).
    - [Milestones](#associate-milestones-with-a-release).
@@ -179,7 +180,7 @@ release tag. When the `released_at` date and time has passed, the badge is autom
 You can create a release in the past using either the
 [Releases API](../../../api/releases/index.md#historical-releases) or the UI. When you set
 a past `released_at` date, an **Historical release** badge is displayed next to
-the release tag. Due to being released in the past, [release evidence](#release-evidence)
+the release tag. Due to being released in the past, [release evidence](release_evidence.md)
 is not available.
 
 ## Edit a release
@@ -193,7 +194,7 @@ Prerequisites:
 
 In the UI:
 
-1. On the left sidebar, select **Deployments > Releases**.
+1. On the left sidebar, select **Deploy > Releases**.
 1. In the upper-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
 1. On the **Edit Release** page, change the release's details.
 1. Select **Save changes**.
@@ -214,8 +215,8 @@ To delete a release, use either the
 
 In the UI:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Deployments > Releases**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Releases**.
 1. In the upper-right corner of the release you want to delete, select **Edit this release**
    (**{pencil}**).
 1. On the **Edit Release** page, select **Delete**.
@@ -235,25 +236,25 @@ the [Releases API](../../../api/releases/index.md#create-a-release).
 
 In the user interface, to associate milestones to a release:
 
-1. On the left sidebar, select **Deployments > Releases**.
+1. On the left sidebar, select **Deploy > Releases**.
 1. In the upper-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
 1. From the **Milestones** list, select each milestone you want to associate. You can select multiple milestones.
 1. Select **Save changes**.
 
-On the **Deployments > Releases** page, the **Milestone** is listed in the top
+On the **Deploy > Releases** page, the **Milestone** is listed in the top
 section, along with statistics about the issues in the milestones.
 
 ![A Release with one associated milestone](img/release_with_milestone_v12_9.png)
 
-Releases are also visible on the **Issues > Milestones** page, and when you select a milestone
+Releases are also visible on the **Plan > Milestones** page, and when you select a milestone
 on this page.
 
-Here is an example of milestones with no releases, one release, and two releases, respectively.
+Here is an example of milestones with no releases, one release, and two releases.
 
 ![Milestones with and without Release associations](img/milestone_list_with_releases_v12_5.png)
 
 NOTE:
-A subgroup's project releases cannot be associated with a supergroup's milestone. To learn
+A subgroup's project releases cannot be associated with a parent group's milestone. To learn
 more, read issue #328054,
 [Releases cannot be associated with a supergroup milestone](https://gitlab.com/gitlab-org/gitlab/-/issues/328054).
 
@@ -265,7 +266,7 @@ You can be notified by email when a new release is created for your project.
 
 To subscribe to notifications for releases:
 
-1. On the left sidebar, select **Project information**.
+1. On the left sidebar, select **Project overview**.
 1. Select **Notification setting** (the bell icon).
 1. In the list, select **Custom**.
 1. Select the **New release** checkbox.
@@ -283,26 +284,44 @@ Deploy freezes help reduce uncertainty and risk when automating deployments.
 A maintainer can set a deploy freeze window in the user interface or by using the [Freeze Periods API](../../../api/freeze_periods.md) to set a `freeze_start` and a `freeze_end`, which
 are defined as [crontab](https://crontab.guru/) entries.
 
-If the job that's executing is within a freeze period, GitLab CI/CD creates an environment
+If the job that's executing is in a freeze period, GitLab CI/CD creates an environment
 variable named `$CI_DEPLOY_FREEZE`.
 
-To prevent the deployment job from executing, create a `rules` entry in your
-`.gitlab-ci.yml`, for example:
+To prevent the deployment job from executing in multiple projects in a group,
+define the `.freezedeployment` job in a file shared across the group.
+Use the [`includes`](../../../ci/yaml/includes.md) keyword to incorporate the
+template in your project's `.gitlab-ci.yml` file:
+
+```yaml
+.freezedeployment:
+  stage: deploy
+  before_script:
+    - '[[ ! -z "$CI_DEPLOY_FREEZE" ]] && echo "INFRASTRUCTURE OUTAGE WINDOW" && exit 1; '
+  rules:
+    - if: '$CI_DEPLOY_FREEZE'
+      when: manual
+      allow_failure: true
+    - when: on_success
+```
+
+To prevent the deployment job from executing, use the [`extends`](../../../ci/yaml/index.md#extends) keyword in the `deploy_to_production` job of your `.gitlab-ci.yml` file to inherit the configuration from the `.freezedeployment` template job:
 
 ```yaml
 deploy_to_production:
-  stage: deploy
+  extends: .freezedeployment
   script: deploy_to_prod.sh
-  rules:
-    - if: $CI_DEPLOY_FREEZE == null
   environment: production
 ```
+
+This configuration blocks deployment jobs conditionally and maintains pipeline continuity. When a freeze period is defined, the job fails and the pipeline can proceed without deployment. Manual deployment is possible after the freeze period.
+
+This approach offers deployment control during critical maintenance, and ensures the uninterrupted flow of the CI/CD pipeline.
 
 To set a deploy freeze window in the UI, complete these steps:
 
 1. Sign in to GitLab as a user with the Maintainer role.
-1. On the left sidebar, select **Project information**.
-1. In the left navigation menu, go to **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Settings > CI/CD**.
 1. Scroll to **Deploy freezes**.
 1. Select **Expand** to see the deploy freeze table.
 1. Select **Add deploy freeze** to open the deploy freeze modal.
@@ -315,141 +334,6 @@ If a project contains multiple freeze periods, all periods apply. If they overla
 complete overlapping period.
 
 For more information, see [Deployment safety](../../../ci/environments/deployment_safety.md).
-
-## Release evidence
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/26019) in GitLab 12.6.
-
-Each time a release is created, GitLab takes a snapshot of data that's related to it.
-This data is saved in a JSON file and called *release evidence*. The feature
-includes test artifacts and linked milestones to facilitate
-internal processes, like external audits.
-
-To access the release evidence, on the Releases page, select the link to the JSON file that's listed
-under the **Evidence collection** heading.
-
-You can also [use the API](../../../api/releases/index.md#collect-release-evidence) to
-generate release evidence for an existing release. Because of this, each release
-can have multiple release evidence snapshots. You can view the release evidence and
-its details on the Releases page.
-
-When the issue tracker is disabled, release evidence [can't be downloaded](https://gitlab.com/gitlab-org/gitlab/-/issues/208397).
-
-Here is an example of a release evidence object:
-
-```json
-{
-  "release": {
-    "id": 5,
-    "tag_name": "v4.0",
-    "name": "New release",
-    "project": {
-      "id": 20,
-      "name": "Project name",
-      "created_at": "2019-04-14T11:12:13.940Z",
-      "description": "Project description"
-    },
-    "created_at": "2019-06-28 13:23:40 UTC",
-    "description": "Release description",
-    "milestones": [
-      {
-        "id": 11,
-        "title": "v4.0-rc1",
-        "state": "closed",
-        "due_date": "2019-05-12 12:00:00 UTC",
-        "created_at": "2019-04-17 15:45:12 UTC",
-        "issues": [
-          {
-            "id": 82,
-            "title": "The top-right popup is broken",
-            "author_name": "John Doe",
-            "author_email": "john@doe.com",
-            "state": "closed",
-            "due_date": "2019-05-10 12:00:00 UTC"
-          },
-          {
-            "id": 89,
-            "title": "The title of this page is misleading",
-            "author_name": "Jane Smith",
-            "author_email": "jane@smith.com",
-            "state": "closed",
-            "due_date": "nil"
-          }
-        ]
-      },
-      {
-        "id": 12,
-        "title": "v4.0-rc2",
-        "state": "closed",
-        "due_date": "2019-05-30 18:30:00 UTC",
-        "created_at": "2019-04-17 15:45:12 UTC",
-        "issues": []
-      }
-    ],
-    "report_artifacts": [
-      {
-        "url":"https://gitlab.example.com/root/project-name/-/jobs/111/artifacts/download"
-      }
-    ]
-  }
-}
-```
-
-### Collect release evidence **(PREMIUM SELF)**
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/199065) in GitLab 12.10.
-
-When a release is created, release evidence is automatically collected. To initiate evidence collection any other time, use an [API call](../../../api/releases/index.md#collect-release-evidence). You can collect release evidence multiple times for one release.
-
-Evidence collection snapshots are visible on the Releases page, along with the timestamp the evidence was collected.
-
-### Include report artifacts as release evidence **(ULTIMATE)**
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/32773) in GitLab 13.2.
-
-When you create a release, if [job artifacts](../../../ci/yaml/index.md#artifactsreports) are included in the last pipeline that ran, they are automatically included in the release as release evidence.
-
-Although job artifacts normally expire, artifacts included in release evidence do not expire.
-
-To enable job artifact collection you must specify both:
-
-1. [`artifacts:paths`](../../../ci/yaml/index.md#artifactspaths)
-1. [`artifacts:reports`](../../../ci/yaml/index.md#artifactsreports)
-
-```yaml
-ruby:
-  script:
-    - gem install bundler
-    - bundle install
-    - bundle exec rspec --format progress --format RspecJunitFormatter --out rspec.xml
-  artifacts:
-    paths:
-      - rspec.xml
-    reports:
-      junit: rspec.xml
-```
-
-If the pipeline ran successfully, when you create your release, the `rspec.xml` file is saved as
-release evidence.
-
-If you [schedule release evidence collection](#schedule-release-evidence-collection),
-some artifacts may already be expired by the time of evidence collection. To avoid this you can use
-the [`artifacts:expire_in`](../../../ci/yaml/index.md#artifactsexpire_in)
-keyword. For more information, see [issue 222351](https://gitlab.com/gitlab-org/gitlab/-/issues/222351).
-
-### Schedule release evidence collection
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/23697) in GitLab 12.8.
-
-In the API:
-
-- If you specify a future `released_at` date, the release becomes an **Upcoming release**
-  and the evidence is collected on the date of the release. You cannot collect
-  release evidence before then.
-- If you specify a past `released_at` date, the release becomes an **Historical
-  release** and no evidence is collected.
-- If you do not specify a `released_at` date, release evidence is collected on the
-  date the release is created.
 
 ## Release permissions
 
@@ -464,18 +348,19 @@ In the API:
 - Users with the Guest role
   have read and download access to the project releases.
   This includes associated Git-tag-names, release description, author information of the releases.
-  However, other repository-related information, such as [source code](release_fields.md#source-code), [release evidence](#release-evidence) are redacted.
+  However, other repository-related information, such as [source code](release_fields.md#source-code) and
+  [release evidence](release_evidence.md) are redacted.
 
 ### Publish releases without giving access to source code
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216485) in GitLab 15.6.
 
 Releases can be made accessible to non-project members while keeping repository-related information such as
-[source code](release_fields.md#source-code) and [release evidence](#release-evidence) private. This is useful for
+[source code](release_fields.md#source-code) and [release evidence](release_evidence.md) private. Use this for
 projects that use releases as a way to give access to new versions of software but do not want the source code to
 be public.
 
-To make releases available publicly, set the following [project settings](../settings/index.md#project-feature-settings):
+To make releases available publicly, set the following [project settings](../settings/index.md#configure-project-features-and-permissions):
 
 - Repository is enabled and set to **Only Project Members**
 - Releases is enabled and set to **Everyone With Access**
@@ -492,7 +377,7 @@ users with at least the Maintainer role
 to create, update, and delete releases by protecting the tag with a wildcard (`*`),
 and set **Maintainer** in the **Allowed to create** column.
 
-## Release Metrics **(ULTIMATE)**
+## Release Metrics **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/259703) in GitLab Premium 13.9.
 
@@ -527,4 +412,4 @@ See [the release permissions](#release-permissions) for more information.
 
 ### Note about storage
 
-Note that the feature is built on top of Git tags, so virtually no extra data is needed besides to create the release itself. Additional assets and the release evidence that is automatically generated consume storage.
+This feature is built on top of Git tags, so virtually no extra data is needed besides to create the release itself. Additional assets and the release evidence that is automatically generated consume storage.

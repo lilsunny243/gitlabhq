@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe BulkImports::Projects::Pipelines::RepositoryBundlePipeline do
+RSpec.describe BulkImports::Projects::Pipelines::RepositoryBundlePipeline, feature_category: :importers do
   let_it_be(:source) { create(:project, :repository) }
 
   let(:portable) { create(:project) }
   let(:tmpdir) { Dir.mktmpdir }
   let(:bundle_path) { File.join(tmpdir, 'repository.bundle') }
   let(:entity) do
-    create(:bulk_import_entity, :project_entity, project: portable, source_full_path: 'test', source_xid: nil)
+    create(:bulk_import_entity, :project_entity, project: portable, source_xid: nil)
   end
 
   let(:tracker) { create(:bulk_import_tracker, entity: entity) }
@@ -62,7 +62,8 @@ RSpec.describe BulkImports::Projects::Pipelines::RepositoryBundlePipeline do
         .to receive(:new)
         .with(
           configuration: context.configuration,
-          relative_url: "/#{entity.pluralized_name}/test/export_relations/download?relation=repository",
+          relative_url: "/#{entity.pluralized_name}/#{CGI.escape(entity.source_full_path)}" \
+                        '/export_relations/download?relation=repository',
           tmpdir: tmpdir,
           filename: 'repository.tar.gz')
         .and_return(download_service)
@@ -123,12 +124,25 @@ RSpec.describe BulkImports::Projects::Pipelines::RepositoryBundlePipeline do
     context 'when path is symlink' do
       it 'returns' do
         symlink = File.join(tmpdir, 'symlink')
+        FileUtils.ln_s(bundle_path, symlink)
 
-        FileUtils.ln_s(File.join(tmpdir, bundle_path), symlink)
-
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(symlink).and_call_original
         expect(portable.repository).not_to receive(:create_from_bundle)
 
         pipeline.load(context, symlink)
+
+        expect(portable.repository.exists?).to eq(false)
+      end
+    end
+
+    context 'when path has mutiple hard links' do
+      it 'returns' do
+        FileUtils.link(bundle_path, File.join(tmpdir, 'hard_link'))
+
+        expect(Gitlab::Utils::FileInfo).to receive(:linked?).with(bundle_path).and_call_original
+        expect(portable.repository).not_to receive(:create_from_bundle)
+
+        pipeline.load(context, bundle_path)
 
         expect(portable.repository.exists?).to eq(false)
       end
@@ -144,7 +158,7 @@ RSpec.describe BulkImports::Projects::Pipelines::RepositoryBundlePipeline do
     context 'when path is being traversed' do
       it 'raises an error' do
         expect { pipeline.load(context, File.join(tmpdir, '..')) }
-          .to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+          .to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
       end
     end
   end

@@ -1,9 +1,10 @@
 <script>
 import produce from 'immer';
 import Vue from 'vue';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, sprintf } from '~/locale';
-import { confidentialityQueries, Tracking } from '../../constants';
+import { Tracking } from '../../constants';
+import { confidentialityQueries } from '../../queries/constants';
 import SidebarEditableItem from '../sidebar_editable_item.vue';
 import SidebarConfidentialityContent from './sidebar_confidentiality_content.vue';
 import SidebarConfidentialityForm from './sidebar_confidentiality_form.vue';

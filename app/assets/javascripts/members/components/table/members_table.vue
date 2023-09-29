@@ -1,5 +1,6 @@
 <script>
 import { GlTable, GlBadge, GlPagination } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState } from 'vuex';
 import MembersTableCell from 'ee_else_ce/members/components/table/members_table_cell.vue';
 import {
@@ -127,10 +128,15 @@ export default {
     },
     actionsFieldTdClass(value, key, member) {
       if (this.hasActionButtons(member)) {
-        return 'col-actions';
+        return ['col-actions', 'gl-vertical-align-middle!'];
       }
 
-      return ['col-actions', 'gl-display-none!', 'gl-lg-display-table-cell!'];
+      return [
+        'col-actions',
+        'gl-display-none!',
+        'gl-lg-display-table-cell!',
+        'gl-vertical-align-middle!',
+      ];
     },
     tbodyTrAttr(member) {
       return {

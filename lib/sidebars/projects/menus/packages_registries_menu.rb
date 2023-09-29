@@ -10,6 +10,7 @@ module Sidebars
           add_item(container_registry_menu_item)
           add_item(infrastructure_registry_menu_item)
           add_item(harbor_registry_menu_item)
+          add_item(model_experiments_menu_item)
           true
         end
 
@@ -38,7 +39,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Package Registry'),
             link: project_packages_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::DeployMenu,
             active_routes: { controller: :packages },
             item_id: :packages_registry,
             container_html_options: { class: 'shortcuts-container-registry' }
@@ -53,7 +54,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Container Registry'),
             link: project_container_registry_index_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::DeployMenu,
             active_routes: { controller: 'projects/registry/repositories' },
             item_id: :container_registry
           )
@@ -65,7 +66,7 @@ module Sidebars
           end
 
           ::Sidebars::MenuItem.new(
-            title: _('Infrastructure Registry'),
+            title: _('Terraform modules'),
             link: project_infrastructure_registry_index_path(context.project),
             super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: :infrastructure_registry },
@@ -74,8 +75,7 @@ module Sidebars
         end
 
         def harbor_registry_menu_item
-          if Feature.disabled?(:harbor_registry_integration, context.project) ||
-              context.project.harbor_integration.nil? ||
+          if context.project.harbor_integration.nil? ||
               !context.project.harbor_integration.activated?
             return ::Sidebars::NilMenuItem.new(item_id: :harbor_registry)
           end
@@ -84,8 +84,22 @@ module Sidebars
             title: _('Harbor Registry'),
             link: project_harbor_repositories_path(context.project),
             super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
-            active_routes: { controller: :harbor_registry },
+            active_routes: { controller: 'projects/harbor/repositories' },
             item_id: :harbor_registry
+          )
+        end
+
+        def model_experiments_menu_item
+          unless can?(context.current_user, :read_model_experiments, context.project)
+            return ::Sidebars::NilMenuItem.new(item_id: :model_experiments)
+          end
+
+          ::Sidebars::MenuItem.new(
+            title: _('Model experiments'),
+            link: project_ml_experiments_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::AnalyzeMenu,
+            active_routes: { controller: %w[projects/ml/experiments projects/ml/candidates] },
+            item_id: :model_experiments
           )
         end
 

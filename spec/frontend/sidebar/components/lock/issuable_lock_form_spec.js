@@ -1,5 +1,7 @@
+import { GlIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mockTracking, triggerEvent } from 'helpers/tracking_helper';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
@@ -7,6 +9,7 @@ import createStore from '~/notes/stores';
 import EditForm from '~/sidebar/components/lock/edit_form.vue';
 import IssuableLockForm from '~/sidebar/components/lock/issuable_lock_form.vue';
 import toast from '~/vue_shared/plugins/global_toast';
+import waitForPromises from 'helpers/wait_for_promises';
 import { ISSUABLE_TYPE_ISSUE, ISSUABLE_TYPE_MR } from './constants';
 
 jest.mock('~/vue_shared/plugins/global_toast');
@@ -27,8 +30,10 @@ describe('IssuableLockForm', () => {
   const findLockStatus = () => wrapper.find('[data-testid="lock-status"]');
   const findEditLink = () => wrapper.find('[data-testid="edit-link"]');
   const findEditForm = () => wrapper.findComponent(EditForm);
+  const findLockButton = () => wrapper.find('[data-testid="issuable-lock"]');
   const findSidebarLockStatusTooltip = () =>
     getBinding(findSidebarCollapseIcon().element, 'gl-tooltip');
+  const findIssuableLockClickable = () => wrapper.find('[data-testid="issuable-lock"]');
 
   const initStore = (isLocked) => {
     if (issuableType === ISSUABLE_TYPE_ISSUE) {
@@ -48,7 +53,7 @@ describe('IssuableLockForm', () => {
     store.getters.getNoteableData.discussion_locked = isLocked;
   };
 
-  const createComponent = ({ props = {} }, movedMrSidebar = false) => {
+  const createComponent = ({ props = {}, movedMrSidebar = false }) => {
     wrapper = shallowMount(IssuableLockForm, {
       store,
       provide: {
@@ -66,11 +71,6 @@ describe('IssuableLockForm', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe.each`
     pageType
@@ -156,6 +156,13 @@ describe('IssuableLockForm', () => {
               expect(tooltip).toBeDefined();
               expect(tooltip.value.title).toBe(isLocked ? 'Locked' : 'Unlocked');
             });
+
+            it('renders lock icon', () => {
+              const icon = findSidebarCollapseIcon().findComponent(GlIcon).props('name');
+              const expected = isLocked ? 'lock' : 'lock-open';
+
+              expect(icon).toBe(expected);
+            });
           });
         });
       });
@@ -174,11 +181,29 @@ describe('IssuableLockForm', () => {
     `('displays $message when merge request is $locked', async ({ locked, message }) => {
       initStore(locked);
 
-      createComponent({}, true);
+      createComponent({ movedMrSidebar: true });
 
-      await wrapper.find('.dropdown-item').trigger('click');
+      await findLockButton().trigger('click');
+
+      await waitForPromises();
 
       expect(toast).toHaveBeenCalledWith(message);
+    });
+  });
+
+  describe('moved_mr_sidebar flag', () => {
+    describe('when the flag is off', () => {
+      it('does not show the non editable lock status', () => {
+        createComponent({ movedMrSidebar: false });
+        expect(findIssuableLockClickable().exists()).toBe(false);
+      });
+    });
+
+    describe('when the flag is on', () => {
+      it('shows the non editable lock status', () => {
+        createComponent({ movedMrSidebar: true });
+        expect(findIssuableLockClickable().exists()).toBe(true);
+      });
     });
   });
 });

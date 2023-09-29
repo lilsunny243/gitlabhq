@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Reduce Package Registry Storage **(FREE)**
+# Reduce Package Registry Storage **(FREE ALL)**
 
 Without cleanup, package registries become large over time. When a large number of packages and
 their assets are added:
@@ -29,11 +29,14 @@ You can delete packages by using [the API](../../../api/packages.md#delete-a-pro
 
 To delete a package in the UI, from your group or project:
 
-1. Go to **Packages and registries > Package Registry**.
+1. Go to **Deploy > Package Registry**.
 1. Find the name of the package you want to delete.
 1. Select **Delete**.
 
 The package is permanently deleted.
+
+If [request forwarding](supported_functionality.md#forwarding-requests) is enabled,
+deleting a package can introduce a [dependency confusion risk](supported_functionality.md#deleting-packages).
 
 ## Delete assets associated with a package
 
@@ -43,7 +46,7 @@ You can delete packages by using [the API](../../../api/packages.md#delete-a-pac
 
 To delete package assets in the UI, from your group or project:
 
-1. Go to **Packages and registries > Package Registry**.
+1. Go to **Deploy > Package Registry**.
 1. Find the name of the package you want to delete.
 1. Select the package to view additional details.
 1. Find the name of the assets you would like to delete.

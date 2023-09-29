@@ -30,6 +30,10 @@ module IntegrationsHelper
       _("Alert")
     when "incident"
       _("Incident")
+    when "group_mention"
+      _("Group mention in public")
+    when "group_confidential_mention"
+      _("Group mention in private")
     end
   end
   # rubocop:enable Metrics/CyclomaticComplexity
@@ -136,6 +140,11 @@ module IntegrationsHelper
       form_data[:jira_issue_transition_id] = integration.jira_issue_transition_id
     end
 
+    if integration.is_a?(::Integrations::GitlabSlackApplication)
+      form_data[:upgrade_slack_url] = add_to_slack_link(project, slack_app_id)
+      form_data[:should_upgrade_slack] = integration.upgrade_needed?.to_s
+    end
+
     form_data
   end
 
@@ -153,7 +162,7 @@ module IntegrationsHelper
   end
 
   def integrations_help_page_path
-    help_page_path('user/admin_area/settings/project_integration_management')
+    help_page_path('administration/settings/project_integration_management')
   end
 
   def project_jira_issues_integration?
@@ -170,7 +179,8 @@ module IntegrationsHelper
       'incident' => _('Incident'),
       'test_case' => _('Test case'),
       'requirement' => _('Requirement'),
-      'task' => _('Task')
+      'task' => _('Task'),
+      'ticket' => _('Service Desk Ticket')
     }
 
     issue_type_i18n_map[issue_type] || issue_type
@@ -212,6 +222,28 @@ module IntegrationsHelper
     event_i18n_map[event] || event.to_s.humanize
   end
 
+  def add_to_slack_link(project, slack_app_id)
+    query = {
+      scope: SlackIntegration::SCOPES.join(','),
+      client_id: slack_app_id,
+      redirect_uri: slack_auth_project_settings_slack_url(project),
+      state: form_authenticity_token
+    }
+
+    "#{::Projects::SlackApplicationInstallService::SLACK_AUTHORIZE_URL}?#{query.to_query}"
+  end
+
+  def gitlab_slack_application_data(projects)
+    {
+      projects: (projects || []).to_json(only: [:id, :name], methods: [:avatar_url, :name_with_namespace]),
+      sign_in_path: new_session_path(:user, redirect_to_referer: 'yes'),
+      is_signed_in: current_user.present?.to_s,
+      slack_link_path: slack_link_profile_slack_path,
+      gitlab_logo_path: image_path('illustrations/gitlab_logo.svg'),
+      slack_logo_path: image_path('illustrations/slack_logo.svg')
+    }
+  end
+
   extend self
 
   private
@@ -245,11 +277,11 @@ module IntegrationsHelper
       s_("ProjectService|Trigger event for new comments.")
     when "confidential_note", "confidential_note_events"
       s_("ProjectService|Trigger event for new comments on confidential issues.")
-    when "issue", "issue_events"
+    when "issue", "issue_events", "issues_events"
       s_("ProjectService|Trigger event when an issue is created, updated, or closed.")
-    when "confidential_issue", "confidential_issue_events"
+    when "confidential_issue", "confidential_issue_events", "confidential_issues_events"
       s_("ProjectService|Trigger event when a confidential issue is created, updated, or closed.")
-    when "merge_request", "merge_request_events"
+    when "merge_request", "merge_request_events", "merge_requests_events"
       s_("ProjectService|Trigger event when a merge request is created, updated, or merged.")
     when "pipeline", "pipeline_events"
       s_("ProjectService|Trigger event when a pipeline status changes.")
@@ -257,12 +289,20 @@ module IntegrationsHelper
       s_("ProjectService|Trigger event when a wiki page is created or updated.")
     when "commit", "commit_events"
       s_("ProjectService|Trigger event when a commit is created or updated.")
-    when "deployment"
+    when "deployment", "deployment_events"
       s_("ProjectService|Trigger event when a deployment starts or finishes.")
-    when "alert"
+    when "alert", "alert_events"
       s_("ProjectService|Trigger event when a new, unique alert is recorded.")
-    when "incident"
+    when "incident", "incident_events"
       s_("ProjectService|Trigger event when an incident is created.")
+    when "group_mention"
+      s_("ProjectService|Trigger event when a group is mentioned in a public context.")
+    when "group_confidential_mention"
+      s_("ProjectService|Trigger event when a group is mentioned in a confidential context.")
+    when "build_events"
+      s_("ProjectService|Trigger event when a build is created.")
+    when "archive_trace_events"
+      s_('When enabled, job logs are collected by Datadog and displayed along with pipeline execution traces.')
     end
   end
   # rubocop:enable Metrics/CyclomaticComplexity
@@ -287,12 +327,15 @@ module IntegrationsHelper
 
   def serialize_integration(integration, group: nil, project: nil)
     {
-      active: integration.operating?,
+      id: integration.id,
+      active: integration.activated?,
+      configured: integration.persisted?,
       title: integration.title,
       description: integration.description,
       updated_at: integration.updated_at,
       edit_path: scoped_edit_integration_path(integration, group: group, project: project),
-      name: integration.to_param
+      name: integration.to_param,
+      icon: integration.try(:avatar_url)
     }
   end
 end

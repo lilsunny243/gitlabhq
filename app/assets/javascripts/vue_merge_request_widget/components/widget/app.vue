@@ -5,18 +5,39 @@ export default {
       import(
         '~/vue_merge_request_widget/extensions/security_reports/mr_widget_security_reports.vue'
       ),
+    MrTestReportWidget: () => import('~/vue_merge_request_widget/extensions/test_report/index.vue'),
+    MrTerraformWidget: () => import('~/vue_merge_request_widget/extensions/terraform/index.vue'),
+    MrCodeQualityWidget: () =>
+      import('~/vue_merge_request_widget/extensions/code_quality/index.vue'),
   },
+
   props: {
     mr: {
       type: Object,
       required: true,
     },
   },
+
   computed: {
+    testReportWidget() {
+      return this.mr.testResultsPath && 'MrTestReportWidget';
+    },
+
+    terraformPlansWidget() {
+      return this.mr.terraformReportsPath && 'MrTerraformWidget';
+    },
+
+    codeQualityWidget() {
+      return this.mr.codequalityReportsPath ? 'MrCodeQualityWidget' : undefined;
+    },
+
     widgets() {
-      return [window.gon?.features?.refactorSecurityExtension && 'MrSecurityWidget'].filter(
-        (w) => w,
-      );
+      return [
+        this.codeQualityWidget,
+        this.testReportWidget,
+        this.terraformPlansWidget,
+        'MrSecurityWidget',
+      ].filter((w) => w);
     },
   },
 };

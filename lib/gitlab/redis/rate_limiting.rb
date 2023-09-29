@@ -8,19 +8,6 @@ module Gitlab
         def config_fallback
           Cache
         end
-
-        def cache_store
-          @cache_store ||= ActiveSupport::Cache::RedisCacheStore.new(redis: pool, namespace: Cache::CACHE_NAMESPACE)
-        end
-
-        private
-
-        def redis
-          primary_store = ::Redis.new(::Gitlab::Redis::ClusterRateLimiting.params)
-          secondary_store = ::Redis.new(params)
-
-          MultiStore.new(primary_store, secondary_store, name.demodulize)
-        end
       end
     end
   end

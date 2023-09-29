@@ -22,12 +22,12 @@ module Clusters
         )
       rescue Kubeclient::ResourceNotFoundError
         # The resources have already been deleted, possibly on a previous attempt that timed out
-      rescue Gitlab::UrlBlocker::BlockedUrlError
+      rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError
         # User gave an invalid cluster from the start, or deleted the endpoint before this job ran
       rescue Kubeclient::HttpError => e
         # unauthorized, forbidden: GitLab's access has been revoked
         # certificate verify failed: Cluster is probably gone forever
-        raise unless e.message =~ /unauthorized|forbidden|certificate verify failed/i
+        raise unless /unauthorized|forbidden|certificate verify failed/i.match?(e.message)
       end
     end
   end

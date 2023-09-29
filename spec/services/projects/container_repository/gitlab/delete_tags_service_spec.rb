@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::ContainerRepository::Gitlab::DeleteTagsService do
+RSpec.describe Projects::ContainerRepository::Gitlab::DeleteTagsService, feature_category: :container_registry do
   include_context 'container repository delete tags service shared context'
 
   let(:service) { described_class.new(repository, tags) }
@@ -48,14 +48,31 @@ RSpec.describe Projects::ContainerRepository::Gitlab::DeleteTagsService do
             stub_delete_reference_requests('A' => 500, 'Ba' => 500)
           end
 
-          it { is_expected.to eq(status: :error, message: 'could not delete tags') }
+          it { is_expected.to eq(status: :error, message: "could not delete tags: #{tags.join(', ')}") }
+
+          context 'when a large list of tag delete fails' do
+            let(:tags) { Array.new(135) { |i| "tag#{i}" } }
+            let(:container_repository) { instance_double(ContainerRepository) }
+
+            before do
+              allow(ContainerRepository).to receive(:find).with(repository).and_return(container_repository)
+              tags.each do |tag|
+                stub_delete_reference_requests(tag => 500)
+              end
+              allow(container_repository).to receive(:delete_tag_by_name).and_return(false)
+            end
+
+            it 'truncates the log message' do
+              expect(subject).to eq(status: :error, message: "could not delete tags: #{tags.join(', ')}".truncate(1000))
+            end
+          end
         end
       end
 
       context 'with timeout' do
         context 'set to a valid value' do
           before do
-            allow(Time.zone).to receive(:now).and_return(10, 15, 25) # third call to Time.zone.now will be triggering the timeout
+            allow(service).to receive(:timeout?).and_return(false, true)
             stub_delete_reference_requests('A' => 200)
           end
 

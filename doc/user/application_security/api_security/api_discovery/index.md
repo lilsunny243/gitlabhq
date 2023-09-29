@@ -5,9 +5,9 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, howto
 ---
 
-# API Discovery **(ULTIMATE)**
+# API Discovery **(ULTIMATE ALL)**
 
-> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/9302) in GitLab 15.9. The API Discovery feature is in [Beta](../../../../policy/alpha-beta-support.md).
+> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/9302) in GitLab 15.9. The API Discovery feature is in [Beta](../../../../policy/experiment-beta-support.md).
 
 API Discovery analyzes your application and produces an OpenAPI document describing the web APIs it exposes. This schema document can then be used by [DAST API](../../dast_api/index.md) or [API Fuzzing](../../api_fuzzing/index.md) to perform security scans of the web API.
 
@@ -21,6 +21,12 @@ API Discovery runs as a standalone job in your pipeline. The resulting OpenAPI d
 
 API Discovery runs in the `test` stage by default. The `test` stage was chosen as it typically executes before the stages used by other API Security features such as DAST API and API Fuzzing.
 
+## Example API Discovery configurations
+
+The following projects demonstrate API Discovery:
+
+- [Example Java Spring Boot v2 Pet Store](https://gitlab.com/gitlab-org/security-products/demos/api-discovery/java-spring-boot-v2-petstore)
+
 ## Java Spring-Boot
 
 [Spring Boot](https://spring.io/projects/spring-boot) is a popular framework for creating stand-alone, production-grade Spring-based applications.
@@ -31,11 +37,11 @@ API Discovery runs in the `test` stage by default. The `test` stage was chosen a
 - Java: 11, 17 (LTS versions)
 - Executable JARs
 
-API Discovery supports Spring Boot major version 2, minor versions 1 and higher. Versions 2.0.X are not supported due to known bugs which affect API Discovery and were fixed in 2.1.
+API Discovery supports Spring Boot major version 2, minor versions 1 and later. Versions 2.0.X are not supported due to known bugs which affect API Discovery and were fixed in 2.1.
 
 Major version 3 is planned to be supported in the future. Support for major version 1 is not planned.
 
-API Discovery is tested with and officially supports LTS versions of the Java runtime. Other versions will likely work also, and bug reports from non-LTS versions are welcome.
+API Discovery is tested with and officially supports LTS versions of the Java runtime. Other versions may work also, and bug reports from non-LTS versions are welcome.
 
 Only applications that are built as Spring Boot [executable JARs](https://docs.spring.io/spring-boot/docs/current/reference/html/executable-jar.html#appendix.executable-jar.nested-jars.jar-structure) are supported.
 
@@ -50,92 +56,96 @@ When running in this method, you provide a container image that has the required
 
     ```yaml
     include:
-        - template: API-Discovery.gitlab-ci.yml
+       - template: Security/API-Discovery.gitlab-ci.yml
     ```
 
-    Only a single `include` statement is allowed per `.gitlab-ci.yml` file. If you are including other files, combine them into a single `include` statement.
+   Only a single `include` statement is allowed per `.gitlab-ci.yml` file. If you are including other files, combine them into a single `include` statement.
 
     ```yaml
     include:
-        - template: API-Discovery.gitlab-ci.yml
-        - template: DAST-API.gitlab-ci.yml
+       - template: Security/API-Discovery.gitlab-ci.yml
+       - template: Security/DAST-API.gitlab-ci.yml
     ```
 
 1. Create a new job that extends from `.api_discovery_java_spring_boot`. The default stage is `test` which can be optionally changed to any value.
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+   ```
 
 1. Configure the `image` for the job.
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-        image: openjdk:11-jre-slim
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+       image: openjdk:11-jre-slim
+   ```
 
-1. Provide the Java classpath needed by your application. This includes your compatible build artifact from step 2, along with any additional dependencies. For this example, the build artifact is `build/libs/spring-boot-app-0.0.0.jar` and contains all needed dependencies. The variable `API_DISCOVERY_JAVA_CLASSPATH` is used to provide the classpath.
+1. Provide the Java class path needed by your application. This includes your compatible build
+   artifact from step 2, along with any additional dependencies. For this example, the build artifact
+   is `build/libs/spring-boot-app-0.0.0.jar` and contains all needed dependencies. The variable
+   `API_DISCOVERY_JAVA_CLASSPATH` is used to provide the class path.
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-        image: openjdk:11-jre-slim
-        variables:
-            API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+       image: openjdk:11-jre-slim
+       variables:
+           API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
+   ```
 
-1. [Optional] If the image provided is missing a dependency needed by API Discovery, it can be added using a `before_script`. In this example, the `openjdk:11-jre-slim` container doesn't include `curl` which is required by API Discovery. The dependency can be installed using the Debian package manager `apt` as shown below.
+1. Optional. If the image provided is missing a dependency needed by API Discovery, it can be added
+   using a `before_script`. In this example, the `openjdk:11-jre-slim` container doesn't include
+   `curl` which is required by API Discovery. The dependency can be installed using the Debian
+   package manager `apt`:
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-        image: openjdk:11-jre-slim
-        variables:
-            API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
-        before_script:
-            - apt-get update && apt-get install -y curl
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+       image: openjdk:11-jre-slim
+       variables:
+           API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
+       before_script:
+           - apt-get update && apt-get install -y curl
+   ```
 
-1. [Optional] If the image provided doesn't automatically set the `JAVA_HOME` environment variable, or include `java` in the path, the `API_DISCOVERY_JAVA_HOME` variable can be used.
+1. Optional. If the image provided doesn't automatically set the `JAVA_HOME` environment variable,
+   or include `java` in the path, the `API_DISCOVERY_JAVA_HOME` variable can be used.
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-        image: openjdk:11-jre-slim
-        variables:
-            API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
-            API_DISCOVERY_JAVA_HOME: /opt/java
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+       image: openjdk:11-jre-slim
+       variables:
+           API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
+           API_DISCOVERY_JAVA_HOME: /opt/java
+   ```
 
-1. [Optional] If the package registry at `API_DISCOVERY_PACKAGES` is not public, provide a token that has read access to the GitLab API and registry using the `API_DISCOVERY_PACKAGE_TOKEN` variable. This is not required if you are using `gitlab.com` and have not customized the `API_DISCOVERY_PACKAGES` variable. This example uses a [custom CI/CD variable](../../../../ci/variables/index.md#define-a-cicd-variable-in-the-ui) named `GITLAB_READ_TOKEN` to store the token.
+1. Optional. If the package registry at `API_DISCOVERY_PACKAGES` is not public, provide a token that
+   has read access to the GitLab API and registry using the `API_DISCOVERY_PACKAGE_TOKEN` variable.
+   This is not required if you are using `gitlab.com` and have not customized the `API_DISCOVERY_PACKAGES`
+   variable. The following example uses a
+   [custom CI/CD variable](../../../../ci/variables/index.md#define-a-cicd-variable-in-the-ui) named
+   `GITLAB_READ_TOKEN` to store the token.
 
-    ```yaml
-    api_discovery:
-        extends: .api_discovery_java_spring_boot
-        image: openjdk:8-jre-alpine
-        variables:
-            API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
-            API_DISCOVERY_PACKAGE_TOKEN: $GITLAB_READ_TOKEN
-    ```
+   ```yaml
+   api_discovery:
+       extends: .api_discovery_java_spring_boot
+       image: openjdk:8-jre-alpine
+       variables:
+           API_DISCOVERY_JAVA_CLASSPATH: build/libs/spring-boot-app-0.0.0.jar
+           API_DISCOVERY_PACKAGE_TOKEN: $GITLAB_READ_TOKEN
+   ```
+
+After the API Discovery job has successfully run, the OpenAPI document is available as a job artifact called `gl-api-discovery-openapi.json`.
 
 #### Image requirements
 
 - Linux container image.
 - Java versions 11 or 17 are officially supported, but other versions are likely compatible as well.
 - The `curl` command.
-- A shell at `/bin/sh` (like busybox sh or bash).
-
-<!--
-### Configure integrated into a Maven project
-
-TODO
-
-### Configure integrated into a Gradle project
-
-TODO
--->
+- A shell at `/bin/sh` (like `busybox`, `sh`, or `bash`).
 
 ### Available CI/CD variables
 
@@ -154,9 +164,9 @@ TODO
 To get support for your particular problem, use the [getting help channels](https://about.gitlab.com/get-help/).
 
 The [GitLab issue tracker on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues) is the right place for bugs and feature proposals about API Discovery.
-Use `~"Category:API Security"` [label](../../../../development/contributing/issue_workflow.md#labels) when opening a new issue regarding API Discovery to ensure it is quickly reviewed by the right people. Refer to our [review response SLO](https://about.gitlab.com/handbook/engineering/workflow/code-review/#review-response-slo) to understand when you should receive a response.
+Use `~"Category:API Security"` [label](../../../../development/labels/index.md) when opening a new issue regarding API Discovery to ensure it is quickly reviewed by the right people. Refer to our [review response SLO](https://about.gitlab.com/handbook/engineering/workflow/code-review/#review-response-slo) to understand when you should receive a response.
 
-[Search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) for similar entries before submitting your own, there's a good chance somebody else had the same issue or feature proposal. Show your support with an award emoji and or join the discussion.
+[Search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) for similar entries before submitting your own, there's a good chance somebody else had the same issue or feature proposal. Show your support with an emoji reaction or join the discussion.
 
 When experiencing a behavior not working as expected, consider providing contextual information:
 

@@ -65,9 +65,8 @@ RSpec.describe Projects::Settings::CiCdController, feature_category: :continuous
       end
 
       context 'with group runners' do
-        let_it_be(:group) { create :group }
-        let_it_be(:project) { create :project, group: group }
-        let_it_be(:group_runner) { create(:ci_runner, :group, groups: [group]) }
+        let(:project) { other_project }
+        let!(:group_runner) { create(:ci_runner, :group, groups: [group]) }
 
         it 'sets group runners' do
           subject
@@ -323,6 +322,14 @@ RSpec.describe Projects::Settings::CiCdController, feature_category: :continuous
 
             project.reload
             expect(project.ci_forward_deployment_enabled).to eq(false)
+          end
+        end
+
+        context 'when changing forward_deployment_rollback_allowed' do
+          let(:params) { { ci_cd_settings_attributes: { forward_deployment_rollback_allowed: false } } }
+
+          it 'changes forward deployment rollback allowed' do
+            expect { subject }.to change { project.reload.ci_forward_deployment_rollback_allowed }.from(true).to(false)
           end
         end
 

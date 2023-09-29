@@ -8,6 +8,7 @@ import {
 import fuzzaldrinPlus from 'fuzzaldrin-plus';
 import { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { stubComponent } from 'helpers/stub_component';
 import DiffStatsDropdown, { i18n } from '~/vue_shared/components/diff_stats_dropdown.vue';
 
 jest.mock('fuzzaldrin-plus', () => ({
@@ -38,6 +39,7 @@ const mockFiles = [
 
 describe('Diff Stats Dropdown', () => {
   let wrapper;
+  const focusInputMock = jest.fn();
 
   const createComponent = ({ changed = 0, added = 0, deleted = 0, files = [] } = {}) => {
     wrapper = shallowMountExtended(DiffStatsDropdown, {
@@ -50,6 +52,9 @@ describe('Diff Stats Dropdown', () => {
       stubs: {
         GlSprintf,
         GlDropdown,
+        GlSearchBoxByType: stubComponent(GlSearchBoxByType, {
+          methods: { focusInput: focusInputMock },
+        }),
       },
     });
   };
@@ -58,7 +63,6 @@ describe('Diff Stats Dropdown', () => {
   const findChangedFiles = () => findChanged().findAllComponents(GlDropdownItem);
   const findNoFilesText = () => findChanged().findComponent(GlDropdownText);
   const findCollapsed = () => wrapper.findByTestId('diff-stats-additions-deletions-expanded');
-  const findExpanded = () => wrapper.findByTestId('diff-stats-additions-deletions-collapsed');
   const findSearchBox = () => wrapper.findComponent(GlSearchBoxByType);
 
   describe('file item', () => {
@@ -88,38 +92,23 @@ describe('Diff Stats Dropdown', () => {
   });
 
   describe.each`
-    changed | added | deleted | expectedDropdownHeader | expectedAddedDeletedExpanded | expectedAddedDeletedCollapsed
-    ${0}    | ${0}  | ${0}    | ${'0 changed files'}   | ${'+0 -0'}                   | ${'with 0 additions and 0 deletions'}
-    ${2}    | ${0}  | ${2}    | ${'2 changed files'}   | ${'+0 -2'}                   | ${'with 0 additions and 2 deletions'}
-    ${2}    | ${2}  | ${0}    | ${'2 changed files'}   | ${'+2 -0'}                   | ${'with 2 additions and 0 deletions'}
-    ${2}    | ${1}  | ${1}    | ${'2 changed files'}   | ${'+1 -1'}                   | ${'with 1 addition and 1 deletion'}
-    ${1}    | ${0}  | ${1}    | ${'1 changed file'}    | ${'+0 -1'}                   | ${'with 0 additions and 1 deletion'}
-    ${1}    | ${1}  | ${0}    | ${'1 changed file'}    | ${'+1 -0'}                   | ${'with 1 addition and 0 deletions'}
-    ${4}    | ${2}  | ${2}    | ${'4 changed files'}   | ${'+2 -2'}                   | ${'with 2 additions and 2 deletions'}
+    changed | added | deleted | expectedDropdownHeader | expectedAddedDeletedCollapsed
+    ${0}    | ${0}  | ${0}    | ${'0 changed files'}   | ${'with 0 additions and 0 deletions'}
+    ${2}    | ${0}  | ${2}    | ${'2 changed files'}   | ${'with 0 additions and 2 deletions'}
+    ${2}    | ${2}  | ${0}    | ${'2 changed files'}   | ${'with 2 additions and 0 deletions'}
+    ${2}    | ${1}  | ${1}    | ${'2 changed files'}   | ${'with 1 addition and 1 deletion'}
+    ${1}    | ${0}  | ${1}    | ${'1 changed file'}    | ${'with 0 additions and 1 deletion'}
+    ${1}    | ${1}  | ${0}    | ${'1 changed file'}    | ${'with 1 addition and 0 deletions'}
+    ${4}    | ${2}  | ${2}    | ${'4 changed files'}   | ${'with 2 additions and 2 deletions'}
   `(
     'when there are $changed changed file(s), $added added and $deleted deleted file(s)',
-    ({
-      changed,
-      added,
-      deleted,
-      expectedDropdownHeader,
-      expectedAddedDeletedExpanded,
-      expectedAddedDeletedCollapsed,
-    }) => {
+    ({ changed, added, deleted, expectedDropdownHeader, expectedAddedDeletedCollapsed }) => {
       beforeEach(() => {
         createComponent({ changed, added, deleted });
       });
 
-      afterEach(() => {
-        wrapper.destroy();
-      });
-
       it(`dropdown header should be '${expectedDropdownHeader}'`, () => {
         expect(findChanged().props('text')).toBe(expectedDropdownHeader);
-      });
-
-      it(`added and deleted count in expanded section should be '${expectedAddedDeletedExpanded}'`, () => {
-        expect(findExpanded().text()).toBe(expectedAddedDeletedExpanded);
       });
 
       it(`added and deleted count in collapsed section should be '${expectedAddedDeletedCollapsed}'`, () => {
@@ -167,10 +156,8 @@ describe('Diff Stats Dropdown', () => {
     });
 
     it('should set the search input focus', () => {
-      wrapper.vm.$refs.search.focusInput = jest.fn();
       findChanged().vm.$emit('shown');
-
-      expect(wrapper.vm.$refs.search.focusInput).toHaveBeenCalled();
+      expect(focusInputMock).toHaveBeenCalled();
     });
   });
 });

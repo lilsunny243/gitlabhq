@@ -1,24 +1,29 @@
 <script>
-import { GlButton, GlDropdown, GlDropdownItem, GlTooltipDirective } from '@gitlab/ui';
-import { sprintf, __ } from '~/locale';
+import {
+  GlButton,
+  GlPopover,
+  GlSprintf,
+  GlLink,
+  GlDisclosureDropdown,
+  GlTooltipDirective,
+} from '@gitlab/ui';
 
 export default {
+  name: 'ActionButtons',
   components: {
     GlButton,
-    GlDropdown,
-    GlDropdownItem,
+    GlPopover,
+    GlSprintf,
+    GlLink,
+    GlDisclosureDropdown,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
   },
   props: {
-    widget: {
-      type: String,
-      required: false,
-      default: '',
-    },
     tertiaryButtons: {
       type: Array,
+      // fix `spec/frontend/vue_merge_request_widget/mr_widget_options_spec.js` before making this required
       required: false,
       default: () => [],
     },
@@ -30,16 +35,25 @@ export default {
     };
   },
   computed: {
-    dropdownLabel() {
-      if (!this.widget) return undefined;
-
-      return sprintf(__('%{widget} options'), { widget: this.widget });
-    },
     hasOneOption() {
       return this.tertiaryButtons.length === 1;
     },
     hasMultipleOptions() {
       return this.tertiaryButtons.length > 1;
+    },
+    dropdownItems() {
+      return this.tertiaryButtons.map((item) => {
+        return {
+          ...item,
+          text: item.text,
+          href: item.href,
+          extraAttrs: {
+            dataClipboardText: item.dataClipboardText,
+            dataMethod: item.dataMethod,
+            target: item.target,
+          },
+        };
+      });
     },
   },
   methods: {
@@ -82,82 +96,100 @@ export default {
 <template>
   <div class="gl-display-flex gl-align-items-flex-start">
     <template v-if="hasOneOption">
-      <gl-button
-        v-for="(btn, index) in tertiaryButtons"
-        :id="btn.id"
-        :key="index"
-        v-gl-tooltip.hover
-        :title="setTooltip(btn)"
-        :href="btn.href"
-        :target="btn.target"
-        :class="[{ 'gl-mr-3': index !== tertiaryButtons.length - 1 }, btn.class]"
-        :data-clipboard-text="btn.dataClipboardText"
-        :data-qa-selector="actionButtonQaSelector(btn)"
-        :data-method="btn.dataMethod"
-        :icon="btn.icon"
-        :data-testid="btn.testId || 'extension-actions-button'"
-        :variant="btn.variant || 'confirm'"
-        :loading="btn.loading"
-        :disabled="btn.loading"
-        category="tertiary"
-        size="small"
-        class="gl-md-display-block gl-float-left"
-        @click="onClickAction(btn)"
-      >
-        {{ btn.text }}
-      </gl-button>
-    </template>
-    <template v-if="hasMultipleOptions">
-      <gl-dropdown
-        v-gl-tooltip
-        :title="__('Options')"
-        :text="dropdownLabel"
-        icon="ellipsis_v"
-        no-caret
-        category="tertiary"
-        right
-        lazy
-        text-sr-only
-        size="small"
-        toggle-class="gl-p-2!"
-        class="gl-display-block gl-md-display-none!"
-      >
-        <gl-dropdown-item
-          v-for="(btn, index) in tertiaryButtons"
-          :key="index"
+      <span v-for="(btn, index) in tertiaryButtons" :key="index">
+        <gl-button
+          :id="btn.id"
+          v-gl-tooltip.hover
+          :title="setTooltip(btn)"
           :href="btn.href"
           :target="btn.target"
+          :class="[{ 'gl-mr-3': index !== tertiaryButtons.length - 1 }, btn.class]"
           :data-clipboard-text="btn.dataClipboardText"
+          :data-qa-selector="actionButtonQaSelector(btn)"
           :data-method="btn.dataMethod"
+          :icon="btn.icon"
+          :data-testid="btn.testId || 'extension-actions-button'"
+          :variant="btn.variant || 'confirm'"
+          :loading="btn.loading"
+          :disabled="btn.loading"
+          category="tertiary"
+          size="small"
+          class="gl-md-display-block gl-float-left"
           @click="onClickAction(btn)"
         >
           {{ btn.text }}
-        </gl-dropdown-item>
-      </gl-dropdown>
-      <gl-button
-        v-for="(btn, index) in tertiaryButtons"
-        :id="btn.id"
-        :key="index"
-        v-gl-tooltip.hover
-        :title="setTooltip(btn)"
-        :href="btn.href"
-        :target="btn.target"
-        :class="[{ 'gl-mr-3': index !== tertiaryButtons.length - 1 }, btn.class]"
-        :data-clipboard-text="btn.dataClipboardText"
-        :data-qa-selector="actionButtonQaSelector(btn)"
-        :data-method="btn.dataMethod"
-        :icon="btn.icon"
-        :data-testid="btn.testId || 'extension-actions-button'"
-        :variant="btn.variant || 'confirm'"
-        :loading="btn.loading"
-        :disabled="btn.loading"
+        </gl-button>
+        <gl-popover v-if="btn.popoverTarget" :target="btn.popoverTarget">
+          <template #title> {{ btn.popoverTitle }} </template>
+
+          <span v-if="btn.popoverLink">
+            <gl-sprintf :message="btn.popoverText">
+              <template #link="{ content }">
+                <gl-link class="gl-font-sm" :href="btn.popoverLink" target="_blank">
+                  {{ content }}</gl-link
+                >
+              </template>
+            </gl-sprintf>
+          </span>
+          <span v-else>
+            {{ btn.popoverText }}
+          </span>
+        </gl-popover>
+      </span>
+    </template>
+    <template v-if="hasMultipleOptions">
+      <gl-disclosure-dropdown
+        v-gl-tooltip
+        :items="dropdownItems"
+        :title="__('Options')"
+        icon="ellipsis_v"
+        no-caret
         category="tertiary"
+        text-sr-only
         size="small"
-        class="gl-display-none gl-md-display-block gl-float-left"
-        @click="onClickAction(btn)"
-      >
-        {{ btn.text }}
-      </gl-button>
+        class="gl-display-block gl-md-display-none!"
+        @action="onClickAction"
+      />
+      <span v-for="(btn, index) in tertiaryButtons" :key="index">
+        <gl-button
+          :id="btn.id"
+          v-gl-tooltip.hover
+          :title="setTooltip(btn)"
+          :href="btn.href"
+          :target="btn.target"
+          :class="[{ 'gl-mr-1': index !== tertiaryButtons.length - 1 }, btn.class]"
+          :data-clipboard-text="btn.dataClipboardText"
+          :data-qa-selector="actionButtonQaSelector(btn)"
+          :data-method="btn.dataMethod"
+          :icon="btn.icon"
+          :data-testid="btn.testId || 'extension-actions-button'"
+          :variant="btn.variant || 'confirm'"
+          :loading="btn.loading"
+          :disabled="btn.loading"
+          category="tertiary"
+          size="small"
+          class="gl-display-none gl-md-display-block gl-float-left"
+          @click="onClickAction(btn)"
+        >
+          {{ btn.text }}
+        </gl-button>
+        <gl-popover v-if="btn.popoverTarget" :target="btn.popoverTarget">
+          <template #title> {{ btn.popoverTitle }} </template>
+
+          <span v-if="btn.popoverLink">
+            <gl-sprintf :message="btn.popoverText">
+              <template #link="{ content }">
+                <gl-link class="gl-font-sm" :href="btn.popoverLink" target="_blank">
+                  {{ content }}</gl-link
+                >
+              </template>
+            </gl-sprintf>
+          </span>
+          <span v-else>
+            {{ btn.popoverText }}
+          </span>
+        </gl-popover>
+      </span>
     </template>
   </div>
 </template>

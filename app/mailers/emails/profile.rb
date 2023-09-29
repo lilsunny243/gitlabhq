@@ -2,11 +2,13 @@
 
 module Emails
   module Profile
+    include SafeFormatHelper
+
     def new_user_email(user_id, token = nil)
       @current_user = @user = User.find(user_id)
       @target_url = user_url(@user)
       @token = token
-      mail_with_locale(to: @user.notification_email_or_default, subject: subject("Account was created for you"))
+      email_with_layout(to: @user.notification_email_or_default, subject: subject("Account was created for you"))
     end
 
     def instance_access_request_email(user, recipient)
@@ -58,6 +60,28 @@ module Emails
     end
     # rubocop: enable CodeReuse/ActiveRecord
 
+    def resource_access_tokens_about_to_expire_email(recipient, resource, token_names)
+      @user = recipient
+      @token_names = token_names
+      @days_to_expire = PersonalAccessToken::DAYS_TO_EXPIRE
+      @resource = resource
+      @target_url = if resource.is_a?(Group)
+                      group_settings_access_tokens_url(resource)
+                    else
+                      project_settings_access_tokens_url(resource)
+                    end
+
+      mail_with_locale(
+        to: recipient.notification_email_or_default,
+        subject: subject(
+          safe_format(
+            _("Your resource access tokens will expire in %{days_to_expire} or less"),
+            days_to_expire: pluralize(@days_to_expire, _('day'))
+          )
+        )
+      )
+    end
+
     def access_token_created_email(user, token_name)
       return unless user&.active?
 
@@ -65,9 +89,7 @@ module Emails
       @target_url = profile_personal_access_tokens_url
       @token_name = token_name
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("A new personal access token has been created")))
-      end
+      email_with_layout(to: @user.notification_email_or_default, subject: subject(_("A new personal access token has been created")))
     end
 
     def access_token_about_to_expire_email(user, token_names)
@@ -78,9 +100,7 @@ module Emails
       @target_url = profile_personal_access_tokens_url
       @days_to_expire = PersonalAccessToken::DAYS_TO_EXPIRE
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your personal access tokens will expire in %{days_to_expire} days or less") % { days_to_expire: @days_to_expire }))
-      end
+      mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your personal access tokens will expire in %{days_to_expire} days or less") % { days_to_expire: @days_to_expire }))
     end
 
     def access_token_expired_email(user, token_names = [])
@@ -90,9 +110,7 @@ module Emails
       @token_names = token_names
       @target_url = profile_personal_access_tokens_url
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your personal access tokens have expired")))
-      end
+      email_with_layout(to: @user.notification_email_or_default, subject: subject(_("Your personal access tokens have expired")))
     end
 
     def access_token_revoked_email(user, token_name, source = nil)
@@ -103,9 +121,7 @@ module Emails
       @target_url = profile_personal_access_tokens_url
       @source = source
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("A personal access token has been revoked")))
-      end
+      mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("A personal access token has been revoked")))
     end
 
     def ssh_key_expired_email(user, fingerprints)
@@ -115,9 +131,7 @@ module Emails
       @fingerprints = fingerprints
       @target_url = profile_keys_url
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your SSH key has expired")))
-      end
+      email_with_layout(to: @user.notification_email_or_default, subject: subject(_("Your SSH key has expired")))
     end
 
     def ssh_key_expiring_soon_email(user, fingerprints)
@@ -127,9 +141,7 @@ module Emails
       @fingerprints = fingerprints
       @target_url = profile_keys_url
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your SSH key is expiring soon.")))
-      end
+      mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Your SSH key is expiring soon.")))
     end
 
     def unknown_sign_in_email(user, ip, time)
@@ -138,11 +150,9 @@ module Emails
       @time = time
       @target_url = edit_profile_password_url
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        email_with_layout(
-          to: @user.notification_email_or_default,
-          subject: subject(_("%{host} sign-in from new location") % { host: Gitlab.config.gitlab.host }))
-      end
+      email_with_layout(
+        to: @user.notification_email_or_default,
+        subject: subject(_("%{host} sign-in from new location") % { host: Gitlab.config.gitlab.host }))
     end
 
     def two_factor_otp_attempt_failed_email(user, ip, time = Time.current)
@@ -150,11 +160,9 @@ module Emails
       @ip = ip
       @time = time
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        email_with_layout(
-          to: @user.notification_email_or_default,
-          subject: subject(_("Attempted sign in to %{host} using an incorrect verification code") % { host: Gitlab.config.gitlab.host }))
-      end
+      email_with_layout(
+        to: @user.notification_email_or_default,
+        subject: subject(_("Attempted sign in to %{host} using an incorrect verification code") % { host: Gitlab.config.gitlab.host }))
     end
 
     def disabled_two_factor_email(user)
@@ -162,9 +170,7 @@ module Emails
 
       @user = user
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Two-factor authentication disabled")))
-      end
+      mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("Two-factor authentication disabled")))
     end
 
     def new_email_address_added_email(user, email)
@@ -173,9 +179,18 @@ module Emails
       @user = user
       @email = email
 
-      Gitlab::I18n.with_locale(@user.preferred_language) do
-        mail_with_locale(to: @user.notification_email_or_default, subject: subject(_("New email address added")))
-      end
+      email_with_layout(to: @user.notification_email_or_default, subject: subject(_("New email address added")))
+    end
+
+    def new_achievement_email(user, achievement)
+      return unless user&.active?
+
+      @user = user
+      @achievement = achievement
+
+      email_with_layout(
+        to: @user.notification_email_or_default,
+        subject: subject(s_("Achievements|%{namespace_full_path} awarded you the %{achievement_name} achievement") % { namespace_full_path: @achievement.namespace.full_path, achievement_name: @achievement.name }))
     end
   end
 end

@@ -55,7 +55,10 @@ module API
       #
       # For list endpoints, we skip the recheck by default, since it's expensive
       expose :merge_status do |merge_request, options|
-        merge_request.check_mergeability(async: true) unless options[:skip_merge_status_recheck]
+        if !options[:skip_merge_status_recheck] && can_check_mergeability?(merge_request.project)
+          merge_request.check_mergeability(async: true)
+        end
+
         merge_request.public_merge_status
       end
       expose :detailed_merge_status
@@ -65,6 +68,7 @@ module API
       expose :discussion_locked
       expose :should_remove_source_branch?, as: :should_remove_source_branch
       expose :force_remove_source_branch?, as: :force_remove_source_branch
+      expose :prepared_at
 
       with_options if: -> (merge_request, _) { merge_request.for_fork? } do
         expose :allow_collaboration
@@ -100,6 +104,10 @@ module API
 
       def detailed_merge_status
         ::MergeRequests::Mergeability::DetailedMergeStatusService.new(merge_request: object).execute
+      end
+
+      def can_check_mergeability?(project)
+        Ability.allowed?(options[:current_user], :update_merge_request, project)
       end
     end
   end

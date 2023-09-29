@@ -26,20 +26,23 @@ export default {
     },
     stateName: {
       type: String,
-      required: true,
+      required: false,
+      default: '',
     },
   },
   computed: {
     closeModalProps() {
       return {
         text: this.$options.i18n.closeText,
-        attributes: [],
+        attributes: {},
       };
     },
   },
   methods: {
     getModalInfoCopyStr() {
-      const stateNameEncoded = encodeURIComponent(this.stateName);
+      const stateNameEncoded = this.stateName
+        ? encodeURIComponent(this.stateName)
+        : '<YOUR-STATE-NAME>';
 
       return `export GITLAB_ACCESS_TOKEN=<YOUR-ACCESS-TOKEN>
 terraform init \\
@@ -80,7 +83,6 @@ terraform init \\
         :title="$options.i18n.copyToClipboardText"
         :text="getModalInfoCopyStr()"
         :modal-id="$options.modalId"
-        data-testid="init-command-copy-clipboard"
         css-classes="gl-align-self-start gl-ml-2"
       />
     </div>

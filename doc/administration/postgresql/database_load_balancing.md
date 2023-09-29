@@ -64,7 +64,7 @@ To enable Database Load Balancing, make sure that:
 - The HA PostgreSQL setup has one or more secondary nodes replicating the primary.
 - Each PostgreSQL node is connected with the same credentials and on the same port.
 
-For Omnibus GitLab, you also need PgBouncer configured on each PostgreSQL node to pool
+For Linux package installations, you also need PgBouncer configured on each PostgreSQL node to pool
 all load-balanced connections when [configuring a multi-node setup](replication_and_failover.md).
 
 ## Configuring Database Load Balancing
@@ -76,22 +76,31 @@ Database Load Balancing can be configured in one of two ways:
 
 ### Hosts
 
-To configure a list of hosts, perform these steps on all GitLab Rails (Sidekiq)
+<!-- Including the Primary host in Database Load Balancing is now recommended for improved performance - Approved by the Reference Architecture and Database groups. -->
+
+To configure a list of hosts, perform these steps on all GitLab Rails and Sidekiq
 nodes for each environment you want to balance:
 
 1. Edit the `/etc/gitlab/gitlab.rb` file.
-1. In `gitlab_rails['db_load_balancing']`, create an array of the read-only
-   replicas you want to balance. Do not add the primary host. For example, on
+1. In `gitlab_rails['db_load_balancing']`, create the array of the database
+   hosts you want to balance. For example, on
    an environment with PostgreSQL running on the hosts `primary.example.com`,
-   `host1.example.com`, `host2.example.com`, and `host3.example.com`:
+   `secondary1.example.com`, `secondary2.example.com`:
 
    ```ruby
-   gitlab_rails['db_load_balancing'] = { 'hosts' => ['host1.example.com', 'host2.example.com', `host3.example.com`] }
+   gitlab_rails['db_load_balancing'] = { 'hosts' => ['primary.example.com', 'secondary1.example.com', 'secondary2.example.com'] }
    ```
 
-   These replicas must be reachable on the same port configured with `gitlab_rails['db_port']`.
+   These hosts must be reachable on the same port configured with `gitlab_rails['db_port']`.
 
-1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
+
+NOTE:
+Adding the primary to the hosts list is optional, but recommended.
+This makes the primary eligible for load-balanced read queries, improving system performance
+when the primary has capacity for these queries.
+Very high-traffic instances may not have capacity on the primary for it to serve as a read replica.
+The primary will be used for write queries whether or not it is present in this list.
 
 ### Service Discovery
 
@@ -103,7 +112,7 @@ checks a DNS `A` record, using the IPs returned by this record as the addresses
 for the secondaries. For service discovery to work, all you need is a DNS server
 and an `A` record containing the IP addresses of your secondaries.
 
-When using Omnibus GitLab the provided [Consul](../consul.md) service works as
+When using a Linux package installation, the provided [Consul](../consul.md) service works as
 a DNS server and returns PostgreSQL addresses via the `postgresql-ha.service.consul`
 record. For example:
 
@@ -121,7 +130,7 @@ record. For example:
   }
   ```
 
-1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 | Option               | Description                                                                                       | Default   |
 |----------------------|---------------------------------------------------------------------------------------------------|-----------|
@@ -173,9 +182,9 @@ To configure these options with a hosts list, use the following example:
 
 ```ruby
 gitlab_rails['db_load_balancing'] = {
-  'hosts' => ['host1.example.com', 'host2.example.com', `host3.example.com`]
-  'max_replication_difference' => 16777216 # 16 MB
-  'max_replication_lag_time' => 30
+  'hosts' => ['primary.example.com', 'secondary1.example.com', 'secondary2.example.com'],
+  'max_replication_difference' => 16777216, # 16 MB
+  'max_replication_lag_time' => 30,
   'replica_check_interval' => 30
 }
 ```
@@ -235,3 +244,8 @@ operation retries up to 3 times using an exponential back-off.
 
 When using load balancing, you should be able to safely restart a database server
 without it immediately leading to errors being presented to the users.
+
+### Development guide
+
+For detailed development guide on database load balancing,
+see [the development documentation](../../development/database/load_balancing.md).

@@ -1,5 +1,4 @@
 <script>
-/* eslint-disable @gitlab/require-i18n-strings */
 import { GlModal, GlLink, GlSprintf } from '@gitlab/ui';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { escapeShellString } from '~/lib/utils/text_utility';
@@ -87,14 +86,21 @@ export default {
       const escapedOriginBranch = escapeShellString(`origin/${this.sourceBranch}`);
 
       return this.isFork
-        ? `git fetch "${this.sourceProjectDefaultUrl}" ${this.escapedSourceBranch}\ngit checkout -b ${this.escapedForkBranch} FETCH_HEAD`
-        : `git fetch origin\ngit checkout -b ${this.escapedSourceBranch} ${escapedOriginBranch}`;
+        ? `git fetch "${this.sourceProjectDefaultUrl}" ${this.escapedSourceBranch}\ngit checkout -b ${this.escapedForkBranch} FETCH_HEAD` // eslint-disable-line @gitlab/require-i18n-strings
+        : `git fetch origin\ngit checkout -b ${this.escapedSourceBranch} ${escapedOriginBranch}`; // eslint-disable-line @gitlab/require-i18n-strings
     },
     mergeInfo2() {
-      return `git push origin ${this.escapedSourceBranch}`;
+      return this.isFork
+        ? `git push "${this.sourceProjectDefaultUrl}" ${this.escapedForkPushBranch}` // eslint-disable-line @gitlab/require-i18n-strings
+        : `git push origin ${this.escapedSourceBranch}`; // eslint-disable-line @gitlab/require-i18n-strings
     },
     escapedForkBranch() {
       return escapeShellString(`${this.sourceProjectPath}-${this.sourceBranch}`);
+    },
+    escapedForkPushBranch() {
+      return escapeShellString(
+        `${this.sourceProjectPath}-${this.sourceBranch}:${this.sourceBranch}`,
+      );
     },
     escapedSourceBranch() {
       return escapeShellString(this.sourceBranch);

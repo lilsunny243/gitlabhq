@@ -15,6 +15,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
       maven_duplicate_exception_regex: 'foo-.*',
       generic_duplicates_allowed: false,
       generic_duplicate_exception_regex: 'bar-.*',
+      nuget_duplicates_allowed: false,
+      nuget_duplicate_exception_regex: 'bar-.*',
       maven_package_requests_forwarding: true,
       lock_maven_package_requests_forwarding: true,
       npm_package_requests_forwarding: true,
@@ -32,6 +34,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
           mavenDuplicateExceptionRegex
           genericDuplicatesAllowed
           genericDuplicateExceptionRegex
+          nugetDuplicatesAllowed
+          nugetDuplicateExceptionRegex
           mavenPackageRequestsForwarding
           lockMavenPackageRequestsForwarding
           npmPackageRequestsForwarding
@@ -58,6 +62,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
       expect(package_settings_response['mavenDuplicateExceptionRegex']).to eq(params[:maven_duplicate_exception_regex])
       expect(package_settings_response['genericDuplicatesAllowed']).to eq(params[:generic_duplicates_allowed])
       expect(package_settings_response['genericDuplicateExceptionRegex']).to eq(params[:generic_duplicate_exception_regex])
+      expect(package_settings_response['nugetDuplicatesAllowed']).to eq(params[:nuget_duplicates_allowed])
+      expect(package_settings_response['nugetDuplicateExceptionRegex']).to eq(params[:nuget_duplicate_exception_regex])
       expect(package_settings_response['mavenPackageRequestsForwarding']).to eq(params[:maven_package_requests_forwarding])
       expect(package_settings_response['lockMavenPackageRequestsForwarding']).to eq(params[:lock_maven_package_requests_forwarding])
       expect(package_settings_response['pypiPackageRequestsForwarding']).to eq(params[:pypi_package_requests_forwarding])
@@ -98,6 +104,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
         maven_duplicate_exception_regex: 'SNAPSHOT',
         generic_duplicates_allowed: true,
         generic_duplicate_exception_regex: 'foo',
+        nuget_duplicates_allowed: true,
+        nuget_duplicate_exception_regex: 'foo',
         maven_package_requests_forwarding: nil,
         lock_maven_package_requests_forwarding: false,
         npm_package_requests_forwarding: nil,
@@ -109,6 +117,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
         maven_duplicate_exception_regex: 'foo-.*',
         generic_duplicates_allowed: false,
         generic_duplicate_exception_regex: 'bar-.*',
+        nuget_duplicates_allowed: false,
+        nuget_duplicate_exception_regex: 'bar-.*',
         maven_package_requests_forwarding: true,
         lock_maven_package_requests_forwarding: true,
         npm_package_requests_forwarding: true,
@@ -119,6 +129,26 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
 
     it_behaves_like 'returning a success'
     it_behaves_like 'rejecting invalid regex'
+
+    context 'when nuget_duplicates_option FF is disabled' do
+      let(:params) do
+        {
+          namespace_path: namespace.full_path,
+          'nugetDuplicatesAllowed' => false
+        }
+      end
+
+      before do
+        stub_feature_flags(nuget_duplicates_option: false)
+      end
+
+      it 'raises an error', :aggregate_failures do
+        subject
+
+        expect(graphql_errors.size).to eq(1)
+        expect(graphql_errors.first['message']).to include('feature flag is disabled')
+      end
+    end
   end
 
   RSpec.shared_examples 'accepting the mutation request creating the package settings' do
@@ -139,6 +169,15 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
     end
   end
 
+  # To be removed when raise_group_admin_package_permission_to_owner FF is removed
+  RSpec.shared_examples 'disabling admin_package feature flag' do |action:|
+    before do
+      stub_feature_flags(raise_group_admin_package_permission_to_owner: false)
+    end
+
+    it_behaves_like "accepting the mutation request #{action} the package settings"
+  end
+
   describe 'post graphql mutation' do
     subject { post_graphql_mutation(mutation, current_user: user) }
 
@@ -147,7 +186,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
       let_it_be(:namespace, reload: true) { package_settings.namespace }
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'accepting the mutation request updating the package settings'
+        :owner      | 'accepting the mutation request updating the package settings'
+        :maintainer | 'denying the mutation request'
         :developer  | 'denying the mutation request'
         :reporter   | 'denying the mutation request'
         :guest      | 'denying the mutation request'
@@ -160,6 +200,7 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :updating if params[:user_role] == :maintainer
       end
     end
 
@@ -169,7 +210,8 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
       let(:package_settings) { namespace.package_settings }
 
       where(:user_role, :shared_examples_name) do
-        :maintainer | 'accepting the mutation request creating the package settings'
+        :owner      | 'accepting the mutation request creating the package settings'
+        :maintainer | 'denying the mutation request'
         :developer  | 'denying the mutation request'
         :reporter   | 'denying the mutation request'
         :guest      | 'denying the mutation request'
@@ -182,6 +224,7 @@ RSpec.describe 'Updating the package settings', feature_category: :package_regis
         end
 
         it_behaves_like params[:shared_examples_name]
+        it_behaves_like 'disabling admin_package feature flag', action: :creating if params[:user_role] == :maintainer
       end
     end
   end

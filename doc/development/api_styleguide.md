@@ -44,18 +44,71 @@ A good example is as follows:
 ```ruby
 desc 'Get all broadcast messages' do
   detail 'This feature was introduced in GitLab 8.12.'
-  success Entities::BroadcastMessage
+  success Entities::System::BroadcastMessage
 end
 params do
   optional :page,     type: Integer, desc: 'Current page number'
   optional :per_page, type: Integer, desc: 'Number of messages per page'
 end
 get do
-  messages = BroadcastMessage.all
+  messages = System::BroadcastMessage.all
 
-  present paginate(messages), with: Entities::BroadcastMessage
+  present paginate(messages), with: Entities::System::BroadcastMessage
 end
 ```
+
+## Breaking changes
+
+We must not make breaking changes to our REST API v4, even in major GitLab releases.
+
+Our REST API maintains its own versioning independent of GitLab versioning.
+The current REST API version is `4`. [We commit to follow semantic versioning for our REST API](../api/rest/index.md#compatibility-guidelines),
+which means we cannot make breaking changes until a major version change (most likely, `5`).
+
+Because version `5` is not scheduled, we allow rare [exceptions](#exceptions).
+
+### Accommodating backward compatibility instead of breaking changes
+
+Backward compatibility can often be accommodated in the API by continuing to adapt a changed feature to
+the old API schema. For example, our REST API
+[exposes](https://gitlab.com/gitlab-org/gitlab/-/blob/c104f6b8/lib/api/entities/merge_request_basic.rb#L43-47) both
+`work_in_progress` and `draft` fields.
+
+### Exceptions
+
+The exception is only when:
+
+- A feature must be removed in a major GitLab release.
+- Backward compatibility cannot be maintained
+  [in any form](#accommodating-backward-compatibility-instead-of-breaking-changes).
+
+This exception should be rare.
+
+Even in this exception, rather than removing a field or argument, we must always do the following:
+
+- Return an empty response for a field (for example, `"null"` or `[]`).
+- Turn an argument into a no-op.
+
+## What is a breaking change
+
+Some examples of breaking changes are:
+
+- Removing or renaming fields, arguments, or enum values.
+- Removing endpoints.
+- Adding new redirects (not all clients follow redirects).
+- Changing the type of fields in the response (for example, from `String` to `Integer`).
+- Adding a new **required** argument.
+- Changing authentication, authorization, or other header requirements.
+- Changing [any status code](../api/rest/index.md#status-codes) other than `500`.
+
+## What is not a breaking change
+
+Some examples of non-breaking changes:
+
+- Any additive change, such as adding endpoints, non-required arguments, fields, or enum values.
+- Changes to error messages.
+- Changes from a `500` status code to [any supported status code](../api/rest/index.md#status-codes) (this is a bugfix).
+- Changes to the order of fields returned in a response.
 
 ## Declared parameters
 
@@ -126,7 +179,7 @@ request that has an optional parameter:
 optional :user_ids, type: Array[Integer], coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce, desc: 'The user ids for this rule'
 ```
 
-Normally, a request to PUT `/test?user_ids` would cause Grape to pass
+Usually, a request to PUT `/test?user_ids` would cause Grape to pass
 `params` of `{ user_ids: nil }`.
 
 This may introduce errors with endpoints that expect a blank array and
@@ -250,7 +303,7 @@ from the server to the platform if we identify invalid parameters at the beginni
 If you need to add a custom validator, it would be added to
 it's own file in the [`validators`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/api/validations/validators) directory.
 Since we use [Grape](https://github.com/ruby-grape/grape) to add our API
-we inherit from the `Grape::Validations::Base` class in our validator class.
+we inherit from the `Grape::Validations::Validators::Base` class in our validator class.
 Now, all you have to do is define the `validate_param!` method which takes
 in two parameters: the `params` hash and the `param` name to validate.
 

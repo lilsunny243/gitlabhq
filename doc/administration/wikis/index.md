@@ -1,7 +1,7 @@
 ---
 type: reference, howto
-stage: Create
-group: Editor
+stage: Plan
+group: Knowledge
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -26,7 +26,7 @@ is edited again and the content changes.
 
 ### Wiki page content size limit configuration
 
-This setting is not available through the [Admin Area settings](../../user/admin_area/settings/index.md).
+This setting is not available through the [Admin Area settings](../settings/index.md).
 To configure this setting, use either the Rails console
 or the [Application settings API](../../api/settings.md).
 
@@ -76,11 +76,56 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 
 ### Reduce wiki repository size
 
-The wiki counts as part of the [namespace storage size](../../user/admin_area/settings/account_and_limit_settings.md),
+The wiki counts as part of the [namespace storage size](../settings/account_and_limit_settings.md),
 so you should keep your wiki repositories as compact as possible.
 
 For more information about tools to compact repositories,
 read the documentation on [reducing repository size](../../user/project/repository/reducing_the_repo_size_using_git.md).
+
+## Allow URI includes for AsciiDoc
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/348687) in GitLab 16.1.
+
+Include directives import content from separate pages or external URLs,
+and display them as part of the content of the current document. To enable
+AsciiDoc includes, enable the feature through the Rails console or the API.
+
+### Through the Rails console
+
+To configure this setting through the Rails console:
+
+1. Start the Rails console:
+
+   ```shell
+   # For Omnibus installations
+   sudo gitlab-rails console
+
+   # For installations from source
+   sudo -u git -H bundle exec rails console -e production
+   ```
+
+1. Update the wiki to allow URI includes for AsciiDoc:
+
+   ```ruby
+   ApplicationSetting.first.update!(wiki_asciidoc_allow_uri_includes: true)
+   ```
+
+To check if includes are enabled, start the Rails console and run:
+
+  ```ruby
+  Gitlab::CurrentSettings.wiki_asciidoc_allow_uri_includes
+  ```
+
+### Through the API
+
+To set the wiki to allow URI includes for AsciiDoc through the
+[Application Settings API](../../api/settings.md#change-application-settings),
+use a `curl` command:
+
+```shell
+curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" \
+  "https://gitlab.example.com/api/v4/application/settings?wiki_asciidoc_allow_uri_includes=true"
+```
 
 ## Related topics
 

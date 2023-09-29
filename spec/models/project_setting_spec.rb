@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectSetting, type: :model do
+RSpec.describe ProjectSetting, type: :model, feature_category: :groups_and_projects do
   using RSpec::Parameterized::TableSyntax
   it { is_expected.to belong_to(:project) }
 
@@ -27,8 +27,7 @@ RSpec.describe ProjectSetting, type: :model do
     it { is_expected.to validate_length_of(:issue_branch_template).is_at_most(255) }
 
     it { is_expected.not_to allow_value(nil).for(:suggested_reviewers_enabled) }
-    it { is_expected.to allow_value(true).for(:suggested_reviewers_enabled) }
-    it { is_expected.to allow_value(false).for(:suggested_reviewers_enabled) }
+    it { is_expected.to allow_value(true, false).for(:suggested_reviewers_enabled) }
 
     it 'allows any combination of the allowed target platforms' do
       valid_target_platform_combinations.each do |target_platforms|
@@ -77,12 +76,36 @@ RSpec.describe ProjectSetting, type: :model do
       expect(project_setting).not_to be_valid
       expect(project_setting.errors.full_messages).to include("Pages unique domain has already been taken")
     end
+
+    it "validates if the pages_unique_domain already exist as a project path" do
+      stub_pages_setting(host: 'example.com')
+
+      create(:project, path: "random-unique-domain.example.com")
+      project_setting = build(:project_setting, pages_unique_domain: "random-unique-domain")
+
+      expect(project_setting).not_to be_valid
+      expect(project_setting.errors.full_messages_for(:pages_unique_domain))
+        .to match(["Pages unique domain already in use"])
+    end
+
+    context "when updating" do
+      it "validates if the pages_unique_domain already exist as a project path" do
+        stub_pages_setting(host: 'example.com')
+        project_setting = create(:project_setting)
+
+        create(:project, path: "random-unique-domain.example.com")
+
+        expect(project_setting.update(pages_unique_domain: "random-unique-domain")).to eq(false)
+        expect(project_setting.errors.full_messages_for(:pages_unique_domain))
+          .to match(["Pages unique domain already in use"])
+      end
+    end
   end
 
   describe 'target_platforms=' do
     it 'stringifies and sorts' do
       project_setting = build(:project_setting, target_platforms: [:watchos, :ios])
-      expect(project_setting.target_platforms).to eq %w(ios watchos)
+      expect(project_setting.target_platforms).to eq %w[ios watchos]
     end
   end
 
@@ -112,7 +135,7 @@ RSpec.describe ProjectSetting, type: :model do
   end
 
   describe '#show_diff_preview_in_email?' do
-    context 'when a project is a top-level namespace' do
+    context 'when a project has no parent group' do
       let(:project_settings) { create(:project_setting, show_diff_preview_in_email: false) }
       let(:project) { create(:project, project_setting: project_settings) }
 
@@ -134,61 +157,11 @@ RSpec.describe ProjectSetting, type: :model do
       end
     end
 
-    describe '#emails_enabled?' do
-      context "when a project does not have a parent group" do
-        let(:project_settings) { create(:project_setting, emails_enabled: true) }
-        let(:project) { create(:project, project_setting: project_settings) }
-
-        it "returns true" do
-          expect(project.emails_enabled?).to be_truthy
-        end
-
-        it "returns false when updating project settings" do
-          project.update_attribute(:emails_disabled, false)
-          expect(project.emails_enabled?).to be_truthy
-        end
-      end
-
-      context "when a project has a parent group" do
-        let(:namespace_settings) { create(:namespace_settings, emails_enabled: true) }
-        let(:project_settings) { create(:project_setting, emails_enabled: true) }
-        let(:group) { create(:group, namespace_settings: namespace_settings) }
-        let(:project) do
-          create(:project, namespace_id: group.id,
-            project_setting: project_settings)
-        end
-
-        context 'when emails have been disabled in parent group' do
-          it 'returns false' do
-            group.update_attribute(:emails_disabled, true)
-
-            expect(project.emails_enabled?).to be_falsey
-          end
-        end
-
-        context 'when emails are enabled in parent group' do
-          before do
-            allow(project.namespace).to receive(:emails_enabled?).and_return(true)
-          end
-
-          it 'returns true' do
-            expect(project.emails_enabled?).to be_truthy
-          end
-
-          it 'returns false when disabled at the project' do
-            project.update_attribute(:emails_disabled, true)
-
-            expect(project.emails_enabled?).to be_falsey
-          end
-        end
-      end
-    end
-
-    context 'when a parent group has a parent group' do
+    context 'when a parent group overrides project settings' do
       let(:namespace_settings) { create(:namespace_settings, show_diff_preview_in_email: false) }
       let(:project_settings) { create(:project_setting, show_diff_preview_in_email: true) }
       let(:group) { create(:group, namespace_settings: namespace_settings) }
-      let!(:project) { create(:project, namespace_id: group.id, project_setting: project_settings) }
+      let(:project) { create(:project, namespace_id: group.id, project_setting: project_settings) }
 
       context 'when show_diff_preview_in_email is disabled for the parent group' do
         it 'returns false' do
@@ -200,10 +173,90 @@ RSpec.describe ProjectSetting, type: :model do
         let(:namespace_settings) { create(:namespace_settings, show_diff_preview_in_email: true) }
 
         it 'returns true' do
-          group.update_attribute(:show_diff_preview_in_email, true)
-
           expect(project).to be_show_diff_preview_in_email
         end
+      end
+    end
+  end
+
+  describe '#emails_enabled?' do
+    context "when a project does not have a parent group" do
+      let_it_be(:project_settings) { create(:project_setting, emails_enabled: true) }
+      let_it_be(:project) { create(:project, project_setting: project_settings) }
+
+      it "returns true" do
+        expect(project.emails_enabled?).to be_truthy
+      end
+
+      it "returns false when project_settings are set to false" do
+        project.project_setting.clear_memoization(:emails_enabled?)
+        project.update_attribute(:emails_enabled, false)
+
+        expect(project.emails_enabled?).to be_falsey
+      end
+    end
+
+    context "when a project has a parent group" do
+      let(:namespace_settings) { create(:namespace_settings, emails_enabled: true) }
+      let(:project_settings) { create(:project_setting, emails_enabled: true) }
+      let(:group) { create(:group, namespace_settings: namespace_settings) }
+      let(:project) do
+        create(:project, namespace_id: group.id,
+          project_setting: project_settings)
+      end
+
+      context 'when emails have been disabled in parent group' do
+        it 'returns false' do
+          group.update_attribute(:emails_disabled, true)
+
+          expect(project.emails_enabled?).to be_falsey
+        end
+      end
+
+      context 'when emails are enabled in parent group' do
+        before do
+          allow(project.namespace).to receive(:emails_disabled?).and_return(false)
+        end
+
+        it 'returns true' do
+          expect(project.emails_enabled?).to be_truthy
+        end
+
+        it 'returns false when disabled at the project' do
+          project.update_attribute(:emails_enabled, false)
+
+          expect(project.emails_enabled?).to be_falsey
+        end
+      end
+    end
+  end
+
+  describe '#runner_registration_enabled' do
+    let_it_be(:settings) { create(:project_setting) }
+    let_it_be(:group) { create(:group) }
+    let_it_be(:project) { create(:project, project_setting: settings, group: group) }
+
+    it 'returns true' do
+      expect(project.runner_registration_enabled).to eq true
+    end
+
+    context 'when project has runner registration disabled' do
+      before do
+        project.update!(runner_registration_enabled: false)
+      end
+
+      it 'returns false' do
+        expect(project.runner_registration_enabled).to eq false
+      end
+    end
+
+    context 'when all projects have runner registration disabled' do
+      before do
+        stub_application_setting(valid_runner_registrars: ['group'])
+      end
+
+      it 'returns false' do
+        expect(project.runner_registration_enabled).to eq false
       end
     end
   end

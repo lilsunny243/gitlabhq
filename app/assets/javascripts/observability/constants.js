@@ -17,6 +17,9 @@ export const SKELETON_VARIANTS_BY_ROUTE = Object.freeze({
   [OBSERVABILITY_ROUTES.MANAGE]: 'manage',
 });
 
+export const SKELETON_VARIANT_EMBED = 'embed';
+export const SKELETON_SPINNER_VARIANT = 'spinner';
+
 export const SKELETON_STATE = Object.freeze({
   ERROR: 'error',
   VISIBLE: 'visible',
@@ -30,3 +33,13 @@ export const DEFAULT_TIMERS = Object.freeze({
 
 export const TIMEOUT_ERROR_LABEL = __('Unable to load the page');
 export const TIMEOUT_ERROR_MESSAGE = __('Reload the page to try again.');
+
+export const INLINE_EMBED_DIMENSIONS = Object.freeze({
+  HEIGHT: '366px',
+  WIDTH: '768px',
+});
+
+export const FULL_APP_DIMENSIONS = Object.freeze({
+  HEIGHT: '100%',
+  WIDTH: '100%',
+});

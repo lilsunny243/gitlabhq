@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Vault Authentication with GitLab OpenID Connect **(FREE)**
+# Use Vault as a GitLab OpenID Connect authentication provider **(FREE ALL)**
 
 [Vault](https://www.vaultproject.io/) is a secrets management application offered by HashiCorp.
 It allows you to store and manage sensitive information such as secret environment
@@ -26,7 +26,7 @@ GitLab by using our OpenID authentication feature.
 First you must create a GitLab application to obtain an application ID and secret
 for authenticating into Vault. To do this, sign in to GitLab and follow these steps:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Applications**.
 1. Fill out the application **Name** and [**Redirect URI**](https://developer.hashicorp.com/vault/docs/auth/jwt#redirect-uris).
@@ -84,7 +84,7 @@ and scopes given to GitLab when you created the application.
 Run the following command in the terminal:
 
 ```shell
-vault write auth/oidc/role/demo -<<EOF
+vault write auth/oidc/role/demo - <<EOF
 {
    "user_claim": "sub",
    "allowed_redirect_uris": "<your_vault_instance_redirect_uris>",

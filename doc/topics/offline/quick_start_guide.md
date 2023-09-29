@@ -4,7 +4,7 @@ group: Distribution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Getting started with an offline GitLab Installation **(FREE SELF)**
+# Install an offline self-managed GitLab instance **(FREE SELF)**
 
 This is a step-by-step guide that helps you install, configure, and use a self-managed GitLab
 instance entirely offline.
@@ -23,7 +23,7 @@ For a video walkthrough of this process, see [Offline GitLab Installation: Downl
 
 You should [manually download the GitLab package](../../update/package/index.md#upgrade-using-a-manually-downloaded-package) and relevant dependencies using a server of the same operating system type that has access to the Internet.
 
-If your offline environment has no local network access, you must manually transport across the relevant package files through physical media, such as a USB drive, or writable DVD.
+If your offline environment has no local network access, you must manually transport the relevant package through physical media, such as a USB drive.
 
 In Ubuntu, this can be performed on a server with Internet access using the following commands:
 
@@ -71,7 +71,7 @@ sudo EXTERNAL_URL="http://my-host.internal" dpkg -i <gitlab_package_name>.deb
 ## Enabling SSL
 
 Follow these steps to enable SSL for your fresh instance. These steps reflect those for
-[manually configuring SSL in Omnibus's NGINX configuration](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-https-manually):
+[manually configuring SSL in Omnibus's NGINX configuration](https://docs.gitlab.com/omnibus/settings/ssl/index.html#configure-https-manually):
 
 1. Make the following changes to `/etc/gitlab/gitlab.rb`:
 
@@ -147,7 +147,7 @@ Updating CA certificates...
 Runtime platform                                    arch=amd64 os=linux pid=7 revision=1b659122 version=12.8.0
 Running in system-mode.
 
-Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/):
+Please enter the gitlab-ci coordinator URL (for example, https://gitlab.com/):
 https://my-host.internal
 Please enter the gitlab-ci token for this runner:
 XXXXXXXXXXX
@@ -158,7 +158,7 @@ Please enter the gitlab-ci tags for this runner (comma separated):
 Registering runner... succeeded                     runner=FSMwkvLZ
 Please enter the executor: custom, docker, virtualbox, kubernetes, docker+machine, docker-ssh+machine, docker-ssh, parallels, shell, ssh:
 docker
-Please enter the default Docker image (e.g. ruby:2.6):
+Please enter the default Docker image (for example, ruby:2.6):
 ruby:2.6
 Runner registered successfully. Feel free to start it, but if it's running already the config should be automatically reloaded!
 ```
@@ -200,11 +200,11 @@ done.
 
 ### Disable Version Check and Service Ping
 
-The Version Check and Service Ping services improve the GitLab user experience and ensure that
+Version Check and Service Ping improve the GitLab user experience and ensure that
 users are on the most up-to-date instances of GitLab. These two services can be turned off for offline
 environments so that they do not attempt and fail to reach out to GitLab services.
 
-For more information, see [Enable or disable usage statistics](../../user/admin_area/settings/usage_statistics.md#enable-or-disable-usage-statistics).
+For more information, see [Enable or disable usage statistics](../../administration/settings/usage_statistics.md#enable-or-disable-usage-statistics).
 
 ### Configure NTP
 
@@ -214,3 +214,166 @@ and Praefect servers so they can use an accessible NTP server.
 On offline instances, the [GitLab Geo check Rake task](../../administration/geo/replication/troubleshooting.md#can-geo-detect-the-current-site-correctly)
 always fails because it uses `pool.ntp.org`. This error can be ignored but you can
 [read more about how to work around it](../../administration/geo/replication/troubleshooting.md#message-machine-clock-is-synchronized--exception).
+
+## Enabling the Package Metadata Database
+
+Enabling the Package Metadata Database is required to enable
+[Continuous Vulnerability Scanning](../../user/application_security/continuous_vulnerability_scanning/index.md)
+and [license scanning of CycloneDX files](../../user/compliance/license_scanning_of_cyclonedx_files/index.md).
+This process requires the use of License and/or Advisory Data under what is collectively called the Package Metadata Database, which is licensed under the [EE License](https://storage.googleapis.com/prod-export-license-bucket-1a6c642fc4de57d4/LICENSE).
+Note the following in relation to use of the Package Metadata Database:
+
+- We may change or discontinue all or any part of the Package Metadata Database, at any time and without notice, at our sole discretion.
+- The Package Metadata Database may contain links to third-party websites or resources. We provide these links only as a convenience and are not responsible for any third-party data, content, products, or services from those websites or resources or links displayed on such websites.
+- The Package Metadata Database is based in part on information made available by third parties, and GitLab is not responsible for the accuracy or completeness of content made available.
+
+Package metadata is stored in the following Google Cloud Provider (GCP) buckets:
+
+- License Scanning - prod-export-license-bucket-1a6c642fc4de57d4
+- Dependency Scanning - prod-export-advisory-bucket-1a6c642fc4de57d4
+
+### Using the gsutil tool to download the package metadata exports
+
+1. Install the [`gsutil`](https://cloud.google.com/storage/docs/gsutil_install) tool.
+1. Find the root of the GitLab Rails directory.
+
+   ```shell
+   export GITLAB_RAILS_ROOT_DIR="$(gitlab-rails runner 'puts Rails.root.to_s')"
+   echo $GITLAB_RAILS_ROOT_DIR
+   ```
+
+1. Set the type of data you wish to sync.
+
+   ```shell
+   # For License Scanning
+   export PKG_METADATA_BUCKET=prod-export-license-bucket-1a6c642fc4de57d4
+   export DATA_DIR="licenses"
+
+   # For Dependency Scanning
+   export PKG_METADATA_BUCKET=prod-export-advisory-bucket-1a6c642fc4de57d4
+   export DATA_DIR="advisories"
+   ```
+
+1. Download the package metadata exports.
+
+   ```shell
+   # To download the package metadata exports, an outbound connection to Google Cloud Storage bucket must be allowed.
+   mkdir -p "$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/$DATA_DIR"
+   gsutil -m rsync -r -d gs://$PKG_METADATA_BUCKET "$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/$DATA_DIR"
+
+   # Alternatively, if the GitLab instance is not allowed to connect to the Google Cloud Storage bucket, the package metadata
+   # exports can be downloaded using a machine with the allowed access, and then copied to the root of the GitLab Rails directory.
+   rsync rsync://example_username@gitlab.example.com/package_metadata/$DATA_DIR "$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/$DATA_DIR"
+   ```
+
+### Using the Google Cloud Storage REST API to download the package metadata exports
+
+The package metadata exports can also be downloaded using the Google Cloud Storage API. The contents are available at [https://storage.googleapis.com/storage/v1/b/prod-export-license-bucket-1a6c642fc4de57d4/o](https://storage.googleapis.com/storage/v1/b/prod-export-license-bucket-1a6c642fc4de57d4/o) and [https://storage.googleapis.com/storage/v1/b/prod-export-advisory-bucket-1a6c642fc4de57d4/o](https://storage.googleapis.com/storage/v1/b/prod-export-advisory-bucket-1a6c642fc4de57d4/o). The following is an example of how this can be downloaded using [cURL](https://curl.se/) and [jq](https://stedolan.github.io/jq/).
+
+```shell
+#!/bin/bash
+
+set -euo pipefail
+
+DATA_TYPE=$1
+
+GITLAB_RAILS_ROOT_DIR="$(gitlab-rails runner 'puts Rails.root.to_s')"
+
+if [ "$DATA_TYPE" == "license" ]; then
+  PKG_METADATA_DIR="$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/licenses"
+elif [ "$DATA_TYPE" == "advisory" ]; then
+  PKG_METADATA_DIR="$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/advisories"
+else
+  echo "Usage: import_script.sh [licenses|advisories]"
+  exit 1
+fi
+
+PKG_METADATA_BUCKET="prod-export-$DATA_TYPE-bucket-1a6c642fc4de57d4"
+PKG_METADATA_MANIFEST_OUTPUT_FILE="/tmp/package_metadata_${DATA_TYPE}_export_manifest.json"
+PKG_METADATA_DOWNLOADS_OUTPUT_FILE="/tmp/package_metadata_${DATA_TYPE}_object_links.tsv"
+
+# Download the contents of the bucket
+curl --silent --show-error --request GET "https://storage.googleapis.com/storage/v1/b/$PKG_METADATA_BUCKET/o?maxResults=7500" > "$PKG_METADATA_MANIFEST_OUTPUT_FILE"
+
+# Parse the links and names for the bucket objects and output them into a tsv file
+jq -r '.items[] | [.name, .mediaLink] | @tsv' "$PKG_METADATA_MANIFEST_OUTPUT_FILE" > "$PKG_METADATA_DOWNLOADS_OUTPUT_FILE"
+
+echo -e "Saving package metadata exports to $PKG_METADATA_DIR\n"
+
+# Track how many objects will be downloaded
+INDEX=1
+TOTAL_OBJECT_COUNT="$(wc -l $PKG_METADATA_DOWNLOADS_OUTPUT_FILE | awk '{print $1}')"
+
+# Download the objects
+while IFS= read -r line; do
+   FILE="$(echo -n $line | awk '{print $1}')"
+   URL="$(echo -n $line | awk '{print $2}')"
+   OUTPUT_DIR="$(dirname $PKG_METADATA_DIR/$FILE)"
+   OUTPUT_PATH="$PKG_METADATA_DIR/$FILE"
+
+   echo "Downloading $FILE"
+
+   curl --progress-bar --create-dirs --output "$OUTPUT_PATH" --request "GET" "$URL"
+
+   echo -e "$INDEX of $TOTAL_OBJECT_COUNT objects downloaded\n"
+
+   let INDEX=(INDEX+1)
+done < "$PKG_METADATA_DOWNLOADS_OUTPUT_FILE"
+
+echo "All objects saved to $PKG_METADATA_DIR"
+```
+
+### Automatic synchronization
+
+Your GitLab instance is synchronized [regularly](https://gitlab.com/gitlab-org/gitlab/-/blob/63a187d47f6da353ba4514650bbbbeb99c356325/config/initializers/1_settings.rb#L840-842) with the contents of the `package_metadata` directory.
+To automatically update your local copy with the upstream changes, a cron job can be added to periodically download new exports. For example, the following crontabs can be added to setup a cron job that runs every 30 minutes.
+
+For License Scanning:
+
+```plaintext
+*/30 * * * * gsutil -m rsync -r -d gs://prod-export-license-bucket-1a6c642fc4de57d4 $GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/licenses
+```
+
+For Dependency Scanning:
+
+```plaintext
+*/30 * * * * gsutil -m rsync -r -d gs://prod-export-advisory-bucket-1a6c642fc4de57d4 $GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/advisories
+```
+
+### Change note
+
+The directory for package metadata changed with the release of 16.2 from `vendor/package_metadata_db` to `vendor/package_metadata/licenses`. If this directory already exists on the instance and Dependency Scanning needs to be added then you need to take the following steps.
+
+1. Rename the licenses directory: `mv vendor/package_metadata_db vendor/package_metadata/licenses`.
+1. Update any automation scripts or commands saved to change `vendor/package_metadata_db` to `vendor/package_metadata/licenses`.
+1. Update any cron entries to change `vendor/package_metadata_db` to `vendor/package_metadata/licenses`.
+
+    ```shell
+    sed -i '.bckup' -e 's#vendor/package_metadata_db#vendor/package_metadata/licenses#g' [FILE ...]
+    ```
+
+### Troubleshooting
+
+#### Missing database data
+
+If license or advisory data is missing from the dependency list or MR pages, one possible cause of this is that the database has not been synchronized with the export data.
+
+`package_metadata` synchronization is triggered by using cron jobs ([advisory sync](https://gitlab.com/gitlab-org/gitlab/-/blob/16-3-stable-ee/config/initializers/1_settings.rb#L864-866) and [license sync](https://gitlab.com/gitlab-org/gitlab/-/blob/16-3-stable-ee/config/initializers/1_settings.rb#L855-857)) and imports only the package registry types enabled in [admin settings](../../administration/settings/security_and_compliance.md#choose-package-registry-metadata-to-sync).
+
+The file structure in `vendor/package_metadata` must coincide with the package registry type enabled above. For example, to sync `maven` license or advisory data, the package metadata directory under the Rails directory must have the following structure:
+
+- For licenses:`$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/licenses/v2/maven/**/*.ndjson`.
+- For advisories:`$GITLAB_RAILS_ROOT_DIR/vendor/package_metadata/advisories/v2/maven/**/*.ndjson`.
+
+After a successful run, data under the `pm_` tables in the database should be populated (check using [Rails console](../../administration/operations/rails_console.md)):
+
+- For licenses: `sudo gitlab-rails runner "puts \"Package model has #{PackageMetadata::Package.where(purl_type: 'maven').size} packages\""`
+- For advisories: `sudo gitlab-rails runner "puts \"Advisory model has #{PackageMetadata::AffectedPackage.where(purl_type: 'maven').size} packages\""`
+
+Additionally, checkpoint data should exist for the particular package registry being synchronized. For Maven, for example, there should be a checkpoint created after a successful sync run:
+
+- For licenses: `sudo gitlab-rails runner "puts \"maven data has been synced up to #{PackageMetadata::Checkpoint.where(data_type: 'licenses', purl_type: 'maven')}\""`
+- For advisories: `sudo gitlab-rails runner "puts \"maven data has been synced up to #{PackageMetadata::Checkpoint.where(data_type: 'advisories', purl_type: 'maven')}\""`
+
+Finally, you can check the [`application_json.log`](../../administration/logs/index.md#application_jsonlog) logs to verify that the
+sync job has run and is without error by searching for `DEBUG` messages where the class is `PackageMetadata::SyncService`. Example: `{"severity":"DEBUG","time":"2023-06-22T16:41:00.825Z","correlation_id":"a6e80150836b4bb317313a3fe6d0bbd6","class":"PackageMetadata::SyncService","message":"Evaluating data for licenses:gcp/prod-export-license-bucket-1a6c642fc4de57d4/v2/pypi/1694703741/0.ndjson"}`.

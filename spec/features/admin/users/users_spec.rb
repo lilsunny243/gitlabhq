@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Admin::Users', feature_category: :user_management do
-  include Spec::Support::Helpers::Features::AdminUsersHelpers
+  include Features::AdminUsersHelpers
   include Spec::Support::Helpers::ModalHelpers
   include ListboxHelpers
 
@@ -311,12 +311,47 @@ RSpec.describe 'Admin::Users', feature_category: :user_management do
       end
     end
 
+    describe 'users pending approval' do
+      it 'sends a welcome email and a password reset email to the user upon admin approval', :sidekiq_inline do
+        user = create(:user, :blocked_pending_approval, created_by_id: current_user.id)
+
+        visit admin_users_path
+
+        click_link 'Pending approval'
+
+        click_user_dropdown_toggle(user.id)
+
+        find('[data-testid="approve"]').click
+
+        expect(page).to have_content("Approve user #{user.name}?")
+
+        within_modal do
+          perform_enqueued_jobs do
+            click_button 'Approve'
+          end
+        end
+
+        expect(page).to have_content('Successfully approved')
+
+        welcome_email = ActionMailer::Base.deliveries.find { |m| m.subject == 'Welcome to GitLab!' }
+        expect(welcome_email.to).to eq([user.email])
+        expect(welcome_email.text_part.body).to have_content('Your GitLab account request has been approved!')
+
+        password_reset_email = ActionMailer::Base.deliveries.find { |m| m.subject == 'Account was created for you' }
+        expect(password_reset_email.to).to eq([user.email])
+        expect(password_reset_email.text_part.body).to have_content('Click here to set your password')
+
+        expect(ActionMailer::Base.deliveries.count).to eq(2)
+      end
+    end
+
     describe 'internal users' do
       context 'when showing a `Ghost User`' do
         let_it_be(:ghost_user) { create(:user, :ghost) }
 
         it 'does not render actions dropdown' do
-          expect(page).not_to have_css("[data-testid='user-actions-#{ghost_user.id}'] [data-testid='dropdown-toggle']")
+          expect(page).not_to have_css(
+            "[data-testid='user-actions-#{ghost_user.id}'] [data-testid='user-actions-dropdown-toggle']")
         end
       end
 
@@ -324,7 +359,8 @@ RSpec.describe 'Admin::Users', feature_category: :user_management do
         let_it_be(:bot_user) { create(:user, user_type: :alert_bot) }
 
         it 'does not render actions dropdown' do
-          expect(page).not_to have_css("[data-testid='user-actions-#{bot_user.id}'] [data-testid='dropdown-toggle']")
+          expect(page).not_to have_css(
+            "[data-testid='user-actions-#{bot_user.id}'] [data-testid='user-actions-dropdown-toggle']")
         end
       end
     end

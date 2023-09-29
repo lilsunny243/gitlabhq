@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Publish npm packages to the GitLab Package Registry using semantic-release **(FREE)**
+# Publish npm packages to the GitLab Package Registry using semantic-release **(FREE ALL)**
 
 This guide demonstrates how to automatically publish npm packages to the [GitLab Package Registry](../../user/packages/npm_registry/index.md) by using [semantic-release](https://github.com/semantic-release/semantic-release).
 
@@ -90,14 +90,14 @@ As part of publishing a package, semantic-release increases the version number i
 
 <!-- markdownlint-disable MD044 -->
 
-1. On the top bar, in the upper-right corner, select your avatar.
-1. On the left sidebar, select **Access Tokens**.
+1. On the left sidebar, select your avatar.
+1. Select **Preferences > Access Tokens**.
 1. In the **Token name** box, enter a token name.
 1. Under **select scopes**, select the **api** checkbox.
 1. Select **Create project access token**.
 1. Copy the value.
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Variables**.
 1. Select **Add variable**.
 1. In the **Key** box, enter `GITLAB_TOKEN`.
@@ -168,3 +168,18 @@ Then, install the module:
 ```shell
 npm install --save @gitlab-examples/semantic-release-npm
 ```
+
+## Troubleshooting
+
+### Deleted Git tags reappear
+
+A [Git tag](../../user/project/repository/tags/index.md) deleted from the repository
+can sometimes be recreated by `semantic-release` when GitLab runners use a cached
+version of the repository. If the job runs on a runner with a cached repository that
+still has the tag, `semantic-release` recreates the tag in the main repository.
+
+To avoid this behavior, you can either:
+
+- Configure the runner with [`GIT_STRATEGY: clone`](../runners/configure_runners.md#git-strategy).
+- Include the [`git fetch --prune-tags` command](https://git-scm.com/docs/git-fetch#Documentation/git-fetch.txt---prune-tags)
+  in your CI/CD script.

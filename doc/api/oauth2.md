@@ -1,14 +1,14 @@
 ---
 type: reference, howto
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# OAuth 2.0 identity provider API **(FREE)**
+# OAuth 2.0 identity provider API **(FREE ALL)**
 
 GitLab provides an API to allow third-party services to access GitLab resources on a user's behalf
-with the [OAuth2](https://oauth.net/2/) protocol.
+with the [OAuth 2.0](https://oauth.net/2/) protocol.
 
 To configure GitLab for this, see
 [Configure GitLab as an OAuth 2.0 authentication identity provider](../integration/oauth_provider.md).
@@ -44,6 +44,8 @@ GitLab supports the following authorization flows:
   server-side apps.
 - **Resource owner password credentials:** To be used **only** for securely
   hosted, first-party services. GitLab recommends against use of this flow.
+
+Device Authorization Grant is not supported. [Issue 332682](https://gitlab.com/gitlab-org/gitlab/-/issues/332682) proposes to add support.
 
 The draft specification for [OAuth 2.1](https://oauth.net/2.1/) specifically omits both the
 Implicit grant and Resource Owner Password Credentials flows.
@@ -359,6 +361,10 @@ The username must be `oauth2`, not your username:
 ```plaintext
 https://oauth2:<your_access_token>@gitlab.example.com/project_path/project_name.git
 ```
+
+Alternatively, you can use a [Git credential helper](../user/profile/account/two_factor_authentication.md#oauth-credential-helpers)
+to authenticate to GitLab with OAuth. This handles OAuth token refresh
+automatically.
 
 ## Retrieve the token information
 

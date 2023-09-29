@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Gitlab::X509::Commit do
+RSpec.describe Gitlab::X509::Commit, feature_category: :source_code_management do
   let(:commit_sha) { '189a6c924013fc3fe40d6f1ec1dc20214183bc97' }
-  let(:user) { create(:user, email: X509Helpers::User1.certificate_email) }
-  let(:project) { create(:project, :repository, path: X509Helpers::User1.path, creator: user) }
+  let_it_be(:user) { create(:user, email: X509Helpers::User1.certificate_email) }
+  let_it_be(:project) { create(:project, :repository, path: X509Helpers::User1.path, creator: user) }
   let(:commit) { project.commit_by(oid: commit_sha ) }
-  let(:signature) { Gitlab::X509::Commit.new(commit).signature }
+  let(:signature) { described_class.new(commit).signature }
   let(:store) { OpenSSL::X509::Store.new }
   let(:certificate) { OpenSSL::X509::Certificate.new(X509Helpers::User1.trust_cert) }
 

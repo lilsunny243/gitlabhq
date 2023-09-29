@@ -60,7 +60,7 @@ RSpec.describe 'Merge request > User sees diff', :js, feature_category: :code_re
       visit diffs_project_merge_request_path(project, merge_request)
 
       page.within('.gl-alert') do
-        expect(page).to have_text("Too many changes to show. To preserve performance only 3 of 3+ files are displayed. Plain diff Email patch")
+        expect(page).to have_text("Some changes are not shown. For a faster browsing experience, only 3 of 3+ files are shown. Download one of the files below to see all changes. Plain diff Patches")
       end
     end
   end
@@ -77,8 +77,9 @@ RSpec.describe 'Merge request > User sees diff', :js, feature_category: :code_re
         sign_in(author_user)
         visit diffs_project_merge_request_path(project, merge_request)
 
-        # Throws `Capybara::Poltergeist::InvalidSelector` if we try to use `#hash` syntax
-        expect(page).to have_selector(".js-edit-blob", visible: false)
+        first(".js-diff-more-actions").click
+
+        expect(page).to have_selector(".js-edit-blob")
       end
     end
 

@@ -3,7 +3,7 @@
 require "spec_helper"
 
 # Inspired in great part by Discourse's Email::Receiver
-RSpec.describe Gitlab::Email::ReplyParser do
+RSpec.describe Gitlab::Email::ReplyParser, feature_category: :team_planning do
   describe '#execute' do
     def test_parse_body(mail_string, params = {})
       described_class.new(Mail::Message.new(mail_string), **params).execute
@@ -188,67 +188,36 @@ RSpec.describe Gitlab::Email::ReplyParser do
         )
     end
 
-    context 'properly renders email reply from gmail web client' do
-      context 'when feature flag is enabled' do
-        it do
-          expect(test_parse_body(fixture_file("emails/html_only.eml")))
-          .to eq(
-            <<-BODY.strip_heredoc.chomp
-              ### This is a reply from standard GMail in Google Chrome.
+    context 'properly renders email reply from gmail web client', feature_category: :service_desk do
+      it do
+        expect(test_parse_body(fixture_file("emails/html_only.eml")))
+        .to eq(
+          <<-BODY.strip_heredoc.chomp
+            ### This is a reply from standard GMail in Google Chrome.
 
-              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
+            The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
 
-              Here's some **bold** text, **strong** text and *italic* in Markdown.
+            Here's some **bold** text, **strong** text and *italic* in Markdown.
 
-              Here's a link http://example.com
+            Here's a link http://example.com
 
-              Here's an img ![Miro](http://img.png)<details>
-              <summary>
-              One</summary>
-              Some details</details>
+            Here's an img ![Miro](http://img.png)<details>
+            <summary>
+            One</summary>
+            Some details</details>
 
-              <details>
-              <summary>
-              Two</summary>
-              Some details</details>
+            <details>
+            <summary>
+            Two</summary>
+            Some details</details>
 
-              Test reply.
+            Test reply.
 
-              First paragraph.
+            First paragraph.
 
-              Second paragraph.
-            BODY
-          )
-        end
-      end
-
-      context 'when feature flag is disabled' do
-        before do
-          stub_feature_flags(service_desk_html_to_text_email_handler: false)
-        end
-
-        it do
-          expect(test_parse_body(fixture_file("emails/html_only.eml")))
-            .to eq(
-              <<-BODY.strip_heredoc.chomp
-                ### This is a reply from standard GMail in Google Chrome.
-
-                The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
-
-                Here's some **bold** text, strong text and italic in Markdown.
-
-                Here's a link http://example.com
-
-                Here's an img [Miro]One Some details Two Some details
-
-                Test reply.
-
-                First paragraph.
-
-                Second paragraph.
-              BODY
-            )
-        end
+            Second paragraph.
+          BODY
+        )
       end
     end
 
@@ -409,6 +378,40 @@ RSpec.describe Gitlab::Email::ReplyParser do
               こんにちは。 この世界は素晴らしいです。
             BODY
         end
+      end
+    end
+
+    context 'iso-8859-2 content' do
+      let(:raw_content) do
+        <<-BODY.strip_heredoc.chomp
+          From: Jake the Dog <jake@adventuretime.ooo>
+          To: <incoming+email-test-project_id-issue-@appmail.adventuretime.ooo>
+          Subject: =?iso-8859-2?B?VGVzdGluZyBlbmNvZGluZyBpc28tODg1OS0yILu+uei1vru76A==?=
+          Date: Wed, 31 May 2023 18:43:32 +0200
+          Message-ID: <CADkmRc+rNGAGGbV2iE5p918UVy4UyJqVcXRO2=otppgzduJSg@mail.gmail.com>
+          MIME-Version: 1.0
+          Content-Type: multipart/alternative;
+                  boundary="----=_NextPart_000_0001_01D993EF.CDD81EA0"
+          X-Mailer: Microsoft Outlook 16.0
+          Thread-Index: AdmT3ur1lfLfsfGgRM699GyWkjowfg==
+          Content-Language: en-us
+
+          This is a multipart message in MIME format.
+
+          ------=_NextPart_000_0001_01D993EF.CDD81EA0
+          Content-Type: text/plain;
+                  charset="iso-8859-2"
+          Content-Transfer-Encoding: base64
+
+          Qm9keSBvZiBlbmNvZGluZyBpc28tODg1OS0yIHRlc3Q6ILu+uei1vru76A0KDQo=
+        BODY
+      end
+
+      it "parses body under UTF-8 encoding" do
+        expect(test_parse_body(raw_content, { trim_reply: false }))
+          .to eq(<<-BODY.strip_heredoc.chomp)
+            Body of encoding iso-8859-2 test: ťžščľžťťč\r\n\r\n
+          BODY
       end
     end
   end

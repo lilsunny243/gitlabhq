@@ -36,4 +36,20 @@ fragment WorkItemMetadataWidgets on WorkItemWidget {
       }
     }
   }
+  ... on WorkItemWidgetNotifications {
+    type
+    subscribed
+  }
+
+  ... on WorkItemWidgetCurrentUserTodos {
+    type
+    currentUserTodos(state: pending) {
+      nodes {
+        id
+      }
+    }
+  }
+  ... on WorkItemWidgetAwardEmoji {
+    type
+  }
 }

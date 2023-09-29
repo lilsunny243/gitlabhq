@@ -2,10 +2,9 @@
 stage: Systems
 group: Distribution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 ---
 
-# Universal update guide for patch versions of source installations **(FREE SELF)**
+# Universal update guide for patch versions for self-compiled installations **(FREE SELF)**
 
 ## Select Version to Install
 
@@ -15,7 +14,7 @@ You can select the tag in the version dropdown list in the upper-left corner of 
 
 ### 0. Backup
 
-Make a backup just in case things go south. Depending on the installation method, backup commands vary. See the [backing up and restoring GitLab](../raketasks/backup_restore.md) documentation.
+Make a backup just in case things go south. Depending on the installation method, backup commands vary. See the [backing up and restoring GitLab](../administration/backup_restore/index.md) documentation.
 
 ### 1. Stop server
 

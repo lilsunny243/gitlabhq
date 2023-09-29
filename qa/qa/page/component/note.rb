@@ -28,7 +28,7 @@ module QA
           end
 
           base.view 'app/assets/javascripts/notes/components/discussion_filter.vue' do
-            element :discussion_preferences_dropdown, required: true
+            element :discussion_preferences_dropdown
             element :filter_menu_item
           end
 
@@ -148,7 +148,7 @@ module QA
 
         def start_discussion(text)
           fill_element :comment_field, text
-          within_element(:comment_button) { click_button(class: 'dropdown-toggle-split') }
+          within_element(:comment_button) { click_button(class: 'gl-new-dropdown-toggle') }
           click_element :discussion_menu_item
           click_element :comment_button
 
@@ -168,7 +168,7 @@ module QA
 
         def select_filter_with_text(text)
           retry_on_exception do
-            click_element(:title_content)
+            click_element('issue-title')
             click_element :discussion_preferences_dropdown
             find_element(:filter_menu_item, text: text).click
 

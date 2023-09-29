@@ -5,12 +5,7 @@ module QA
     describe 'Run pipeline', :reliable, product_group: :pipeline_execution do
       context 'with web only rule' do
         let(:job_name) { 'test_job' }
-        let(:project) do
-          Resource::Project.fabricate_via_api! do |project|
-            project.name = 'web-only-pipeline'
-          end
-        end
-
+        let(:project) { create(:project, name: 'web-only-pipeline') }
         let!(:ci_file) do
           Resource::Repository::Commit.fabricate_via_api! do |commit|
             commit.project = project
@@ -37,7 +32,7 @@ module QA
         before do
           Flow::Login.sign_in
           project.visit!
-          Page::Project::Menu.perform(&:click_ci_cd_pipelines)
+          Page::Project::Menu.perform(&:go_to_pipelines)
         end
 
         it 'can trigger pipeline', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348011' do

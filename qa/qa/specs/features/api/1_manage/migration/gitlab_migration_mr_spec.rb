@@ -2,19 +2,17 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'Gitlab migration', product_group: :import do
+    describe 'Gitlab migration', product_group: :import_and_integrate do
       include_context 'with gitlab project migration'
 
       let!(:source_project_with_readme) { true }
 
       let!(:source_mr_reviewer) do
-        reviewer = Resource::User.fabricate_via_api! do |usr|
-          usr.api_client = source_admin_api_client
-          usr.username = "source-reviewer-#{SecureRandom.hex(6)}"
-        end
-        reviewer.tap do |usr|
-          usr.set_public_email
-          source_project.add_member(usr, Resource::Members::AccessLevel::MAINTAINER)
+        create(:user,
+          :set_public_email,
+          api_client: source_admin_api_client,
+          username: "source-reviewer-#{SecureRandom.hex(6)}") do |user|
+          source_project.add_member(user, Resource::Members::AccessLevel::MAINTAINER)
         end
       end
 
@@ -27,10 +25,7 @@ module QA
       end
 
       let!(:mr_reviewer) do
-        Resource::User.fabricate_via_api! do |usr|
-          usr.api_client = admin_api_client
-          usr.email = source_mr_reviewer.email
-        end.tap(&:set_public_email)
+        create(:user, :set_public_email, api_client: admin_api_client, email: source_mr_reviewer.email)
       end
 
       let!(:source_mr_reviewers) { [source_mr_reviewer.email] }
@@ -70,7 +65,11 @@ module QA
       context 'with merge request' do
         it(
           'successfully imports merge request',
-          testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348478'
+          testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348478',
+          quarantine: {
+            type: :bug,
+            issue: "https://gitlab.com/gitlab-org/gitlab/-/issues/414859"
+          }
         ) do
           expect_project_import_finished_successfully
           expect(imported_mrs.count).to eq(1)

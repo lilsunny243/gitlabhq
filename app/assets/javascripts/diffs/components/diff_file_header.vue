@@ -12,6 +12,7 @@ import {
   GlLoadingIcon,
 } from '@gitlab/ui';
 import { escape } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { IdState } from 'vendor/vue-virtual-scroller';
@@ -50,6 +51,12 @@ export default {
   i18n: {
     ...DIFF_FILE_HEADER,
     compareButtonLabel: __('Compare submodule commit revisions'),
+    fileModeTooltip: __('File permissions'),
+  },
+  inject: {
+    showGenerateTestFileButton: {
+      default: false,
+    },
   },
   props: {
     discussionPath: {
@@ -95,11 +102,6 @@ export default {
       required: false,
       default: false,
     },
-    codequalityDiff: {
-      type: Array,
-      required: false,
-      default: () => [],
-    },
   },
   idState() {
     return {
@@ -109,6 +111,7 @@ export default {
   computed: {
     ...mapState('diffs', ['latestDiff']),
     ...mapGetters('diffs', ['diffHasExpandedDiscussions', 'diffHasDiscussions']),
+    ...mapGetters(['getNoteableData']),
     diffContentIDSelector() {
       return `#diff-content-${this.diffFile.file_hash}`;
     },
@@ -201,6 +204,12 @@ export default {
     externalUrlLabel() {
       return sprintf(__('View on %{url}'), { url: this.diffFile.formatted_external_url });
     },
+    labelToggleFile() {
+      return this.expanded ? __('Hide file contents') : __('Show file contents');
+    },
+    showCommentButton() {
+      return this.getNoteableData.current_user.can_create_note;
+    },
   },
   watch: {
     'idState.moreActionsShown': {
@@ -223,8 +232,15 @@ export default {
       'setCurrentFileHash',
       'reviewFile',
       'setFileCollapsedByUser',
+      'setFileForcedOpen',
+      'setGenerateTestFilePath',
+      'toggleFileCommentForm',
     ]),
     handleToggleFile() {
+      this.setFileForcedOpen({
+        filePath: this.diffFile.file_path,
+        forced: false,
+      });
       this.$emit('toggleFile');
     },
     showForkMessage(e) {
@@ -267,6 +283,10 @@ export default {
       }
 
       if ((open && reviewed) || (closed && !reviewed)) {
+        this.setFileForcedOpen({
+          filePath: this.diffFile.file_path,
+          forced: false,
+        });
         this.$emit('toggleFile');
       }
     },
@@ -287,12 +307,14 @@ export default {
     @click.self="handleToggleFile"
   >
     <div class="file-header-content">
-      <gl-icon
+      <gl-button
         v-if="collapsible"
-        ref="collapseIcon"
-        :name="collapseIcon"
-        :size="16"
-        class="diff-toggle-caret gl-mr-2"
+        ref="collapseButton"
+        class="gl-mr-2"
+        category="tertiary"
+        size="small"
+        :icon="collapseIcon"
+        :aria-label="labelToggleFile"
         @click.stop="handleToggleFile"
       />
       <a
@@ -324,7 +346,7 @@ export default {
           :title="filePath"
           class="file-title-name"
           data-container="body"
-          data-qa-selector="file_name_content"
+          data-testid="file-name-content"
         >
           {{ filePath }}
         </strong>
@@ -342,7 +364,13 @@ export default {
         data-track-property="diff_copy_file"
       />
 
-      <small v-if="isModeChanged" ref="fileMode" class="mr-1">
+      <small
+        v-if="isModeChanged"
+        ref="fileMode"
+        v-gl-tooltip.hover
+        class="mr-1"
+        :title="$options.i18n.fileModeTooltip"
+      >
         {{ diffFile.a_mode }} → {{ diffFile.b_mode }}
       </small>
 
@@ -364,13 +392,25 @@ export default {
         v-if="isReviewable && showLocalFileReviews"
         v-gl-tooltip.hover
         data-testid="fileReviewCheckbox"
-        class="gl-mr-5 gl-display-flex gl-align-items-center"
+        class="gl-mr-5 gl-mb-n3 gl-display-flex gl-align-items-center"
         :title="$options.i18n.fileReviewTooltip"
         :checked="reviewed"
         @change="toggleReview"
       >
         {{ $options.i18n.fileReviewLabel }}
       </gl-form-checkbox>
+      <gl-button
+        v-if="showCommentButton"
+        v-gl-tooltip.hover
+        :title="__('Comment on this file')"
+        :aria-label="__('Comment on this file')"
+        icon="comment"
+        category="tertiary"
+        size="small"
+        class="gl-mr-3 btn-icon"
+        data-testid="comment-files-button"
+        @click="toggleFileCommentForm(diffFile.file_path)"
+      />
       <gl-button-group class="gl-pt-0!">
         <gl-button
           v-if="diffFile.external_url"
@@ -393,6 +433,7 @@ export default {
           toggle-class="btn-icon js-diff-more-actions"
           class="gl-pt-0!"
           data-qa-selector="dropdown_button"
+          lazy
           @show="setMoreActionsShown(true)"
           @hidden="setMoreActionsShown(false)"
         >
@@ -400,14 +441,6 @@ export default {
             <gl-icon name="ellipsis_v" class="mr-0" />
             <span class="sr-only">{{ $options.i18n.optionsDropdownTitle }}</span>
           </template>
-          <gl-dropdown-item
-            v-if="diffFile.replaced_view_path"
-            ref="replacedFileButton"
-            :href="diffFile.replaced_view_path"
-            target="_blank"
-          >
-            {{ viewReplacedFileButtonText }}
-          </gl-dropdown-item>
           <gl-dropdown-item ref="viewButton" :href="diffFile.view_path" target="_blank">
             {{ viewFileButtonText }}
           </gl-dropdown-item>
@@ -430,6 +463,23 @@ export default {
               target="_blank"
             >
               {{ __('Open in Web IDE') }}
+            </gl-dropdown-item>
+            <gl-dropdown-item
+              v-if="showGenerateTestFileButton"
+              @click="setGenerateTestFilePath(diffFile.new_path)"
+            >
+              <span class="gl-display-flex gl-justify-content-space-between gl-align-items-center">
+                {{ __('Suggest test cases') }}
+                <gl-icon name="tanuki-ai" class="gl-text-purple-600 gl-mr-n3" />
+              </span>
+            </gl-dropdown-item>
+            <gl-dropdown-item
+              v-if="diffFile.replaced_view_path"
+              ref="replacedFileButton"
+              :href="diffFile.replaced_view_path"
+              target="_blank"
+            >
+              {{ viewReplacedFileButtonText }}
             </gl-dropdown-item>
           </template>
 

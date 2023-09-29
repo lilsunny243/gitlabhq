@@ -30,13 +30,10 @@ module Mutations
       def resolve(id:, work_item_data:)
         work_item = authorized_find!(id: id)
 
-        spam_params = ::Spam::SpamParams.new_from_request(request: context[:request])
-
         result = ::WorkItems::CreateFromTaskService.new(
           work_item: work_item,
           current_user: current_user,
-          work_item_params: work_item_data,
-          spam_params: spam_params
+          work_item_params: work_item_data
         ).execute
 
         check_spam_action_response!(result[:work_item]) if result[:work_item]
@@ -45,12 +42,6 @@ module Mutations
         response.merge!(work_item: work_item, new_work_item: result[:work_item]) if result.success?
 
         response
-      end
-
-      private
-
-      def find_object(id:)
-        GitlabSchema.find_by_gid(id)
       end
     end
   end

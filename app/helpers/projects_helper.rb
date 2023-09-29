@@ -2,6 +2,8 @@
 
 module ProjectsHelper
   include Gitlab::Utils::StrongMemoize
+  include CompareHelper
+  include Gitlab::Allowable
 
   def project_incident_management_setting
     @project_incident_management_setting ||= @project.incident_management_setting ||
@@ -130,12 +132,22 @@ module ProjectsHelper
 
     source_default_branch = source_project.default_branch
 
+    merge_request =
+      MergeRequest.opened
+        .from_project(project).of_projects(source_project.id).from_source_branches(ref).first
+
     {
+      project_path: project.full_path,
+      selected_branch: ref,
       source_name: source_project.full_name,
       source_path: project_path(source_project),
+      source_default_branch: source_default_branch,
+      can_sync_branch: can_sync_branch?(project, ref).to_s,
       ahead_compare_path: project_compare_path(
         project, from: source_default_branch, to: ref, from_project_id: source_project.id
       ),
+      create_mr_path: create_merge_request_path(project, source_project, ref, merge_request),
+      view_mr_path: merge_request && project_merge_request_path(source_project, merge_request),
       behind_compare_path: project_compare_path(
         source_project, from: ref, to: source_default_branch, from_project_id: project.id
       )
@@ -158,14 +170,6 @@ module ProjectsHelper
 
   def visible_fork_source(project)
     project.fork_source if project.fork_source && can?(current_user, :read_project, project.fork_source)
-  end
-
-  def project_search_tabs?(tab)
-    return false unless @project.present?
-
-    abilities = Array(search_tab_ability_map[tab])
-
-    abilities.any? { |ability| can?(current_user, ability, @project) }
   end
 
   def can_change_visibility_level?(project, current_user)
@@ -191,30 +195,21 @@ module ProjectsHelper
       { branch_name: tag.strong(truncate(sanitize(branch_name))), link_to_autodeploy_doc: link_to_autodeploy_doc }
   end
 
-  def project_list_cache_key(project, pipeline_status: true)
-    key = [
-      project.star_count,
-      project.route.cache_key,
-      project.cache_key,
-      project.last_activity_date,
-      controller.controller_name,
-      controller.action_name,
-      Gitlab::CurrentSettings.cache_key,
-      "cross-project:#{can?(current_user, :read_cross_project)}",
-      max_project_member_access_cache_key(project),
-      pipeline_status,
-      Gitlab::I18n.locale,
-      'v2.6'
-    ]
-
-    key << pipeline_status_cache_key(project.pipeline_status) if pipeline_status && project.pipeline_status.has_status?
-
-    key
-  end
-
   def load_pipeline_status(projects)
     Gitlab::Cache::Ci::ProjectPipelineStatus
       .load_in_batch_for_projects(projects)
+  end
+
+  def last_pipeline_from_status_cache(project)
+    if Feature.enabled?(:last_pipeline_from_pipeline_status, project)
+      pipeline_status = project.pipeline_status
+      return unless pipeline_status.has_status?
+
+      # commits have far more attributes than id, but last_pipeline only requires sha
+      return Commit.from_hash({ id: pipeline_status.sha }, project).last_pipeline
+    end
+
+    project.last_pipeline
   end
 
   def show_no_ssh_key_message?
@@ -233,6 +228,12 @@ module ProjectsHelper
     return false unless user_can_see_auto_devops_implicitly_enabled_banner?(project, user)
 
     cookies["hide_auto_devops_implicitly_enabled_banner_#{project.id}".to_sym].blank?
+  end
+
+  def show_mobile_devops_project_promo?(project)
+    return false unless (project.project_setting.target_platforms & ::ProjectSetting::ALLOWED_TARGET_PLATFORMS).any?
+
+    cookies["hide_mobile_devops_promo_#{project.id}".to_sym].blank?
   end
 
   def no_password_message
@@ -349,26 +350,6 @@ module ProjectsHelper
     false
   end
 
-  def metrics_external_dashboard_url
-    @project.metrics_setting_external_dashboard_url
-  end
-
-  def metrics_dashboard_timezone
-    @project.metrics_setting_dashboard_timezone
-  end
-
-  def grafana_integration_url
-    @project.grafana_integration&.grafana_url
-  end
-
-  def grafana_integration_masked_token
-    @project.grafana_integration&.masked_token
-  end
-
-  def grafana_integration_enabled?
-    @project.grafana_integration&.enabled?
-  end
-
   def project_license_name(project)
     key = "project:#{project.id}:license_name"
 
@@ -389,8 +370,9 @@ module ProjectsHelper
       packagesAvailable: ::Gitlab.config.packages.enabled,
       packagesHelpPath: help_page_path('user/packages/index'),
       currentSettings: project_permissions_settings(project),
-      canDisableEmails: can_disable_emails?(project, current_user),
+      canAddCatalogResource: can_add_catalog_resource?(project),
       canChangeVisibilityLevel: can_change_visibility_level?(project, current_user),
+      canDisableEmails: can_disable_emails?(project, current_user),
       allowedVisibilityOptions: project_allowed_visibility_levels(project),
       visibilityHelpPath: help_page_path('user/public_access'),
       registryAvailable: Gitlab.config.registry.enabled,
@@ -439,22 +421,27 @@ module ProjectsHelper
     project.forking_enabled? && can?(user, :read_code, project)
   end
 
-  def fork_button_disabled_tooltip(project)
+  def fork_button_data_attributes(project)
     return unless current_user
 
-    if !current_user.can?(:fork_project, project)
-      s_("ProjectOverview|You don't have permission to fork this project")
-    elsif !current_user.can?(:create_fork)
-      s_('ProjectOverview|You have reached your project limit')
+    if current_user.already_forked?(project) && current_user.forkable_namespaces.size < 2
+      user_fork_url = namespace_project_path(current_user, current_user.fork_of(project))
     end
+
+    {
+      forks_count: project.forks_count,
+      project_full_path: project.full_path,
+      project_forks_url: project_forks_path(project),
+      user_fork_url: user_fork_url,
+      new_fork_url: new_project_fork_path(project),
+      can_read_code: can?(current_user, :read_code, project).to_s,
+      can_fork_project: can?(current_user, :fork_project, project).to_s,
+      can_create_fork: can?(current_user, :create_fork).to_s
+    }
   end
 
   def import_from_bitbucket_message
     configure_oauth_import_message('Bitbucket', help_page_path("integration/bitbucket"))
-  end
-
-  def import_from_gitlab_message
-    configure_oauth_import_message('GitLab.com', help_page_path("integration/gitlab"))
   end
 
   def show_inactive_project_deletion_banner?(project)
@@ -474,9 +461,9 @@ module ProjectsHelper
 
   def clusters_deprecation_alert_message
     if has_active_license?
-      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.')
+      s_('ClusterIntegration|The certificate-based Kubernetes integration is deprecated and will be removed in the future. You should %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}. For more information, see the %{deprecationLinkStart}deprecation epic%{deprecationLinkEnd}, or contact GitLab support.')
     else
-      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.')
+      s_('ClusterIntegration|The certificate-based Kubernetes integration is deprecated and will be removed in the future. You should %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}. For more information, see the %{deprecationLinkStart}deprecation epic%{deprecationLinkEnd}.')
     end
   end
 
@@ -502,7 +489,71 @@ module ProjectsHelper
     false
   end
 
+  def http_clone_url_to_repo(project)
+    project.http_url_to_repo
+  end
+
+  def ssh_clone_url_to_repo(project)
+    project.ssh_url_to_repo
+  end
+
+  def can_view_branch_rules?
+    can?(current_user, :maintainer_access, @project)
+  end
+
+  def can_push_code?
+    current_user&.can?(:push_code, @project)
+  end
+
+  def can_admin_associated_clusters?(project)
+    can_admin_project_clusters?(project) || can_admin_group_clusters?(project)
+  end
+
+  def branch_rules_path
+    project_settings_repository_path(@project, anchor: 'js-branch-rules')
+  end
+
+  def visibility_level_content(project, css_class: nil, icon_css_class: nil)
+    if project.created_and_owned_by_banned_user? && Feature.enabled?(:hide_projects_of_banned_users)
+      return hidden_resource_icon(project, css_class: css_class)
+    end
+
+    title = visibility_icon_description(project)
+    container_class = ['has-tooltip', css_class].compact.join(' ')
+    data = { container: 'body', placement: 'top' }
+
+    content_tag(:span, class: container_class, data: data, title: title) do
+      visibility_level_icon(project.visibility_level, options: { class: icon_css_class })
+    end
+  end
+
   private
+
+  def can_admin_project_clusters?(project)
+    project.clusters.any? && can?(current_user, :admin_cluster, project)
+  end
+
+  def can_admin_group_clusters?(project)
+    project.group && project.group.clusters.any? && can?(current_user, :admin_cluster, project.group)
+  end
+
+  def create_merge_request_path(project, source_project, ref, merge_request)
+    return if merge_request.present?
+    return unless can?(current_user, :create_merge_request_from, project)
+    return unless can?(current_user, :create_merge_request_in, source_project)
+
+    create_mr_path(
+      from: ref,
+      source_project: project,
+      to: source_project.default_branch,
+      target_project: source_project)
+  end
+
+  def can_sync_branch?(project, ref)
+    return false unless project.repository.branch_exists?(ref)
+
+    ::Gitlab::UserAccess.new(current_user, container: project).can_push_to_branch?(ref)
+  end
 
   def localized_access_names
     {
@@ -525,40 +576,6 @@ module ProjectsHelper
 
     link_start = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: help_url }
     s_(str).html_safe % { provider: provider, link_start: link_start, link_end: '</a>'.html_safe }
-  end
-
-  def tab_ability_map
-    {
-      cycle_analytics: :read_cycle_analytics,
-      environments: :read_environment,
-      metrics_dashboards: :metrics_dashboard,
-      milestones: :read_milestone,
-      snippets: :read_snippet,
-      settings: :admin_project,
-      builds: :read_build,
-      clusters: :read_cluster,
-      serverless: :read_cluster,
-      terraform: :read_terraform_state,
-      error_tracking: :read_sentry_issue,
-      alert_management: :read_alert_management_alert,
-      incidents: :read_issue,
-      labels: :read_label,
-      issues: :read_issue,
-      project_members: :read_project_member,
-      wiki: :read_wiki,
-      feature_flags: :read_feature_flag,
-      analytics: :read_analytics
-    }
-  end
-
-  def search_tab_ability_map
-    @search_tab_ability_map ||= tab_ability_map.merge(
-      blobs: :read_code,
-      commits: :read_code,
-      merge_requests: :read_merge_request,
-      notes: [:read_merge_request, :read_code, :read_issue, :read_snippet],
-      members: :read_project_member
-    )
   end
 
   def project_lfs_status(project)
@@ -618,30 +635,6 @@ module ProjectsHelper
     end
   end
 
-  def project_last_activity(project)
-    if project.last_activity_at
-      time_ago_with_tooltip(project.last_activity_at, placement: 'bottom', html_class: 'last_activity_time_ago')
-    else
-      s_("ProjectLastActivity|Never")
-    end
-  end
-
-  def project_status_css_class(status)
-    case status
-    when "started"
-      "table-active"
-    when "failed"
-      "table-danger"
-    when "finished"
-      "table-success"
-    end
-  end
-
-  def readme_cache_key
-    sha = @project.commit.try(:sha) || 'nil'
-    [@project.full_path, sha, "readme"].join('-')
-  end
-
   def current_ref
     @ref || @repository.try(:root_ref)
   end
@@ -665,6 +658,7 @@ module ProjectsHelper
     {
       packagesEnabled: !!project.packages_enabled,
       packageRegistryAccessLevel: feature.package_registry_access_level,
+      packageRegistryAllowAnyoneToPullOption: ::Gitlab::CurrentSettings.package_registry_allow_anyone_to_pull_option,
       visibilityLevel: project.visibility_level,
       requestAccessEnabled: !!project.request_access_enabled,
       issuesAccessLevel: feature.issues_access_level,
@@ -678,8 +672,7 @@ module ProjectsHelper
       analyticsAccessLevel: feature.analytics_access_level,
       containerRegistryEnabled: !!project.container_registry_enabled,
       lfsEnabled: !!project.lfs_enabled,
-      emailsDisabled: project.emails_disabled?,
-      metricsDashboardAccessLevel: feature.metrics_dashboard_access_level,
+      emailsEnabled: project.emails_enabled?,
       monitorAccessLevel: feature.monitor_access_level,
       showDefaultAwardEmojis: project.show_default_award_emojis?,
       warnAboutPotentiallyUnwantedCharacters: project.warn_about_potentially_unwanted_characters?,
@@ -689,7 +682,8 @@ module ProjectsHelper
       environmentsAccessLevel: feature.environments_access_level,
       featureFlagsAccessLevel: feature.feature_flags_access_level,
       releasesAccessLevel: feature.releases_access_level,
-      infrastructureAccessLevel: feature.infrastructure_access_level
+      infrastructureAccessLevel: feature.infrastructure_access_level,
+      modelExperimentsAccessLevel: feature.model_experiments_access_level
     }
   end
 
@@ -814,18 +808,6 @@ module ProjectsHelper
       ::Gitlab::CurrentSettings.delete_inactive_projects?
     end
   end
-end
-
-def can_admin_associated_clusters?(project)
-  can_admin_project_clusters?(project) || can_admin_group_clusters?(project)
-end
-
-def can_admin_project_clusters?(project)
-  project.clusters.any? && can?(current_user, :admin_cluster, project)
-end
-
-def can_admin_group_clusters?(project)
-  project.group && project.group.clusters.any? && can?(current_user, :admin_cluster, project.group)
 end
 
 ProjectsHelper.prepend_mod_with('ProjectsHelper')

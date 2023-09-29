@@ -12,8 +12,13 @@ module Backup
     LIST_ENVS = {
       skipped: 'SKIP',
       repositories_storages: 'REPOSITORIES_STORAGES',
-      repositories_paths: 'REPOSITORIES_PATHS'
+      repositories_paths: 'REPOSITORIES_PATHS',
+      skip_repositories_paths: 'SKIP_REPOSITORIES_PATHS'
     }.freeze
+
+    YAML_PERMITTED_CLASSES = [
+      ActiveSupport::TimeWithZone, ActiveSupport::TimeZone, Symbol, Time
+    ].freeze
 
     TaskDefinition = Struct.new(
       :enabled, # `true` if the task can be used. Treated as `true` when not specified.
@@ -172,6 +177,11 @@ module Backup
           human_name: _('packages'),
           destination_path: 'packages.tar.gz',
           task: build_files_task(Settings.packages.storage_path, excludes: ['tmp'])
+        ),
+        'ci_secure_files' => TaskDefinition.new(
+          human_name: _('ci secure files'),
+          destination_path: 'ci_secure_files.tar.gz',
+          task: build_files_task(Settings.ci_secure_files.storage_path, excludes: ['tmp'])
         )
       }.freeze
     end
@@ -185,12 +195,18 @@ module Backup
     def build_repositories_task
       max_concurrency = ENV['GITLAB_BACKUP_MAX_CONCURRENCY'].presence&.to_i
       max_storage_concurrency = ENV['GITLAB_BACKUP_MAX_STORAGE_CONCURRENCY'].presence&.to_i
-      strategy = Backup::GitalyBackup.new(progress, incremental: incremental?, max_parallelism: max_concurrency, storage_parallelism: max_storage_concurrency)
+      strategy = Backup::GitalyBackup.new(progress,
+                                          incremental: incremental?,
+                                          max_parallelism: max_concurrency,
+                                          storage_parallelism: max_storage_concurrency,
+                                          server_side: backup_information[:repositories_server_side]
+                                         )
 
       Repositories.new(progress,
                        strategy: strategy,
                        storages: list_env(:repositories_storages),
-                       paths: list_env(:repositories_paths)
+                       paths: list_env(:repositories_paths),
+                       skip_paths: list_env(:skip_repositories_paths)
                       )
     end
 
@@ -247,7 +263,9 @@ module Backup
     end
 
     def read_backup_information
-      @backup_information ||= YAML.load_file(File.join(backup_path, MANIFEST_NAME))
+      @backup_information ||= YAML.safe_load_file(
+        File.join(backup_path, MANIFEST_NAME),
+        permitted_classes: YAML_PERMITTED_CLASSES)
     end
 
     def write_backup_information
@@ -272,7 +290,9 @@ module Backup
         installation_type: Gitlab::INSTALLATION_TYPE,
         skipped: ENV['SKIP'],
         repositories_storages: ENV['REPOSITORIES_STORAGES'],
-        repositories_paths: ENV['REPOSITORIES_PATHS']
+        repositories_paths: ENV['REPOSITORIES_PATHS'],
+        skip_repositories_paths: ENV['SKIP_REPOSITORIES_PATHS'],
+        repositories_server_side: Gitlab::Utils.to_boolean(ENV['REPOSITORIES_SERVER_SIDE'], default: false)
       }
     end
 
@@ -286,7 +306,8 @@ module Backup
         installation_type: Gitlab::INSTALLATION_TYPE,
         skipped: list_env(:skipped).join(','),
         repositories_storages: list_env(:repositories_storages).join(','),
-        repositories_paths: list_env(:repositories_paths).join(',')
+        repositories_paths: list_env(:repositories_paths).join(','),
+        skip_repositories_paths: list_env(:skip_repositories_paths).join(',')
       )
     end
 
@@ -416,6 +437,12 @@ module Backup
       end
     end
 
+    def puts_available_timestamps
+      available_timestamps.each do |available_timestamp|
+        puts_time " " + available_timestamp
+      end
+    end
+
     def unpack(source_backup_id)
       if source_backup_id.blank? && non_tarred_backup?
         puts_time "Non tarred backup found in #{backup_path}, using that"
@@ -431,7 +458,7 @@ module Backup
         elsif backup_file_list.many? && source_backup_id.nil?
           puts_time 'Found more than one backup:'
           # print list of available backups
-          puts_time " " + available_timestamps.join("\n ")
+          puts_available_timestamps
 
           if incremental?
             puts_time 'Please specify which one you want to create an incremental backup for:'
@@ -457,7 +484,7 @@ module Backup
 
         puts_time 'Unpacking backup ... '.color(:blue)
 
-        if Kernel.system(*%W(tar -xf #{tar_file}))
+        if Kernel.system(*%W[tar -xf #{tar_file}])
           puts_time 'Unpacking backup ... '.color(:blue) + 'done'.color(:green)
         else
           puts_time 'Unpacking backup failed'.color(:red)
@@ -467,7 +494,7 @@ module Backup
     end
 
     def tar_version
-      tar_version, _ = Gitlab::Popen.popen(%w(tar --version))
+      tar_version, _ = Gitlab::Popen.popen(%w[tar --version])
       tar_version.dup.force_encoding('locale').split("\n").first
     end
 

@@ -4,8 +4,12 @@
 
 # rubocop:disable Rails/Pluck, Layout/LineLength, RSpec/MultipleMemoizedHelpers
 module QA
-  RSpec.describe "Manage", :skip_live_env, only: { job: "large-gitlab-import" } do
-    describe "Gitlab migration", orchestrated: false, product_group: :import do
+  RSpec.describe "Manage", :skip_live_env,
+    only: { condition: -> { ENV["CI_PROJECT_NAME"] == "import-metrics" } },
+    custom_test_metrics: {
+      tags: { import_type: ENV["QA_IMPORT_TYPE"], import_repo: ENV["QA_LARGE_IMPORT_REPO"] || "migration-test-project" }
+    } do
+    describe "Gitlab migration", orchestrated: false, product_group: :import_and_integrate do
       include_context "with gitlab group migration"
 
       let!(:logger) { Runtime::Logger.logger }
@@ -66,21 +70,33 @@ module QA
       let(:issues) { fetch_issues(imported_project, api_client) }
 
       before do
-        Runtime::Feature.enable(:bulk_import_projects) unless Runtime::Feature.enabled?(:bulk_import_projects)
+        QA::Support::Helpers::ImportSource.enable(%w[gitlab_project])
       end
 
       # rubocop:disable RSpec/InstanceVariable
       after do |example|
-        next unless defined?(@import_time)
+        unless defined?(@import_time)
+          next save_json(
+            "data",
+            {
+              status: "failed",
+              importer: :gitlab,
+              import_finished: false,
+              import_time: Time.now - @start
+            }
+          )
+        end
 
         # add additional import time metric
-        example.metadata[:custom_test_metrics] = { fields: { import_time: @import_time } }
+        example.metadata[:custom_test_metrics][:fields] = { import_time: @import_time }
         # save data for comparison notification creation
         save_json(
           "data",
           {
+            status: example.exception ? "failed" : "passed",
             importer: :gitlab,
             import_time: @import_time,
+            import_finished: true,
             errors: import_failures,
             source: {
               name: "GitLab Source",
@@ -121,10 +137,9 @@ module QA
           }
         )
       end
-      # rubocop:enable RSpec/InstanceVariable
 
       it "migrates large gitlab group via api", testcase: "https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/358842" do
-        start = Time.now
+        @start = Time.now
 
         # trigger import and log imported group path
         logger.info("== Importing group '#{gitlab_source_group}' in to '#{imported_group.full_path}' ==")
@@ -136,7 +151,7 @@ module QA
         logger.info("== Waiting for import to be finished ==")
         expect_group_import_finished_successfully
 
-        @import_time = Time.now - start
+        @import_time = Time.now - @start
 
         aggregate_failures do
           verify_repository_import
@@ -147,6 +162,7 @@ module QA
           verify_issues_import
         end
       end
+      # rubocop:enable RSpec/InstanceVariable
 
       # Fetch source project objects for comparison
       #
@@ -331,11 +347,7 @@ module QA
         imported_issues = project.issues(auto_paginate: true, attempts: 2)
 
         Parallel.map(imported_issues, in_threads: 6) do |issue|
-          resource = Resource::Issue.init do |issue_resource|
-            issue_resource.project = project
-            issue_resource.iid = issue[:iid]
-            issue_resource.api_client = client
-          end
+          resource = build(:issue, project: project, iid: issue[:iid], api_client: client)
 
           [issue[:iid], {
             url: issue[:web_url],

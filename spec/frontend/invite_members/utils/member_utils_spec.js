@@ -1,4 +1,6 @@
-import { memberName } from '~/invite_members/utils/member_utils';
+import { memberName, triggerExternalAlert } from '~/invite_members/utils/member_utils';
+
+jest.mock('~/lib/utils/url_utility');
 
 describe('Member Name', () => {
   it.each([
@@ -8,5 +10,11 @@ describe('Member Name', () => {
     [{}, undefined],
   ])(`returns name from supplied member token: %j`, (member, result) => {
     expect(memberName(member)).toBe(result);
+  });
+});
+
+describe('Trigger External Alert', () => {
+  it('returns false', () => {
+    expect(triggerExternalAlert()).toBe(false);
   });
 });

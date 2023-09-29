@@ -1,6 +1,6 @@
 ---
 type: reference
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -167,7 +167,8 @@ may see the following message: `Access denied for your LDAP account`.
 
 We have a workaround, based on toggling the access level of affected users:
 
-1. As an administrator, on the top bar, select **Main menu > Admin**.
+1. As an administrator, on the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Overview > Users**.
 1. Select the name of the affected user.
 1. In the upper-right corner, select **Edit**.
@@ -224,7 +225,8 @@ field contains no data:
 
 To resolve this:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, go to **Settings > General**.
 1. Expand both of the following:
    - **Account and limit**.
@@ -367,7 +369,8 @@ things to debug the situation.
 - Ensure the correct [LDAP group link is added to the GitLab group](ldap_synchronization.md#add-group-links).
 - Check that the user has an LDAP identity:
   1. Sign in to GitLab as an administrator user.
-  1. On the top bar, select **Main menu > Admin**.
+  1. On the left sidebar, select **Search or go to**.
+  1. Select **Admin Area**.
   1. On the left sidebar, select **Overview > Users**.
   1. Search for the user.
   1. Open the user by selecting their name. Do not select **Edit**.
@@ -375,7 +378,7 @@ things to debug the situation.
      an LDAP DN as the `Identifier`. If not, this user hasn't signed in with
      LDAP yet and must do so first.
 - You've waited an hour or [the configured interval](ldap_synchronization.md#adjust-ldap-group-sync-schedule) for
-  the group to sync. To speed up the process, either go to the GitLab group **Group information > Members**
+  the group to sync. To speed up the process, either go to the GitLab group **Manage > Members**
   and press **Sync now** (sync one group) or [run the group sync Rake task](../../raketasks/ldap.md#run-a-group-sync)
   (sync all groups).
 
@@ -444,7 +447,7 @@ A displayed error can identify the problem and point to a solution. For example,
 
 ```ruby
 irb(main):018:0> group.members.map(&:errors).map(&:full_messages)
-=> [["The member's email address is not allowed for this group. Go to the group’s &#39;Settings &gt; General&#39; page, and check &#39;Restrict membership by email domain&#39;."]]
+=> [["The member's email address is not allowed for this group. Go to the group's &#39;Settings &gt; General&#39; page, and check &#39;Restrict membership by email domain&#39;."]]
 ```
 
 This error showed that an Administrator chose to [restrict group membership by email domain](../../../user/group/access_and_permissions.md#restrict-group-access-by-domain),
@@ -733,9 +736,16 @@ cause:
 To resolve this error, you must apply a new license to the GitLab instance without the web interface:
 
 1. Remove or comment out the GitLab configuration lines for all non-primary LDAP servers.
-1. [Reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure) so that it temporarily uses only one LDAP server.
-1. Enter the [Rails console and add the license key](../../../user/admin_area/license_file.md#add-a-license-through-the-console).
+1. [Reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation) so that it temporarily uses only one LDAP server.
+1. Enter the [Rails console and add the license key](../../../administration/license_file.md#add-a-license-through-the-console).
 1. Re-enable the additional LDAP servers in the GitLab configuration and reconfigure GitLab again.
+
+## Users are being removed from group and re-added again
+
+If a user has been added to a group during group sync, and removed at the next sync, and this has happened repeatedly, make sure that the user doesn't have
+multiple or redundant LDAP identities.
+
+If one of those identities was added for an older LDAP provider that is no longer in use, [remove the `identity` records that relate to the removed LDAP server](#remove-the-identity-records-that-relate-to-the-removed-ldap-server).
 
 ## Debugging Tools
 
@@ -761,7 +771,7 @@ users, [see what to do when no users are found](#no-users-are-found).
 ### GitLab logs
 
 If a user account is blocked or unblocked due to the LDAP configuration, a
-message is [logged to `application.log`](../../logs/index.md#applicationlog).
+message is [logged to `application_json.log`](../../logs/index.md#application_jsonlog).
 
 If there is an unexpected error during an LDAP lookup (configuration error,
 timeout), the sign-in is rejected and a message is [logged to `production.log`](../../logs/index.md#productionlog).

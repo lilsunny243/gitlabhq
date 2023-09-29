@@ -4,8 +4,7 @@ module MergeRequests
   class PushOptionsHandlerService < ::BaseProjectService
     LIMIT = 10
 
-    attr_reader :errors, :changes,
-                :push_options, :target_project
+    attr_reader :errors, :changes, :push_options, :target_project
 
     def initialize(project:, current_user:, changes:, push_options:, params: {})
       super(project: project, current_user: current_user, params: params)
@@ -54,7 +53,15 @@ module MergeRequests
     end
 
     def validate_service
-      errors << 'User is required' if current_user.nil?
+      if current_user.nil?
+        errors << 'User is required'
+        return
+      end
+
+      unless current_user&.can?(:read_code, target_project)
+        errors << 'User access was denied'
+        return
+      end
 
       unless target_project.merge_requests_enabled?
         errors << "Merge requests are not enabled for project #{target_project.full_path}"
@@ -104,8 +111,10 @@ module MergeRequests
         merge_request = ::MergeRequests::CreateService.new(
           project: project,
           current_user: current_user,
-          params: merge_request.attributes.merge(assignee_ids: merge_request.assignee_ids,
-                                                 label_ids: merge_request.label_ids)
+          params: merge_request.attributes.merge(
+            assignee_ids: merge_request.assignee_ids,
+            label_ids: merge_request.label_ids
+          )
         ).execute
       end
 

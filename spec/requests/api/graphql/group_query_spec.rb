@@ -4,7 +4,7 @@ require 'spec_helper'
 
 # Based on spec/requests/api/groups_spec.rb
 # Should follow closely in order to ensure all situations are covered
-RSpec.describe 'getting group information', :with_license, feature_category: :subgroups do
+RSpec.describe 'getting group information', :with_license, feature_category: :groups_and_projects do
   include GraphqlHelpers
   include UploadHelpers
 
@@ -17,7 +17,7 @@ RSpec.describe 'getting group information', :with_license, feature_category: :su
   # similar to the API "GET /groups/:id"
   describe "Query group(fullPath)" do
     def group_query(group)
-      fields = all_graphql_fields_for('Group')
+      fields = all_graphql_fields_for('Group', excluded: %w[runners])
       # TODO: Set required timelogs args elsewhere https://gitlab.com/gitlab-org/gitlab/-/issues/325499
       fields.selection['timelogs(startDate: "2021-03-01" endDate: "2021-03-30")'] = fields.selection.delete('timelogs')
 

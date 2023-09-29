@@ -18,7 +18,7 @@ import { debounce } from 'lodash';
 
 import { s__, __ } from '~/locale';
 import { getGroupPathAvailability } from '~/rest_api';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { slugify } from '~/lib/utils/text_utility';
 import axios from '~/lib/utils/axios_utils';
 import { helpPagePath } from '~/helpers/help_page_helper';
@@ -56,7 +56,7 @@ export default {
       'An error occurred while checking group path. Please refresh and try again.',
     ),
     changingUrlWarningMessage: s__('Groups|Changing group URL can have unintended side effects.'),
-    learnMore: s__('Groups|Learn more'),
+    learnMore: __('Learn more'),
   },
   inputSize: { md: 'lg' },
   changingGroupPathHelpPagePath: helpPagePath('user/group/manage', {
@@ -293,7 +293,7 @@ export default {
         required
         :name="fields.name.name"
         :placeholder="$options.i18n.inputs.name.placeholder"
-        data-qa-selector="group_name_field"
+        data-testid="group-name-field"
         :size="$options.inputSize"
         :state="nameFeedbackState"
         @invalid="handleInvalidName"
@@ -376,7 +376,7 @@ export default {
             :state="pathFeedbackState"
             :size="pathInputSize"
             required
-            data-qa-selector="group_path_field"
+            data-testid="group-path-field"
             :data-bind-in="mattermostEnabled ? $options.mattermostDataBindName : null"
             @input="handlePathInput"
             @invalid="handleInvalidPath"

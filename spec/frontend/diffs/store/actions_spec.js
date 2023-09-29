@@ -1,5 +1,6 @@
 import MockAdapter from 'axios-mock-adapter';
 import Cookies from '~/lib/utils/cookies';
+import waitForPromises from 'helpers/wait_for_promises';
 import { useLocalStorageSpy } from 'helpers/local_storage_helper';
 import { TEST_HOST } from 'helpers/test_constants';
 import testAction from 'helpers/vuex_action_helper';
@@ -8,12 +9,14 @@ import {
   DIFF_VIEW_COOKIE_NAME,
   INLINE_DIFF_VIEW_TYPE,
   PARALLEL_DIFF_VIEW_TYPE,
+  EVT_MR_PREPARED,
 } from '~/diffs/constants';
+import { LOAD_SINGLE_DIFF_FAILED, BUILDING_YOUR_MR, SOMETHING_WENT_WRONG } from '~/diffs/i18n';
 import * as diffActions from '~/diffs/store/actions';
 import * as types from '~/diffs/store/mutation_types';
 import * as utils from '~/diffs/store/utils';
 import * as treeWorkerUtils from '~/diffs/utils/tree_worker_utils';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import * as commonUtils from '~/lib/utils/common_utils';
 import {
@@ -24,9 +27,15 @@ import {
 } from '~/lib/utils/http_status';
 import { mergeUrlParams } from '~/lib/utils/url_utility';
 import eventHub from '~/notes/event_hub';
+import diffsEventHub from '~/diffs/event_hub';
 import { diffMetadata } from '../mock_data/diff_metadata';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
+
+jest.mock('~/lib/utils/secret_detection', () => ({
+  confirmSensitiveAction: jest.fn(() => Promise.resolve(false)),
+  containsSensitiveToken: jest.requireActual('~/lib/utils/secret_detection').containsSensitiveToken,
+}));
 
 describe('DiffsStoreActions', () => {
   let mock;
@@ -69,6 +78,7 @@ describe('DiffsStoreActions', () => {
       const endpoint = '/diffs/set/endpoint';
       const endpointMetadata = '/diffs/set/endpoint/metadata';
       const endpointBatch = '/diffs/set/endpoint/batch';
+      const endpointDiffForPath = '/diffs/set/endpoint/path';
       const endpointCoverage = '/diffs/set/coverage_reports';
       const projectPath = '/root/project';
       const dismissEndpoint = '/-/user_callouts';
@@ -77,22 +87,26 @@ describe('DiffsStoreActions', () => {
         a: ['z', 'hash:a'],
         b: ['y', 'hash:a'],
       };
+      const diffViewType = 'inline';
 
       return testAction(
         diffActions.setBaseConfig,
         {
           endpoint,
           endpointBatch,
+          endpointDiffForPath,
           endpointMetadata,
           endpointCoverage,
           projectPath,
           dismissEndpoint,
           showSuggestPopover,
           mrReviews,
+          diffViewType,
         },
         {
           endpoint: '',
           endpointBatch: '',
+          endpointDiffForPath: '',
           endpointMetadata: '',
           endpointCoverage: '',
           projectPath: '',
@@ -106,11 +120,13 @@ describe('DiffsStoreActions', () => {
               endpoint,
               endpointMetadata,
               endpointBatch,
+              endpointDiffForPath,
               endpointCoverage,
               projectPath,
               dismissEndpoint,
               showSuggestPopover,
               mrReviews,
+              diffViewType,
             },
           },
           {
@@ -128,6 +144,346 @@ describe('DiffsStoreActions', () => {
         ],
         [],
       );
+    });
+  });
+
+  describe('prefetchSingleFile', () => {
+    beforeEach(() => {
+      window.location.hash = 'e334a2a10f036c00151a04cea7938a5d4213a818';
+    });
+
+    it('should do nothing if the tree entry is already loading', () => {
+      return testAction(diffActions.prefetchSingleFile, { diffLoading: true }, {}, [], []);
+    });
+
+    it('should do nothing if the tree entry has already been marked as loaded', () => {
+      return testAction(
+        diffActions.prefetchSingleFile,
+        { diffLoaded: true },
+        {
+          flatBlobsList: [
+            { fileHash: 'e334a2a10f036c00151a04cea7938a5d4213a818', diffLoaded: true },
+          ],
+        },
+        [],
+        [],
+      );
+    });
+
+    describe('when a tree entry exists for the file, but it has not been marked as loaded', () => {
+      let state;
+      let getters;
+      let commit;
+      let hubSpy;
+      const defaultParams = {
+        old_path: 'old/123',
+        new_path: 'new/123',
+        w: '1',
+        view: 'inline',
+      };
+      const endpointDiffForPath = '/diffs/set/endpoint/path';
+      const diffForPath = mergeUrlParams(defaultParams, endpointDiffForPath);
+      const treeEntry = {
+        fileHash: 'e334a2a10f036c00151a04cea7938a5d4213a818',
+        filePaths: { old: 'old/123', new: 'new/123' },
+      };
+      const fileResult = {
+        diff_files: [{ file_hash: 'e334a2a10f036c00151a04cea7938a5d4213a818' }],
+      };
+
+      beforeEach(() => {
+        commit = jest.fn();
+        state = {
+          endpointDiffForPath,
+          diffFiles: [],
+        };
+        getters = {
+          flatBlobsList: [treeEntry],
+          getDiffFileByHash(hash) {
+            return state.diffFiles?.find((entry) => entry.file_hash === hash);
+          },
+        };
+        hubSpy = jest.spyOn(diffsEventHub, '$emit');
+      });
+
+      it('does nothing if the file already exists in the loaded diff files', () => {
+        state.diffFiles = fileResult.diff_files;
+
+        return testAction(diffActions.prefetchSingleFile, treeEntry, getters, [], []);
+      });
+
+      it('does some standard work every time', async () => {
+        mock.onGet(diffForPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+        expect(commit).toHaveBeenCalledWith(types.TREE_ENTRY_DIFF_LOADING, {
+          path: treeEntry.filePaths.new,
+        });
+
+        // wait for the mocked network request to return
+        await waitForPromises();
+
+        expect(commit).toHaveBeenCalledWith(types.SET_DIFF_DATA_BATCH, fileResult);
+
+        expect(hubSpy).toHaveBeenCalledWith('diffFilesModified');
+      });
+
+      it('should fetch data without commit ID', async () => {
+        getters.commitId = null;
+        mock.onGet(diffForPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+        // wait for the mocked network request to return and start processing the .then
+        await waitForPromises();
+
+        // This tests that commit_id is NOT added, if there isn't one in the store
+        expect(mock.history.get[0].url).toEqual(diffForPath);
+      });
+
+      it('should fetch data with commit ID', async () => {
+        const finalPath = mergeUrlParams(
+          { ...defaultParams, commit_id: '123' },
+          endpointDiffForPath,
+        );
+
+        getters.commitId = '123';
+        mock.onGet(finalPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+        // wait for the mocked network request to return and start processing the .then
+        await waitForPromises();
+
+        expect(mock.history.get[0].url).toEqual(finalPath);
+      });
+
+      describe('version parameters', () => {
+        const diffId = '4';
+        const startSha = 'abc';
+        const pathRoot = 'a/a/-/merge_requests/1';
+
+        it('fetches the data when there is no mergeRequestDiff', async () => {
+          diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+          // wait for the mocked network request to return and start processing the .then
+          await waitForPromises();
+
+          expect(mock.history.get[0].url).toEqual(diffForPath);
+        });
+
+        it.each`
+          desc                                   | versionPath                                              | start_sha    | diff_id
+          ${'no additional version information'} | ${`${pathRoot}?search=terms`}                            | ${undefined} | ${undefined}
+          ${'the diff_id'}                       | ${`${pathRoot}?diff_id=${diffId}`}                       | ${undefined} | ${diffId}
+          ${'the start_sha'}                     | ${`${pathRoot}?start_sha=${startSha}`}                   | ${startSha}  | ${undefined}
+          ${'all available version information'} | ${`${pathRoot}?diff_id=${diffId}&start_sha=${startSha}`} | ${startSha}  | ${diffId}
+        `('fetches the data and includes $desc', async ({ versionPath, start_sha, diff_id }) => {
+          const finalPath = mergeUrlParams(
+            { ...defaultParams, diff_id, start_sha },
+            endpointDiffForPath,
+          );
+          state.mergeRequestDiff = { version_path: versionPath };
+          mock.onGet(finalPath).reply(HTTP_STATUS_OK, fileResult);
+
+          diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+          // wait for the mocked network request to return
+          await waitForPromises();
+
+          expect(mock.history.get[0].url).toEqual(finalPath);
+        });
+      });
+
+      describe('when the prefetch fails', () => {
+        beforeEach(() => {
+          mock.onGet(diffForPath).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        });
+
+        it('should commit a mutation to set the tree entry diff loading to false', async () => {
+          diffActions.prefetchSingleFile({ state, getters, commit }, treeEntry);
+
+          // wait for the mocked network request to return
+          await waitForPromises();
+
+          expect(commit).toHaveBeenCalledWith(types.TREE_ENTRY_DIFF_LOADING, {
+            path: treeEntry.filePaths.new,
+            loading: false,
+          });
+        });
+      });
+    });
+  });
+
+  describe('fetchFileByFile', () => {
+    beforeEach(() => {
+      window.location.hash = 'e334a2a10f036c00151a04cea7938a5d4213a818';
+    });
+
+    it('should do nothing if there is no tree entry for the file ID', () => {
+      return testAction(diffActions.fetchFileByFile, {}, { flatBlobsList: [] }, [], []);
+    });
+
+    it('should do nothing if the tree entry for the file ID has already been marked as loaded', () => {
+      return testAction(
+        diffActions.fetchFileByFile,
+        {},
+        {
+          flatBlobsList: [
+            { fileHash: 'e334a2a10f036c00151a04cea7938a5d4213a818', diffLoaded: true },
+          ],
+        },
+        [],
+        [],
+      );
+    });
+
+    describe('when a tree entry exists for the file, but it has not been marked as loaded', () => {
+      let state;
+      let getters;
+      let commit;
+      let hubSpy;
+      const defaultParams = {
+        old_path: 'old/123',
+        new_path: 'new/123',
+        w: '1',
+        view: 'inline',
+      };
+      const endpointDiffForPath = '/diffs/set/endpoint/path';
+      const diffForPath = mergeUrlParams(defaultParams, endpointDiffForPath);
+      const treeEntry = {
+        fileHash: 'e334a2a10f036c00151a04cea7938a5d4213a818',
+        filePaths: { old: 'old/123', new: 'new/123' },
+      };
+      const fileResult = {
+        diff_files: [{ file_hash: 'e334a2a10f036c00151a04cea7938a5d4213a818' }],
+      };
+
+      beforeEach(() => {
+        commit = jest.fn();
+        state = {
+          endpointDiffForPath,
+          diffFiles: [],
+        };
+        getters = {
+          flatBlobsList: [treeEntry],
+          getDiffFileByHash(hash) {
+            return state.diffFiles?.find((entry) => entry.file_hash === hash);
+          },
+        };
+        hubSpy = jest.spyOn(diffsEventHub, '$emit');
+      });
+
+      it('does nothing if the file already exists in the loaded diff files', () => {
+        state.diffFiles = fileResult.diff_files;
+
+        return testAction(diffActions.fetchFileByFile, state, getters, [], []);
+      });
+
+      it('does some standard work every time', async () => {
+        mock.onGet(diffForPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.fetchFileByFile({ state, getters, commit });
+
+        expect(commit).toHaveBeenCalledWith(types.SET_BATCH_LOADING_STATE, 'loading');
+        expect(commit).toHaveBeenCalledWith(types.SET_RETRIEVING_BATCHES, true);
+
+        // wait for the mocked network request to return and start processing the .then
+        await waitForPromises();
+
+        expect(commit).toHaveBeenCalledWith(types.SET_DIFF_DATA_BATCH, fileResult);
+        expect(commit).toHaveBeenCalledWith(types.SET_BATCH_LOADING_STATE, 'loaded');
+
+        expect(hubSpy).toHaveBeenCalledWith('diffFilesModified');
+      });
+
+      it.each`
+        urlHash               | diffFiles                | expected
+        ${treeEntry.fileHash} | ${[]}                    | ${''}
+        ${'abcdef1234567890'} | ${fileResult.diff_files} | ${'e334a2a10f036c00151a04cea7938a5d4213a818'}
+      `(
+        "sets the current file to the first diff file ('$id') if it's not a note hash and there isn't a current ID set",
+        async ({ urlHash, diffFiles, expected }) => {
+          window.location.hash = urlHash;
+          mock.onGet(diffForPath).reply(HTTP_STATUS_OK, fileResult);
+          state.diffFiles = diffFiles;
+
+          await diffActions.fetchFileByFile({ state, getters, commit });
+
+          // wait for the mocked network request to return and start processing the .then
+          await waitForPromises();
+
+          expect(commit).toHaveBeenCalledWith(types.SET_CURRENT_DIFF_FILE, expected);
+        },
+      );
+
+      it('should fetch data without commit ID', async () => {
+        getters.commitId = null;
+        mock.onGet(diffForPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.fetchFileByFile({ state, getters, commit });
+
+        // wait for the mocked network request to return and start processing the .then
+        await waitForPromises();
+
+        // This tests that commit_id is NOT added, if there isn't one in the store
+        expect(mock.history.get[0].url).toEqual(diffForPath);
+      });
+
+      it('should fetch data with commit ID', async () => {
+        const finalPath = mergeUrlParams(
+          { ...defaultParams, commit_id: '123' },
+          endpointDiffForPath,
+        );
+
+        getters.commitId = '123';
+        mock.onGet(finalPath).reply(HTTP_STATUS_OK, fileResult);
+
+        await diffActions.fetchFileByFile({ state, getters, commit });
+
+        // wait for the mocked network request to return and start processing the .then
+        await waitForPromises();
+
+        expect(mock.history.get[0].url).toEqual(finalPath);
+      });
+
+      describe('version parameters', () => {
+        const diffId = '4';
+        const startSha = 'abc';
+        const pathRoot = 'a/a/-/merge_requests/1';
+
+        it('fetches the data when there is no mergeRequestDiff', async () => {
+          diffActions.fetchFileByFile({ state, getters, commit });
+
+          // wait for the mocked network request to return and start processing the .then
+          await waitForPromises();
+
+          expect(mock.history.get[0].url).toEqual(diffForPath);
+        });
+
+        it.each`
+          desc                                   | versionPath                                              | start_sha    | diff_id
+          ${'no additional version information'} | ${`${pathRoot}?search=terms`}                            | ${undefined} | ${undefined}
+          ${'the diff_id'}                       | ${`${pathRoot}?diff_id=${diffId}`}                       | ${undefined} | ${diffId}
+          ${'the start_sha'}                     | ${`${pathRoot}?start_sha=${startSha}`}                   | ${startSha}  | ${undefined}
+          ${'all available version information'} | ${`${pathRoot}?diff_id=${diffId}&start_sha=${startSha}`} | ${startSha}  | ${diffId}
+        `('fetches the data and includes $desc', async ({ versionPath, start_sha, diff_id }) => {
+          const finalPath = mergeUrlParams(
+            { ...defaultParams, diff_id, start_sha },
+            endpointDiffForPath,
+          );
+          state.mergeRequestDiff = { version_path: versionPath };
+          mock.onGet(finalPath).reply(HTTP_STATUS_OK, fileResult);
+
+          diffActions.fetchFileByFile({ state, getters, commit });
+
+          // wait for the mocked network request to return and start processing the .then
+          await waitForPromises();
+
+          expect(mock.history.get[0].url).toEqual(finalPath);
+        });
+      });
     });
   });
 
@@ -178,7 +534,7 @@ describe('DiffsStoreActions', () => {
           { type: types.SET_RETRIEVING_BATCHES, payload: false },
           { type: types.SET_BATCH_LOADING_STATE, payload: 'error' },
         ],
-        [{ type: 'startRenderDiffsQueue' }, { type: 'startRenderDiffsQueue' }],
+        [],
       );
     });
   });
@@ -213,23 +569,44 @@ describe('DiffsStoreActions', () => {
       );
     });
 
-    it('should show a warning on 404 reponse', async () => {
-      mock.onGet(endpointMetadata).reply(HTTP_STATUS_NOT_FOUND);
+    describe('on a 404 response', () => {
+      let dismissAlert;
 
-      await testAction(
-        diffActions.fetchDiffFilesMeta,
-        {},
-        { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
-        [{ type: types.SET_LOADING, payload: true }],
-        [],
-      );
+      beforeAll(() => {
+        dismissAlert = jest.fn();
 
-      expect(createAlert).toHaveBeenCalledTimes(1);
-      expect(createAlert).toHaveBeenCalledWith({
-        message: expect.stringMatching(
-          'Building your merge request. Wait a few moments, then refresh this page.',
-        ),
-        variant: 'warning',
+        mock.onGet(endpointMetadata).reply(HTTP_STATUS_NOT_FOUND);
+        createAlert.mockImplementation(() => ({ dismiss: dismissAlert }));
+      });
+
+      it('should show a warning', async () => {
+        await testAction(
+          diffActions.fetchDiffFilesMeta,
+          {},
+          { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
+          [{ type: types.SET_LOADING, payload: true }],
+          [],
+        );
+
+        expect(createAlert).toHaveBeenCalledTimes(1);
+        expect(createAlert).toHaveBeenCalledWith({
+          message: BUILDING_YOUR_MR,
+          variant: 'warning',
+        });
+      });
+
+      it("should attempt to close the alert if the MR reports that it's been prepared", async () => {
+        await testAction(
+          diffActions.fetchDiffFilesMeta,
+          {},
+          { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
+          [{ type: types.SET_LOADING, payload: true }],
+          [],
+        );
+
+        diffsEventHub.$emit(EVT_MR_PREPARED);
+
+        expect(dismissAlert).toHaveBeenCalled();
       });
     });
 
@@ -252,6 +629,37 @@ describe('DiffsStoreActions', () => {
     });
   });
 
+  describe('prefetchFileNeighbors', () => {
+    it('dispatches two requests to prefetch the next/previous files', () => {
+      testAction(
+        diffActions.prefetchFileNeighbors,
+        {},
+        {
+          currentDiffIndex: 0,
+          flatBlobsList: [
+            {
+              type: 'blob',
+              fileHash: 'abc',
+            },
+            {
+              type: 'blob',
+              fileHash: 'def',
+            },
+            {
+              type: 'blob',
+              fileHash: 'ghi',
+            },
+          ],
+        },
+        [],
+        [
+          { type: 'prefetchSingleFile', payload: { type: 'blob', fileHash: 'def' } },
+          { type: 'prefetchSingleFile', payload: { type: 'blob', fileHash: 'abc' } },
+        ],
+      );
+    });
+  });
+
   describe('fetchCoverageFiles', () => {
     const endpointCoverage = '/fetch';
 
@@ -269,13 +677,13 @@ describe('DiffsStoreActions', () => {
       );
     });
 
-    it('should show flash on API error', async () => {
+    it('should show alert on API error', async () => {
       mock.onGet(endpointCoverage).reply(HTTP_STATUS_BAD_REQUEST);
 
       await testAction(diffActions.fetchCoverageFiles, {}, { endpointCoverage }, [], []);
       expect(createAlert).toHaveBeenCalledTimes(1);
       expect(createAlert).toHaveBeenCalledWith({
-        message: expect.stringMatching('Something went wrong'),
+        message: SOMETHING_WENT_WRONG,
       });
     });
   });
@@ -456,41 +864,6 @@ describe('DiffsStoreActions', () => {
     });
   });
 
-  describe('startRenderDiffsQueue', () => {
-    it('should set all files to RENDER_FILE', () => {
-      const state = {
-        diffFiles: [
-          {
-            id: 1,
-            renderIt: false,
-            viewer: {
-              automaticallyCollapsed: false,
-            },
-          },
-          {
-            id: 2,
-            renderIt: false,
-            viewer: {
-              automaticallyCollapsed: false,
-            },
-          },
-        ],
-      };
-
-      const pseudoCommit = (commitType, file) => {
-        expect(commitType).toBe(types.RENDER_FILE);
-        Object.assign(file, {
-          renderIt: true,
-        });
-      };
-
-      diffActions.startRenderDiffsQueue({ state, commit: pseudoCommit });
-
-      expect(state.diffFiles[0].renderIt).toBe(true);
-      expect(state.diffFiles[1].renderIt).toBe(true);
-    });
-  });
-
   describe('setInlineDiffViewType', () => {
     it('should set diff view type to inline and also set the cookie properly', async () => {
       await testAction(
@@ -500,6 +873,7 @@ describe('DiffsStoreActions', () => {
         [{ type: types.SET_DIFF_VIEW_TYPE, payload: INLINE_DIFF_VIEW_TYPE }],
         [],
       );
+      expect(window.location.toString()).toContain('?view=inline');
       expect(Cookies.get('diff_view')).toEqual(INLINE_DIFF_VIEW_TYPE);
     });
   });
@@ -513,6 +887,7 @@ describe('DiffsStoreActions', () => {
         [{ type: types.SET_DIFF_VIEW_TYPE, payload: PARALLEL_DIFF_VIEW_TYPE }],
         [],
       );
+      expect(window.location.toString()).toContain('?view=parallel');
       expect(Cookies.get(DIFF_VIEW_COOKIE_NAME)).toEqual(PARALLEL_DIFF_VIEW_TYPE);
     });
   });
@@ -581,7 +956,7 @@ describe('DiffsStoreActions', () => {
       mock.onGet(file.loadCollapsedDiffUrl).reply(HTTP_STATUS_OK, data);
 
       return diffActions
-        .loadCollapsedDiff({ commit, getters: { commitId: null }, state }, file)
+        .loadCollapsedDiff({ commit, getters: { commitId: null }, state }, { file })
         .then(() => {
           expect(commit).toHaveBeenCalledWith(types.ADD_COLLAPSED_DIFFS, { file, data });
         });
@@ -595,10 +970,25 @@ describe('DiffsStoreActions', () => {
 
       jest.spyOn(axios, 'get').mockReturnValue(Promise.resolve({ data: {} }));
 
-      diffActions.loadCollapsedDiff({ commit() {}, getters, state }, file);
+      diffActions.loadCollapsedDiff({ commit() {}, getters, state }, { file });
 
       expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
         params: { commit_id: null, w: '0' },
+      });
+    });
+
+    it('should pass through params', () => {
+      const file = { load_collapsed_diff_url: '/load/collapsed/diff/url' };
+      const getters = {
+        commitId: null,
+      };
+
+      jest.spyOn(axios, 'get').mockReturnValue(Promise.resolve({ data: {} }));
+
+      diffActions.loadCollapsedDiff({ commit() {}, getters, state }, { file, params: { w: '1' } });
+
+      expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
+        params: { commit_id: null, w: '1' },
       });
     });
 
@@ -610,7 +1000,7 @@ describe('DiffsStoreActions', () => {
 
       jest.spyOn(axios, 'get').mockReturnValue(Promise.resolve({ data: {} }));
 
-      diffActions.loadCollapsedDiff({ commit() {}, getters, state }, file);
+      diffActions.loadCollapsedDiff({ commit() {}, getters, state }, { file });
 
       expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
         params: { commit_id: '123', w: '0' },
@@ -634,7 +1024,7 @@ describe('DiffsStoreActions', () => {
       });
 
       it('fetches the data when there is no mergeRequestDiff', () => {
-        diffActions.loadCollapsedDiff({ commit() {}, getters, state }, file);
+        diffActions.loadCollapsedDiff({ commit() {}, getters, state }, { file });
 
         expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
           params: expect.any(Object),
@@ -652,7 +1042,7 @@ describe('DiffsStoreActions', () => {
 
         diffActions.loadCollapsedDiff(
           { commit() {}, getters, state: { mergeRequestDiff: { version_path: versionPath } } },
-          file,
+          { file },
         );
 
         expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
@@ -814,31 +1204,32 @@ describe('DiffsStoreActions', () => {
   });
 
   describe('saveDiffDiscussion', () => {
-    it('dispatches actions', () => {
-      const commitId = 'something';
-      const formData = {
-        diffFile: getDiffFileMock(),
-        noteableData: {},
-      };
-      const note = {};
-      const state = {
-        commit: {
-          id: commitId,
-        },
-      };
-      const dispatch = jest.fn((name) => {
-        switch (name) {
-          case 'saveNote':
-            return Promise.resolve({
-              discussion: 'test',
-            });
-          case 'updateDiscussion':
-            return Promise.resolve('discussion');
-          default:
-            return Promise.resolve({});
-        }
-      });
+    const dispatch = jest.fn((name) => {
+      switch (name) {
+        case 'saveNote':
+          return Promise.resolve({
+            discussion: 'test',
+          });
+        case 'updateDiscussion':
+          return Promise.resolve('discussion');
+        default:
+          return Promise.resolve({});
+      }
+    });
 
+    const commitId = 'something';
+    const formData = {
+      diffFile: getDiffFileMock(),
+      noteableData: {},
+    };
+    const note = {};
+    const state = {
+      commit: {
+        id: commitId,
+      },
+    };
+
+    it('dispatches actions', () => {
       return diffActions.saveDiffDiscussion({ state, dispatch }, { note, formData }).then(() => {
         expect(dispatch).toHaveBeenCalledTimes(5);
         expect(dispatch).toHaveBeenNthCalledWith(1, 'saveNote', expect.any(Object), {
@@ -852,6 +1243,16 @@ describe('DiffsStoreActions', () => {
         expect(dispatch).toHaveBeenNthCalledWith(3, 'assignDiscussionsToDiff', ['discussion']);
       });
     });
+
+    it('should not add note with sensitive token', async () => {
+      const sensitiveMessage = 'token: glpat-1234567890abcdefghij';
+
+      await diffActions.saveDiffDiscussion(
+        { state, dispatch },
+        { note: sensitiveMessage, formData },
+      );
+      expect(dispatch).not.toHaveBeenCalled();
+    });
   });
 
   describe('toggleTreeOpen', () => {
@@ -863,6 +1264,87 @@ describe('DiffsStoreActions', () => {
         [{ type: types.TOGGLE_FOLDER_OPEN, payload: 'path' }],
         [],
       );
+    });
+  });
+
+  describe('goToFile', () => {
+    const getters = {};
+    const file = { path: 'path' };
+    const fileHash = 'test';
+    let state;
+    let dispatch;
+    let commit;
+
+    beforeEach(() => {
+      getters.isTreePathLoaded = () => false;
+      state = {
+        viewDiffsFileByFile: true,
+        treeEntries: {
+          path: {
+            fileHash,
+          },
+        },
+      };
+      commit = jest.fn();
+      dispatch = jest.fn().mockResolvedValue();
+    });
+
+    it('immediately defers to scrollToFile if the app is not in file-by-file mode', () => {
+      state.viewDiffsFileByFile = false;
+
+      diffActions.goToFile({ state, dispatch }, file);
+
+      expect(dispatch).toHaveBeenCalledWith('scrollToFile', file);
+    });
+
+    describe('when the app is in fileByFile mode', () => {
+      it('commits SET_CURRENT_DIFF_FILE', () => {
+        diffActions.goToFile({ state, commit, dispatch, getters }, file);
+
+        expect(commit).toHaveBeenCalledWith(types.SET_CURRENT_DIFF_FILE, fileHash);
+      });
+
+      it('does nothing more if the path has already been loaded', () => {
+        getters.isTreePathLoaded = () => true;
+
+        diffActions.goToFile({ state, dispatch, getters, commit }, file);
+
+        expect(commit).toHaveBeenCalledWith(types.SET_CURRENT_DIFF_FILE, fileHash);
+        expect(dispatch).toHaveBeenCalledTimes(0);
+      });
+
+      describe('when the tree entry has not been loaded', () => {
+        it('updates location hash', () => {
+          diffActions.goToFile({ state, commit, getters, dispatch }, file);
+
+          expect(document.location.hash).toBe('#test');
+        });
+
+        it('loads the file and then scrolls to it', async () => {
+          diffActions.goToFile({ state, commit, getters, dispatch }, file);
+
+          // Wait for the fetchFileByFile dispatch to return, to trigger scrollToFile
+          await waitForPromises();
+
+          expect(dispatch).toHaveBeenCalledWith('fetchFileByFile');
+          expect(dispatch).toHaveBeenCalledWith('scrollToFile', file);
+          expect(dispatch).toHaveBeenCalledTimes(2);
+        });
+
+        it('shows an alert when there was an error fetching the file', async () => {
+          dispatch = jest.fn().mockRejectedValue();
+
+          diffActions.goToFile({ state, commit, getters, dispatch }, file);
+
+          // Wait for the fetchFileByFile dispatch to return, to trigger the catch
+          await waitForPromises();
+
+          expect(createAlert).toHaveBeenCalledTimes(1);
+          expect(createAlert).toHaveBeenCalledWith({
+            message: expect.stringMatching(LOAD_SINGLE_DIFF_FAILED),
+          });
+        });
+      });
     });
   });
 
@@ -969,12 +1451,11 @@ describe('DiffsStoreActions', () => {
       $emit = jest.spyOn(eventHub, '$emit');
     });
 
-    it('renders and expands file for the given discussion id', () => {
+    it('expands the file for the given discussion id', () => {
       const localState = state({ collapsed: true, renderIt: false });
 
       diffActions.renderFileForDiscussionId({ rootState, state: localState, commit }, '123');
 
-      expect(commit).toHaveBeenCalledWith('RENDER_FILE', localState.diffFiles[0]);
       expect($emit).toHaveBeenCalledTimes(1);
       expect(commonUtils.scrollToElement).toHaveBeenCalledTimes(1);
     });
@@ -1011,18 +1492,12 @@ describe('DiffsStoreActions', () => {
   describe('setShowWhitespace', () => {
     const endpointUpdateUser = 'user/prefs';
     let putSpy;
-    let gon;
 
     beforeEach(() => {
       putSpy = jest.spyOn(axios, 'put');
-      gon = window.gon;
 
       mock.onPut(endpointUpdateUser).reply(HTTP_STATUS_OK, {});
       jest.spyOn(eventHub, '$emit').mockImplementation();
-    });
-
-    afterEach(() => {
-      window.gon = gon;
     });
 
     it('commits SET_SHOW_WHITESPACE', () => {
@@ -1064,18 +1539,6 @@ describe('DiffsStoreActions', () => {
       );
 
       expect(eventHub.$emit).toHaveBeenCalledWith('refetchDiffData');
-    });
-  });
-
-  describe('setRenderIt', () => {
-    it('commits RENDER_FILE', () => {
-      return testAction(
-        diffActions.setRenderIt,
-        'file',
-        {},
-        [{ type: types.RENDER_FILE, payload: 'file' }],
-        [],
-      );
     });
   });
 
@@ -1164,6 +1627,7 @@ describe('DiffsStoreActions', () => {
       name: updatedViewerName,
       automaticallyCollapsed: false,
       manuallyCollapsed: false,
+      forceOpen: false,
     };
     const testData = [{ rich_text: 'test' }, { rich_text: 'file2' }];
     let renamedFile;
@@ -1203,14 +1667,14 @@ describe('DiffsStoreActions', () => {
                 payload: { filePath: testFilePath, lines: [preparedLine, preparedLine] },
               },
             ],
-            [{ type: 'startRenderDiffsQueue' }],
+            [],
           );
         },
       );
     });
   });
 
-  describe('setFileUserCollapsed', () => {
+  describe('setFileCollapsedByUser', () => {
     it('commits SET_FILE_COLLAPSED', () => {
       return testAction(
         diffActions.setFileCollapsedByUser,
@@ -1224,6 +1688,17 @@ describe('DiffsStoreActions', () => {
         ],
         [],
       );
+    });
+  });
+
+  describe('setFileForcedOpen', () => {
+    it('commits SET_FILE_FORCED_OPEN', () => {
+      return testAction(diffActions.setFileForcedOpen, { filePath: 'test', forced: true }, null, [
+        {
+          type: types.SET_FILE_FORCED_OPEN,
+          payload: { filePath: 'test', forced: true },
+        },
+      ]);
     });
   });
 
@@ -1394,6 +1869,54 @@ describe('DiffsStoreActions', () => {
     );
   });
 
+  describe('rereadNoteHash', () => {
+    beforeEach(() => {
+      window.location.hash = 'note_123';
+    });
+
+    it('dispatches setCurrentDiffFileIdFromNote if the hash is a note URL', () => {
+      window.location.hash = 'note_123';
+
+      return testAction(
+        diffActions.rereadNoteHash,
+        {},
+        {},
+        [],
+        [{ type: 'setCurrentDiffFileIdFromNote', payload: '123' }],
+      );
+    });
+
+    it('dispatches fetchFileByFile if the app is in fileByFile mode', () => {
+      window.location.hash = 'note_123';
+
+      return testAction(
+        diffActions.rereadNoteHash,
+        {},
+        { viewDiffsFileByFile: true },
+        [],
+        [{ type: 'setCurrentDiffFileIdFromNote', payload: '123' }, { type: 'fetchFileByFile' }],
+      );
+    });
+
+    it('does not try to fetch the diff file if the app is not in fileByFile mode', () => {
+      window.location.hash = 'note_123';
+
+      return testAction(
+        diffActions.rereadNoteHash,
+        {},
+        { viewDiffsFileByFile: false },
+        [],
+        [{ type: 'setCurrentDiffFileIdFromNote', payload: '123' }],
+      );
+    });
+
+    it('does nothing if the hash is not a note URL', () => {
+      window.location.hash = 'abcdef1234567890';
+
+      return testAction(diffActions.rereadNoteHash, {}, {}, [], []);
+    });
+  });
+
   describe('setCurrentDiffFileIdFromNote', () => {
     it('commits SET_CURRENT_DIFF_FILE', () => {
       const commit = jest.fn();
@@ -1442,6 +1965,16 @@ describe('DiffsStoreActions', () => {
         { flatBlobsList: [{ fileHash: '123' }] },
         [{ type: types.SET_CURRENT_DIFF_FILE, payload: '123' }],
         [],
+      );
+    });
+
+    it('dispatches the fetchFileByFile action when the state value viewDiffsFileByFile is true', () => {
+      return testAction(
+        diffActions.navigateToDiffFileIndex,
+        0,
+        { viewDiffsFileByFile: true, flatBlobsList: [{ fileHash: '123' }] },
+        [{ type: types.SET_CURRENT_DIFF_FILE, payload: '123' }],
+        [{ type: 'fetchFileByFile' }],
       );
     });
   });
@@ -1520,5 +2053,29 @@ describe('DiffsStoreActions', () => {
         expect(commitSpy).toHaveBeenCalledWith(types.SET_MR_FILE_REVIEWS, reviews);
       },
     );
+  });
+
+  describe('toggleFileCommentForm', () => {
+    it('commits TOGGLE_FILE_COMMENT_FORM', () => {
+      return testAction(
+        diffActions.toggleFileCommentForm,
+        'path',
+        {},
+        [{ type: types.TOGGLE_FILE_COMMENT_FORM, payload: 'path' }],
+        [],
+      );
+    });
+  });
+
+  describe('addDraftToFile', () => {
+    it('commits ADD_DRAFT_TO_FILE', () => {
+      return testAction(
+        diffActions.addDraftToFile,
+        { filePath: 'path', draft: 'draft' },
+        {},
+        [{ type: types.ADD_DRAFT_TO_FILE, payload: { filePath: 'path', draft: 'draft' } }],
+        [],
+      );
+    });
   });
 });

@@ -110,10 +110,6 @@ RSpec.describe 'Updating a Snippet', feature_category: :source_code_management d
         end
       end
 
-      it_behaves_like 'a mutation which can mutate a spammable' do
-        let(:service) { Snippets::UpdateService }
-      end
-
       def blob_at(filename)
         snippet.repository.blob_at('HEAD', filename)
       end
@@ -192,16 +188,10 @@ RSpec.describe 'Updating a Snippet', feature_category: :source_code_management d
           stub_session('warden.user.user.key' => [[current_user.id], current_user.authenticatable_salt])
         end
 
-        it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        it_behaves_like 'internal event tracking' do
+          let(:event) { ::Gitlab::UsageDataCounters::EditorUniqueCounter::EDIT_BY_SNIPPET_EDITOR }
           let(:user) { current_user }
-          let(:property) { 'g_edit_by_snippet_ide' }
           let(:namespace) { project.namespace }
-          let(:category) { 'Gitlab::UsageDataCounters::EditorUniqueCounter' }
-          let(:action) { 'ide_edit' }
-          let(:label) { 'usage_activity_by_stage_monthly.create.action_monthly_active_users_ide_edit' }
-          let(:context) do
-            [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name).to_context]
-          end
         end
       end
     end

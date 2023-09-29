@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: howto
 ---
 
-# Use kaniko to build Docker images **(FREE)**
+# Use kaniko to build Docker images **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/45512) in GitLab 11.2. Requires GitLab Runner 11.2 and above.
 
@@ -20,7 +20,7 @@ method:
   to function, which is a significant security concern.
 - Docker-in-Docker generally incurs a performance penalty and can be quite slow.
 
-## Requirements
+## Prerequisites
 
 To use kaniko with GitLab, [a runner](https://docs.gitlab.com/runner/) with one
 of the following executors is required:
@@ -58,7 +58,7 @@ project's Container Registry while tagging it with the Git tag:
 build:
   stage: build
   image:
-    name: gcr.io/kaniko-project/executor:v1.9.0-debug
+    name: gcr.io/kaniko-project/executor:v1.14.0-debug
     entrypoint: [""]
   script:
     - /kaniko/executor
@@ -73,8 +73,10 @@ If you authenticate against the [Dependency Proxy](../../user/packages/dependenc
 you must add the corresponding CI/CD variables for authentication to the `config.json` file:
 
 ```yaml
-- echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"},\"$CI_DEPENDENCY_PROXY_SERVER\":{\"auth\":\"$(printf "%s:%s" ${CI_DEPENDENCY_PROXY_USER} "${CI_DEPENDENCY_PROXY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+- echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"},\"$(echo -n $CI_DEPENDENCY_PROXY_SERVER | awk -F[:] '{print $1}')\":{\"auth\":\"$(printf "%s:%s" ${CI_DEPENDENCY_PROXY_USER} "${CI_DEPENDENCY_PROXY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
 ```
+
+This command strips the port, for example `:443`, from `CI_DEPENDENCY_PROXY_SERVER`, so you don't have to include it when referencing images.
 
 ### Building an image with kaniko behind a proxy
 
@@ -94,7 +96,7 @@ build:
     https_proxy: <your-proxy>
     no_proxy: <your-no-proxy>
   image:
-    name: gcr.io/kaniko-project/executor:v1.9.0-debug
+    name: gcr.io/kaniko-project/executor:v1.14.0-debug
     entrypoint: [""]
   script:
     - /kaniko/executor
@@ -113,7 +115,7 @@ build:
 You can build [multi-arch images](https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/)
 inside a container by using [`manifest-tool`](https://github.com/estesp/manifest-tool).
 
-For a detailed guide on how to build a multi-arch image, read [Building a multi-arch container image in unprivileged containers](https://ingenuity.siemens.com/2022/07/building-a-multi-arch-container-image-in-unprivileged-containers/).
+For a detailed guide on how to build a multi-arch image, read [Building a multi-arch container image in unprivileged containers](https://blog.siemens.com/2022/07/building-a-multi-arch-container-image-in-unprivileged-containers/).
 
 ## Using a registry with a custom certificate
 
@@ -134,7 +136,7 @@ before_script:
   - |
     echo "-----BEGIN CERTIFICATE-----
     ...
-    -----END CERTIFICATE-----" >> /kaniko/ssl/certs/additional-ca-cert-bundle.crt
+    -----END CERTIFICATE-----" >> /kaniko/ssl/certs/ca-certificates.crt
 ```
 
 ## Video walkthrough of a working example
@@ -156,3 +158,25 @@ on what other GitLab CI patterns are demonstrated are available at the project p
 If you receive this error, it might be due to an outside proxy. Setting the `http_proxy`
 and `https_proxy` [environment variables](../../administration/packages/container_registry.md#running-the-docker-daemon-with-a-proxy)
 can fix the problem.
+
+### Error: `kaniko should only be run inside of a container, run with the --force flag if you are sure you want to continue`
+
+There is a known incompatibility introduced by Docker Engine 20.10.
+
+When the host uses Docker Engine 20.10 or newer, then the `gcr.io/kaniko-project/executor:debug` image in a version
+older than v1.9.0 does not work as expected.
+
+When you try to build the image, Kaniko fails with:
+
+```plaintext
+kaniko should only be run inside of a container, run with the --force flag if you are sure you want to continue
+```
+
+To resolve this issue, update the `gcr.io/kaniko-project/executor:debug` container to version at least v1.9.0,
+for example `gcr.io/kaniko-project/executor:v1.14.0-debug`.
+
+The opposite configuration (`gcr.io/kaniko-project/executor:v1.14.0-debug` image and Docker Engine
+on the host in version 19.06.x or older) works without problems. For the best strategy, you should
+frequently test and update job environment versions to the newest. This brings new features, improved
+security and - for this specific case - makes the upgrade on underlying Docker Engine on the runner's
+host transparent for the job.

@@ -145,10 +145,12 @@ class WikiPage
     default_per_page = Kaminari.config.default_per_page
     offset = [options[:page].to_i - 1, 0].max * options.fetch(:per_page, default_per_page)
 
-    wiki.repository.commits(wiki.default_branch,
-                            path: page.path,
-                            limit: options.fetch(:limit, default_per_page),
-                            offset: offset)
+    wiki.repository.commits(
+      wiki.default_branch,
+      path: page.path,
+      limit: options.fetch(:limit, default_per_page),
+      offset: offset
+    )
   end
 
   def count_versions
@@ -282,10 +284,9 @@ class WikiPage
 
   def content_changed?
     if persisted?
-      # gollum-lib always converts CRLFs to LFs in Gollum::Wiki#normalize,
-      # so we need to do the same here.
-      # Also see https://gitlab.com/gitlab-org/gitlab/-/issues/21431
-      raw_content.delete("\r") != page&.text_data
+      # To avoid end-of-line differences depending if Git is enforcing CRLF or not,
+      # we compare just the Wiki Content.
+      raw_content.lines(chomp: true) != page&.text_data&.lines(chomp: true)
     else
       raw_content.present?
     end

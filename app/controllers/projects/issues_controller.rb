@@ -20,7 +20,7 @@ class Projects::IssuesController < Projects::ApplicationController
   before_action :disable_query_limiting, only: [:create_merge_request, :move, :bulk_update]
   before_action :check_issues_available!
   before_action :issue, unless: ->(c) { ISSUES_EXCEPT_ACTIONS.include?(c.action_name.to_sym) }
-  before_action :redirect_if_work_item, unless: ->(c) { ISSUES_EXCEPT_ACTIONS.include?(c.action_name.to_sym) }
+  before_action :redirect_if_work_item, unless: ->(c) { work_item_redirect_except_actions.include?(c.action_name.to_sym) }
   before_action :require_incident_for_incident_routes, only: :show
 
   after_action :log_issue_show, only: :show
@@ -46,15 +46,20 @@ class Projects::IssuesController < Projects::ApplicationController
 
   before_action do
     push_frontend_feature_flag(:preserve_unchanged_markdown, project)
-    push_frontend_feature_flag(:content_editor_on_issues, project)
+    push_frontend_feature_flag(:content_editor_on_issues, project&.group)
+    push_force_frontend_feature_flag(:content_editor_on_issues, project&.content_editor_on_issues_feature_flag_enabled?)
     push_frontend_feature_flag(:service_desk_new_note_email_native_attachments, project)
+    push_frontend_feature_flag(:saved_replies, current_user)
+    push_frontend_feature_flag(:issues_grid_view)
+    push_frontend_feature_flag(:service_desk_ticket)
+    push_frontend_feature_flag(:issues_list_drawer, project)
   end
 
   before_action only: [:index, :show] do
     push_force_frontend_feature_flag(:work_items, project&.work_items_feature_flag_enabled?)
   end
 
-  before_action only: :index do
+  before_action only: [:index, :service_desk] do
     push_frontend_feature_flag(:or_issuable_queries, project)
     push_frontend_feature_flag(:frontend_caching, project&.group)
   end
@@ -65,8 +70,9 @@ class Projects::IssuesController < Projects::ApplicationController
     push_force_frontend_feature_flag(:work_items_mvc, project&.work_items_mvc_feature_flag_enabled?)
     push_force_frontend_feature_flag(:work_items_mvc_2, project&.work_items_mvc_2_feature_flag_enabled?)
     push_frontend_feature_flag(:epic_widget_edit_confirmation, project)
-    push_frontend_feature_flag(:use_iid_in_work_items_path, project&.group)
-    push_frontend_feature_flag(:incident_event_tags, project)
+    push_frontend_feature_flag(:moved_mr_sidebar, project)
+    push_frontend_feature_flag(:move_close_into_dropdown, project)
+    push_force_frontend_feature_flag(:linked_work_items, project.linked_work_items_feature_flag_enabled?)
   end
 
   around_action :allow_gitaly_ref_name_caching, only: [:discussions]
@@ -107,12 +113,6 @@ class Projects::IssuesController < Projects::ApplicationController
     respond_to do |format|
       format.html
       format.atom { render layout: 'xml' }
-      format.json do
-        render json: {
-          html: view_to_html_string("projects/issues/_issues"),
-          labels: @labels.as_json(methods: :text_color)
-        }
-      end
     end
   end
 
@@ -156,8 +156,7 @@ class Projects::IssuesController < Projects::ApplicationController
       discussion_to_resolve: params[:discussion_to_resolve]
     )
 
-    spam_params = ::Spam::SpamParams.new_from_request(request: request)
-    service = ::Issues::CreateService.new(container: project, current_user: current_user, params: create_params, spam_params: spam_params)
+    service = ::Issues::CreateService.new(container: project, current_user: current_user, params: create_params)
     result = service.execute
 
     # Only irrecoverable errors such as unauthorized user won't contain an issue in the response
@@ -276,7 +275,12 @@ class Projects::IssuesController < Projects::ApplicationController
 
   def service_desk
     @issues = @issuables
-    @users.push(User.support_bot)
+  end
+
+  def discussions
+    Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/425834')
+
+    super
   end
 
   protected
@@ -331,6 +335,7 @@ class Projects::IssuesController < Projects::ApplicationController
   end
 
   def issue_params
+    params[:issue][:issue_type] ||= params[:issue_type] if params[:issue_type].present?
     all_params = params.require(:issue).permit(
       *issue_params_attributes,
       sentry_issue_attributes: [:sentry_issue_identifier]
@@ -371,8 +376,11 @@ class Projects::IssuesController < Projects::ApplicationController
   end
 
   def update_service
-    spam_params = ::Spam::SpamParams.new_from_request(request: request)
-    ::Issues::UpdateService.new(container: project, current_user: current_user, params: issue_params, spam_params: spam_params)
+    ::Issues::UpdateService.new(
+      container: project,
+      current_user: current_user,
+      params: issue_params,
+      perform_spam_check: true)
   end
 
   def finder_type
@@ -389,6 +397,10 @@ class Projects::IssuesController < Projects::ApplicationController
   end
 
   private
+
+  def work_item_redirect_except_actions
+    ISSUES_EXCEPT_ACTIONS
+  end
 
   def render_by_create_result_error(result)
     Gitlab::AppLogger.warn(
@@ -419,7 +431,7 @@ class Projects::IssuesController < Projects::ApplicationController
 
     if service_desk?
       options.reject! { |key| key == 'author_username' || key == 'author_id' }
-      options[:author_id] = User.support_bot
+      options[:author_id] = Users::Internal.support_bot
     end
 
     options
@@ -444,16 +456,12 @@ class Projects::IssuesController < Projects::ApplicationController
   def redirect_if_work_item
     return unless use_work_items_path?(issue)
 
-    if Feature.enabled?(:use_iid_in_work_items_path, project.group)
-      redirect_to project_work_items_path(project, issue.iid, params: request.query_parameters.merge(iid_path: true))
-    else
-      redirect_to project_work_items_path(project, issue.id, params: request.query_parameters)
-    end
+    redirect_to project_work_items_path(project, issue.iid, params: request.query_parameters)
   end
 
   def require_incident_for_incident_routes
     return unless params[:incident_tab].present?
-    return if issue.incident?
+    return if issue.work_item_type&.incident?
 
     # Redirect instead of 404 to gracefully handle
     # issue type changes

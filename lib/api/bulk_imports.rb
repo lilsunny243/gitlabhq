@@ -33,7 +33,8 @@ module API
     end
 
     before do
-      not_found! unless Gitlab::CurrentSettings.bulk_import_enabled?
+      not_found! unless Gitlab::CurrentSettings.bulk_import_enabled? ||
+        Feature.enabled?(:override_bulk_import_disabled, current_user, type: :ops)
 
       authenticate!
     end
@@ -59,8 +60,8 @@ module API
         requires :entities, type: Array, desc: 'List of entities to import' do
           requires :source_type,
                    type: String,
-                   desc: 'Source entity type (only `group_entity` is supported)',
-                   values: %w[group_entity]
+                   desc: 'Source entity type',
+                   values: %w[group_entity project_entity]
           requires :source_full_path,
                    type: String,
                    desc: 'Relative path of the source entity to import',

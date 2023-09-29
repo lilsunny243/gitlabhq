@@ -25,13 +25,7 @@ module API
         end
 
         post ':id/metrics/user_starred_dashboards' do
-          result = ::Metrics::UsersStarredDashboards::CreateService.new(current_user, user_project, params[:dashboard_path]).execute
-
-          if result.success?
-            present result.payload, with: Entities::Metrics::UserStarredDashboard
-          else
-            error!({ errors: result.message }, 400)
-          end
+          not_found!
         end
 
         desc 'Remove a star from a dashboard' do
@@ -50,14 +44,7 @@ module API
         end
 
         delete ':id/metrics/user_starred_dashboards' do
-          result = ::Metrics::UsersStarredDashboards::DeleteService.new(current_user, user_project, params[:dashboard_path]).execute
-
-          if result.success?
-            status :ok
-            result.payload
-          else
-            status :bad_request
-          end
+          not_found!
         end
       end
     end

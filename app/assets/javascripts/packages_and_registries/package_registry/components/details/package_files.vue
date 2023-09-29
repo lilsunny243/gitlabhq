@@ -1,7 +1,22 @@
 <script>
-import { GlLink, GlTable, GlDropdownItem, GlDropdown, GlButton, GlFormCheckbox } from '@gitlab/ui';
-import { last } from 'lodash';
+import {
+  GlAlert,
+  GlLink,
+  GlTable,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownItem,
+  GlButton,
+  GlFormCheckbox,
+  GlLoadingIcon,
+  GlModal,
+  GlSprintf,
+  GlKeysetPagination,
+} from '@gitlab/ui';
+import * as Sentry from '@sentry/browser';
+import { createAlert, VARIANT_SUCCESS, VARIANT_WARNING } from '~/alert';
+import { NEXT, PREV } from '~/vue_shared/components/pagination/constants';
 import { numberToHumanSize } from '~/lib/utils/number_utils';
+import { scrollToElement } from '~/lib/utils/common_utils';
 import { __, s__ } from '~/locale';
 import FileSha from '~/packages_and_registries/package_registry/components/details/file_sha.vue';
 import Tracking from '~/tracking';
@@ -9,46 +24,103 @@ import { packageTypeToTrackCategory } from '~/packages_and_registries/package_re
 import FileIcon from '~/vue_shared/components/file_icon.vue';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import {
+  FETCH_PACKAGE_FILES_ERROR_MESSAGE,
+  GRAPHQL_PACKAGE_FILES_PAGE_SIZE,
   REQUEST_DELETE_SELECTED_PACKAGE_FILE_TRACKING_ACTION,
   SELECT_PACKAGE_FILE_TRACKING_ACTION,
+  DOWNLOAD_PACKAGE_ASSET_TRACKING_ACTION,
+  CANCEL_DELETE_PACKAGE_FILE_TRACKING_ACTION,
+  DELETE_PACKAGE_FILE_TRACKING_ACTION,
+  REQUEST_DELETE_PACKAGE_FILE_TRACKING_ACTION,
   TRACKING_LABEL_PACKAGE_ASSET,
   TRACKING_ACTION_EXPAND_PACKAGE_ASSET,
+  DELETE_PACKAGE_FILE_ERROR_MESSAGE,
+  DELETE_PACKAGE_FILE_SUCCESS_MESSAGE,
+  DELETE_PACKAGE_FILES_ERROR_MESSAGE,
+  DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
+  DELETE_PACKAGE_FILES_TRACKING_ACTION,
+  DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT,
+  DELETE_LAST_PACKAGE_FILE_MODAL_CONTENT,
 } from '~/packages_and_registries/package_registry/constants';
+import getPackageFilesQuery from '~/packages_and_registries/package_registry/graphql/queries/get_package_files.query.graphql';
+import destroyPackageFilesMutation from '~/packages_and_registries/package_registry/graphql/mutations/destroy_package_files.mutation.graphql';
 
 export default {
   name: 'PackageFiles',
   components: {
+    GlAlert,
     GlLink,
     GlTable,
-    GlDropdown,
-    GlDropdownItem,
+    GlDisclosureDropdown,
+    GlDisclosureDropdownItem,
     GlFormCheckbox,
     GlButton,
+    GlLoadingIcon,
+    GlModal,
+    GlKeysetPagination,
+    GlSprintf,
     FileIcon,
     TimeAgoTooltip,
     FileSha,
   },
   mixins: [Tracking.mixin()],
+  trackingActions: {
+    DELETE_PACKAGE_FILE_TRACKING_ACTION,
+    REQUEST_DELETE_PACKAGE_FILE_TRACKING_ACTION,
+    CANCEL_DELETE_PACKAGE_FILE_TRACKING_ACTION,
+    DOWNLOAD_PACKAGE_ASSET_TRACKING_ACTION,
+  },
   props: {
     canDelete: {
       type: Boolean,
       required: false,
       default: false,
     },
-    isLoading: {
-      type: Boolean,
-      required: false,
-      default: false,
+    packageId: {
+      type: String,
+      required: true,
     },
+    packageType: {
+      type: String,
+      required: true,
+    },
+    projectPath: {
+      type: String,
+      required: true,
+    },
+  },
+  apollo: {
     packageFiles: {
-      type: Array,
-      required: false,
-      default: () => [],
+      query: getPackageFilesQuery,
+      context: {
+        isSingleRequest: true,
+      },
+      variables() {
+        return this.queryVariables;
+      },
+      update(data) {
+        return data.package?.packageFiles?.nodes ?? [];
+      },
+      result({ data }) {
+        const { packageFiles } = data?.package ?? {};
+        if (packageFiles?.pageInfo) {
+          this.pageInfo = packageFiles.pageInfo;
+        }
+      },
+      error(error) {
+        this.fetchPackageFilesError = true;
+        Sentry.captureException(error);
+      },
     },
   },
   data() {
     return {
+      fetchPackageFilesError: false,
+      filesToDelete: [],
+      packageFiles: [],
+      mutationLoading: false,
       selectedReferences: [],
+      pageInfo: {},
     };
   },
   computed: {
@@ -56,22 +128,19 @@ export default {
       return this.selectedReferences.length > 0;
     },
     areAllFilesSelected() {
-      return this.packageFiles.every(this.isSelected);
+      return this.packageFiles.length > 0 && this.packageFiles.every(this.isSelected);
     },
     filesTableRows() {
       return this.packageFiles.map((pf) => ({
         ...pf,
         size: this.formatSize(pf.size),
-        pipeline: last(pf.pipelines),
       }));
     },
     hasSelectedSomeFiles() {
       return this.areFilesSelected && !this.areAllFilesSelected;
     },
-    showCommitColumn() {
-      // note that this is always false for now since we do not return
-      // pipelines associated to files for performance concerns
-      return this.filesTableRows.some((row) => Boolean(row.pipeline?.id));
+    isLoading() {
+      return this.$apollo.queries.packageFiles.loading || this.mutationLoading;
     },
     filesTableHeaderFields() {
       return [
@@ -84,11 +153,6 @@ export default {
         {
           key: 'name',
           label: __('Name'),
-        },
-        {
-          key: 'commit',
-          label: __('Commit'),
-          hide: !this.showCommitColumn,
         },
         {
           key: 'size',
@@ -108,10 +172,39 @@ export default {
         },
       ].filter((c) => !c.hide);
     },
+    queryVariables() {
+      return {
+        id: this.packageId,
+        first: GRAPHQL_PACKAGE_FILES_PAGE_SIZE,
+      };
+    },
     tracking() {
       return {
         category: packageTypeToTrackCategory(this.packageType),
       };
+    },
+    refetchQueriesData() {
+      return [
+        {
+          query: getPackageFilesQuery,
+          variables: this.queryVariables,
+        },
+      ];
+    },
+    modalAction() {
+      return this.hasOneItem(this.filesToDelete)
+        ? this.$options.modal.fileDeletePrimaryAction
+        : this.$options.modal.filesDeletePrimaryAction;
+    },
+    modalTitle() {
+      return this.hasOneItem(this.filesToDelete)
+        ? this.$options.i18n.deleteFileModalTitle
+        : this.$options.i18n.deleteFilesModalTitle;
+    },
+    modalDescription() {
+      return this.hasOneItem(this.filesToDelete)
+        ? this.$options.i18n.deleteFileModalContent
+        : this.$options.i18n.deleteFilesModalContent;
     },
   },
   methods: {
@@ -135,13 +228,133 @@ export default {
     },
     handleFileDeleteSelected() {
       this.track(REQUEST_DELETE_SELECTED_PACKAGE_FILE_TRACKING_ACTION);
-      this.$emit('delete-files', this.selectedReferences);
+      this.handleFileDelete(this.selectedReferences);
+    },
+    async deletePackageFiles(ids) {
+      this.mutationLoading = true;
+      try {
+        const { data } = await this.$apollo.mutate({
+          mutation: destroyPackageFilesMutation,
+          variables: {
+            projectPath: this.projectPath,
+            ids,
+          },
+          awaitRefetchQueries: true,
+          refetchQueries: this.refetchQueriesData,
+        });
+        if (data?.destroyPackageFiles?.errors[0]) {
+          throw data.destroyPackageFiles.errors[0];
+        }
+        createAlert({
+          message: this.hasOneItem(ids)
+            ? DELETE_PACKAGE_FILE_SUCCESS_MESSAGE
+            : DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
+          variant: VARIANT_SUCCESS,
+        });
+      } catch (error) {
+        createAlert({
+          message: this.hasOneItem(ids)
+            ? DELETE_PACKAGE_FILE_ERROR_MESSAGE
+            : DELETE_PACKAGE_FILES_ERROR_MESSAGE,
+          variant: VARIANT_WARNING,
+          captureError: true,
+          error,
+        });
+      } finally {
+        this.mutationLoading = false;
+        this.filesToDelete = [];
+        this.selectedReferences = [];
+      }
+    },
+    handleFileDelete(files) {
+      this.track(REQUEST_DELETE_PACKAGE_FILE_TRACKING_ACTION);
+      if (files.length === this.packageFiles.length && !this.pageInfo.hasNextPage) {
+        this.$emit(
+          'delete-all-files',
+          this.hasOneItem(files)
+            ? DELETE_LAST_PACKAGE_FILE_MODAL_CONTENT
+            : DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT,
+        );
+      } else {
+        this.filesToDelete = files;
+        this.$refs.deleteFilesModal.show();
+      }
+    },
+    hasOneItem(items) {
+      return items.length === 1;
+    },
+    confirmFilesDelete() {
+      if (this.hasOneItem(this.filesToDelete)) {
+        this.track(DELETE_PACKAGE_FILE_TRACKING_ACTION);
+      } else {
+        this.track(DELETE_PACKAGE_FILES_TRACKING_ACTION);
+      }
+      this.deletePackageFiles(this.filesToDelete.map((file) => file.id));
+    },
+    fetchPreviousFilesPage() {
+      return this.$apollo.queries.packageFiles
+        .fetchMore({
+          variables: {
+            first: null,
+            last: GRAPHQL_PACKAGE_FILES_PAGE_SIZE,
+            before: this.pageInfo.startCursor,
+          },
+        })
+        .then(() => {
+          this.scrollAndFocus();
+        });
+    },
+    fetchNextFilesPage() {
+      return this.$apollo.queries.packageFiles
+        .fetchMore({
+          variables: {
+            first: GRAPHQL_PACKAGE_FILES_PAGE_SIZE,
+            last: null,
+            after: this.pageInfo.endCursor,
+          },
+        })
+        .then(() => {
+          this.scrollAndFocus();
+        });
+    },
+    scrollAndFocus() {
+      scrollToElement(this.$el);
+
+      // get first focusable row
+      const focusable = this.$el.querySelector('tbody tr');
+      if (focusable) {
+        focusable.focus();
+      }
     },
   },
   i18n: {
-    deleteFile: __('Delete asset'),
+    deleteFile: s__('PackageRegistry|Delete asset'),
+    deleteFileModalTitle: s__('PackageRegistry|Delete package asset'),
+    deleteFileModalContent: s__(
+      'PackageRegistry|You are about to delete %{filename}. This is a destructive action that may render your package unusable. Are you sure?',
+    ),
+    deleteFilesModalTitle: s__('PackageRegistry|Delete %{count} assets'),
+    deleteFilesModalContent: s__(
+      'PackageRegistry|You are about to delete %{count} assets. This operation is irreversible.',
+    ),
     deleteSelected: s__('PackageRegistry|Delete selected'),
     moreActionsText: __('More actions'),
+    fetchPackageFilesErrorMessage: FETCH_PACKAGE_FILES_ERROR_MESSAGE,
+    prev: PREV,
+    next: NEXT,
+  },
+  modal: {
+    fileDeletePrimaryAction: {
+      text: __('Delete'),
+      attributes: { variant: 'danger', category: 'primary' },
+    },
+    filesDeletePrimaryAction: {
+      text: s__('PackageRegistry|Permanently delete assets'),
+      attributes: { variant: 'danger', category: 'primary' },
+    },
+    cancelAction: {
+      text: __('Cancel'),
+    },
   },
 };
 </script>
@@ -151,7 +364,7 @@ export default {
     <div class="gl-display-flex gl-align-items-center gl-justify-content-space-between">
       <h3 class="gl-font-lg gl-mt-5">{{ __('Assets') }}</h3>
       <gl-button
-        v-if="canDelete"
+        v-if="!fetchPackageFilesError && canDelete"
         :disabled="isLoading || !areFilesSelected"
         category="secondary"
         variant="danger"
@@ -161,106 +374,156 @@ export default {
         {{ $options.i18n.deleteSelected }}
       </gl-button>
     </div>
-    <gl-table
-      :fields="filesTableHeaderFields"
-      :items="filesTableRows"
-      show-empty
-      selectable
-      select-mode="multi"
-      selected-variant="primary"
-      :tbody-tr-attr="{ 'data-testid': 'file-row' }"
-      @row-selected="updateSelectedReferences"
+    <gl-alert
+      v-if="fetchPackageFilesError"
+      variant="danger"
+      @dismiss="fetchPackageFilesError = false"
     >
-      <template #head(checkbox)="{ selectAllRows, clearSelected }">
-        <gl-form-checkbox
-          v-if="canDelete"
-          data-testid="package-files-checkbox-all"
-          :checked="areAllFilesSelected"
-          :indeterminate="hasSelectedSomeFiles"
-          @change="areAllFilesSelected ? clearSelected() : selectAllRows()"
-        />
-      </template>
-
-      <template #cell(checkbox)="{ rowSelected, selectRow, unselectRow }">
-        <gl-form-checkbox
-          v-if="canDelete"
-          class="gl-mt-1"
-          :checked="rowSelected"
-          data-testid="package-files-checkbox"
-          @change="rowSelected ? unselectRow() : selectRow()"
-        />
-      </template>
-
-      <template #cell(name)="{ item, toggleDetails, detailsShowing }">
-        <gl-button
-          v-if="hasDetails(item)"
-          :icon="detailsShowing ? 'chevron-up' : 'chevron-down'"
-          :aria-label="detailsShowing ? __('Collapse') : __('Expand')"
-          category="tertiary"
-          size="small"
-          @click="
-            toggleDetails();
-            trackToggleDetails(detailsShowing);
-          "
-        />
-        <gl-link
-          :href="item.downloadPath"
-          class="gl-text-gray-500"
-          data-testid="download-link"
-          @click="$emit('download-file')"
-        >
-          <file-icon
-            :file-name="item.fileName"
-            css-classes="gl-relative file-icon"
-            class="gl-mr-1 gl-relative"
+      {{ $options.i18n.fetchPackageFilesErrorMessage }}
+    </gl-alert>
+    <template v-else>
+      <gl-table
+        ref="table"
+        :busy="isLoading"
+        :fields="filesTableHeaderFields"
+        :items="filesTableRows"
+        show-empty
+        selectable
+        select-mode="multi"
+        selected-variant="primary"
+        :tbody-tr-attr="{ 'data-testid': 'file-row' }"
+        @row-selected="updateSelectedReferences"
+      >
+        <template #table-busy>
+          <gl-loading-icon size="lg" class="gl-my-5" />
+        </template>
+        <template #head(checkbox)="{ selectAllRows, clearSelected }">
+          <gl-form-checkbox
+            v-if="canDelete"
+            data-testid="package-files-checkbox-all"
+            :checked="areAllFilesSelected"
+            :indeterminate="hasSelectedSomeFiles"
+            @change="areAllFilesSelected ? clearSelected() : selectAllRows()"
           />
-          <span>{{ item.fileName }}</span>
-        </gl-link>
-      </template>
+        </template>
 
-      <template #cell(commit)="{ item }">
-        <gl-link
-          v-if="item.pipeline && item.pipeline"
-          :href="item.pipeline.commitPath"
-          class="gl-text-gray-500"
-          data-testid="commit-link"
-          >{{ item.pipeline.sha }}
-        </gl-link>
-      </template>
-
-      <template #cell(created)="{ item }">
-        <time-ago-tooltip :time="item.createdAt" />
-      </template>
-
-      <template #cell(actions)="{ item }">
-        <gl-dropdown
-          category="tertiary"
-          icon="ellipsis_v"
-          :text-sr-only="true"
-          :text="$options.i18n.moreActionsText"
-          no-caret
-          right
-        >
-          <gl-dropdown-item data-testid="delete-file" @click="$emit('delete-files', [item])">
-            {{ $options.i18n.deleteFile }}
-          </gl-dropdown-item>
-        </gl-dropdown>
-      </template>
-
-      <template #row-details="{ item }">
-        <div
-          class="gl-display-flex gl-flex-direction-column gl-flex-grow-1 gl-bg-gray-10 gl-rounded-base gl-inset-border-1-gray-100"
-        >
-          <file-sha
-            v-if="item.fileSha256"
-            data-testid="sha-256"
-            title="SHA-256"
-            :sha="item.fileSha256"
+        <template #cell(checkbox)="{ rowSelected, selectRow, unselectRow }">
+          <gl-form-checkbox
+            v-if="canDelete"
+            class="gl-mt-1"
+            :checked="rowSelected"
+            data-testid="package-files-checkbox"
+            @change="rowSelected ? unselectRow() : selectRow()"
           />
-          <file-sha v-if="item.fileMd5" data-testid="md5" title="MD5" :sha="item.fileMd5" />
-          <file-sha v-if="item.fileSha1" data-testid="sha-1" title="SHA-1" :sha="item.fileSha1" />
-        </div>
+        </template>
+
+        <template #cell(name)="{ item, toggleDetails, detailsShowing }">
+          <gl-button
+            v-if="hasDetails(item)"
+            :icon="detailsShowing ? 'chevron-up' : 'chevron-down'"
+            :aria-label="detailsShowing ? __('Collapse') : __('Expand')"
+            data-testid="toggle-details-button"
+            category="tertiary"
+            size="small"
+            @click="
+              toggleDetails();
+              trackToggleDetails(detailsShowing);
+            "
+          />
+          <gl-link
+            :href="item.downloadPath"
+            class="gl-text-gray-500"
+            data-testid="download-link"
+            @click="track($options.trackingActions.DOWNLOAD_PACKAGE_ASSET_TRACKING_ACTION)"
+          >
+            <file-icon
+              :file-name="item.fileName"
+              css-classes="gl-relative file-icon"
+              class="gl-mr-1 gl-relative"
+            />
+            <span>{{ item.fileName }}</span>
+          </gl-link>
+        </template>
+
+        <template #cell(created)="{ item }">
+          <time-ago-tooltip :time="item.createdAt" />
+        </template>
+
+        <template #cell(actions)="{ item }">
+          <gl-disclosure-dropdown
+            category="tertiary"
+            icon="ellipsis_v"
+            placement="right"
+            :toggle-text="$options.i18n.moreActionsText"
+            text-sr-only
+            no-caret
+          >
+            <gl-disclosure-dropdown-item
+              data-testid="delete-file"
+              @action="handleFileDelete([item])"
+            >
+              <template #list-item>
+                {{ $options.i18n.deleteFile }}
+              </template>
+            </gl-disclosure-dropdown-item>
+          </gl-disclosure-dropdown>
+        </template>
+
+        <template #row-details="{ item }">
+          <div
+            class="gl-display-flex gl-flex-direction-column gl-flex-grow-1 gl-bg-gray-10 gl-rounded-base gl-inset-border-1-gray-100"
+          >
+            <file-sha
+              v-if="item.fileSha256"
+              data-testid="sha-256"
+              title="SHA-256"
+              :sha="item.fileSha256"
+            />
+            <file-sha v-if="item.fileMd5" data-testid="md5" title="MD5" :sha="item.fileMd5" />
+            <file-sha v-if="item.fileSha1" data-testid="sha-1" title="SHA-1" :sha="item.fileSha1" />
+          </div>
+        </template>
+      </gl-table>
+      <div class="gl-display-flex gl-justify-content-center">
+        <gl-keyset-pagination
+          :disabled="isLoading"
+          v-bind="pageInfo"
+          :prev-text="$options.i18n.prev"
+          :next-text="$options.i18n.next"
+          class="gl-mt-3"
+          @prev="fetchPreviousFilesPage"
+          @next="fetchNextFilesPage"
+        />
+      </div>
+    </template>
+
+    <gl-modal
+      ref="deleteFilesModal"
+      size="sm"
+      modal-id="delete-files-modal"
+      :action-primary="modalAction"
+      :action-cancel="$options.modal.cancelAction"
+      data-testid="delete-files-modal"
+      @primary="confirmFilesDelete"
+      @canceled="track($options.trackingActions.CANCEL_DELETE_PACKAGE_FILE)"
+    >
+      <template #modal-title>
+        <gl-sprintf :message="modalTitle">
+          <template #count>
+            {{ filesToDelete.length }}
+          </template>
+        </gl-sprintf>
       </template>
-    </gl-table>
+
+      <gl-sprintf :message="modalDescription">
+        <template #filename>
+          <strong>{{ filesToDelete[0].fileName }}</strong>
+        </template>
+
+        <template #count>
+          {{ filesToDelete.length }}
+        </template>
+      </gl-sprintf>
+    </gl-modal>
   </div>
 </template>

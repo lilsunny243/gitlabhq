@@ -3,7 +3,7 @@
 module Gitlab
   module Instrumentation
     module RedisInterceptor
-      APDEX_EXCLUDE = %w[brpop blpop brpoplpush bzpopmin bzpopmax xread xreadgroup].freeze
+      APDEX_EXCLUDE = %w[brpop blpop brpoplpush bzpopmin bzpopmax command xread xreadgroup].freeze
 
       def call(command)
         instrument_call([command]) do
@@ -12,7 +12,7 @@ module Gitlab
       end
 
       def call_pipeline(pipeline)
-        instrument_call(pipeline.commands) do
+        instrument_call(pipeline.commands, true) do
           super
         end
       end
@@ -30,9 +30,10 @@ module Gitlab
 
       private
 
-      def instrument_call(commands)
+      def instrument_call(commands, pipelined = false)
         start = Gitlab::Metrics::System.monotonic_time # must come first so that 'start' is always defined
         instrumentation_class.instance_count_request(commands.size)
+        instrumentation_class.instance_count_pipelined_request(commands.size) if pipelined
 
         if !instrumentation_class.redis_cluster_validate!(commands) && ::RequestStore.active?
           instrumentation_class.increment_cross_slot_request_count

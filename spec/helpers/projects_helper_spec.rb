@@ -6,11 +6,12 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   include ProjectForksHelper
   include AfterNextHelpers
 
-  let_it_be_with_reload(:project) { create(:project) }
+  let_it_be_with_reload(:project) { create(:project, :repository) }
   let_it_be_with_refind(:project_with_repo) { create(:project, :repository) }
   let_it_be(:user) { create(:user) }
 
   before do
+    allow(helper).to receive(:current_user).and_return(user)
     helper.instance_variable_set(:@project, project)
   end
 
@@ -76,14 +77,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
   end
 
-  describe "#project_status_css_class" do
-    it "returns appropriate class" do
-      expect(project_status_css_class("started")).to eq("table-active")
-      expect(project_status_css_class("failed")).to eq("table-danger")
-      expect(project_status_css_class("finished")).to eq("table-success")
-    end
-  end
-
   describe "can_change_visibility_level?" do
     let_it_be(:user) { create(:project_member, :reporter, user: create(:user), project: project).user }
 
@@ -125,83 +118,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
   end
 
-  describe "readme_cache_key" do
-    let(:project) { project_with_repo }
-
-    it "returns a valid cach key" do
-      expect(helper.send(:readme_cache_key)).to eq("#{project.full_path}-#{project.commit.id}-readme")
-    end
-
-    it "returns a valid cache key if HEAD does not exist" do
-      allow(project).to receive(:commit) { nil }
-
-      expect(helper.send(:readme_cache_key)).to eq("#{project.full_path}-nil-readme")
-    end
-  end
-
-  describe "#project_list_cache_key", :clean_gitlab_redis_cache do
-    let(:project) { project_with_repo }
-
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-      allow(helper).to receive(:can?).with(user, :read_cross_project) { true }
-      allow(user).to receive(:max_member_access_for_project).and_return(40)
-      allow(Gitlab::I18n).to receive(:locale).and_return('es')
-    end
-
-    it "includes the route" do
-      expect(helper.project_list_cache_key(project)).to include(project.route.cache_key)
-    end
-
-    it "includes the project" do
-      expect(helper.project_list_cache_key(project)).to include(project.cache_key)
-    end
-
-    it "includes the last activity date" do
-      expect(helper.project_list_cache_key(project)).to include(project.last_activity_date)
-    end
-
-    it "includes the controller name" do
-      expect(helper.controller).to receive(:controller_name).and_return("testcontroller")
-
-      expect(helper.project_list_cache_key(project)).to include("testcontroller")
-    end
-
-    it "includes the controller action" do
-      expect(helper.controller).to receive(:action_name).and_return("testaction")
-
-      expect(helper.project_list_cache_key(project)).to include("testaction")
-    end
-
-    it "includes the application settings" do
-      settings = Gitlab::CurrentSettings.current_application_settings
-
-      expect(helper.project_list_cache_key(project)).to include(settings.cache_key)
-    end
-
-    it "includes a version" do
-      expect(helper.project_list_cache_key(project).last).to start_with('v')
-    end
-
-    it 'includes whether or not the user can read cross project' do
-      expect(helper.project_list_cache_key(project)).to include('cross-project:true')
-    end
-
-    it "includes the pipeline status when there is a status" do
-      create(:ci_pipeline, :success, project: project, sha: project.commit.sha)
-
-      expect(helper.project_list_cache_key(project)).to include("pipeline-status/#{project.commit.sha}-success")
-    end
-
-    it "includes the user locale" do
-      expect(helper.project_list_cache_key(project)).to include('es')
-    end
-
-    it "includes the user max member access" do
-      expect(helper.project_list_cache_key(project)).to include('access:40')
-    end
-  end
-
   describe '#load_pipeline_status' do
     it 'loads the pipeline status in batch' do
       helper.load_pipeline_status([project])
@@ -212,11 +128,81 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
   end
 
-  describe '#show_no_ssh_key_message?' do
+  describe '#last_pipeline_from_status_cache' do
     before do
-      allow(helper).to receive(:current_user).and_return(user)
+      # clear cross-example caches
+      project_with_repo.pipeline_status.delete_from_cache
+      project_with_repo.instance_variable_set(:@pipeline_status, nil)
     end
 
+    context 'without a pipeline' do
+      it 'returns nil', :aggregate_failures do
+        expect(::Gitlab::GitalyClient).to receive(:call).at_least(:once).and_call_original
+        actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+        expect(actual_pipeline).to be_nil
+      end
+
+      context 'when pipeline_status is loaded' do
+        before do
+          project_with_repo.pipeline_status # this loads the status
+        end
+
+        it 'returns nil without calling gitaly when there is no pipeline', :aggregate_failures do
+          expect(::Gitlab::GitalyClient).not_to receive(:call)
+          actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+          expect(actual_pipeline).to be_nil
+        end
+      end
+
+      context 'when FF load_last_pipeline_from_pipeline_status is disabled' do
+        before do
+          stub_feature_flags(last_pipeline_from_pipeline_status: false)
+        end
+
+        it 'returns nil', :aggregate_failures do
+          expect(project_with_repo).not_to receive(:pipeline_status)
+          actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+          expect(actual_pipeline).to be_nil
+        end
+      end
+    end
+
+    context 'with a pipeline' do
+      let_it_be(:pipeline) { create(:ci_pipeline, project: project_with_repo) }
+
+      it 'returns the latest pipeline', :aggregate_failures do
+        expect(::Gitlab::GitalyClient).to receive(:call).at_least(:once).and_call_original
+        actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+        expect(actual_pipeline).to eq pipeline
+      end
+
+      context 'when pipeline_status is loaded' do
+        before do
+          project_with_repo.pipeline_status # this loads the status
+        end
+
+        it 'returns the latest pipeline without calling gitaly' do
+          expect(::Gitlab::GitalyClient).not_to receive(:call)
+          actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+          expect(actual_pipeline).to eq pipeline
+        end
+
+        context 'when FF load_last_pipeline_from_pipeline_status is disabled' do
+          before do
+            stub_feature_flags(last_pipeline_from_pipeline_status: false)
+          end
+
+          it 'returns the latest pipeline', :aggregate_failures do
+            expect(project_with_repo).not_to receive(:pipeline_status)
+            actual_pipeline = last_pipeline_from_status_cache(project_with_repo)
+            expect(actual_pipeline).to eq pipeline
+          end
+        end
+      end
+    end
+  end
+
+  describe '#show_no_ssh_key_message?' do
     context 'user has no keys' do
       it 'returns true' do
         expect(helper.show_no_ssh_key_message?).to be_truthy
@@ -233,10 +219,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   end
 
   describe '#show_no_password_message?' do
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-    end
-
     context 'user has password set' do
       it 'returns false' do
         expect(helper.show_no_password_message?).to be_falsey
@@ -271,10 +253,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
 
   describe '#no_password_message' do
     let(:user) { create(:user, password_automatically_set: true) }
-
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-    end
 
     context 'password authentication is enabled for Git' do
       it 'returns message prompting user to set password or set up a PAT' do
@@ -357,10 +335,10 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   end
 
   describe 'default_clone_protocol' do
+    let(:user) { nil }
+
     context 'when user is not logged in and gitlab protocol is HTTP' do
       it 'returns HTTP' do
-        allow(helper).to receive(:current_user).and_return(nil)
-
         expect(helper.send(:default_clone_protocol)).to eq('http')
       end
     end
@@ -368,7 +346,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     context 'when user is not logged in and gitlab protocol is HTTPS' do
       it 'returns HTTPS' do
         stub_config_setting(protocol: 'https')
-        allow(helper).to receive(:current_user).and_return(nil)
 
         expect(helper.send(:default_clone_protocol)).to eq('https')
       end
@@ -378,10 +355,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   describe '#last_push_event' do
     let(:user) { double(:user, fork_of: nil) }
     let(:project) { double(:project, id: 1) }
-
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-    end
 
     context 'when there is no current_user' do
       let(:user) { nil }
@@ -469,10 +442,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   describe '#git_user_name' do
     let(:user) { build_stubbed(:user, name: 'John "A" Doe53') }
 
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-    end
-
     it 'parses quotes in name' do
       expect(helper.send(:git_user_name)).to eq('John \"A\" Doe53')
     end
@@ -480,9 +449,7 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
 
   describe '#git_user_email' do
     context 'not logged-in' do
-      before do
-        allow(helper).to receive(:current_user).and_return(nil)
-      end
+      let(:user) { nil }
 
       it 'returns your@email.com' do
         expect(helper.send(:git_user_email)).to eq('your@email.com')
@@ -490,10 +457,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
 
     context 'user logged in' do
-      before do
-        allow(helper).to receive(:current_user).and_return(user)
-      end
-
       context 'user has no configured commit email' do
         it 'returns the primary email' do
           expect(helper.send(:git_user_email)).to eq(user.email)
@@ -703,11 +666,32 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
   end
 
+  describe '#show_mobile_devops_project_promo?' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:hide_cookie, :mobile_target_platform, :result) do
+      false | true | true
+      false | false | false
+      true | false | false
+      true | true | false
+    end
+
+    with_them do
+      before do
+        allow(Gitlab).to receive(:com?) { gitlab_com }
+        project.project_setting.target_platforms << 'ios' if mobile_target_platform
+        helper.request.cookies["hide_mobile_devops_promo_#{project.id}"] = true if hide_cookie
+      end
+
+      it 'resolves if mobile devops promo banner should be displayed' do
+        expect(helper.show_mobile_devops_project_promo?(project)).to eq result
+      end
+    end
+  end
+
   describe '#can_admin_project_member?' do
     context 'when user is project owner' do
-      before do
-        allow(helper).to receive(:current_user) { project.owner }
-      end
+      let(:user) { project.owner }
 
       it 'returns true for owner of project' do
         expect(helper.can_admin_project_member?(project)).to eq true
@@ -727,65 +711,12 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
       with_them do
         before do
           project.add_role(user, user_project_role)
-          allow(helper).to receive(:current_user) { user }
         end
 
         it 'resolves if the user can import members' do
           expect(helper.can_admin_project_member?(project)).to eq can_admin
         end
       end
-    end
-  end
-
-  describe '#metrics_external_dashboard_url' do
-    context 'metrics_setting exists' do
-      it 'returns external_dashboard_url' do
-        metrics_setting = create(:project_metrics_setting, project: project)
-
-        expect(helper.metrics_external_dashboard_url).to eq(metrics_setting.external_dashboard_url)
-      end
-    end
-
-    context 'metrics_setting does not exist' do
-      it 'returns nil' do
-        expect(helper.metrics_external_dashboard_url).to eq(nil)
-      end
-    end
-  end
-
-  describe '#grafana_integration_url' do
-    subject { helper.grafana_integration_url }
-
-    it { is_expected.to eq(nil) }
-
-    context 'grafana integration exists' do
-      let!(:grafana_integration) { create(:grafana_integration, project: project) }
-
-      it { is_expected.to eq(grafana_integration.grafana_url) }
-    end
-  end
-
-  describe '#grafana_integration_token' do
-    subject { helper.grafana_integration_masked_token }
-
-    it { is_expected.to eq(nil) }
-
-    context 'grafana integration exists' do
-      let!(:grafana_integration) { create(:grafana_integration, project: project) }
-
-      it { is_expected.to eq(grafana_integration.masked_token) }
-    end
-  end
-
-  describe '#grafana_integration_enabled?' do
-    subject { helper.grafana_integration_enabled? }
-
-    it { is_expected.to eq(nil) }
-
-    context 'grafana integration exists' do
-      let!(:grafana_integration) { create(:grafana_integration, project: project) }
-
-      it { is_expected.to eq(grafana_integration.enabled) }
     end
   end
 
@@ -914,7 +845,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
 
     before do
       allow(helper).to receive(:can?) { true }
-      allow(helper).to receive(:current_user).and_return(user)
     end
 
     it 'includes project_permissions_settings' do
@@ -922,6 +852,7 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
 
       expect(settings).to include(
         packagesEnabled: !!project.packages_enabled,
+        packageRegistryAllowAnyoneToPullOption: ::Gitlab::CurrentSettings.package_registry_allow_anyone_to_pull_option,
         visibilityLevel: project.visibility_level,
         requestAccessEnabled: !!project.request_access_enabled,
         issuesAccessLevel: project.project_feature.issues_access_level,
@@ -935,20 +866,26 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
         analyticsAccessLevel: project.project_feature.analytics_access_level,
         containerRegistryEnabled: !!project.container_registry_enabled,
         lfsEnabled: !!project.lfs_enabled,
-        emailsDisabled: project.emails_disabled?,
-        metricsDashboardAccessLevel: project.project_feature.metrics_dashboard_access_level,
+        emailsEnabled: project.emails_enabled?,
         showDefaultAwardEmojis: project.show_default_award_emojis?,
         securityAndComplianceAccessLevel: project.security_and_compliance_access_level,
         containerRegistryAccessLevel: project.project_feature.container_registry_access_level,
         environmentsAccessLevel: project.project_feature.environments_access_level,
         featureFlagsAccessLevel: project.project_feature.feature_flags_access_level,
         releasesAccessLevel: project.project_feature.releases_access_level,
-        infrastructureAccessLevel: project.project_feature.infrastructure_access_level
+        infrastructureAccessLevel: project.project_feature.infrastructure_access_level,
+        modelExperimentsAccessLevel: project.project_feature.model_experiments_access_level
       )
     end
 
     it 'includes membersPagePath' do
       expect(subject).to include(membersPagePath: project_project_members_path(project))
+    end
+
+    it 'includes canAddCatalogResource' do
+      allow(helper).to receive(:can?) { false }
+
+      expect(subject).to include(canAddCatalogResource: false)
     end
   end
 
@@ -1052,16 +989,39 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
   end
 
-  describe '#fork_button_disabled_tooltip' do
+  describe '#fork_button_data_attributes' do
     using RSpec::Parameterized::TableSyntax
 
-    subject { helper.fork_button_disabled_tooltip(project) }
+    let_it_be(:project) { create(:project, :repository, :public) }
 
-    where(:has_user, :can_fork_project, :can_create_fork, :expected) do
-      false | false | false | nil
-      true | true | true | nil
-      true | false | true | 'You don\'t have permission to fork this project'
-      true | true | false | 'You have reached your project limit'
+    project_path = '/project/path'
+    project_forks_path = '/project/forks'
+    project_new_fork_path = '/project/new/fork'
+    user_fork_url = '/user/fork'
+
+    common_data_attributes = {
+      forks_count: 4,
+      project_full_path: project_path,
+      project_forks_url: project_forks_path,
+      can_create_fork: "true",
+      can_fork_project: "true",
+      can_read_code: "true",
+      new_fork_url: project_new_fork_path
+    }
+
+    data_attributes_with_user_fork_url = common_data_attributes.merge({ user_fork_url: user_fork_url })
+    data_attributes_without_user_fork_url = common_data_attributes.merge({ user_fork_url: nil })
+
+    subject { helper.fork_button_data_attributes(project) }
+
+    # The stubs for the forkable namespaces seem not to make sense (they're just numbers),
+    # but they're set up that way because we don't really care about what the array contains, only about its length
+    where(:has_user, :project_already_forked, :forkable_namespaces, :expected) do
+      false | false | []     | nil
+      true  | false | [0]    | data_attributes_without_user_fork_url
+      true  | false | [0, 1] | data_attributes_without_user_fork_url
+      true  | true  | [0]    | data_attributes_with_user_fork_url
+      true  | true  | [0, 1] | data_attributes_without_user_fork_url
     end
 
     with_them do
@@ -1069,21 +1029,27 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
         current_user = user if has_user
 
         allow(helper).to receive(:current_user).and_return(current_user)
-        allow(user).to receive(:can?).with(:fork_project, project).and_return(can_fork_project)
-        allow(user).to receive(:can?).with(:create_fork).and_return(can_create_fork)
+        allow(user).to receive(:can?).and_call_original
+        allow(user).to receive(:can?).with(:fork_project, project).and_return(true)
+        allow(user).to receive(:can?).with(:create_fork).and_return(true)
+        allow(user).to receive(:can?).with(:create_projects, anything).and_return(true)
+        allow(user).to receive(:already_forked?).with(project).and_return(project_already_forked)
+        allow(user).to receive(:forkable_namespaces).and_return(forkable_namespaces)
+
+        allow(project).to receive(:forks_count).and_return(4)
+        allow(project).to receive(:full_path).and_return(project_path)
+
+        user_fork_path = user_fork_url if project_already_forked
+        allow(helper).to receive(:namespace_project_path).with(user, anything).and_return(user_fork_path)
+        allow(helper).to receive(:new_project_fork_path).with(project).and_return(project_new_fork_path)
+        allow(helper).to receive(:project_forks_path).with(project).and_return(project_forks_path)
       end
 
-      it 'returns tooltip text when user lacks privilege' do
-        expect(subject).to eq(expected)
-      end
+      it { is_expected.to eq(expected) }
     end
   end
 
   shared_examples 'configure import method modal' do
-    before do
-      allow(helper).to receive(:current_user).and_return(user)
-    end
-
     context 'as a user' do
       it 'returns a link to contact an administrator' do
         allow(user).to receive(:can_admin_all_resources?).and_return(false)
@@ -1105,14 +1071,6 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     let(:import_method) { 'Bitbucket' }
 
     subject { helper.import_from_bitbucket_message }
-
-    it_behaves_like 'configure import method modal'
-  end
-
-  describe '#import_from_gitlab_message' do
-    let(:import_method) { 'GitLab.com' }
-
-    subject { helper.import_from_gitlab_message }
 
     it_behaves_like 'configure import method modal'
   end
@@ -1182,16 +1140,14 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   end
 
   describe '#can_admin_associated_clusters?' do
-    let_it_be(:current_user) { create(:user) }
     let_it_be_with_reload(:project) { create(:project) }
 
     subject { helper.send(:can_admin_associated_clusters?, project) }
 
     before do
-      allow(helper).to receive(:current_user).and_return(current_user)
       allow(helper)
         .to receive(:can?)
-        .with(current_user, :admin_cluster, namespace)
+        .with(user, :admin_cluster, namespace)
         .and_return(user_can_admin_cluster)
     end
 
@@ -1286,7 +1242,7 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
       let_it_be(:has_active_license) { true }
 
       it 'displays the correct messagee' do
-        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.'))
+        expect(subject).to eq(s_('ClusterIntegration|The certificate-based Kubernetes integration is deprecated and will be removed in the future. You should %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}. For more information, see the %{deprecationLinkStart}deprecation epic%{deprecationLinkEnd}, or contact GitLab support.'))
       end
     end
 
@@ -1294,7 +1250,7 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
       let_it_be(:has_active_license) { false }
 
       it 'displays the correct message' do
-        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.'))
+        expect(subject).to eq(s_('ClusterIntegration|The certificate-based Kubernetes integration is deprecated and will be removed in the future. You should %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}. For more information, see the %{deprecationLinkStart}deprecation epic%{deprecationLinkEnd}.'))
       end
     end
   end
@@ -1359,22 +1315,66 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
     end
 
     context 'when fork source is available' do
+      let_it_be(:fork_network) { create(:fork_network, root_project: project_with_repo) }
+      let_it_be(:source_project) { project_with_repo }
+
+      before_all do
+        project.fork_network = fork_network
+        project.add_developer(user)
+        source_project.add_developer(user)
+      end
+
       it 'returns the data related to fork divergence' do
-        source_project = project_with_repo
-
-        allow(helper).to receive(:visible_fork_source).with(project).and_return(source_project)
-
         ahead_path =
           "/#{project.full_path}/-/compare/#{source_project.default_branch}...ref?from_project_id=#{source_project.id}"
         behind_path =
           "/#{source_project.full_path}/-/compare/ref...#{source_project.default_branch}?from_project_id=#{project.id}"
+        create_mr_path = "/#{project.full_path}/-/merge_requests/new?merge_request%5Bsource_branch%5D=ref&merge_request%5Btarget_branch%5D=#{source_project.default_branch}&merge_request%5Btarget_project_id%5D=#{source_project.id}"
 
         expect(helper.vue_fork_divergence_data(project, 'ref')).to eq({
+          project_path: project.full_path,
+          selected_branch: 'ref',
           source_name: source_project.full_name,
           source_path: project_path(source_project),
+          can_sync_branch: 'false',
           ahead_compare_path: ahead_path,
-          behind_compare_path: behind_path
+          behind_compare_path: behind_path,
+          source_default_branch: source_project.default_branch,
+          create_mr_path: create_mr_path,
+          view_mr_path: nil
         })
+      end
+
+      it 'returns view_mr_path if a merge request for the branch exists' do
+        merge_request =
+          create(:merge_request, source_project: project, target_project: project_with_repo,
+            source_branch: project.default_branch, target_branch: project_with_repo.default_branch)
+
+        expect(helper.vue_fork_divergence_data(project, project.default_branch)).to include({
+          can_sync_branch: 'true',
+          create_mr_path: nil,
+          view_mr_path: "/#{source_project.full_path}/-/merge_requests/#{merge_request.iid}"
+        })
+      end
+
+      context 'when a user cannot create a merge request' do
+        using RSpec::Parameterized::TableSyntax
+
+        where(:project_role, :source_project_role) do
+          :guest | :developer
+          :developer | :guest
+        end
+
+        with_them do
+          it 'create_mr_path is nil' do
+            project.add_member(user, project_role)
+            source_project.add_member(user, source_project_role)
+
+            expect(helper.vue_fork_divergence_data(project, 'ref')).to include({
+              create_mr_path: nil, view_mr_path: nil
+            })
+          end
+        end
       end
     end
   end
@@ -1382,6 +1382,179 @@ RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   describe '#remote_mirror_setting_enabled?' do
     it 'returns false' do
       expect(helper.remote_mirror_setting_enabled?).to be_falsy
+    end
+  end
+
+  describe '#http_clone_url_to_repo' do
+    before do
+      allow(project).to receive(:http_url_to_repo).and_return('http_url_to_repo')
+    end
+
+    subject { helper.http_clone_url_to_repo(project) }
+
+    it { expect(subject).to eq('http_url_to_repo') }
+  end
+
+  describe '#ssh_clone_url_to_repo' do
+    before do
+      allow(project).to receive(:ssh_url_to_repo).and_return('ssh_url_to_repo')
+    end
+
+    subject { helper.ssh_clone_url_to_repo(project) }
+
+    it { expect(subject).to eq('ssh_url_to_repo') }
+  end
+
+  describe '#can_view_branch_rules?' do
+    subject { helper.can_view_branch_rules? }
+
+    context 'when user is a maintainer' do
+      before do
+        project.add_maintainer(user)
+      end
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when user is a developer' do
+      before do
+        project.add_developer(user)
+      end
+
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '#can_push_code?' do
+    subject { helper.can_push_code? }
+
+    context 'when user is nil' do
+      let(:user) { nil }
+
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when user is a developer on the project' do
+      before do
+        project.add_developer(user)
+      end
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when user is a reporter on the project' do
+      before do
+        project.add_reporter(user)
+      end
+
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '#can_admin_associated_clusters?(project)' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:project_clusters_exist, :user_can_admin_project_clusters, :group_clusters_exist, :user_can_admin_group_clusters, :expected) do
+      false | false | false | false | false
+      true  | false | false | false | false
+      false | true  | false | false | false
+      false | false | true  | false | false
+      false | false | false | true  | false
+      true  | true  | false | false | true
+      false | false | true  | true  | true
+      true  | true  | true  | true  | true
+    end
+
+    with_them do
+      subject { helper.can_admin_associated_clusters?(project) }
+
+      let(:clusters) { [double('Cluster')] }
+      let(:group) { double('Group') }
+
+      before do
+        allow(project)
+          .to receive(:clusters)
+          .and_return(project_clusters_exist ? clusters : [])
+        allow(helper)
+          .to receive(:can?).with(user, :admin_cluster, project)
+          .and_return(user_can_admin_project_clusters)
+
+        allow(project)
+          .to receive(:group)
+          .and_return(group)
+        allow(group)
+          .to receive(:clusters)
+          .and_return(group_clusters_exist ? clusters : [])
+        allow(helper)
+          .to receive(:can?).with(user, :admin_cluster, project.group)
+          .and_return(user_can_admin_group_clusters)
+      end
+
+      it { is_expected.to eq(expected) }
+    end
+  end
+
+  describe '#branch_rules_path' do
+    subject { helper.branch_rules_path }
+
+    it { is_expected.to eq(project_settings_repository_path(project, anchor: 'js-branch-rules')) }
+  end
+
+  describe '#visibility_level_content' do
+    shared_examples 'returns visibility level content_tag' do
+      let(:icon) { '<svg>fake visib level icon</svg>'.html_safe }
+      let(:description) { 'Fake visib desc' }
+
+      before do
+        allow(helper).to receive(:visibility_icon_description).and_return(description)
+        allow(helper).to receive(:visibility_level_icon).and_return(icon)
+      end
+
+      it 'returns visibility level content_tag' do
+        expected_result = "<span class=\"has-tooltip\" data-container=\"body\" data-placement=\"top\" title=\"#{description}\">#{icon}</span>"
+        expect(helper.visibility_level_content(project)).to eq(expected_result)
+      end
+
+      it 'returns visibility level content_tag with extra CSS classes' do
+        expected_result = "<span class=\"has-tooltip extra-class\" data-container=\"body\" data-placement=\"top\" title=\"#{description}\">#{icon}</span>"
+
+        expect(helper).to receive(:visibility_level_icon)
+          .with(anything, options: { class: 'extra-icon-class' })
+          .and_return(icon)
+        result = helper.visibility_level_content(project, css_class: 'extra-class', icon_css_class: 'extra-icon-class')
+        expect(result).to eq(expected_result)
+      end
+    end
+
+    it_behaves_like 'returns visibility level content_tag'
+
+    context 'when project creator is banned' do
+      let(:hidden_resource_icon) { '<svg>fake hidden resource icon</svg>' }
+
+      before do
+        allow(project).to receive(:created_and_owned_by_banned_user?).and_return(true)
+        allow(helper).to receive(:hidden_resource_icon).and_return(hidden_resource_icon)
+      end
+
+      it 'returns hidden resource icon' do
+        expect(helper.visibility_level_content(project)).to eq hidden_resource_icon
+      end
+    end
+
+    context 'with hide_projects_of_banned_users feature flag disabled' do
+      before do
+        stub_feature_flags(hide_projects_of_banned_users: false)
+      end
+
+      it_behaves_like 'returns visibility level content_tag'
+
+      context 'when project creator is banned' do
+        before do
+          allow(project).to receive(:created_and_owned_by_banned_user?).and_return(true)
+        end
+
+        it_behaves_like 'returns visibility level content_tag'
+      end
     end
   end
 end

@@ -34,6 +34,7 @@ module Gitlab
           }
         )
       end
+      alias_method :octokit, :api
 
       def client
         unless config
@@ -113,9 +114,9 @@ module Gitlab
 
       def github_options
         if config
-          config["args"]["client_options"].deep_symbolize_keys
+          config["args"]["client_options"].to_h.deep_symbolize_keys
         else
-          OmniAuth::Strategies::GitHub.default_options[:client_options].symbolize_keys
+          OmniAuth::Strategies::GitHub.default_options[:client_options].to_h.symbolize_keys
         end
       end
 

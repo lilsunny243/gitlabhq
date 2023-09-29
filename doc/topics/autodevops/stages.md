@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Stages of Auto DevOps **(FREE)**
+# Stages of Auto DevOps **(FREE ALL)**
 
 The following sections describe the stages of [Auto DevOps](index.md).
 Read them carefully to understand how each one works.
@@ -227,7 +227,7 @@ warnings on [Ultimate](https://about.gitlab.com/pricing/) licenses.
 
 For more information, see [Secret Detection](../../user/application_security/secret_detection/index.md).
 
-## Auto Dependency Scanning **(ULTIMATE)**
+## Auto Dependency Scanning **(ULTIMATE ALL)**
 
 Dependency Scanning runs analysis on the project's dependencies and checks for potential security issues.
 The Auto Dependency Scanning stage is skipped on licenses other than
@@ -240,20 +240,17 @@ check out. The merge request widget displays any security warnings detected,
 For more information, see
 [Dependency Scanning](../../user/application_security/dependency_scanning/index.md).
 
-## Auto License Compliance **(ULTIMATE)**
+<!--- start_remove The following content will be removed on remove_date: '2023-11-22' -->
 
-> Introduced in GitLab 11.0.
+## Auto License Compliance (deprecated) **(ULTIMATE ALL)**
 
-License Compliance uses the
-[License Compliance Docker image](https://gitlab.com/gitlab-org/security-products/analyzers/license-finder)
-to search the project dependencies for their license. The Auto License Compliance stage
-is skipped on licenses other than [Ultimate](https://about.gitlab.com/pricing/).
+This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387561) in GitLab 15.9,
+in GitLab 16.3 we [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/421363) support for the License Compliance report.
+Auto License Compliance is still present in the pipeline, but won't produce any results.
 
-After creating the report, it's uploaded as an artifact which you can later download and
-check out. The merge request displays any detected licenses.
+Use Auto Dependency Scanning instead.
 
-For more information, see
-[License Compliance](../../user/compliance/license_compliance/index.md).
+<!--- end_remove -->
 
 ## Auto Container Scanning
 
@@ -304,7 +301,7 @@ deploys with Auto DevOps can undo your changes. Also, if you change something
 and want to undo it by deploying again, Helm may not detect that anything changed
 in the first place, and thus not realize that it needs to re-apply the old configuration.
 
-## Auto DAST **(ULTIMATE)**
+## Auto DAST **(ULTIMATE ALL)**
 
 Dynamic Application Security Testing (DAST) uses the popular open source tool
 [OWASP ZAProxy](https://github.com/zaproxy/zaproxy) to analyze the current code
@@ -345,7 +342,7 @@ You can disable DAST:
 - Only on feature branches by setting `REVIEW_DISABLED` variable to
   `"true"`. This also disables the Review App.
 
-## Auto Browser Performance Testing **(PREMIUM)**
+## Auto Browser Performance Testing **(PREMIUM ALL)**
 
 > Introduced in GitLab 10.4.
 
@@ -366,7 +363,7 @@ file named `.gitlab-urls.txt` in the root directory, one file per line. For exam
 Any browser performance differences between the source and target branches are also
 [shown in the merge request widget](../../ci/testing/browser_performance_testing.md).
 
-## Auto Load Performance Testing **(PREMIUM)**
+## Auto Load Performance Testing **(PREMIUM ALL)**
 
 > Introduced in GitLab 13.2.
 
@@ -491,7 +488,7 @@ deletion).
 
 You can configure database initialization and migrations for PostgreSQL to run
 within the application pod by setting the project CI/CD variables `DB_INITIALIZE` and
-`DB_MIGRATE` respectively.
+`DB_MIGRATE`.
 
 If present, `DB_INITIALIZE` is run as a shell command within an application pod
 as a Helm post-install hook. As some applications can't run without a successful
@@ -591,33 +588,14 @@ When using Cloud Native Buildpacks, instead of `/bin/herokuish procfile exec`, u
 /cnb/lifecycle/launcher $COMMAND
 ```
 
-## Auto Monitoring
+<!--- start_remove The following content will be removed on remove_date: '2023-09-22' -->
 
-After your application deploys, Auto Monitoring helps you monitor
-your application's server and response metrics right out of the box. Auto
-Monitoring uses [Prometheus](../../user/project/integrations/prometheus.md) to
-retrieve system metrics, such as CPU and memory usage, directly from
-[Kubernetes](../../user/project/integrations/prometheus_library/kubernetes.md),
-and response metrics, such as HTTP error rates, latency, and throughput, from the
-[NGINX server](../../user/project/integrations/prometheus_library/nginx_ingress.md).
+### Auto Monitoring (removed)
 
-The metrics include:
+This feature was [deprecated](https://gitlab.com/groups/gitlab-org/-/epics/10107) in GitLab 14.7
+and [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/399231) in 16.0.
 
-- **Response Metrics:** latency, throughput, error rate
-- **System Metrics:** CPU utilization, memory utilization
-
-To use Auto Monitoring:
-
-1. [Install and configure the Auto DevOps requirements](requirements.md).
-1. [Enable Auto DevOps](index.md#enable-or-disable-auto-devops), if you haven't done already.
-1. On the left sidebar, select **CI/CD > Pipelines**.
-1. Select **Run pipeline**.
-1. After the pipeline finishes successfully, open the
-   [monitoring dashboard for a deployed environment](../../ci/environments/index.md#monitor-environments)
-   to view the metrics of your deployed application. To view the metrics of the
-   whole Kubernetes cluster, on the left sidebar, select **Monitor > Metrics**.
-
-![Auto Metrics](img/auto_monitoring.png)
+<!--- end_remove -->
 
 ## Auto Code Intelligence
 

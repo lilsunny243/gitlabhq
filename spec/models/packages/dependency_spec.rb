@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Packages::Dependency, type: :model do
+RSpec.describe Packages::Dependency, type: :model, feature_category: :package_registry do
+  describe 'included modules' do
+    it { is_expected.to include_module(EachBatch) }
+  end
+
   describe 'relationships' do
     it { is_expected.to have_many(:dependency_links) }
   end
@@ -23,7 +27,7 @@ RSpec.describe Packages::Dependency, type: :model do
     let(:chunk_size) { 50 }
     let(:rows_limit) { 50 }
 
-    subject { Packages::Dependency.ids_for_package_names_and_version_patterns(names_and_version_patterns, chunk_size, rows_limit) }
+    subject { described_class.ids_for_package_names_and_version_patterns(names_and_version_patterns, chunk_size, rows_limit) }
 
     it { is_expected.to match_array(expected_ids) }
 
@@ -93,7 +97,7 @@ RSpec.describe Packages::Dependency, type: :model do
 
     let(:names_and_version_patterns) { build_names_and_version_patterns(package_dependency1, package_dependency2) }
 
-    subject { Packages::Dependency.for_package_names_and_version_patterns(names_and_version_patterns) }
+    subject { described_class.for_package_names_and_version_patterns(names_and_version_patterns) }
 
     it { is_expected.to match_array(expected_array) }
 
@@ -107,6 +111,19 @@ RSpec.describe Packages::Dependency, type: :model do
       let(:names_and_version_patterns) { { 'foo' => '~1.0.0beta' } }
 
       it { is_expected.to be_empty }
+    end
+  end
+
+  describe '.orphaned' do
+    let_it_be(:orphaned_dependencies) { create_list(:packages_dependency, 2) }
+    let_it_be(:linked_dependency) do
+      create(:packages_dependency).tap do |dependency|
+        create(:packages_dependency_link, dependency: dependency)
+      end
+    end
+
+    it 'returns orphaned dependency records' do
+      expect(described_class.orphaned).to contain_exactly(*orphaned_dependencies)
     end
   end
 

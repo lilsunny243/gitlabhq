@@ -1,6 +1,6 @@
 <script>
 import { GlLoadingIcon, GlModal, GlEmptyState } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { HTTP_STATUS_FORBIDDEN } from '~/lib/utils/http_status';
 import { mergeUrlParams, getParameterByName } from '~/lib/utils/url_utility';
 import { __, s__, sprintf } from '~/locale';
@@ -28,21 +28,12 @@ export default {
       required: false,
       default: '',
     },
-    containerId: {
-      type: String,
-      required: false,
-      default: '',
-    },
     store: {
       type: Object,
       required: true,
     },
     service: {
       type: Object,
-      required: true,
-    },
-    hideProjects: {
-      type: Boolean,
       required: true,
     },
   },
@@ -59,7 +50,7 @@ export default {
     primaryProps() {
       return {
         text: __('Leave group'),
-        attributes: [{ variant: 'danger' }, { category: 'primary' }],
+        attributes: { variant: 'danger', category: 'primary' },
       };
     },
     cancelProps() {
@@ -98,10 +89,6 @@ export default {
   },
   mounted() {
     this.fetchAllGroups();
-
-    if (this.containerId) {
-      this.containerEl = document.getElementById(this.containerId);
-    }
   },
   beforeDestroy() {
     eventHub.$off(`${this.action}fetchPage`, this.fetchPage);
@@ -118,9 +105,9 @@ export default {
     showModal() {
       this.isModalVisible = true;
     },
-    fetchGroups({ parentId, page, filterGroupsBy, sortBy, archived, updatePagination }) {
+    fetchGroups({ parentId, page, filterGroupsBy, sortBy, updatePagination }) {
       return this.service
-        .getGroups(parentId, page, filterGroupsBy, sortBy, archived)
+        .getGroups(parentId, page, filterGroupsBy, sortBy)
         .then((res) => {
           if (updatePagination) {
             this.updatePagination(res.headers);
@@ -137,7 +124,6 @@ export default {
     fetchAllGroups() {
       const page = getParameterByName('page') || null;
       const sortBy = getParameterByName('sort') || null;
-      const archived = getParameterByName('archived') || null;
 
       this.isLoading = true;
 
@@ -145,7 +131,6 @@ export default {
         page,
         filterGroupsBy: this.filterGroupsBy,
         sortBy,
-        archived,
         updatePagination: true,
       }).then((res) => {
         this.isLoading = false;
@@ -164,14 +149,13 @@ export default {
         this.updateGroups(res, Boolean(filterGroupsBy));
       });
     },
-    fetchPage({ page, filterGroupsBy, sortBy, archived }) {
+    fetchPage({ page, filterGroupsBy, sortBy }) {
       this.isLoading = true;
 
       return this.fetchGroups({
         page,
         filterGroupsBy,
         sortBy,
-        archived,
         updatePagination: true,
       }).then((res) => {
         this.isLoading = false;

@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# Optimize GitLab CI/CD configuration files **(FREE)**
+# Optimize GitLab CI/CD configuration files **(FREE ALL)**
 
 You can reduce complexity and duplicated configuration in your GitLab CI/CD configuration
 files by using:
@@ -65,7 +65,7 @@ test2:
 
 `&` sets up the name of the anchor (`job_configuration`), `<<` means "merge the
 given hash into the current one," and `*` includes the named anchor
-(`job_configuration` again). The expanded version of this example is:
+(`job_configuration` again). The [expanded](../pipeline_editor/index.md#view-full-configuration) version of this example is:
 
 ```yaml
 .job_template:
@@ -123,7 +123,7 @@ test:mysql:
   services: *mysql_configuration
 ```
 
-The expanded version is:
+The [expanded](../pipeline_editor/index.md#view-full-configuration) version is:
 
 ```yaml
 .job_template:

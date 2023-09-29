@@ -1,15 +1,15 @@
 ---
-stage: ModelOps
-group: Applied ML
+stage: AI-powered
+group: AI Model Validation
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, reference
 ---
 
-# Suggested Reviewers Data Usage
+# Suggested Reviewers Data Usage **(ULTIMATE SAAS)**
 
 ## How it works
 
-Suggested Reviewers is the first user-facing GitLab machine learning (ML) powered feature. It leverages a project's contribution graph to generate suggestions. This data already exists within GitLab including merge request metadata, source code files, and GitLab user account metadata.
+GitLab Duo Suggested Reviewers is the first user-facing GitLab machine learning (ML) powered feature. It leverages a project's contribution graph to generate suggestions. This data already exists within GitLab including merge request metadata, source code files, and GitLab user account metadata.
 
 ### Enabling the feature
 

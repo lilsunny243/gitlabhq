@@ -23,13 +23,16 @@ module QA
 
         fork.project.visit!
 
-        mr_url = Flow::Login.while_signed_in(as: fork.user) do
-          Page::Project::Show.perform(&:new_merge_request)
-          Page::MergeRequest::New.perform(&:create_merge_request)
-
-          current_url
+        # Ensure we are signed in as fork user and create the MR
+        Flow::Login.sign_in_unless_signed_in(user: fork.user)
+        Page::Project::Show.perform(&:new_merge_request)
+        Page::MergeRequest::New.perform(&:create_merge_request)
+        Support::Waiter.wait_until(message: 'Waiting for fork icon to appear') do
+          Page::MergeRequest::Show.perform(&:has_fork_icon?)
         end
+        mr_url = current_url
 
+        # Sign back in as original user
         Flow::Login.sign_in
         visit(mr_url)
       end

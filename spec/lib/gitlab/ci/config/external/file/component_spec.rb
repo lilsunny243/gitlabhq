@@ -41,14 +41,6 @@ RSpec.describe Gitlab::Ci::Config::External::File::Component, feature_category: 
       let(:params) { { component: 'some-value' } }
 
       it { is_expected.to be_truthy }
-
-      context 'when feature flag ci_include_components is disabled' do
-        before do
-          stub_feature_flags(ci_include_components: false)
-        end
-
-        it { is_expected.to be_falsey }
-      end
     end
 
     context 'when component is not specified' do
@@ -121,9 +113,44 @@ RSpec.describe Gitlab::Ci::Config::External::File::Component, feature_category: 
 
           it 'is invalid' do
             expect(subject).to be_falsy
-            expect(external_resource.error_message).to match(/does not have valid YAML syntax/)
+            expect(external_resource.error_message).to match(/Invalid configuration format/)
           end
         end
+      end
+    end
+  end
+
+  describe '#content' do
+    context 'when component is valid' do
+      let(:content) do
+        <<~COMPONENT
+        job:
+        script: echo
+        COMPONENT
+      end
+
+      let(:response) do
+        ServiceResponse.success(payload: {
+          content: content,
+          path: instance_double(::Gitlab::Ci::Components::InstancePath, project: project, sha: '12345')
+        })
+      end
+
+      it 'tracks the event' do
+        expect(::Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track_event).with('cicd_component_usage',
+          values: external_resource.context.user.id)
+
+        external_resource.content
+      end
+    end
+
+    context 'when component is invalid' do
+      let(:content) { 'the-content' }
+
+      it 'does not track the event' do
+        expect(::Gitlab::UsageDataCounters::HLLRedisCounter).not_to receive(:track_event)
+
+        external_resource.content
       end
     end
   end
@@ -174,6 +201,37 @@ RSpec.describe Gitlab::Ci::Config::External::File::Component, feature_category: 
         sha: '12345',
         user: context.user,
         variables: context.variables)
+    end
+  end
+
+  describe '#to_hash' do
+    context 'when interpolation is being used' do
+      let(:response) do
+        ServiceResponse.success(payload: { content: content, path: path })
+      end
+
+      let(:path) do
+        instance_double(::Gitlab::Ci::Components::InstancePath, project: project, sha: '12345')
+      end
+
+      let(:content) do
+        <<~YAML
+          spec:
+            inputs:
+              env:
+          ---
+          deploy:
+            script: deploy $[[ inputs.env ]]
+        YAML
+      end
+
+      let(:params) do
+        { component: 'gitlab.com/acme/components/my-component@1.0', with: { env: 'production' } }
+      end
+
+      it 'correctly interpolates the content' do
+        expect(external_resource.to_hash).to eq({ deploy: { script: 'deploy production' } })
+      end
     end
   end
 end

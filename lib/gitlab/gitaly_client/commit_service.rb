@@ -12,6 +12,11 @@ module Gitlab
         'unspecified' => Gitaly::CommitDiffRequest::WhitespaceChanges::WHITESPACE_CHANGES_UNSPECIFIED
       }.freeze
 
+      MERGE_COMMIT_DIFF_MODES = {
+        all_parents: Gitaly::FindChangedPathsRequest::MergeCommitDiffMode::MERGE_COMMIT_DIFF_MODE_ALL_PARENTS,
+        include_merges: Gitaly::FindChangedPathsRequest::MergeCommitDiffMode::MERGE_COMMIT_DIFF_MODE_INCLUDE_MERGES
+      }.freeze
+
       TREE_ENTRIES_DEFAULT_LIMIT = 100_000
 
       def initialize(repository)
@@ -123,8 +128,10 @@ module Gitlab
       end
 
       def tree_entries(repository, revision, path, recursive, skip_flat_paths, pagination_params)
-        pagination_params ||= {}
-        pagination_params[:limit] ||= TREE_ENTRIES_DEFAULT_LIMIT
+        unless pagination_params.nil? && recursive
+          pagination_params ||= {}
+          pagination_params[:limit] ||= TREE_ENTRIES_DEFAULT_LIMIT
+        end
 
         request = Gitaly::GetTreeEntriesRequest.new(
           repository: @gitaly_repo,
@@ -146,7 +153,6 @@ module Gitlab
           message.entries.map do |gitaly_tree_entry|
             Gitlab::Git::Tree.new(
               id: gitaly_tree_entry.oid,
-              root_id: gitaly_tree_entry.root_oid,
               type: gitaly_tree_entry.type.downcase,
               mode: gitaly_tree_entry.mode.to_s(8),
               name: File.basename(gitaly_tree_entry.path),
@@ -158,6 +164,17 @@ module Gitlab
         end
 
         [entries, cursor]
+      rescue GRPC::BadStatus => e
+        detailed_error = GitalyClient.decode_detailed_error(e)
+
+        case detailed_error.try(:error)
+        when :path
+          raise Gitlab::Git::Index::IndexError, path_error_message(detailed_error.path)
+        when :resolve_tree
+          raise Gitlab::Git::Index::IndexError, e.details
+        else
+          raise e
+        end
       end
 
       def commit_count(ref, options = {})
@@ -230,11 +247,37 @@ module Gitlab
         response.flat_map { |rsp| rsp.stats.to_a }
       end
 
-      def find_changed_paths(commits)
-        request = Gitaly::FindChangedPathsRequest.new(
-          repository: @gitaly_repo,
-          commits: commits
-        )
+      # When finding changed paths and passing a sha for a merge commit we can
+      # specify how to diff the commit.
+      #
+      # When diffing a merge commit and merge_commit_diff_mode is :all_parents
+      # file paths are only returned if changed in both parents (or all parents
+      # if diffing an octopus merge)
+      #
+      # This means if we create a merge request that includes a merge commit
+      # of changes already existing in the target branch, we can omit those
+      # changes when looking up the changed paths.
+      #
+      # e.g.
+      #   1. User branches from master to new branch named feature/foo_bar
+      #   2. User changes ./foo_bar.rb and commits change to feature/foo_bar
+      #   3. Another user merges a change to ./bar_baz.rb to master
+      #   4. User merges master into feature/foo_bar
+      #   5. User pushes to GitLab
+      #   6. GitLab checks which files have changed
+      #
+      # case merge_commit_diff_mode
+      # when :all_parents
+      #   ['foo_bar.rb']
+      # when :include_merges
+      #   ['foo_bar.rb', 'bar_baz.rb'],
+      # else # defaults to :include_merges behavior
+      #   ['foo_bar.rb', 'bar_baz.rb'],
+      #
+      def find_changed_paths(objects, merge_commit_diff_mode: nil)
+        request = find_changed_paths_request(objects, merge_commit_diff_mode)
+
+        return [] if request.nil?
 
         response = gitaly_client_call(@repository.storage, :diff_service, :find_changed_paths, request, timeout: GitalyClient.medium_timeout)
         response.flat_map do |msg|
@@ -375,6 +418,9 @@ module Gitlab
 
         response = gitaly_client_call(@repository.storage, :commit_service, :raw_blame, request, timeout: GitalyClient.medium_timeout)
         response.reduce([]) { |memo, msg| memo << msg.data }.join
+      # Temporary fix, use structured errors when they are available: https://gitlab.com/gitlab-org/gitaly/-/issues/5594
+      rescue GRPC::Internal
+        ""
       end
 
       def find_commit(revision)
@@ -442,14 +488,14 @@ module Gitlab
       # revision exists, or `false` otherwise. This function accepts all revisions as specified by
       # gitrevisions(1).
       def object_existence_map(revisions, gitaly_repo: @gitaly_repo)
-        enum = Enumerator.new do |y|
-          # This is a bug in Gitaly: revisions of the initial request are ignored. This will be fixed in v15.0 via
-          # https://gitlab.com/gitlab-org/gitaly/-/merge_requests/4510, so we can merge initial request and the initial
-          # set of revisions starting with v15.1.
-          y.yield Gitaly::CheckObjectsExistRequest.new(repository: gitaly_repo)
+        return {} unless revisions.present?
 
-          revisions.each_slice(100) do |revisions_subset|
-            y.yield Gitaly::CheckObjectsExistRequest.new(revisions: revisions_subset)
+        enum = Enumerator.new do |y|
+          revisions.each_slice(100).with_index do |revisions_subset, i|
+            params = { revisions: revisions_subset }
+            params[:repository] = gitaly_repo if i == 0
+
+            y.yield Gitaly::CheckObjectsExistRequest.new(**params)
           end
         end
 
@@ -490,14 +536,24 @@ module Gitlab
         request = Gitaly::GetCommitSignaturesRequest.new(repository: @gitaly_repo, commit_ids: commit_ids)
         response = gitaly_client_call(@repository.storage, :commit_service, :get_commit_signatures, request, timeout: GitalyClient.fast_timeout)
 
-        signatures = Hash.new { |h, k| h[k] = [+''.b, +''.b] }
+        signatures = Hash.new do |h, k|
+          h[k] = {
+            signature: +''.b,
+            signed_text: +''.b,
+            signer: :SIGNER_UNSPECIFIED
+          }
+        end
+
         current_commit_id = nil
 
         response.each do |message|
           current_commit_id = message.commit_id if message.commit_id.present?
 
-          signatures[current_commit_id].first << message.signature
-          signatures[current_commit_id].last << message.signed_text
+          signatures[current_commit_id][:signature] << message.signature
+          signatures[current_commit_id][:signed_text] << message.signed_text
+
+          # The actual value is send once. All the other chunks send SIGNER_UNSPECIFIED
+          signatures[current_commit_id][:signer] = message.signer unless message.signer == :SIGNER_UNSPECIFIED
         end
 
         signatures
@@ -536,6 +592,15 @@ module Gitlab
         Hash[commit_refs]
       end
 
+      def get_patch_id(old_revision, new_revision)
+        request = Gitaly::GetPatchIDRequest
+          .new(repository: @gitaly_repo, old_revision: old_revision, new_revision: new_revision)
+
+        response = gitaly_client_call(@repository.storage, :diff_service, :get_patch_id, request, timeout: GitalyClient.medium_timeout)
+
+        response.patch_id
+      end
+
       private
 
       def parse_global_options!(options)
@@ -544,9 +609,7 @@ module Gitlab
       end
 
       def call_commit_diff(request_params, options = {})
-        request_params[:ignore_whitespace_change] = options.fetch(:ignore_whitespace_change, false)
-
-        if Feature.enabled?(:add_ignore_all_white_spaces) && (request_params[:ignore_whitespace_change])
+        if options.fetch(:ignore_whitespace_change, false)
           request_params[:whitespace_changes] = WHITESPACE_CHANGES['ignore_all_spaces']
         end
 
@@ -595,6 +658,44 @@ module Gitlab
         response = gitaly_client_call(@repository.storage, :commit_service, :find_commit, request, timeout: GitalyClient.medium_timeout)
 
         response.commit
+      end
+
+      def find_changed_paths_request(objects, merge_commit_diff_mode)
+        diff_mode = MERGE_COMMIT_DIFF_MODES[merge_commit_diff_mode] if Feature.enabled?(:merge_commit_diff_modes)
+
+        requests = objects.filter_map do |object|
+          case object
+          when Gitlab::Git::DiffTree
+            Gitaly::FindChangedPathsRequest::Request.new(
+              tree_request: Gitaly::FindChangedPathsRequest::Request::TreeRequest.new(left_tree_revision: object.left_tree_id, right_tree_revision: object.right_tree_id)
+            )
+          when Commit, Gitlab::Git::Commit
+            next if object.sha.blank? || Gitlab::Git.blank_ref?(object.sha)
+
+            Gitaly::FindChangedPathsRequest::Request.new(
+              commit_request: Gitaly::FindChangedPathsRequest::Request::CommitRequest.new(commit_revision: object.sha)
+            )
+          end
+        end
+
+        return if requests.blank?
+
+        Gitaly::FindChangedPathsRequest.new(repository: @gitaly_repo, requests: requests, merge_commit_diff_mode: diff_mode)
+      end
+
+      def path_error_message(path_error)
+        case path_error.error_type
+        when :ERROR_TYPE_EMPTY_PATH
+          "You must provide a file path"
+        when :ERROR_TYPE_RELATIVE_PATH_ESCAPES_REPOSITORY
+          "Path cannot include traversal syntax"
+        when :ERROR_TYPE_ABSOLUTE_PATH
+          "Only relative path is accepted"
+        when :ERROR_TYPE_LONG_PATH
+          "Path is too long"
+        else
+          "Unknown path error"
+        end
       end
     end
   end

@@ -13,7 +13,15 @@ RSpec.describe API::NugetProjectPackages, feature_category: :package_registry do
 
   let(:target) { project }
   let(:target_type) { 'projects' }
-  let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, property: 'i_package_nuget_user' } }
+  let(:snowplow_gitlab_standard_context) { snowplow_context }
+
+  def snowplow_context(user_role: :developer)
+    if user_role == :anonymous
+      { project: target, namespace: target.namespace, property: 'i_package_nuget_user' }
+    else
+      { project: target, namespace: target.namespace, property: 'i_package_nuget_user', user: user }
+    end
+  end
 
   shared_examples 'accept get request on private project with access to package registry for everyone' do
     subject { get api(url) }
@@ -26,12 +34,89 @@ RSpec.describe API::NugetProjectPackages, feature_category: :package_registry do
     it_behaves_like 'returning response status', :ok
   end
 
+  shared_examples 'nuget serialize odata package endpoint' do
+    subject { get api(url), params: params }
+
+    it { is_expected.to have_request_urgency(:low) }
+
+    it_behaves_like 'returning response status', :success
+
+    it 'returns a valid xml response and invokes OdataPackageEntryService' do
+      expect(Packages::Nuget::OdataPackageEntryService).to receive(:new).with(target, service_params).and_call_original
+
+      subject
+
+      expect(response.media_type).to eq('application/xml')
+    end
+
+    [nil, '', '%20', '..%2F..', '../..'].each do |value|
+      context "with invalid package name #{value}" do
+        let(:package_name) { value }
+
+        it_behaves_like 'returning response status', :bad_request
+      end
+    end
+
+    context 'with missing required params' do
+      let(:params) { {} }
+      let(:package_version) { nil }
+
+      it_behaves_like 'returning response status', :bad_request
+    end
+  end
+
   describe 'GET /api/v4/projects/:id/packages/nuget' do
     let(:url) { "/projects/#{target.id}/packages/nuget/index.json" }
 
     it_behaves_like 'handling nuget service requests'
 
     it_behaves_like 'accept get request on private project with access to package registry for everyone'
+  end
+
+  describe 'GET /api/v4/projects/:id/packages/nuget/v2' do
+    let(:url) { "/projects/#{target.id}/packages/nuget/v2" }
+
+    it_behaves_like 'handling nuget service requests', v2: true
+
+    it_behaves_like 'accept get request on private project with access to package registry for everyone'
+  end
+
+  describe 'GET /api/v4/projects/:id/packages/nuget/v2/$metadata' do
+    let(:url) { "/projects/#{target.id}/packages/nuget/v2/$metadata" }
+
+    subject(:api_request) { get api(url) }
+
+    it { is_expected.to have_request_urgency(:low) }
+
+    context 'with valid target' do
+      using RSpec::Parameterized::TableSyntax
+
+      where(:visibility_level, :user_role, :member, :expected_status) do
+        'PUBLIC'   | :developer  | true  | :success
+        'PUBLIC'   | :guest      | true  | :success
+        'PUBLIC'   | :developer  | false | :success
+        'PUBLIC'   | :guest      | false | :success
+        'PUBLIC'   | :anonymous  | false | :success
+        'PRIVATE'  | :developer  | true  | :success
+        'PRIVATE'  | :guest      | true  | :success
+        'PRIVATE'  | :developer  | false | :success
+        'PRIVATE'  | :guest      | false | :success
+        'PRIVATE'  | :anonymous  | false | :success
+        'INTERNAL' | :developer  | true  | :success
+        'INTERNAL' | :guest      | true  | :success
+        'INTERNAL' | :developer  | false | :success
+        'INTERNAL' | :guest      | false | :success
+        'INTERNAL' | :anonymous  | false | :success
+      end
+
+      with_them do
+        before do
+          update_visibility_to(Gitlab::VisibilityLevel.const_get(visibility_level, false))
+        end
+
+        it_behaves_like 'process nuget v2 $metadata service request', params[:user_role], params[:expected_status], params[:member]
+      end
+    end
   end
 
   describe 'GET /api/v4/projects/:id/packages/nuget/metadata/*package_name/index' do
@@ -117,12 +202,13 @@ RSpec.describe API::NugetProjectPackages, feature_category: :package_registry do
   end
 
   describe 'GET /api/v4/projects/:id/packages/nuget/download/*package_name/*package_version/*package_filename' do
-    let_it_be(:package) { create(:nuget_package, :with_symbol_package, project: project, name: package_name) }
+    let_it_be(:package) { create(:nuget_package, :with_symbol_package, :with_metadatum, project: project, name: package_name, version: '0.1') }
+    let_it_be(:package_version) { package.version }
 
     let(:format) { 'nupkg' }
-    let(:url) { "/projects/#{target.id}/packages/nuget/download/#{package.name}/#{package.version}/#{package.name}.#{package.version}.#{format}" }
+    let(:url) { "/projects/#{target.id}/packages/nuget/download/#{package.name}/#{package_version}/#{package.name}.#{package_version}.#{format}" }
 
-    subject { get api(url) }
+    subject { get api(url), headers: headers }
 
     context 'with valid target' do
       where(:visibility_level, :user_role, :member, :user_token, :shared_examples_name, :expected_status) do
@@ -149,8 +235,7 @@ RSpec.describe API::NugetProjectPackages, feature_category: :package_registry do
       with_them do
         let(:token) { user_token ? personal_access_token.token : 'wrong' }
         let(:headers) { user_role == :anonymous ? {} : basic_auth_header(user.username, token) }
-
-        subject { get api(url), headers: headers }
+        let(:snowplow_gitlab_standard_context) { snowplow_context(user_role: user_role) }
 
         before do
           update_visibility_to(Gitlab::VisibilityLevel.const_get(visibility_level, false))
@@ -173,76 +258,77 @@ RSpec.describe API::NugetProjectPackages, feature_category: :package_registry do
     it_behaves_like 'rejects nuget access with invalid target id'
   end
 
+  describe 'GET /api/v4/projects/:id/packages/nuget/v2/FindPackagesById()' do
+    it_behaves_like 'nuget serialize odata package endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/v2/FindPackagesById()" }
+      let(:params) { { id: "'#{package_name}'" } }
+      let(:service_params) { { package_name: package_name } }
+    end
+  end
+
+  describe 'GET /api/v4/projects/:id/packages/nuget/v2/Packages()' do
+    it_behaves_like 'nuget serialize odata package endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/v2/Packages()" }
+      let(:params) { { '$filter' => "(tolower(Id) eq '#{package_name&.downcase}')" } }
+      let(:service_params) { { package_name: package_name&.downcase } }
+    end
+  end
+
+  describe 'GET /api/v4/projects/:id/packages/nuget/v2/Packages(Id=\'*\',Version=\'*\')' do
+    let(:package_version) { '1.0.0' }
+    let(:url) { "/projects/#{target.id}/packages/nuget/v2/Packages(Id='#{package_name}',Version='#{package_version}')" }
+    let(:params) { {} }
+    let(:service_params) { { package_name: package_name, package_version: package_version } }
+
+    it_behaves_like 'nuget serialize odata package endpoint'
+
+    context 'with invalid package version' do
+      subject { get api(url) }
+
+      ['', '1', '1./2.3', '%20', '..%2F..', '../..'].each do |value|
+        context "with invalid package version #{value}" do
+          let(:package_version) { value }
+
+          it_behaves_like 'returning response status', :bad_request
+        end
+      end
+    end
+  end
+
   describe 'PUT /api/v4/projects/:id/packages/nuget/authorize' do
-    include_context 'workhorse headers'
-
-    let(:url) { "/projects/#{target.id}/packages/nuget/authorize" }
-    let(:headers) { {} }
-
-    subject { put api(url), headers: headers }
-
-    it_behaves_like 'nuget authorize upload endpoint'
+    it_behaves_like 'nuget authorize upload endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/authorize" }
+    end
   end
 
   describe 'PUT /api/v4/projects/:id/packages/nuget' do
-    include_context 'workhorse headers'
-
-    let_it_be(:file_name) { 'package.nupkg' }
-
-    let(:url) { "/projects/#{target.id}/packages/nuget" }
-    let(:headers) { {} }
-    let(:params) { { package: temp_file(file_name) } }
-    let(:file_key) { :package }
-    let(:send_rewritten_field) { true }
-
-    subject do
-      workhorse_finalize(
-        api(url),
-        method: :put,
-        file_key: file_key,
-        params: params,
-        headers: headers,
-        send_rewritten_field: send_rewritten_field
-      )
+    it_behaves_like 'nuget upload endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget" }
     end
-
-    it_behaves_like 'nuget upload endpoint'
   end
 
   describe 'PUT /api/v4/projects/:id/packages/nuget/symbolpackage/authorize' do
-    include_context 'workhorse headers'
-
-    let(:url) { "/projects/#{target.id}/packages/nuget/symbolpackage/authorize" }
-    let(:headers) { {} }
-
-    subject { put api(url), headers: headers }
-
-    it_behaves_like 'nuget authorize upload endpoint'
+    it_behaves_like 'nuget authorize upload endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/symbolpackage/authorize" }
+    end
   end
 
   describe 'PUT /api/v4/projects/:id/packages/nuget/symbolpackage' do
-    include_context 'workhorse headers'
-
-    let_it_be(:file_name) { 'package.snupkg' }
-
-    let(:url) { "/projects/#{target.id}/packages/nuget/symbolpackage" }
-    let(:headers) { {} }
-    let(:params) { { package: temp_file(file_name) } }
-    let(:file_key) { :package }
-    let(:send_rewritten_field) { true }
-
-    subject do
-      workhorse_finalize(
-        api(url),
-        method: :put,
-        file_key: file_key,
-        params: params,
-        headers: headers,
-        send_rewritten_field: send_rewritten_field
-      )
+    it_behaves_like 'nuget upload endpoint', symbol_package: true do
+      let(:url) { "/projects/#{target.id}/packages/nuget/symbolpackage" }
     end
+  end
 
-    it_behaves_like 'nuget upload endpoint', symbol_package: true
+  describe 'PUT /api/v4/projects/:id/packages/nuget/v2/authorize' do
+    it_behaves_like 'nuget authorize upload endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/v2/authorize" }
+    end
+  end
+
+  describe 'PUT /api/v4/projects/:id/packages/nuget/v2' do
+    it_behaves_like 'nuget upload endpoint' do
+      let(:url) { "/projects/#{target.id}/packages/nuget/v2" }
+    end
   end
 
   def update_visibility_to(visibility)

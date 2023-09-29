@@ -41,10 +41,6 @@ describe('TerraformNotificationBanner', () => {
     trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('when user has already dismissed the banner', () => {
     beforeEach(() => {
       createComponent({
@@ -64,14 +60,15 @@ describe('TerraformNotificationBanner', () => {
 
   describe('when close button is clicked', () => {
     beforeEach(() => {
-      wrapper.vm.$refs.calloutDismisser.dismiss = userCalloutDismissSpy;
       findBanner().vm.$emit('close');
     });
+
     it('should send the dismiss event', () => {
       expect(trackingSpy).toHaveBeenCalledWith(undefined, DISMISS_EVENT, {
         label: EVENT_LABEL,
       });
     });
+
     it('should call the dismiss callback', () => {
       expect(userCalloutDismissSpy).toHaveBeenCalledTimes(1);
     });

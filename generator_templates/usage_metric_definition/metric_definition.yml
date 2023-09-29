@@ -1,10 +1,9 @@
 ---
-key_path: <%= args.second %><%= metric_name_suggestion(args.second) %>
+key_path: <%= args.second %>
 description:
 product_section:
 product_stage:
 product_group:
-product_category:
 value_type: <%= value_type %>
 status: active
 milestone: "<%= milestone %>"

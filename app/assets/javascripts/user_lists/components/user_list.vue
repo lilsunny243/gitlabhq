@@ -6,6 +6,7 @@ import {
   GlLoadingIcon,
   GlModalDirective as GlModal,
 } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import { s__, __ } from '~/locale';
 import { states, ADD_USER_MODAL_ID } from '../constants/show';
@@ -38,7 +39,7 @@ export default {
     ),
     userIdLabel: s__('UserLists|User IDs'),
     userIdColumnHeader: s__('UserLists|User ID'),
-    errorMessage: __('Something went wrong on our end. Please try again!'),
+    errorMessage: __('Unable to load user list. Reload the page and try again.'),
     editButtonLabel: s__('UserLists|Edit'),
   },
   classes: {
@@ -137,6 +138,7 @@ export default {
         :title="$options.translations.emptyStateTitle"
         :description="$options.translations.emptyStateDescription"
         :svg-path="emptyStatePath"
+        :svg-height="150"
       />
     </div>
   </div>

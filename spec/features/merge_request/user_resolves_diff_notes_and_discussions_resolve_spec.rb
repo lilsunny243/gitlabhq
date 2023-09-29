@@ -10,9 +10,7 @@ RSpec.describe 'Merge request > User resolves diff notes and threads', :js, feat
   let!(:note)         { create(:diff_note_on_merge_request, project: project, noteable: merge_request, note: "| Markdown | Table |\n|-------|---------|\n| first | second |") }
   let(:path)          { "files/ruby/popen.rb" }
   let(:position) do
-    build(:text_diff_position,
-          file: path, old_line: nil, new_line: 9,
-          diff_refs: merge_request.diff_refs)
+    build(:text_diff_position, file: path, old_line: nil, new_line: 9, diff_refs: merge_request.diff_refs)
   end
 
   before do
@@ -218,7 +216,7 @@ RSpec.describe 'Merge request > User resolves diff notes and threads', :js, feat
         end
       end
 
-      it 'allows user to quickly scroll to next unresolved thread' do
+      it 'allows user to quickly scroll to next unresolved thread', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/410109' do
         page.within '.discussions-counter' do
           page.find('.discussion-next-btn').click
         end

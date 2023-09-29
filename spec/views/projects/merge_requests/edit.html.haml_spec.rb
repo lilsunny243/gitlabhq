@@ -35,30 +35,39 @@ RSpec.describe 'projects/merge_requests/edit.html.haml' do
       .and_return(User.find(closed_merge_request.author_id))
   end
 
+  shared_examples 'merge request shows editable fields' do
+    it 'shows editable fields' do
+      render
+
+      expect(rendered).to have_field('merge_request[title]')
+      expect(rendered).to have_selector('input[name="merge_request[description]"]', visible: false)
+      expect(rendered).to have_selector('.js-milestone-dropdown-root')
+      expect(rendered).to have_selector('#merge_request_target_branch', visible: false)
+    end
+  end
+
   context 'when a merge request without fork' do
+    it_behaves_like 'merge request shows editable fields'
+
     it "shows editable fields" do
       unlink_project.execute
       closed_merge_request.reload
 
       render
 
-      expect(rendered).to have_field('merge_request[title]')
-      expect(rendered).to have_field('merge_request[description]')
-      expect(rendered).to have_selector('input[name="merge_request[label_ids][]"]', visible: false)
-      expect(rendered).to have_selector('.js-milestone-dropdown-root')
       expect(rendered).not_to have_selector('#merge_request_target_branch', visible: false)
+      expect(rendered).to have_selector('.js-issuable-form-label-selector')
     end
   end
 
   context 'when a merge request with an existing source project is closed' do
+    it_behaves_like 'merge request shows editable fields'
+
     it "shows editable fields" do
       render
 
-      expect(rendered).to have_field('merge_request[title]')
-      expect(rendered).to have_field('merge_request[description]')
-      expect(rendered).to have_selector('input[name="merge_request[label_ids][]"]', visible: false)
-      expect(rendered).to have_selector('.js-milestone-dropdown-root')
       expect(rendered).to have_selector('#merge_request_target_branch', visible: false)
+      expect(rendered).to have_selector('.js-issuable-form-label-selector')
     end
   end
 end

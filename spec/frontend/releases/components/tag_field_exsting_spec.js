@@ -1,6 +1,7 @@
 import { GlFormInput } from '@gitlab/ui';
 import { shallowMount, mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import TagFieldExisting from '~/releases/components/tag_field_existing.vue';
 import createStore from '~/releases/stores';
@@ -35,11 +36,6 @@ describe('releases/components/tag_field_existing', () => {
     store.state.editNew.release = {
       tagName: TEST_TAG_NAME,
     };
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   describe('default', () => {

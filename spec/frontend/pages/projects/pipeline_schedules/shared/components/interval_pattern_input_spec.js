@@ -1,6 +1,5 @@
-import { GlIcon } from '@gitlab/ui';
-import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
 import { trimText } from 'helpers/text_helper';
 import IntervalPatternInput from '~/pages/projects/pipeline_schedules/shared/components/interval_pattern_input.vue';
 
@@ -21,15 +20,15 @@ describe('Interval Pattern Input Component', () => {
   const everyDayKey = 'everyDay';
   const cronIntervalNotInPreset = `0 12 * * *`;
 
-  const findEveryDayRadio = () => wrapper.find(`[data-testid=${everyDayKey}]`);
-  const findEveryWeekRadio = () => wrapper.find('[data-testid="everyWeek"]');
-  const findEveryMonthRadio = () => wrapper.find('[data-testid="everyMonth"]');
-  const findCustomRadio = () => wrapper.find(`[data-testid="${customKey}"]`);
+  const findEveryDayRadio = () => wrapper.findByTestId(everyDayKey);
+  const findEveryWeekRadio = () => wrapper.findByTestId('everyWeek');
+  const findEveryMonthRadio = () => wrapper.findByTestId('everyMonth');
+  const findCustomRadio = () => wrapper.findByTestId(customKey);
   const findCustomInput = () => wrapper.find('#schedule_cron');
   const findAllLabels = () => wrapper.findAll('label');
   const findSelectedRadio = () =>
     wrapper.findAll('input[type="radio"]').wrappers.find((x) => x.element.checked);
-  const findIcon = () => wrapper.findComponent(GlIcon);
+  const findIcon = () => wrapper.findByTestId('daily-limit');
   const findSelectedRadioKey = () => findSelectedRadio()?.attributes('data-testid');
   const selectEveryDayRadio = () => findEveryDayRadio().setChecked(true);
   const selectEveryWeekRadio = () => findEveryWeekRadio().setChecked(true);
@@ -37,11 +36,7 @@ describe('Interval Pattern Input Component', () => {
   const selectCustomRadio = () => findCustomRadio().setChecked(true);
 
   const createWrapper = (props = {}, data = {}) => {
-    if (wrapper) {
-      throw new Error('A wrapper already exists');
-    }
-
-    wrapper = mount(IntervalPatternInput, {
+    wrapper = mountExtended(IntervalPatternInput, {
       propsData: { ...props },
       data() {
         return {
@@ -64,8 +59,6 @@ describe('Interval Pattern Input Component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     window.gl = oldWindowGl;
   });
 
@@ -138,7 +131,7 @@ describe('Interval Pattern Input Component', () => {
         'Every day (at 4:00am)',
         'Every week (Monday at 4:00am)',
         'Every month (Day 1 at 4:00am)',
-        'Custom ( Learn more. )',
+        'Custom',
       ]);
     });
   });
@@ -223,6 +216,19 @@ describe('Interval Pattern Input Component', () => {
       createWrapper();
 
       expect(findIcon().exists()).toBe(false);
+    });
+  });
+
+  describe('cronValue event', () => {
+    it('emits cronValue event with cron value', async () => {
+      createWrapper();
+
+      findCustomInput().element.value = '0 16 * * *';
+      findCustomInput().trigger('input');
+
+      await nextTick();
+
+      expect(wrapper.emitted()).toEqual({ cronValue: [['0 16 * * *']] });
     });
   });
 });

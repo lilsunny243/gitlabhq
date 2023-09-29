@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe PreviewMarkdownService do
+RSpec.describe PreviewMarkdownService, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:project) { create(:project, :repository) }
 
@@ -28,9 +28,11 @@ RSpec.describe PreviewMarkdownService do
 
     let(:text) { "```suggestion\nfoo\n```" }
     let(:params) do
-      suggestion_params.merge(text: text,
-                              target_type: 'MergeRequest',
-                              target_id: merge_request.iid)
+      suggestion_params.merge(
+        text: text,
+        target_type: 'MergeRequest',
+        target_id: merge_request.iid
+      )
     end
 
     let(:service) { described_class.new(project, user, params) }
@@ -52,15 +54,16 @@ RSpec.describe PreviewMarkdownService do
       end
 
       it 'returns suggestions referenced in text' do
-        position = Gitlab::Diff::Position.new(new_path: path,
-                                              new_line: line,
-                                              diff_refs: diff_refs)
+        position = Gitlab::Diff::Position.new(new_path: path, new_line: line, diff_refs: diff_refs)
 
         expect(Gitlab::Diff::SuggestionsParser)
           .to receive(:parse)
-          .with(text, position: position,
-                      project: merge_request.project,
-                      supports_suggestion: true)
+          .with(
+            text,
+            position: position,
+            project: merge_request.project,
+            supports_suggestion: true
+          )
           .and_call_original
 
         result = service.execute
@@ -115,6 +118,16 @@ RSpec.describe PreviewMarkdownService do
       result = service.execute
 
       expect(result[:text]).to eq 'Please do it'
+    end
+
+    context 'when render_quick_actions' do
+      it 'keeps quick actions' do
+        params[:render_quick_actions] = true
+
+        result = service.execute
+
+        expect(result[:text]).to eq "Please do it\n\n/assign #{user.to_reference}"
+      end
     end
 
     it 'explains quick actions effect' do

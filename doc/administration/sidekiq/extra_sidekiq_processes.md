@@ -11,7 +11,7 @@ at a higher rate on a single instance. By default, Sidekiq starts one worker
 process and only uses a single core.
 
 NOTE:
-The information in this page applies only to Omnibus GitLab.
+The information in this page applies only to Linux package installations.
 
 ## Start multiple processes
 
@@ -48,7 +48,8 @@ to all available queues:
 
 To view the Sidekiq processes in GitLab:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Monitoring > Background Jobs**.
 
 ## Concurrency
@@ -104,8 +105,6 @@ concurrency is set to:
 When `min_concurrency` is greater than `max_concurrency`, it is treated as
 being equal to `max_concurrency`.
 
-You can find example values used by GitLab.com by searching for `concurrency:`
-in [the Helm charts](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com/-/blob/master/releases/gitlab/values/gprd.yaml.gotmpl).
 The values vary according to the work each specific deployment of Sidekiq does.
 Any other specialized deployments with processes dedicated to specific queues
 should have the concurrency tuned according to:

@@ -30,18 +30,14 @@ module Users
       return if Gitlab::Database.read_only?
 
       today = Date.today
-
       return if user.last_activity_on == today
 
-      lease = Gitlab::ExclusiveLease.new("activity_service:#{user.id}",
-                                         timeout: LEASE_TIMEOUT)
+      lease = Gitlab::ExclusiveLease.new("activity_service:#{user.id}", timeout: LEASE_TIMEOUT)
       return unless lease.try_obtain
 
       user.update_attribute(:last_activity_on, today)
 
       Gitlab::UsageDataCounters::HLLRedisCounter.track_event('unique_active_user', values: user.id)
-
-      return unless Feature.enabled?(:route_hll_to_snowplow_phase3)
 
       Gitlab::Tracking.event(
         'Users::ActivityService',

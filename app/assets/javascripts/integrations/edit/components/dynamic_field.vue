@@ -1,6 +1,7 @@
 <script>
 import { GlFormGroup, GlFormCheckbox, GlFormInput, GlFormSelect, GlFormTextarea } from '@gitlab/ui';
 import { capitalize, lowerCase, isEmpty } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 
@@ -97,7 +98,7 @@ export default {
       return isEmpty(this.value) && this.required;
     },
     options() {
-      return this.choices.map((choice) => {
+      return this.choices?.map((choice) => {
         return {
           value: choice[1],
           text: choice[0],

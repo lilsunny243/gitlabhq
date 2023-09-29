@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlButton, GlLoadingIcon, GlTooltipDirective, GlIntersectionObserver } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
@@ -68,7 +69,7 @@ export default {
     },
     isCollapsible() {
       if (!this.isLoadingSummary && this.loadingState !== LOADING_STATES.collapsedError) {
-        if (this.shouldCollapse) {
+        if ('shouldCollapse' in this) {
           return this.shouldCollapse(this.collapsedData);
         }
 
@@ -304,11 +305,7 @@ export default {
 </script>
 
 <template>
-  <section
-    class="media-section"
-    data-testid="widget-extension"
-    data-qa-selector="mr_widget_extension"
-  >
+  <section class="media-section" data-testid="widget-extension">
     <state-container
       :status="statusIconName"
       :is-loading="isLoadingSummary"
@@ -345,11 +342,7 @@ export default {
             </template>
           </template>
         </div>
-        <actions
-          :widget="$options.label || $options.name"
-          :tertiary-buttons="tertiaryActionsButtons"
-          @clickedAction="onClickedAction"
-        />
+        <actions :tertiary-buttons="tertiaryActionsButtons" @clickedAction="onClickedAction" />
         <div
           v-if="isCollapsible"
           class="gl-border-l-1 gl-border-l-solid gl-border-gray-100 gl-ml-3 gl-pl-3 gl-h-6"
@@ -362,7 +355,6 @@ export default {
             :icon="isCollapsed ? 'chevron-lg-down' : 'chevron-lg-up'"
             category="tertiary"
             data-testid="toggle-button"
-            data-qa-selector="toggle_button"
             size="small"
             @click="toggleCollapsed"
           />

@@ -4,12 +4,12 @@ module QA
   module Service
     module DockerRun
       class Smocker < Base
-        def initialize
+        def initialize(name: 'smocker-server')
           @image = 'thiht/smocker:0.17.1'
-          @name = 'smocker-server'
+          @name = name
           @public_port = 8080
           @admin_port = 8081
-          super
+          super()
           @network_cache = network
         end
 
@@ -41,9 +41,11 @@ module QA
         attr_reader :public_port, :admin_port
 
         def host_name
-          return '127.0.0.1' unless QA::Runtime::Env.running_in_ci? || QA::Runtime::Env.qa_hostname
-
-          "#{@name}.#{@network_cache}"
+          @host_name ||= if QA::Runtime::Env.running_in_ci? || QA::Runtime::Env.qa_hostname
+                           "#{@name}.#{@network_cache}"
+                         else
+                           host_ip
+                         end
         end
 
         def wait_for_running

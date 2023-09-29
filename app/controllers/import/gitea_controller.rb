@@ -32,7 +32,7 @@ class Import::GiteaController < Import::GithubController
         if params[:namespace_id].present?
           @namespace = Namespace.find_by_id(params[:namespace_id])
 
-          render_404 unless current_user.can?(:create_projects, @namespace)
+          render_404 unless current_user.can?(:import_projects, @namespace)
         end
       end
     end
@@ -71,6 +71,11 @@ class Import::GiteaController < Import::GithubController
     end
   end
 
+  override :serialized_imported_projects
+  def serialized_imported_projects(projects = already_added_projects)
+    ProjectSerializer.new.represent(projects, serializer: :import, provider_url: provider_url)
+  end
+
   override :client_repos
   def client_repos
     @client_repos ||= filtered(client.repos)
@@ -94,7 +99,7 @@ class Import::GiteaController < Import::GithubController
       allow_local_network: allow_local_requests?,
       schemes: %w[http https]
     )
-  rescue Gitlab::UrlBlocker::BlockedUrlError => e
+  rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError => e
     session[access_token_key] = nil
 
     redirect_to new_import_url, alert: _('Specified URL cannot be used: "%{reason}"') % { reason: e.message }

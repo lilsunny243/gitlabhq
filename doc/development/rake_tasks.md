@@ -30,7 +30,9 @@ See also [Mass inserting Rails models](mass_insert.md).
 
 **LARGE_PROJECTS**: Create large projects (through import) from a predefined set of URLs.
 
-### Seeding issues for all or a given project
+### Seeding Data
+
+#### Seeding issues for all projects or a single project
 
 You can seed issues for all or a given project with the `gitlab:seed:issues`
 task:
@@ -46,7 +48,7 @@ bin/rake "gitlab:seed:issues[group-path/project-path]"
 By default, this seeds an average of 2 issues per week for the last 5 weeks per
 project.
 
-#### Seeding issues for Insights charts **(ULTIMATE)**
+#### Seeding issues for Insights charts **(ULTIMATE ALL)**
 
 You can seed issues specifically for working with the
 [Insights charts](../user/group/insights/index.md) with the
@@ -143,6 +145,66 @@ bin/rake 'gitlab:seed:vulnerabilities'
 
 # Seed a specific project
 bin/rake 'gitlab:seed:vulnerabilities[group-path/project-path]'
+```
+
+#### Seed a project with environments
+
+You can seed a project with [environments](../ci/environments/index.md).
+
+By default, this creates 10 environments, each with the prefix `ENV_`.
+Only `project_path` is required to run this command.
+
+```shell
+bundle exec rake "gitlab:seed:project_environments[project_path, seed_count, prefix]"
+
+# Examples
+bundle exec rake "gitlab:seed:project_environments[flightjs/Flight]"
+bundle exec rake "gitlab:seed:project_environments[flightjs/Flight, 25, FLIGHT_ENV_]"
+```
+
+#### Seed CI variables
+
+You can seed a project, group, or instance with [CI variables](../ci/variables/index.md).
+
+By default, each command creates 10 CI variables. Variable names are prepended with its own
+default prefix (`VAR_` for project-level variables, `GROUP_VAR_` for group-level variables,
+and `INSTANCE_VAR_` for instance-level variables).
+
+Instance-level variables do not have environment scopes. Project-level and group-level variables
+use the default `"*"` environment scope if no `environment_scope` is supplied. If `environment_scope`
+is set to `"unique"`, each variable is created with its own unique environment.
+
+```shell
+# Seed a project with project-level CI variables
+# Only `project_path` is required to run this command.
+bundle exec rake "gitlab:seed:ci_variables_project[project_path, seed_count, environment_scope, prefix]"
+
+# Seed a group with group-level CI variables
+# Only `group_name` is required to run this command.
+bundle exec rake "gitlab:seed:ci_variables_group[group_name, seed_count, environment_scope, prefix]"
+
+# Seed an instance with instance-level CI variables
+bundle exec rake "gitlab:seed:ci_variables_instance[seed_count, prefix]"
+
+# Examples
+bundle exec rake "gitlab:seed:ci_variables_project[flightjs/Flight]"
+bundle exec rake "gitlab:seed:ci_variables_project[flightjs/Flight, 25, staging]"
+bundle exec rake "gitlab:seed:ci_variables_project[flightjs/Flight, 25, unique, CI_VAR_]"
+
+bundle exec rake "gitlab:seed:ci_variables_group[group_name]"
+bundle exec rake "gitlab:seed:ci_variables_group[group_name, 25, staging]"
+bundle exec rake "gitlab:seed:ci_variables_group[group_name, 25, unique, CI_VAR_]"
+
+bundle exec rake "gitlab:seed:ci_variables_instance"
+bundle exec rake "gitlab:seed:ci_variables_instance[25, CI_VAR_]"
+```
+
+#### Seed a project for merge train development
+
+Seeds a project with merge trains configured and 20 merge requests(each with 3 commits). The command:
+
+```shell
+rake gitlab:seed:merge_trains:project
 ```
 
 ### Automation
@@ -258,7 +320,7 @@ One way to generate the initial list is to run the Rake task `rubocop:todo:gener
 bundle exec rake rubocop:todo:generate
 ```
 
-To generate TODO list for specific RuboCop rules, pass them comma-seperated as
+To generate TODO list for specific RuboCop rules, pass them comma-separated as
 argument to the Rake task:
 
 ```shell
@@ -372,7 +434,7 @@ a file for quick reference.
 
 ## Show obsolete `ignored_columns`
 
-To see a list of all obsolete `ignored_columns` run:
+To see a list of all obsolete `ignored_columns` definitions run:
 
 ```shell
 bundle exec rake db:obsolete_ignored_columns
@@ -468,13 +530,18 @@ The following command combines the intent of [Update GraphQL documentation and s
 bundle exec rake gitlab:graphql:update_all
 ```
 
+## Update audit event types documentation
+
+For information on updating audit event types documentation, see
+[Generate documentation](audit_event_guide/index.md#generate-documentation).
+
 ## Update OpenAPI client for Error Tracking feature
 
 NOTE:
 This Rake task needs `docker` to be installed.
 
 To update generated code for OpenAPI client located in
-`vendor/gems/error_tracking_open_api` run the following commands:
+`gems/error_tracking_open_api` run the following commands:
 
 ```shell
 # Run rake task
@@ -483,7 +550,7 @@ bundle exec rake gems:error_tracking_open_api:generate
 # Review and test the changes
 
 # Commit the changes
-git commit -m 'Update ErrorTrackingOpenAPI from OpenAPI definition' vendor/gems/error_tracking_open_api
+git commit -m 'Update ErrorTrackingOpenAPI from OpenAPI definition' gems/error_tracking_open_api
 ```
 
 ## Update banned SSH keys

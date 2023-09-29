@@ -1,7 +1,8 @@
-import { GlButton, GlDropdown, GlLoadingIcon, GlToggle } from '@gitlab/ui';
+import { GlButton, GlDropdown, GlLoadingIcon, GlToggle, GlAlert } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
+import { helpPagePath } from '~/helpers/help_page_helper';
 import ServiceDeskSetting from '~/projects/settings_service_desk/components/service_desk_setting.vue';
 import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
 
@@ -16,21 +17,42 @@ describe('ServiceDeskSetting', () => {
   const findTemplateDropdown = () => wrapper.findComponent(GlDropdown);
   const findToggle = () => wrapper.findComponent(GlToggle);
   const findSuffixFormGroup = () => wrapper.findByTestId('suffix-form-group');
+  const findIssueTrackerInfo = () => wrapper.findComponent(GlAlert);
+  const findIssueHelpLink = () => wrapper.findByTestId('issue-help-page');
 
   const createComponent = ({ props = {} } = {}) =>
     extendedWrapper(
       mount(ServiceDeskSetting, {
         propsData: {
           isEnabled: true,
+          isIssueTrackerEnabled: true,
           ...props,
         },
       }),
     );
 
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-    }
+  describe('with issue tracker', () => {
+    it('does not show the info notice when enabled', () => {
+      wrapper = createComponent();
+
+      expect(findIssueTrackerInfo().exists()).toBe(false);
+    });
+
+    it('shows info notice when disabled with help page link', () => {
+      wrapper = createComponent({
+        props: {
+          isIssueTrackerEnabled: false,
+        },
+      });
+
+      expect(findIssueTrackerInfo().exists()).toBe(true);
+      expect(findIssueHelpLink().text()).toEqual('activate the issue tracker');
+      expect(findIssueHelpLink().attributes('href')).toBe(
+        helpPagePath('user/project/settings/index.md', {
+          anchor: 'configure-project-visibility-features-and-permissions',
+        }),
+      );
+    });
   });
 
   describe('when isEnabled=true', () => {
@@ -112,26 +134,26 @@ describe('ServiceDeskSetting', () => {
       });
     });
 
-    describe('with customEmail', () => {
-      describe('customEmail is different than incomingEmail', () => {
+    describe('with serviceDeskEmail', () => {
+      describe('serviceDeskEmail is different than incomingEmail', () => {
         const incomingEmail = 'foo@bar.com';
-        const customEmail = 'custom@bar.com';
+        const serviceDeskEmail = 'servicedesk@bar.com';
 
         beforeEach(() => {
           wrapper = createComponent({
-            props: { incomingEmail, customEmail },
+            props: { incomingEmail, serviceDeskEmail },
           });
         });
 
-        it('should see custom email', () => {
-          expect(findIncomingEmail().element.value).toEqual(customEmail);
+        it('should see service desk email', () => {
+          expect(findIncomingEmail().element.value).toEqual(serviceDeskEmail);
         });
       });
 
       describe('project suffix', () => {
         it('input is hidden', () => {
           wrapper = createComponent({
-            props: { customEmailEnabled: false },
+            props: { serviceDeskEmailEnabled: false },
           });
 
           const input = wrapper.findByTestId('project-suffix');
@@ -141,7 +163,7 @@ describe('ServiceDeskSetting', () => {
 
         it('input is enabled', () => {
           wrapper = createComponent({
-            props: { customEmailEnabled: true },
+            props: { serviceDeskEmailEnabled: true },
           });
 
           const input = wrapper.findByTestId('project-suffix');
@@ -152,7 +174,7 @@ describe('ServiceDeskSetting', () => {
 
         it('shows error when value contains uppercase or special chars', async () => {
           wrapper = createComponent({
-            props: { email: 'foo@bar.com', customEmailEnabled: true },
+            props: { email: 'foo@bar.com', serviceDeskEmailEnabled: true },
           });
 
           const input = wrapper.findByTestId('project-suffix');
@@ -167,16 +189,16 @@ describe('ServiceDeskSetting', () => {
         });
       });
 
-      describe('customEmail is the same as incomingEmail', () => {
+      describe('serviceDeskEmail is the same as incomingEmail', () => {
         const email = 'foo@bar.com';
 
         beforeEach(() => {
           wrapper = createComponent({
-            props: { incomingEmail: email, customEmail: email },
+            props: { incomingEmail: email, serviceDeskEmail: email },
           });
         });
 
-        it('should see custom email', () => {
+        it('should see service desk email', () => {
           expect(findIncomingEmail().element.value).toEqual(email);
         });
       });

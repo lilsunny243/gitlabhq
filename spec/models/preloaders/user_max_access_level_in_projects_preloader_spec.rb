@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Preloaders::UserMaxAccessLevelInProjectsPreloader do
+RSpec.describe Preloaders::UserMaxAccessLevelInProjectsPreloader, feature_category: :system_access do
   let_it_be(:user) { create(:user) }
   let_it_be(:project_1) { create(:project) }
   let_it_be(:project_2) { create(:project) }
@@ -23,8 +23,7 @@ RSpec.describe Preloaders::UserMaxAccessLevelInProjectsPreloader do
       # we have an existing N+1, one for each project for which user is not a member
       # in this spec, project_3, project_4, project_5
       # https://gitlab.com/gitlab-org/gitlab/-/issues/362890
-      ee_only_policy_check_queries = Gitlab.ee? ? 1 : 0
-      expect { query }.to make_queries(projects.size + 3 + ee_only_policy_check_queries)
+      expect { query }.to make_queries(projects.size + 3)
     end
   end
 
@@ -33,7 +32,7 @@ RSpec.describe Preloaders::UserMaxAccessLevelInProjectsPreloader do
 
     context 'when user is present' do
       before do
-        Preloaders::UserMaxAccessLevelInProjectsPreloader.new(projects_arg, user).execute
+        described_class.new(projects_arg, user).execute
       end
 
       it 'avoids N+1 queries' do
@@ -62,7 +61,7 @@ RSpec.describe Preloaders::UserMaxAccessLevelInProjectsPreloader do
 
     context 'when user is not present' do
       before do
-        Preloaders::UserMaxAccessLevelInProjectsPreloader.new(projects_arg, nil).execute
+        described_class.new(projects_arg, nil).execute
       end
 
       it 'does not avoid N+1 queries' do

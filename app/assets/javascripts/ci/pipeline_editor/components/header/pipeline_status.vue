@@ -5,11 +5,10 @@ import { truncateSha } from '~/lib/utils/text_utility';
 import { s__ } from '~/locale';
 import getPipelineQuery from '~/ci/pipeline_editor/graphql/queries/pipeline.query.graphql';
 import getPipelineEtag from '~/ci/pipeline_editor/graphql/queries/client/pipeline_etag.query.graphql';
-import {
-  getQueryHeaders,
-  toggleQueryPollingByVisibility,
-} from '~/pipelines/components/graph/utils';
-import CiIcon from '~/vue_shared/components/ci_icon.vue';
+import { getQueryHeaders, toggleQueryPollingByVisibility } from '~/ci/pipeline_details/graph/utils';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import CiBadgeLink from '~/vue_shared/components/ci_badge_link.vue';
+import PipelineMiniGraph from '~/ci/pipeline_mini_graph/pipeline_mini_graph.vue';
 import PipelineEditorMiniGraph from './pipeline_editor_mini_graph.vue';
 
 const POLL_INTERVAL = 10000;
@@ -26,17 +25,19 @@ export const i18n = {
 export default {
   i18n,
   components: {
-    CiIcon,
+    CiBadgeLink,
     GlButton,
     GlIcon,
     GlLink,
     GlLoadingIcon,
     GlSprintf,
     PipelineEditorMiniGraph,
+    PipelineMiniGraph,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
   },
+  mixins: [glFeatureFlagsMixin()],
   inject: ['projectFullPath'],
   props: {
     commitSha: {
@@ -106,6 +107,9 @@ export default {
     hasPipelineData() {
       return Boolean(this.pipeline?.id);
     },
+    isUsingPipelineMiniGraphQueries() {
+      return this.glFeatures.ciGraphqlPipelineMiniGraph;
+    },
     pipelineId() {
       return getIdFromGraphQLId(this.pipeline.id);
     },
@@ -134,7 +138,9 @@ export default {
 </script>
 
 <template>
-  <div class="gl-display-flex gl-justify-content-space-between gl-align-items-center gl-flex-wrap">
+  <div
+    class="gl-display-flex gl-justify-content-space-between gl-align-items-center gl-flex-wrap gl-w-full"
+  >
     <template v-if="showLoadingState">
       <div>
         <gl-loading-icon class="gl-mr-auto gl-display-inline-block" size="sm" />
@@ -142,20 +148,25 @@ export default {
       </div>
     </template>
     <template v-else-if="hasError">
-      <gl-icon class="gl-mr-auto" name="warning-solid" />
-      <span data-testid="pipeline-error-msg">{{ $options.i18n.fetchError }}</span>
+      <div>
+        <gl-icon class="gl-mr-auto" name="warning-solid" />
+        <span data-testid="pipeline-error-msg">{{ $options.i18n.fetchError }}</span>
+      </div>
     </template>
     <template v-else>
       <div class="gl-text-truncate gl-md-max-w-50p gl-mr-1">
         <a :href="status.detailsPath" class="gl-mr-auto">
-          <ci-icon :status="status" :size="16" data-testid="pipeline-status-icon" />
+          <ci-badge-link
+            :status="status"
+            badge-size="md"
+            :show-text="false"
+            data-testid="pipeline-status-icon"
+          />
         </a>
         <span class="gl-font-weight-bold">
           <gl-sprintf :message="$options.i18n.pipelineInfo">
             <template #id="{ content }">
-              <span data-testid="pipeline-id" data-qa-selector="pipeline_id_content">
-                {{ content }}{{ pipelineId }}
-              </span>
+              <span data-testid="pipeline-id"> {{ content }}{{ pipelineId }} </span>
             </template>
             <template #status>{{ status.text }}</template>
             <template #commit>
@@ -171,12 +182,17 @@ export default {
           </gl-sprintf>
         </span>
       </div>
-      <div class="gl-display-flex gl-flex-wrap">
-        <pipeline-editor-mini-graph :pipeline="pipeline" v-on="$listeners" />
+      <div class="gl-display-flex gl-flex-wrap-wrap">
+        <pipeline-mini-graph
+          v-if="isUsingPipelineMiniGraphQueries"
+          :full-path="projectFullPath"
+          :iid="pipeline.iid"
+          :pipeline-etag="pipelineEtag"
+        />
+        <pipeline-editor-mini-graph v-else :pipeline="pipeline" v-on="$listeners" />
         <gl-button
-          class="gl-ml-3"
-          category="secondary"
-          variant="confirm"
+          class="gl-ml-3 gl-align-self-center"
+          size="small"
           :href="status.detailsPath"
           data-testid="pipeline-view-btn"
         >

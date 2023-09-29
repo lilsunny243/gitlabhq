@@ -1,5 +1,5 @@
 <script>
-import { isEmpty } from 'lodash';
+import { isEmpty, clamp } from 'lodash';
 import {
   registerExtension,
   registeredExtensions,
@@ -9,11 +9,10 @@ import MrWidgetApprovals from 'ee_else_ce/vue_merge_request_widget/components/ap
 import MRWidgetService from 'ee_else_ce/vue_merge_request_widget/services/mr_widget_service';
 import MRWidgetStore from 'ee_else_ce/vue_merge_request_widget/stores/mr_widget_store';
 import { stateToComponentMap as classState } from 'ee_else_ce/vue_merge_request_widget/stores/state_maps';
-import { createAlert } from '~/flash';
-import { secondsToMilliseconds } from '~/lib/utils/datetime_utility';
+import { createAlert } from '~/alert';
+import { STATUS_CLOSED, STATUS_MERGED } from '~/issues/constants';
 import notify from '~/lib/utils/notify';
 import { sprintf, s__, __ } from '~/locale';
-import Project from '~/pages/projects/project';
 import SmartInterval from '~/smart_interval';
 import { TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
@@ -27,6 +26,7 @@ import ArchivedState from './components/states/mr_widget_archived.vue';
 import MrWidgetAutoMergeEnabled from './components/states/mr_widget_auto_merge_enabled.vue';
 import AutoMergeFailed from './components/states/mr_widget_auto_merge_failed.vue';
 import CheckingState from './components/states/mr_widget_checking.vue';
+import PreparingState from './components/states/mr_widget_preparing.vue';
 import ClosedState from './components/states/mr_widget_closed.vue';
 import ConflictsState from './components/states/mr_widget_conflicts.vue';
 import FailedToMerge from './components/states/mr_widget_failed_to_merge.vue';
@@ -44,15 +44,18 @@ import UnresolvedDiscussionsState from './components/states/unresolved_discussio
 import WorkInProgressState from './components/states/work_in_progress.vue';
 import ExtensionsContainer from './components/extensions/container';
 import WidgetContainer from './components/widget/app.vue';
-import { STATE_MACHINE, stateToComponentMap } from './constants';
+import {
+  STATE_MACHINE,
+  stateToComponentMap,
+  STATE_QUERY_POLLING_INTERVAL_DEFAULT,
+  STATE_QUERY_POLLING_INTERVAL_BACKOFF,
+  FOUR_MINUTES_IN_MS,
+} from './constants';
 import eventHub from './event_hub';
 import mergeRequestQueryVariablesMixin from './mixins/merge_request_query_variables';
 import getStateQuery from './queries/get_state.query.graphql';
 import getStateSubscription from './queries/get_state.subscription.graphql';
-import terraformExtension from './extensions/terraform';
 import accessibilityExtension from './extensions/accessibility';
-import codeQualityExtension from './extensions/code_quality';
-import testReportExtension from './extensions/test_report';
 import ReportWidgetContainer from './components/report_widget_container.vue';
 import MrWidgetReadyToMerge from './components/states/new_ready_to_merge.vue';
 
@@ -83,6 +86,7 @@ export default {
     MrWidgetReadyToMerge,
     ShaMismatch,
     MrWidgetChecking: CheckingState,
+    MrWidgetPreparing: PreparingState,
     MrWidgetUnresolvedDiscussions: UnresolvedDiscussionsState,
     MrWidgetPipelineBlocked: PipelineBlockedState,
     MrWidgetPipelineFailed: PipelineFailedState,
@@ -91,7 +95,6 @@ export default {
     MrWidgetRebase: RebaseState,
     SourceBranchRemovalStatus,
     MrWidgetApprovals,
-    SecurityReportsApp: () => import('~/vue_shared/security_reports/security_reports_app.vue'),
     MergeChecksFailed: () => import('./components/states/merge_checks_failed.vue'),
     ReadyToMerge: ReadyToMergeState,
     ReportWidgetContainer,
@@ -99,6 +102,7 @@ export default {
   apollo: {
     state: {
       query: getStateQuery,
+      notifyOnNetworkStatusChange: true,
       manual: true,
       skip() {
         return !this.mr;
@@ -106,10 +110,19 @@ export default {
       variables() {
         return this.mergeRequestQueryVariables;
       },
-      result({ data: { project } }) {
-        if (project) {
-          this.mr.setGraphqlData(project);
-          this.loading = false;
+      pollInterval() {
+        return this.pollInterval;
+      },
+      result(response) {
+        if (!response.loading) {
+          this.pollInterval = this.apolloStateQueryPollingInterval;
+
+          if (response.data?.project) {
+            this.mr.setGraphqlData(response.data.project);
+            this.loading = false;
+          }
+        } else {
+          this.checkStatus(undefined, undefined, false);
         }
       },
       subscribeToMore: {
@@ -117,7 +130,7 @@ export default {
           return getStateSubscription;
         },
         skip() {
-          return !this.mr?.id || this.loading || !window.gon?.features?.realtimeMrStatusChange;
+          return !this.mr?.id || this.loading;
         },
         variables() {
           return {
@@ -140,6 +153,10 @@ export default {
     },
   },
   mixins: [mergeRequestQueryVariablesMixin],
+  provide: {
+    expandDetailsTooltip: __('Expand merge details'),
+    collapseDetailsTooltip: __('Collapse merge details'),
+  },
   props: {
     mrData: {
       type: Object,
@@ -158,11 +175,29 @@ export default {
       loading: true,
       recomputeComponentName: 0,
       issuableId: false,
+      startingPollInterval: STATE_QUERY_POLLING_INTERVAL_DEFAULT,
+      pollInterval: STATE_QUERY_POLLING_INTERVAL_DEFAULT,
     };
   },
   computed: {
+    apolloStateQueryMaxPollingInterval() {
+      return this.startingPollInterval + FOUR_MINUTES_IN_MS;
+    },
+    apolloStateQueryPollingInterval() {
+      if (this.startingPollInterval < 0) {
+        return 0;
+      }
+
+      const unboundedInterval = STATE_QUERY_POLLING_INTERVAL_BACKOFF * this.pollInterval;
+
+      return clamp(
+        unboundedInterval,
+        this.startingPollInterval,
+        this.apolloStateQueryMaxPollingInterval,
+      );
+    },
     shouldRenderApprovals() {
-      return this.mr.state !== 'nothingToMerge';
+      return !['preparing', 'nothingToMerge'].includes(this.mr.state);
     },
     componentName() {
       return stateToComponentMap[this.machineState] || classState[this.mr.state];
@@ -178,36 +213,16 @@ export default {
 
       return !hasCI && mergeRequestAddCiConfigPath && !isDismissedSuggestPipeline;
     },
-    shouldRenderCodeQuality() {
-      return this.mr?.codequalityReportsPath;
-    },
-    shouldRenderSourceBranchRemovalStatus() {
-      return (
-        !this.mr.canRemoveSourceBranch &&
-        this.mr.shouldRemoveSourceBranch &&
-        !this.mr.isNothingToMergeState &&
-        !this.mr.isMergedState
-      );
-    },
     shouldRenderCollaborationStatus() {
       return this.mr.allowCollaboration && this.mr.isOpen;
     },
     shouldRenderMergedPipeline() {
-      return this.mr.state === 'merged' && !isEmpty(this.mr.mergePipeline);
+      return this.mr.state === STATUS_MERGED && !isEmpty(this.mr.mergePipeline);
     },
     showMergePipelineForkWarning() {
       return Boolean(
         this.mr.mergePipelinesEnabled && this.mr.sourceProjectId !== this.mr.targetProjectId,
       );
-    },
-    shouldRenderSecurityReport() {
-      return Boolean(this.mr?.pipeline?.id);
-    },
-    shouldRenderTerraformPlans() {
-      return Boolean(this.mr?.terraformReportsPath);
-    },
-    shouldRenderTestReport() {
-      return Boolean(this.mr?.testResultsPath);
     },
     mergeError() {
       let { mergeError } = this.mr;
@@ -231,13 +246,10 @@ export default {
       return (this.mr.humanAccess || '').toLowerCase();
     },
     hasMergeError() {
-      return this.mr.mergeError && this.state !== 'closed';
+      return this.mr.mergeError && this.state !== STATUS_CLOSED;
     },
     hasAlerts() {
       return this.hasMergeError || this.showMergePipelineForkWarning;
-    },
-    shouldShowSecurityExtension() {
-      return window.gon?.features?.refactorSecurityExtension;
     },
     shouldShowMergeDetails() {
       if (this.mr.state === 'readyToMerge') return true;
@@ -260,31 +272,17 @@ export default {
         this.initPostMergeDeploymentsPolling();
       }
     },
-    shouldRenderTerraformPlans(newVal) {
-      if (newVal) {
-        this.registerTerraformPlans();
-      }
-    },
-    shouldRenderCodeQuality(newVal) {
-      if (newVal) {
-        this.registerCodeQualityExtension();
-      }
-    },
     shouldShowAccessibilityReport(newVal) {
       if (newVal) {
         this.registerAccessibilityExtension();
-      }
-    },
-    shouldRenderTestReport(newVal) {
-      if (newVal) {
-        this.registerTestReportExtension();
       }
     },
   },
   mounted() {
     MRWidgetService.fetchInitialData()
       .then(({ data, headers }) => {
-        this.startingPollInterval = Number(headers['POLL-INTERVAL']);
+        this.startingPollInterval =
+          Number(headers['POLL-INTERVAL']) || STATE_QUERY_POLLING_INTERVAL_DEFAULT;
         this.initWidget(data);
       })
       .catch(() =>
@@ -295,9 +293,6 @@ export default {
   },
   beforeDestroy() {
     eventHub.$off('mr.discussion.updated', this.checkStatus);
-    if (this.pollingInterval) {
-      this.pollingInterval.destroy();
-    }
 
     if (this.deploymentsInterval) {
       this.deploymentsInterval.destroy();
@@ -332,7 +327,6 @@ export default {
         this.initPostMergeDeploymentsPolling();
       }
 
-      this.initPolling();
       this.bindEventHubListeners();
       eventHub.$on('mr.discussion.updated', this.checkStatus);
 
@@ -363,8 +357,10 @@ export default {
     createService(store) {
       return new MRWidgetService(this.getServiceEndpoints(store));
     },
-    checkStatus(cb, isRebased) {
-      this.$apollo.queries.state.refetch();
+    checkStatus(cb, isRebased, refetch = true) {
+      if (refetch) {
+        this.$apollo.queries.state.refetch();
+      }
 
       return this.service
         .checkStatus()
@@ -384,21 +380,10 @@ export default {
         );
     },
     setFaviconHelper() {
-      if (this.mr.ciStatusFaviconPath) {
-        return setFaviconOverlay(this.mr.ciStatusFaviconPath);
+      if (this.mr.faviconOverlayPath) {
+        return setFaviconOverlay(this.mr.faviconOverlayPath);
       }
       return Promise.resolve();
-    },
-    initPolling() {
-      if (this.startingPollInterval <= 0) return;
-
-      this.pollingInterval = new SmartInterval({
-        callback: this.checkStatus,
-        startingInterval: this.startingPollInterval,
-        maxInterval: this.startingPollInterval + secondsToMilliseconds(4 * 60),
-        hiddenInterval: secondsToMilliseconds(6 * 60),
-        incrementByFactorOf: 2,
-      });
     },
     initDeploymentsPolling() {
       this.deploymentsInterval = this.deploymentsPoll(this.fetchPreMergeDeployments);
@@ -453,7 +438,6 @@ export default {
             el.innerHTML = res.data;
             document.body.appendChild(el);
             document.dispatchEvent(new CustomEvent('merged:UpdateActions'));
-            Project.initRefSwitcher();
           }
         })
         .catch(() =>
@@ -476,10 +460,10 @@ export default {
       notify.notifyMe(title, message, this.mr.gitlabLogo);
     },
     resumePolling() {
-      this.pollingInterval?.resume();
+      this.$apollo.queries.state.startPolling(this.pollInterval);
     },
     stopPolling() {
-      this.pollingInterval?.stopTimer();
+      this.$apollo.queries.state.stopPolling();
     },
     bindEventHubListeners() {
       eventHub.$on('MRWidgetUpdateRequested', (cb) => {
@@ -527,31 +511,16 @@ export default {
     dismissSuggestPipelines() {
       this.mr.isDismissedSuggestPipeline = true;
     },
-    registerTerraformPlans() {
-      if (this.shouldRenderTerraformPlans) {
-        registerExtension(terraformExtension);
-      }
-    },
     registerAccessibilityExtension() {
       if (this.shouldShowAccessibilityReport) {
         registerExtension(accessibilityExtension);
-      }
-    },
-    registerCodeQualityExtension() {
-      if (this.shouldRenderCodeQuality) {
-        registerExtension(codeQualityExtension);
-      }
-    },
-    registerTestReportExtension() {
-      if (this.shouldRenderTestReport) {
-        registerExtension(testReportExtension);
       }
     },
   },
 };
 </script>
 <template>
-  <div v-if="!loading" class="mr-state-widget gl-mt-3">
+  <div v-if="!loading" id="widget-state" class="mr-state-widget gl-mt-5">
     <header
       v-if="shouldRenderCollaborationStatus"
       class="gl-rounded-base gl-border-solid gl-border-1 gl-border-gray-100 gl-overflow-hidden mr-widget-workflow gl-mt-0!"
@@ -562,7 +531,6 @@ export default {
     </header>
     <mr-widget-suggest-pipeline
       v-if="shouldSuggestPipelines"
-      data-testid="mr-suggest-pipeline"
       class="mr-widget-workflow"
       :pipeline-path="mr.mergeRequestAddCiConfigPath"
       :pipeline-svg-path="mr.pipelinesEmptySvgPath"
@@ -571,19 +539,15 @@ export default {
       :user-callout-feature-id="mr.suggestPipelineFeatureId"
       @dismiss="dismissSuggestPipelines"
     />
-    <mr-widget-pipeline-container v-if="shouldRenderPipelines" :mr="mr" />
+    <mr-widget-pipeline-container
+      v-if="shouldRenderPipelines"
+      :mr="mr"
+      data-testid="pipeline-container"
+    />
     <mr-widget-approvals v-if="shouldRenderApprovals" :mr="mr" :service="service" />
     <report-widget-container>
       <extensions-container v-if="hasExtensions" :mr="mr" />
-      <widget-container v-if="mr && shouldShowSecurityExtension" :mr="mr" />
-      <security-reports-app
-        v-if="shouldRenderSecurityReport && !shouldShowSecurityExtension"
-        :pipeline-id="mr.pipeline.id"
-        :project-id="mr.sourceProjectId"
-        :security-reports-docs-path="mr.securityReportsDocsPath"
-        :target-project-full-path="mr.targetProjectFullPath"
-        :mr-iid="mr.iid"
-      />
+      <widget-container :mr="mr" />
     </report-widget-container>
     <div class="mr-section-container mr-widget-workflow">
       <div v-if="hasAlerts" class="gl-overflow-hidden mr-widget-alert-container">
@@ -591,7 +555,7 @@ export default {
           v-if="hasMergeError"
           type="danger"
           dismissible
-          data-testid="merge_error"
+          data-testid="merge-error"
         >
           <span v-safe-html="mergeError"></span>
         </mr-widget-alert-message>
@@ -599,6 +563,7 @@ export default {
           v-if="showMergePipelineForkWarning"
           type="warning"
           :help-path="mr.mergeRequestPipelinesHelpPath"
+          data-testid="merge-pipeline-fork-warning"
         >
           {{
             s__(
@@ -626,6 +591,7 @@ export default {
       class="js-post-merge-pipeline mr-widget-workflow"
       :mr="mr"
       :is-post-merge="true"
+      data-testid="merged-pipeline-container"
     />
   </div>
   <loading v-else />

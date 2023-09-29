@@ -23,11 +23,6 @@
       margin-bottom: 2px;
     }
 
-    .issue-labels,
-    .author-link {
-      display: inline-block;
-    }
-
     .icon-merge-request-unmerged {
       height: 13px;
       margin-bottom: 3px;
@@ -38,4 +33,14 @@
 .is-ghost {
   opacity: 0.3;
   pointer-events: none;
+}
+
+.work-item-labels {
+  .gl-token {
+    padding-left: $gl-spacing-scale-1;
+  }
+
+  .gl-token-close {
+    display: none;
+  }
 }

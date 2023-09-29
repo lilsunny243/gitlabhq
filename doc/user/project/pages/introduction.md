@@ -1,10 +1,10 @@
 ---
-stage: Create
-group: Editor
+stage: Plan
+group: Knowledge
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Exploring GitLab Pages **(FREE)**
+# GitLab Pages settings **(FREE ALL)**
 
 This document is a user guide to explore the options and settings
 GitLab Pages offers.
@@ -23,8 +23,6 @@ In brief, this is what you need to upload your website in GitLab Pages:
 1. Domain of the instance: domain name that is used for GitLab Pages
    (ask your administrator).
 1. GitLab CI/CD: a `.gitlab-ci.yml` file with a specific job named [`pages`](../../../ci/yaml/index.md#pages) in the root directory of your repository.
-1. A directory called `public` in your site's repository containing the content
-   to be published.
 1. GitLab Runner enabled for the project.
 
 ## GitLab Pages on GitLab.com
@@ -49,9 +47,9 @@ depending on your static generator configuration.
 
 If the case of `404.html`, there are different scenarios. For example:
 
-- If you use project Pages (served under `/projectname/`) and try to access
-  `/projectname/non/existing_file`, GitLab Pages tries to serve first
-  `/projectname/404.html`, and then `/404.html`.
+- If you use project Pages (served under `/project-slug/`) and try to access
+  `/project-slug/non/existing_file`, GitLab Pages tries to serve first
+  `/project-slug/404.html`, and then `/404.html`.
 - If you use user or group Pages (served under `/`) and try to access
   `/non/existing_file` GitLab Pages tries to serve `/404.html`.
 - If you use a custom domain and try to access `/non/existing_file`, GitLab
@@ -66,11 +64,8 @@ You can configure redirects for your site using a `_redirects` file. For more in
 
 To remove your pages:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Pages**.
-
-   If this path is not visible, select **Deployments > Pages**.
-   [This location is part of an experiment](index.md#menu-position-test).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
 1. Select **Remove pages**.
 
 ## Subdomains of subdomains
@@ -92,7 +87,22 @@ For [group websites](../../project/pages/getting_started_part_one.md#user-and-gr
 the group must be at the top level and not a subgroup.
 
 For [project websites](../../project/pages/getting_started_part_one.md#project-website-examples),
-you can create your project first and access it under `http(s)://namespace.example.io/projectname`.
+you can create your project first and access it under `http(s)://namespace.example.io/project-path`.
+
+## Enable unique domains
+
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/9347) in GitLab 15.9 [with a flag](../../../administration/feature_flags.md) named `pages_unique_domain`. Disabled by default.
+> - [Enabled by default](https://gitlab.com/gitlab-org/gitlab/-/issues/388151) in GitLab 15.11.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/122229) in GitLab 16.3.
+
+By default, every project in a group shares the same domain, for example, `group.gitlab.io`. This means that cookies are also shared for all projects in a group.
+
+To ensure your project uses a unique Pages domain, enable the unique domains feature for the project:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
+1. Select the **Use unique domain** checkbox.
+1. Select **Save changes**.
 
 ## Specific configuration options for Pages
 
@@ -259,6 +269,35 @@ instead. Here are some examples of what happens given the above Pages site:
 When `public/data/index.html` exists, it takes priority over the `public/data.html` file
 for both the `/data` and `/data/` URL paths.
 
+## Customize the default folder
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/merge_requests/859) in GitLab 16.1 with a Pages flag named `FF_CONFIGURABLE_ROOT_DIR`. Disabled by default.
+> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/1073) in GitLab 16.1.
+> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab-pages/-/merge_requests/890) in GitLab 16.2.
+
+By default, the [artifact](../../../ci/jobs/job_artifacts.md) folder
+that contains the static files of your site needs to have the name `public`.
+
+To change that folder name to any other value, add a `publish` property to your
+`pages` job configuration in `.gitlab-ci.yml`.
+
+The following example publishes a folder named `dist` instead:
+
+```yaml
+pages:
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist
+  publish: dist
+```
+
+If you're using a folder name other than `public`you must specify
+the directory to be deployed with Pages both as an artifact, and under the
+`publish` property. The reason you need both is that you can define multiple paths
+as artifacts, and GitLab doesn't know which one you want to deploy.
+
 ## Known issues
 
 For a list of known issues, see the GitLab [public issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues?label_name[]=Category%3APages).
@@ -269,9 +308,9 @@ For a list of known issues, see the GitLab [public issue tracker](https://gitlab
 
 This problem most likely results from a missing `index.html` file in the public directory. If after deploying a Pages site
 a 404 is encountered, confirm that the public directory contains an `index.html` file. If the file contains a different name
-such as `test.html`, the Pages site can still be accessed, but the full path would be needed. For example: `https//group-name.pages.example.com/project-name/test.html`.
+such as `test.html`, the Pages site can still be accessed, but the full path would be needed. For example: `https//group-name.pages.example.com/project-slug/test.html`.
 
-The contents of the public directory can be confirmed by [browsing the artifacts](../../../ci/pipelines/job_artifacts.md#download-job-artifacts) from the latest pipeline.
+The contents of the public directory can be confirmed by [browsing the artifacts](../../../ci/jobs/job_artifacts.md#download-job-artifacts) from the latest pipeline.
 
 Files listed under the public directory can be accessed through the Pages URL for the project.
 

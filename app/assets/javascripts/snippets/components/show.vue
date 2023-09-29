@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlAlert, GlLoadingIcon } from '@gitlab/ui';
 import eventHub from '~/blob/components/eventhub';
@@ -7,7 +8,7 @@ import {
 } from '~/performance/constants';
 import { performanceMarkAndMeasure } from '~/performance/utils';
 import { VISIBILITY_LEVEL_PUBLIC_STRING } from '~/visibility_level/constants';
-import CloneDropdownButton from '~/vue_shared/components/clone_dropdown.vue';
+import CloneDropdownButton from '~/vue_shared/components/clone_dropdown/clone_dropdown.vue';
 
 import { getSnippetMixin } from '../mixins/snippets';
 import { markBlobPerformance } from '../utils/blob';
@@ -31,7 +32,14 @@ export default {
   mixins: [getSnippetMixin],
   computed: {
     embeddable() {
-      return this.snippet.visibilityLevel === VISIBILITY_LEVEL_PUBLIC_STRING;
+      return (
+        this.snippet.visibilityLevel === VISIBILITY_LEVEL_PUBLIC_STRING && !this.isInPrivateProject
+      );
+    },
+    isInPrivateProject() {
+      const projectVisibility = this.snippet?.project?.visibility;
+      const isLimitedVisibilityProject = projectVisibility !== VISIBILITY_LEVEL_PUBLIC_STRING;
+      return projectVisibility ? isLimitedVisibilityProject : false;
     },
     canBeCloned() {
       return Boolean(this.snippet.sshUrlToRepo || this.snippet.httpUrlToRepo);

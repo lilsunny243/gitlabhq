@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# npm API **(FREE)**
+# npm API **(FREE ALL)**
 
 This is the API documentation for [npm Packages](../../user/packages/npm_registry/index.md).
 
@@ -18,7 +18,7 @@ package registry, see the [npm package registry documentation](../../user/packag
 NOTE:
 These endpoints do not adhere to the standard API authentication methods.
 See the [npm package registry documentation](../../user/packages/npm_registry/index.md)
-for details on which headers and token types are supported.
+for details on which headers and token types are supported. Undocumented authentication methods might be removed in the future.
 
 ## Download a package
 
@@ -124,6 +124,7 @@ different scopes:
 
 - Use the instance-level prefix to make requests in the scope of the entire instance.
 - Use the project-level prefix to make requests in a single project's scope.
+- Use the group-level prefix to make requests in a group's scope.
 
 The examples in this document all use the project-level prefix.
 
@@ -146,6 +147,19 @@ The examples in this document all use the project-level prefix.
 | Attribute | Type   | Required | Description |
 | --------- | ------ | -------- | ----------- |
 | `id`      | string | yes      | The project ID or full project path. |
+
+### Group-level
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/299834) in GitLab 16.0 [with a flag](../../administration/feature_flags.md) named `npm_group_level_endpoints`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/121837) in GitLab 16.1. Feature flag `npm_group_level_endpoints` removed.
+
+```plaintext
+ /groups/:id/-/packages/npm`
+```
+
+| Attribute | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| `id`      | string | yes      | The group ID or full group path. |
 
 ## Metadata
 

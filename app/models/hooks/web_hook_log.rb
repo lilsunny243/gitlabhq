@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 class WebHookLog < ApplicationRecord
-  include SafeUrl
   include Presentable
   include DeleteWithLimit
   include CreatedAtFilterable
@@ -58,15 +57,23 @@ class WebHookLog < ApplicationRecord
     self[:request_headers].merge('X-Gitlab-Token' => _('[REDACTED]'))
   end
 
+  def url_current?
+    # URL hash hasn't been set, so we must assume there's no prior value to
+    # compare to.
+    return true if url_hash.nil?
+
+    Gitlab::CryptoHelper.sha256(web_hook.interpolated_url) == url_hash
+  end
+
   private
 
   def obfuscate_basic_auth
-    self.url = safe_url
+    self.url = Gitlab::UrlSanitizer.sanitize_masked_url(url)
   end
 
   def redact_user_emails
     self.request_data.deep_transform_values! do |value|
-      value.to_s =~ URI::MailTo::EMAIL_REGEXP ? _('[REDACTED]') : value
+      URI::MailTo::EMAIL_REGEXP.match?(value.to_s) ? _('[REDACTED]') : value
     end
   end
 

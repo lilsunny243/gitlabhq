@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, howto
 ---
 
-# Dynamic Application Security Testing (DAST) **(ULTIMATE)**
+# Dynamic Application Security Testing (DAST) **(ULTIMATE ALL)**
 
 If you deploy your web application into a new environment, your application may
 become exposed to new types of attacks. For example, misconfigurations of your
@@ -14,6 +14,9 @@ visible from the source code.
 
 Dynamic Application Security Testing (DAST) examines applications for
 vulnerabilities like these in deployed environments.
+
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For an overview, see [Dynamic Application Security Testing (DAST)](https://www.youtube.com/watch?v=nbeDUoLZJTo).
 
 NOTE:
 To learn how four of the top six attacks were application-based and how
@@ -78,8 +81,8 @@ analyzer-specific configuration instructions.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/36332) in GitLab 13.1.
 
-Detected vulnerabilities are shown in [Merge requests](../index.md#view-security-scan-information-in-merge-requests), the [Pipeline security tab](../index.md#view-security-scan-information-in-the-pipeline-security-tab),
-and the [Vulnerability report](../index.md#view-security-scan-information-in-the-vulnerability-report).
+Detected vulnerabilities appear in [merge requests](../index.md#merge-request), the [pipeline security tab](../index.md#pipeline-security-tab),
+and the [vulnerability report](../index.md#vulnerability-report).
 
 1. To see all vulnerabilities detected, either:
     - From your project, select **Security & Compliance**, then **Vulnerability report**.

@@ -9,18 +9,17 @@ module Gitlab
 
         attach_to :active_record
 
-        IGNORABLE_SQL = %w{BEGIN COMMIT}.freeze
-        DB_COUNTERS = %i{count write_count cached_count}.freeze
-        SQL_COMMANDS_WITH_COMMENTS_REGEX = %r{\A(/\*.*\*/\s)?((?!(.*[^\w'"](DELETE|UPDATE|INSERT INTO)[^\w'"])))(WITH.*)?(SELECT)((?!(FOR UPDATE|FOR SHARE)).)*$}i.freeze
+        DB_COUNTERS = %i[count write_count cached_count].freeze
+        SQL_COMMANDS_WITH_COMMENTS_REGEX = %r{\A(/\*.*\*/\s)?((?!(.*[^\w'"](DELETE|UPDATE|INSERT INTO)[^\w'"])))(WITH.*)?(SELECT)((?!(FOR UPDATE|FOR SHARE)).)*$}i
 
         SQL_DURATION_BUCKET = [0.05, 0.1, 0.25].freeze
         TRANSACTION_DURATION_BUCKET = [0.1, 0.25, 1].freeze
 
-        DB_LOAD_BALANCING_ROLES = %i{replica primary}.freeze
-        DB_LOAD_BALANCING_COUNTERS = %i{count cached_count wal_count wal_cached_count}.freeze
-        DB_LOAD_BALANCING_DURATIONS = %i{duration_s}.freeze
+        DB_LOAD_BALANCING_ROLES = %i[replica primary].freeze
+        DB_LOAD_BALANCING_COUNTERS = %i[count cached_count wal_count wal_cached_count].freeze
+        DB_LOAD_BALANCING_DURATIONS = %i[duration_s].freeze
 
-        SQL_WAL_LOCATION_REGEX = /(pg_current_wal_insert_lsn\(\)::text|pg_last_wal_replay_lsn\(\)::text)/.freeze
+        SQL_WAL_LOCATION_REGEX = /(pg_current_wal_insert_lsn\(\)::text|pg_last_wal_replay_lsn\(\)::text)/
 
         # This event is published from ActiveRecordBaseTransactionMetrics and
         # used to record a database transaction duration when calling
@@ -114,7 +113,7 @@ module Gitlab
         end
 
         def ignored_query?(payload)
-          payload[:name] == 'SCHEMA' || IGNORABLE_SQL.include?(payload[:sql])
+          payload[:name] == 'SCHEMA' || payload[:name] == 'TRANSACTION'
         end
 
         def cached_query?(payload)

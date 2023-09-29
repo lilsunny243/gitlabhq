@@ -12,6 +12,12 @@ module Groups
       before_action :assign_variables_to_gon, only: [:show]
 
       feature_category :continuous_integration
+
+      before_action do
+        push_frontend_feature_flag(:ci_variables_pages, current_user)
+        push_frontend_feature_flag(:ci_variable_drawer, current_user)
+      end
+
       urgency :low
 
       def show
@@ -43,7 +49,6 @@ module Groups
 
       def define_variables
         define_ci_variables
-        define_view_variables
       end
 
       def define_ci_variables
@@ -51,10 +56,6 @@ module Groups
           .present(current_user: current_user)
         @variables = group.variables.order_key_asc
           .map { |variable| variable.present(current_user: current_user) }
-      end
-
-      def define_view_variables
-        @content_class = 'limit-container-width' unless fluid_layout
       end
 
       def authorize_admin_group!

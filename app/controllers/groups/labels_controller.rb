@@ -4,7 +4,8 @@ class Groups::LabelsController < Groups::ApplicationController
   include ToggleSubscriptionAction
 
   before_action :label, only: [:edit, :update, :destroy]
-  before_action :authorize_admin_labels!, only: [:new, :create, :edit, :update, :destroy]
+  before_action :authorize_group_for_admin_labels!, only: [:new, :create, :edit, :update, :destroy]
+  before_action :authorize_label_for_admin_label!, only: [:edit, :update, :destroy]
   before_action :save_previous_label_path, only: [:edit]
 
   respond_to :html
@@ -64,14 +65,23 @@ class Groups::LabelsController < Groups::ApplicationController
   end
 
   def destroy
-    @label.destroy
-    redirect_to group_labels_path(@group), status: :found, notice: "#{@label.name} deleted permanently"
+    if @label.destroy
+      redirect_to group_labels_path(@group), status: :found,
+        notice: format(_('%{label_name} was removed'), label_name: @label.name)
+    else
+      redirect_to group_labels_path(@group), status: :found,
+        alert: @label.errors.full_messages.to_sentence
+    end
   end
 
   protected
 
-  def authorize_admin_labels!
+  def authorize_group_for_admin_labels!
     return render_404 unless can?(current_user, :admin_label, @group)
+  end
+
+  def authorize_label_for_admin_label!
+    return render_404 unless can?(current_user, :admin_label, @label)
   end
 
   def authorize_read_labels!
@@ -88,7 +98,10 @@ class Groups::LabelsController < Groups::ApplicationController
   end
 
   def label_params
-    params.require(:label).permit(:title, :description, :color)
+    allowed = [:title, :description, :color]
+    allowed << :lock_on_merge if @group.supports_lock_on_merge?
+
+    params.require(:label).permit(allowed)
   end
 
   def redirect_back_or_group_labels_path(options = {})

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::TimeTrackingFormatter do
+RSpec.describe Gitlab::TimeTrackingFormatter, feature_category: :team_planning do
   describe '#parse' do
     let(:keep_zero) { false }
 
@@ -25,6 +25,14 @@ RSpec.describe Gitlab::TimeTrackingFormatter do
 
       it 'uses our custom conversions' do
         expect(subject).to eq(576_000)
+      end
+    end
+
+    context 'when the duration is nil' do
+      let(:duration_string) { nil }
+
+      it 'returns nil' do
+        expect(subject).to be_nil
       end
     end
 

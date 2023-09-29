@@ -25,13 +25,17 @@ RSpec.describe Ci::Partitionable do
   end
 
   context 'with through options' do
+    let(:disable_partitionable_switch) { nil }
+
     before do
+      stub_env('DISABLE_PARTITIONABLE_SWITCH', disable_partitionable_switch)
+
       allow(ActiveSupport::DescendantsTracker).to receive(:store_inherited)
       stub_const("#{described_class}::Testing::PARTITIONABLE_MODELS", [ci_model.name])
 
       ci_model.include(described_class)
       ci_model.partitionable scope: ->(r) { 1 },
-                             through: { table: :_test_table_name, flag: :some_flag }
+        through: { table: :_test_table_name, flag: :some_flag }
     end
 
     it { expect(ci_model.routing_table_name).to eq(:_test_table_name) }
@@ -39,5 +43,35 @@ RSpec.describe Ci::Partitionable do
     it { expect(ci_model.routing_table_name_flag).to eq(:some_flag) }
 
     it { expect(ci_model.ancestors).to include(described_class::Switch) }
+
+    context 'when DISABLE_PARTITIONABLE_SWITCH is set' do
+      let(:disable_partitionable_switch) { true }
+
+      it { expect(ci_model.ancestors).not_to include(described_class::Switch) }
+    end
+  end
+
+  context 'with partitioned options' do
+    before do
+      stub_const("#{described_class}::Testing::PARTITIONABLE_MODELS", [ci_model.name])
+
+      ci_model.include(described_class)
+      ci_model.partitionable scope: ->(r) { 1 }, partitioned: partitioned
+    end
+
+    context 'when partitioned is true' do
+      let(:partitioned) { true }
+
+      it { expect(ci_model.ancestors).to include(PartitionedTable) }
+      it { expect(ci_model.partitioning_strategy).to be_a(Gitlab::Database::Partitioning::CiSlidingListStrategy) }
+      it { expect(ci_model.partitioning_strategy.partitioning_key).to eq(:partition_id) }
+    end
+
+    context 'when partitioned is false' do
+      let(:partitioned) { false }
+
+      it { expect(ci_model.ancestors).not_to include(PartitionedTable) }
+      it { expect(ci_model).not_to respond_to(:partitioning_strategy) }
+    end
   end
 end

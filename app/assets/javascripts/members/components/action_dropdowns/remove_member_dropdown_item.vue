@@ -1,10 +1,11 @@
 <script>
-import { GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdownItem } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 
 export default {
   name: 'RemoveMemberDropdownItem',
-  components: { GlDropdownItem },
+  components: { GlDisclosureDropdownItem },
   inject: ['namespace'],
   props: {
     memberId: {
@@ -75,12 +76,14 @@ export default {
 </script>
 
 <template>
-  <gl-dropdown-item
+  <gl-disclosure-dropdown-item
     data-qa-selector="delete_member_dropdown_item"
-    @click="showRemoveMemberModal(modalData)"
+    @action="showRemoveMemberModal(modalData)"
   >
-    <span class="gl-text-red-500">
-      <slot></slot>
-    </span>
-  </gl-dropdown-item>
+    <template #list-item>
+      <span class="gl-text-red-500">
+        <slot></slot>
+      </span>
+    </template>
+  </gl-disclosure-dropdown-item>
 </template>

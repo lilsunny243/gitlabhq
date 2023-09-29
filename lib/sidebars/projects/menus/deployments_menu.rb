@@ -9,10 +9,7 @@ module Sidebars
           add_item(environments_menu_item)
           add_item(feature_flags_menu_item)
           add_item(releases_menu_item)
-
-          if Feature.enabled?(:show_pages_in_deployments_menu, context.current_user, type: :experiment)
-            add_item(pages_menu_item)
-          end
+          add_item(pages_menu_item)
 
           true
         end
@@ -47,9 +44,9 @@ module Sidebars
           end
 
           ::Sidebars::MenuItem.new(
-            title: _('Feature Flags'),
+            title: s_('FeatureFlags|Feature flags'),
             link: project_feature_flags_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::DeployMenu,
             active_routes: { controller: :feature_flags },
             container_html_options: { class: 'shortcuts-feature-flags' },
             item_id: :feature_flags
@@ -64,7 +61,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Environments'),
             link: project_environments_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: :environments },
             container_html_options: { class: 'shortcuts-environments' },
             item_id: :environments
@@ -80,7 +77,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Releases'),
             link: project_releases_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::DeployMenu,
             item_id: :releases,
             active_routes: { controller: :releases },
             container_html_options: { class: 'shortcuts-deployments-releases' }
@@ -95,8 +92,8 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Pages'),
             link: project_pages_path(context.project),
-            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
-            active_routes: { path: 'pages#show' },
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::DeployMenu,
+            active_routes: { path: %w[pages#new pages#show] },
             item_id: :pages
           )
         end

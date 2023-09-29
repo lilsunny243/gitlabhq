@@ -13,8 +13,8 @@ module RestClient
                                                                     schemes: %w[http https])
 
           self.hostname_override = hostname_override
-        rescue Gitlab::UrlBlocker::BlockedUrlError => e
-          raise ArgumentError, "URL '#{uri}' is blocked: #{e.message}"
+        rescue Gitlab::HTTP_V2::UrlBlocker::BlockedUrlError => e
+          raise ArgumentError, "URL is blocked: #{e.message}"
         end
 
         # Gitlab::UrlBlocker returns a Addressable::URI which we need to coerce

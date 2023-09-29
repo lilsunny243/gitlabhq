@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapActions, mapGetters } from 'vuex';
 import { visitUrl, setUrlParams } from '~/lib/utils/url_utility';
 import { ANY_OPTION, GROUP_DATA, PROJECT_DATA } from '../constants';
@@ -18,7 +19,7 @@ export default {
   },
   computed: {
     ...mapState(['query', 'projects', 'fetchingProjects']),
-    ...mapGetters(['frequentProjects']),
+    ...mapGetters(['frequentProjects', 'currentScope']),
     selectedProject() {
       return this.initialData ? this.initialData : ANY_OPTION;
     },
@@ -42,6 +43,7 @@ export default {
         ...(project.namespace?.id && { [GROUP_DATA.queryParam]: project.namespace.id }),
         [PROJECT_DATA.queryParam]: project.id,
         nav_source: null,
+        scope: this.currentScope,
       };
 
       visitUrl(setUrlParams(queryParams));

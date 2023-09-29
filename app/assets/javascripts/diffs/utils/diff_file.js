@@ -35,16 +35,17 @@ function collapsed(file) {
   return {
     automaticallyCollapsed: viewer.automaticallyCollapsed || viewer.collapsed || false,
     manuallyCollapsed: null,
+    forceOpen: false,
   };
 }
 
 function identifier(file) {
-  const { userOrGroup, project, id } = getDerivedMergeRequestInformation({
+  const { namespace, project, id } = getDerivedMergeRequestInformation({
     endpoint: file.load_collapsed_diff_url,
   });
 
   return uuids({
-    seeds: [userOrGroup, project, id, file.file_identifier_hash, file.blob?.id],
+    seeds: [namespace, project, id, file.file_identifier_hash, file.blob?.id],
   })[0];
 }
 
@@ -53,6 +54,9 @@ export const isNotDiffable = (file) => file?.viewer?.name === viewerModes.not_di
 export function prepareRawDiffFile({ file, allFiles, meta = false, index = -1 }) {
   const additionalProperties = {
     brokenSymlink: fileSymlinkInformation(file, allFiles),
+    hasCommentForm: false,
+    discussions: file.discussions || [],
+    drafts: [],
     viewer: {
       ...file.viewer,
       ...collapsed(file),
@@ -74,7 +78,7 @@ export function prepareRawDiffFile({ file, allFiles, meta = false, index = -1 })
 }
 
 export function collapsedType(file) {
-  const isManual = typeof file.viewer?.manuallyCollapsed === 'boolean';
+  const isManual = typeof file?.viewer?.manuallyCollapsed === 'boolean';
 
   return isManual ? DIFF_FILE_MANUAL_COLLAPSE : DIFF_FILE_AUTOMATIC_COLLAPSE;
 }
@@ -82,8 +86,8 @@ export function collapsedType(file) {
 export function isCollapsed(file) {
   const type = collapsedType(file);
   const collapsedStates = {
-    [DIFF_FILE_AUTOMATIC_COLLAPSE]: file.viewer?.automaticallyCollapsed || false,
-    [DIFF_FILE_MANUAL_COLLAPSE]: file.viewer?.manuallyCollapsed,
+    [DIFF_FILE_AUTOMATIC_COLLAPSE]: file?.viewer?.automaticallyCollapsed || false,
+    [DIFF_FILE_MANUAL_COLLAPSE]: file?.viewer?.manuallyCollapsed,
   };
 
   return collapsedStates[type];

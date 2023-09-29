@@ -2,11 +2,10 @@
 stage: Verify
 group: Pipeline Authoring
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/ci/pipelines.html'
 type: reference
 ---
 
-# CI/CD pipelines **(FREE)**
+# CI/CD pipelines **(FREE ALL)**
 
 NOTE:
 Watch the
@@ -85,23 +84,23 @@ project repository.
 
 This table lists the refspecs injected for each pipeline type:
 
-| Pipeline type                                                      | Refspecs                                                                                       |
-|---------------                                                     |----------------------------------------                                                        |
-| pipeline for branches                                              | `+<sha>:refs/pipelines/<id>` and `+refs/heads/<name>:refs/remotes/origin/<name>` |
-| pipeline for tags                                                  | `+<sha>:refs/pipelines/<id>` and `+refs/tags/<name>:refs/tags/<name>`            |
-| [merge request pipeline](../pipelines/merge_request_pipelines.md) | `+<sha>:refs/pipelines/<id>`                                                     |
+| Pipeline type                                                     | Refspecs |
+|-------------------------------------------------------------------|----------|
+| pipeline for branches                                             | `+<sha>:refs/pipelines/<id>` and `+refs/heads/<name>:refs/remotes/origin/<name>` |
+| pipeline for tags                                                 | `+<sha>:refs/pipelines/<id>` and `+refs/tags/<name>:refs/tags/<name>` |
+| [merge request pipeline](../pipelines/merge_request_pipelines.md) | `+refs/pipelines/<id>:refs/pipelines/<id>` |
 
 The refs `refs/heads/<name>` and `refs/tags/<name>` exist in your
 project repository. GitLab generates the special ref `refs/pipelines/<id>` during a
 running pipeline job. This ref can be created even after the associated branch or tag has been
-deleted. It's therefore useful in some features such as [automatically stopping an environment](../environments/index.md#stop-an-environment),
+deleted. It's therefore useful in some features such as [automatically stopping an environment](../environments/index.md#stopping-an-environment),
 and [merge trains](../pipelines/merge_trains.md)
 that might run pipelines after branch deletion.
 
 ### View pipelines
 
 You can find the current and historical pipeline runs under your project's
-**CI/CD > Pipelines** page. You can also access pipelines for a merge request by navigating
+**Build > Pipelines** page. You can also access pipelines for a merge request by navigating
 to its **Pipelines** tab.
 
 ![Pipelines index page](img/pipelines_index_v13_0.png)
@@ -110,10 +109,9 @@ Select a pipeline to open the **Pipeline Details** page and show
 the jobs that were run for that pipeline. From here you can cancel a running pipeline,
 retry jobs on a failed pipeline, or [delete a pipeline](#delete-a-pipeline).
 
-[Starting in GitLab 12.3](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/50499), a link to the
-latest pipeline for the last commit of a given branch is available at `/project/pipelines/[branch]/latest`.
-Also, `/project/pipelines/latest` redirects you to the latest pipeline for the last commit
-on the project's default branch.
+A link to the latest pipeline for the last commit of a given branch is available at
+`/project/-/pipelines/[branch]/latest`. Also, `/project/-/pipelines/latest` redirects
+you to the latest pipeline for the last commit on the project's default branch.
 
 [Starting in GitLab 13.0](https://gitlab.com/gitlab-org/gitlab/-/issues/215367),
 you can filter the pipeline list by:
@@ -141,8 +139,8 @@ operation of the pipeline.
 
 To execute a pipeline manually:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **CI/CD > Pipelines**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Build > Pipelines**.
 1. Select **Run pipeline**.
 1. In the **Run for branch name or tag** field, select the branch or tag to run the pipeline for.
 1. Enter any [CI/CD variables](../variables/index.md) required for the pipeline to run.
@@ -190,11 +188,17 @@ In this example:
 - `DEPLOY_ENVIRONMENT` is pre-filled in the **Run pipeline** page with `canary` as the default value,
   and the message explains the other options.
 
+NOTE:
+Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/382857), projects that use [compliance pipelines](../../user/group/compliance_frameworks.md#compliance-pipelines) can have prefilled variables not appear
+when running a pipeline manually. To workaround this issue,
+[change the compliance pipeline configuration](../../user/group/compliance_frameworks.md#prefilled-variables-are-not-shown).
+
 #### Configure a list of selectable prefilled variable values
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/363660) in GitLab 15.5 [with a flag](../../administration/feature_flags.md) named `run_pipeline_graphql`. Disabled by default.
 > - The `options` keyword was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/105502) in GitLab 15.7.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106038) in GitLab 15.7. Feature flag `run_pipeline_graphql` removed.
+> - The variables list sometimes did not populate correctly due to [a bug](https://gitlab.com/gitlab-org/gitlab/-/issues/386245), which was resolved in GitLab 15.9.
 
 You can define an array of CI/CD variable values the user can select from when running a pipeline manually.
 These values are in a dropdown list in the **Run pipeline** page. Add the list of
@@ -286,7 +290,7 @@ pipelines.
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24851) in GitLab 12.7.
 
 Users with the Owner role for a project can delete a pipeline
-by selecting the pipeline in the **CI/CD > Pipelines** to get to the **Pipeline Details**
+by selecting the pipeline in the **Build > Pipelines** to get to the **Pipeline Details**
 page, then selecting **Delete**.
 
 ![Pipeline Delete](img/pipeline-delete.png)
@@ -306,9 +310,9 @@ related objects, such as builds, logs, artifacts, and triggers.
 A strict security model is enforced when pipelines are executed on
 [protected branches](../../user/project/protected_branches.md).
 
-The following actions are allowed on protected branches only if the user is
+The following actions are allowed on protected branches if the user is
 [allowed to merge or push](../../user/project/protected_branches.md)
-on that specific branch:
+to that specific branch:
 
 - Run manual pipelines (using the [Web UI](#run-a-pipeline-manually) or [pipelines API](#pipelines-api)).
 - Run scheduled pipelines.
@@ -317,20 +321,18 @@ on that specific branch:
 - Trigger manual actions on existing pipelines.
 - Retry or cancel existing jobs (using the Web UI or pipelines API).
 
-**Variables** marked as **protected** are accessible only to jobs that
-run on protected branches, preventing untrusted users getting unintended access to
-sensitive information like deployment credentials and tokens.
+**Variables** marked as **protected** are accessible to jobs that run in pipelines for protected branches. Only assign users the right to merge to protected branches if they have permission to access sensitive information like deployment credentials and tokens.
 
 **Runners** marked as **protected** can run jobs only on protected
 branches, preventing untrusted code from executing on the protected runner and
 preserving deployment keys and other credentials from being unintentionally
 accessed. To ensure that jobs intended to be executed on protected
-runners do not use regular runners, they must be tagged accordingly.
+runners do not use regular runners, they must be [tagged](../yaml/index.md#tags) accordingly.
 
 Review the [deployment safety](../environments/deployment_safety.md)
 page for additional security recommendations for securing your pipelines.
 
-## Trigger a pipeline when an upstream project is rebuilt **(PREMIUM)**
+## Trigger a pipeline when an upstream project is rebuilt **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/9045) in GitLab 12.8.
 
@@ -345,9 +347,10 @@ Prerequisites:
 
 To trigger the pipeline when the upstream project is rebuilt:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Pipeline subscriptions**.
+1. Select **Add project**.
 1. Enter the project you want to subscribe to, in the format `<namespace>/<project>`.
    For example, if the project is `https://gitlab.com/gitlab-org/gitlab`, use `gitlab-org/gitlab`.
 1. Select **Subscribe**.
@@ -423,14 +426,13 @@ You can group the jobs by:
 - [Job dependencies](#view-job-dependencies-in-the-pipeline-graph), which arranges
   jobs based on their [`needs`](../yaml/index.md#needs) dependencies.
 
-[Multi-project pipeline graphs](downstream_pipelines.md#view-multi-project-pipelines-in-pipeline-graphs) help
-you visualize the entire pipeline, including all cross-project inter-dependencies.
+Multi-project pipeline graphs help you visualize the entire pipeline, including all cross-project inter-dependencies.
 
 If a stage contains more than 100 jobs, only the first 100 jobs are listed in the
 pipeline graph. The remaining jobs still run as usual. To see the jobs:
 
 - Select the pipeline, and the jobs are listed on the right side of the pipeline details page.
-- On the left sidebar, select **CI/CD > Jobs**.
+- On the left sidebar, select **Build > Jobs**.
 
 ### View job dependencies in the pipeline graph
 

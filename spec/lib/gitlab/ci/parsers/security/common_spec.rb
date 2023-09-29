@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Parsers::Security::Common do
+RSpec.describe Gitlab::Ci::Parsers::Security::Common, feature_category: :vulnerability_management do
   describe '#parse!' do
     let_it_be(:scanner_data) do
       {
@@ -183,55 +183,44 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Common do
         describe 'parsing finding.name' do
           let(:artifact) { build(:ci_job_artifact, :common_security_report_with_blank_names) }
 
-          context 'when message is provided' do
-            it 'sets message from the report as a finding name' do
-              finding = report.findings.find { |x| x.compare_key == 'CVE-1020' }
-              expected_name = Gitlab::Json.parse(finding.raw_metadata)['message']
+          context 'when name is provided' do
+            it 'sets name from the report as a name' do
+              finding = report.findings.find { |x| x.compare_key == 'CVE-1030' }
+              expected_name = Gitlab::Json.parse(finding.raw_metadata)['name']
 
               expect(finding.name).to eq(expected_name)
             end
           end
 
-          context 'when message is not provided' do
-            context 'and name is provided' do
-              it 'sets name from the report as a name' do
-                finding = report.findings.find { |x| x.compare_key == 'CVE-1030' }
-                expected_name = Gitlab::Json.parse(finding.raw_metadata)['name']
+          context 'when name is not provided' do
+            context 'when location does not exist' do
+              let(:location) { nil }
 
-                expect(finding.name).to eq(expected_name)
+              it 'returns only identifier name' do
+                finding = report.findings.find { |x| x.compare_key == 'CVE-2017-11429' }
+                expect(finding.name).to eq("CVE-2017-11429")
               end
             end
 
-            context 'and name is not provided' do
-              context 'when location does not exist' do
-                let(:location) { nil }
-
-                it 'returns only identifier name' do
+            context 'when location exists' do
+              context 'when CVE identifier exists' do
+                it 'combines identifier with location to create name' do
                   finding = report.findings.find { |x| x.compare_key == 'CVE-2017-11429' }
-                  expect(finding.name).to eq("CVE-2017-11429")
+                  expect(finding.name).to eq("CVE-2017-11429 in yarn.lock")
                 end
               end
 
-              context 'when location exists' do
-                context 'when CVE identifier exists' do
-                  it 'combines identifier with location to create name' do
-                    finding = report.findings.find { |x| x.compare_key == 'CVE-2017-11429' }
-                    expect(finding.name).to eq("CVE-2017-11429 in yarn.lock")
-                  end
+              context 'when CWE identifier exists' do
+                it 'combines identifier with location to create name' do
+                  finding = report.findings.find { |x| x.compare_key == 'CWE-2017-11429' }
+                  expect(finding.name).to eq("CWE-2017-11429 in yarn.lock")
                 end
+              end
 
-                context 'when CWE identifier exists' do
-                  it 'combines identifier with location to create name' do
-                    finding = report.findings.find { |x| x.compare_key == 'CWE-2017-11429' }
-                    expect(finding.name).to eq("CWE-2017-11429 in yarn.lock")
-                  end
-                end
-
-                context 'when neither CVE nor CWE identifier exist' do
-                  it 'combines identifier with location to create name' do
-                    finding = report.findings.find { |x| x.compare_key == 'OTHER-2017-11429' }
-                    expect(finding.name).to eq("other-2017-11429 in yarn.lock")
-                  end
+              context 'when neither CVE nor CWE identifier exist' do
+                it 'combines identifier with location to create name' do
+                  finding = report.findings.find { |x| x.compare_key == 'OTHER-2017-11429' }
+                  expect(finding.name).to eq("other-2017-11429 in yarn.lock")
                 end
               end
             end
@@ -240,8 +229,9 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Common do
 
         describe 'parsing finding.details' do
           context 'when details are provided' do
+            let(:finding) { report.findings[4] }
+
             it 'sets details from the report' do
-              finding = report.findings.find { |x| x.compare_key == 'CVE-1020' }
               expected_details = Gitlab::Json.parse(finding.raw_metadata)['details']
 
               expect(finding.details).to eq(expected_details)
@@ -249,8 +239,9 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Common do
           end
 
           context 'when details are not provided' do
+            let(:finding) { report.findings[5] }
+
             it 'sets empty hash' do
-              finding = report.findings.find { |x| x.compare_key == 'CVE-1030' }
               expect(finding.details).to eq({})
             end
           end
@@ -408,6 +399,12 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Common do
               expect(finding_uuids).to match_array(expected_uuids)
             end
           end
+        end
+
+        describe 'setting the `found_by_pipeline` attribute' do
+          subject { report.findings.map(&:found_by_pipeline).uniq }
+
+          it { is_expected.to eq([pipeline]) }
         end
 
         describe 'parsing tracking' do

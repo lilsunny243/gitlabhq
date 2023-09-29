@@ -36,6 +36,7 @@ class MergeRequestsFinder < IssuableFinder
 
   def self.scalar_params
     @scalar_params ||= super + [
+      :approved,
       :approved_by_ids,
       :deployed_after,
       :deployed_before,
@@ -71,8 +72,10 @@ class MergeRequestsFinder < IssuableFinder
     items = by_approvals(items)
     items = by_deployments(items)
     items = by_reviewer(items)
+    items = by_source_project_id(items)
+    items = items.allow_cross_joins_across_databases(url: "https://gitlab.com/gitlab-org/gitlab/-/issues/417462")
 
-    by_source_project_id(items)
+    by_approved(items)
   end
 
   def filter_negated_items(items)
@@ -156,19 +159,15 @@ class MergeRequestsFinder < IssuableFinder
     return items if draft_param.nil?
 
     if draft_param
-      items.where(wip_match(items.arel_table))
+      items.where(draft_match(items.arel_table))
     else
-      items.where.not(wip_match(items.arel_table))
+      items.where.not(draft_match(items.arel_table))
     end
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
-  # WIP is deprecated in favor of Draft. Currently both options are supported
-  def wip_match(table)
-    table[:title].matches('WIP:%')
-      .or(table[:title].matches('WIP %'))
-      .or(table[:title].matches('[WIP]%'))
-      .or(table[:title].matches('Draft - %'))
+  def draft_match(table)
+    table[:title].matches('Draft - %')
       .or(table[:title].matches('Draft:%'))
       .or(table[:title].matches('[Draft]%'))
       .or(table[:title].matches('(Draft)%'))
@@ -182,6 +181,17 @@ class MergeRequestsFinder < IssuableFinder
       .execute(items)
   end
   # rubocop: enable CodeReuse/Finder
+
+  def by_approved(items)
+    approved_param = Gitlab::Utils.to_boolean(params.fetch(:approved, nil))
+    return items if approved_param.nil? || Feature.disabled?(:mr_approved_filter, type: :ops)
+
+    if approved_param
+      items.with_approvals
+    else
+      items.without_approvals
+    end
+  end
 
   def by_deployments(items)
     env = params[:environment]

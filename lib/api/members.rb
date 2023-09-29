@@ -11,8 +11,8 @@ module API
     helpers ::API::Helpers::MembersHelpers
 
     {
-      "group" => :subgroups,
-      "project" => :projects
+      "group" => :groups_and_projects,
+      "project" => :groups_and_projects
     }.each do |source_type, feature_category|
       params do
         requires :id, type: String, desc: "The #{source_type} ID"
@@ -176,6 +176,8 @@ module API
         delete ":id/members/:user_id", feature_category: feature_category do
           source = find_source(source_type, params[:id])
           member = source_members(source).find_by!(user_id: params[:user_id])
+
+          check_rate_limit!(:member_delete, scope: [source, current_user])
 
           destroy_conditionally!(member) do
             ::Members::DestroyService.new(current_user).execute(member, skip_subresources: params[:skip_subresources], unassign_issuables: params[:unassign_issuables])

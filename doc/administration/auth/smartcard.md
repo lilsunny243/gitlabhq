@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
@@ -17,7 +17,7 @@ By default, existing users can continue to sign in with a username and password 
 authentication is enabled.
 
 To force existing users to use only smartcard authentication,
-[disable username and password authentication](../../user/admin_area/settings/sign_in_restrictions.md#password-authentication-enabled).
+[disable username and password authentication](../settings/sign_in_restrictions.md#password-authentication-enabled).
 
 ## Authentication methods
 
@@ -115,7 +115,7 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
 
 ## Configure GitLab for smartcard authentication
 
-**For Omnibus installations**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -137,12 +137,10 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
    `gitlab_rails['smartcard_client_certificate_required_host']` or
    `gitlab_rails['smartcard_client_certificate_required_port']`.
 
-1. Save the file and [reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation)
    GitLab for the changes to take effect.
 
----
-
-**For installations from source**
+For self-compiled installations:
 
 1. Configure NGINX to request a client side certificate
 
@@ -232,12 +230,12 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
    Assign a value to at least one of the following variables:
    `client_certificate_required_host` or `client_certificate_required_port`.
 
-1. Save the file and [restart](../restart_gitlab.md#installations-from-source)
+1. Save the file and [restart](../restart_gitlab.md#self-compiled-installations)
    GitLab for the changes to take effect.
 
 ### Additional steps when using SAN extensions
 
-**For Omnibus installations**
+For Linux package installations:
 
 1. Add to `/etc/gitlab/gitlab.rb`:
 
@@ -245,10 +243,10 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
    gitlab_rails['smartcard_san_extensions'] = true
    ```
 
-1. Save the file and [reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation)
    GitLab for the changes to take effect.
 
-**For installations from source**
+For self-compiled installations:
 
 1. Add the `san_extensions` line to `config/gitlab.yml` within the smartcard section:
 
@@ -262,12 +260,12 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
       san_extensions: true
    ```
 
-1. Save the file and [restart](../restart_gitlab.md#installations-from-source)
+1. Save the file and [restart](../restart_gitlab.md#self-compiled-installations)
    GitLab for the changes to take effect.
 
 ### Additional steps when authenticating against an LDAP server
 
-**For Omnibus installations**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -281,10 +279,10 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
    EOS
    ```
 
-1. Save the file and [reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation)
    GitLab for the changes to take effect.
 
-**For installations from source**
+For self-compiled installations:
 
 1. Edit `config/gitlab.yml`:
 
@@ -299,12 +297,12 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
            smartcard_auth: optional
    ```
 
-1. Save the file and [restart](../restart_gitlab.md#installations-from-source)
+1. Save the file and [restart](../restart_gitlab.md#self-compiled-installations)
    GitLab for the changes to take effect.
 
 ### Require browser session with smartcard sign-in for Git access
 
-**For Omnibus installations**
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -312,10 +310,10 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
    gitlab_rails['smartcard_required_for_git_access'] = true
    ```
 
-1. Save the file and [reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation)
    GitLab for the changes to take effect.
 
-**For installations from source**
+For self-compiled installations:
 
 1. Edit `config/gitlab.yml`:
 
@@ -327,7 +325,7 @@ more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/
      required_for_git_access: true
    ```
 
-1. Save the file and [restart](../restart_gitlab.md#installations-from-source)
+1. Save the file and [restart](../restart_gitlab.md#self-compiled-installations)
    GitLab for the changes to take effect.
 
 ## Passwords for users created via smartcard authentication

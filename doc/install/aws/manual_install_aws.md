@@ -8,23 +8,23 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 # Installing a GitLab POC on Amazon Web Services (AWS) **(FREE SELF)**
 
-This page offers a walkthrough of a common configuration for GitLab on AWS using the official GitLab Linux package. You should customize it to accommodate your needs.
+This page offers a walkthrough of a common configuration for GitLab on AWS using the official Linux package. You should customize it to accommodate your needs.
 
 NOTE:
-For organizations with 1,000 users or less, the recommended AWS installation method is to launch an EC2 single box [Omnibus Installation](https://about.gitlab.com/install/) and implement a snapshot strategy for backing up the data. See the [1,000 user reference architecture](../../administration/reference_architectures/1k_users.md) for more information.
+For organizations with 1,000 users or less, the recommended AWS installation method is to launch an EC2 single box [Linux package installation](https://about.gitlab.com/install/) and implement a snapshot strategy for backing up the data. See the [1,000 user reference architecture](../../administration/reference_architectures/1k_users.md) for more information.
 
 ## Getting started for production-grade GitLab
 
 NOTE:
 This document is an installation guide for a proof of concept instance. It is not a reference architecture and it does not result in a highly available configuration.
 
-Following this guide exactly results in a proof of concept instance that roughly equates to a **scaled down** version of a **two availability zone implementation** of the **Non-HA** [Omnibus 2000 User Reference Architecture](../../administration/reference_architectures/2k_users.md). The 2K reference architecture is not HA because it is primarily intended to provide some scaling while keeping costs and complexity low. The [3000 User Reference Architecture](../../administration/reference_architectures/3k_users.md) is the smallest size that is GitLab HA. It has additional service roles to achieve HA, most notably it uses Gitaly Cluster to achieve HA for Git repository storage and specifies triple redundancy.
+Following this guide exactly results in a proof of concept instance that roughly equates to a **scaled down** version of a **two availability zone implementation** of the **Non-HA** [2000 User Reference Architecture](../../administration/reference_architectures/2k_users.md). The 2K reference architecture is not HA because it is primarily intended to provide some scaling while keeping costs and complexity low. The [3000 User Reference Architecture](../../administration/reference_architectures/3k_users.md) is the smallest size that is GitLab HA. It has additional service roles to achieve HA, most notably it uses Gitaly Cluster to achieve HA for Git repository storage and specifies triple redundancy.
 
-GitLab maintains and tests two main types of Reference Architectures. The **Omnibus architectures** are implemented on instance compute while **Cloud Native Hybrid architectures** maximize the use of a Kubernetes cluster. Cloud Native Hybrid reference architecture specifications are addendum sections to the Reference Architecture size pages that start by describing the Omnibus architecture. For example, the 3000 User Cloud Native Reference Architecture is in the subsection titled [Cloud Native Hybrid reference architecture with Helm Charts (alternative)](../../administration/reference_architectures/3k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative) in the 3000 User Reference Architecture page.
+GitLab maintains and tests two main types of Reference Architectures. The **Linux package architectures** are implemented on instance compute while **Cloud Native Hybrid architectures** maximize the use of a Kubernetes cluster. Cloud Native Hybrid reference architecture specifications are addendum sections to the Reference Architecture size pages that start by describing the Linux package architecture. For example, the 3000 User Cloud Native Reference Architecture is in the subsection titled [Cloud Native Hybrid reference architecture with Helm Charts (alternative)](../../administration/reference_architectures/3k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative) in the 3000 User Reference Architecture page.
 
-### Getting started for production-grade Omnibus GitLab
+### Getting started for production-grade Linux package installations
 
-The Infrastructure as Code tooling [GitLab Environment Tool (GET)](https://gitlab.com/gitlab-org/gitlab-environment-toolkit/-/tree/main) is the best place to start for building Omnibus GitLab on AWS and most especially if you are targeting an HA setup. While it does not automate everything, it does complete complex setups like Gitaly Cluster for you. GET is open source so anyone can build on top of it and contribute improvements to it.
+The Infrastructure as Code tooling [GitLab Environment Tool (GET)](https://gitlab.com/gitlab-org/gitlab-environment-toolkit/-/tree/main) is the best place to start for building using the Linux package on AWS and most especially if you are targeting an HA setup. While it does not automate everything, it does complete complex setups like Gitaly Cluster for you. GET is open source so anyone can build on top of it and contribute improvements to it.
 
 ### Getting started for production-grade Cloud Native Hybrid GitLab
 
@@ -32,7 +32,7 @@ For the Cloud Native Hybrid architectures there are two Infrastructure as Code o
 
 ## Introduction
 
-For the most part, we make use of Omnibus GitLab in our setup, but we also leverage native AWS services. Instead of using the Omnibus bundled PostgreSQL and Redis, we use Amazon RDS and ElastiCache.
+For the most part, we make use of the Linux package in our setup, but we also leverage native AWS services. Instead of using the Linux package-bundled PostgreSQL and Redis, we use Amazon RDS and ElastiCache.
 
 In this guide, we go through a multi-node setup where we start by
 configuring our Virtual Private Cloud and subnets to later integrate
@@ -237,7 +237,7 @@ Next, we must associate the **public** subnets to the route table:
 
 We also must create two private route tables so that instances in each private subnet can reach the internet via the NAT gateway in the corresponding public subnet in the same availability zone.
 
-1. Follow the same steps as above to create two private route tables. Name them `gitlab-private-a` and `gitlab-private-b` respectively.
+1. Follow the same steps as above to create two private route tables. Name them `gitlab-private-a` and `gitlab-private-b`.
 1. Next, add a new route to each of the private route tables where the destination is `0.0.0.0/0` and the target is one of the NAT gateways we created earlier.
    1. Add the NAT gateway we created in `gitlab-public-10.0.0.0` as the target for the new route in the `gitlab-private-a` route table.
    1. Similarly, add the NAT gateway in `gitlab-public-10.0.2.0` as the target for the new route in the `gitlab-private-b`.
@@ -268,7 +268,7 @@ On the EC2 dashboard, look for Load Balancer in the left navigation bar:
 1. Select **Configure Health Check** and set up a health check for your EC2 instances.
    1. For **Ping Protocol**, select HTTP.
    1. For **Ping Port**, enter 80.
-   1. For **Ping Path** - we recommend that you [use the Readiness check endpoint](../../administration/load_balancer.md#readiness-check). You must add [the VPC IP Address Range (CIDR)](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-security-groups.html#elb-vpc-nacl) to the [IP allowlist](../../administration/monitoring/ip_allowlist.md) for the [Health Check endpoints](../../user/admin_area/monitoring/health_check.md)
+   1. For **Ping Path** - we recommend that you [use the Readiness check endpoint](../../administration/load_balancer.md#readiness-check). You must add [the VPC IP Address Range (CIDR)](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-security-groups.html#elb-vpc-nacl) to the [IP allowlist](../../administration/monitoring/ip_allowlist.md) for the [Health Check endpoints](../../administration/monitoring/health_check.md)
    1. Keep the default **Advanced Details** or adjust them according to your needs.
 1. Select **Add EC2 Instances** - don't add anything as we create an Auto Scaling Group later to manage instances for us.
 1. Select **Add Tags** and add any tags you need.
@@ -336,7 +336,13 @@ Now, it's time to create the database:
 1. Select **Standard Create** for the database creation method.
 1. Select **PostgreSQL** as the database engine and select the minimum PostgreSQL version as defined for your GitLab version in our [database requirements](../../install/requirements.md#postgresql-requirements).
 1. Because this is a production server, let's choose **Production** from the **Templates** section.
-1. Under **Settings**, set a DB instance identifier, a master username, and a master password. We use `gitlab-db-ha`, `gitlab`, and a very secure password respectively. Make a note of these as we need them later.
+1. Under **Settings**, use:
+   - `gitlab-db-ha` for the DB instance identifier.
+   - `gitlab` for a master username.
+   - A very secure password for the master password.
+
+   Make a note of these as we need them later.
+
 1. For the DB instance size, select **Standard classes** and select an instance size that meets your requirements from the dropdown list. We use a `db.m4.large` instance.
 1. Under **Storage**, configure the following:
    1. Select **Provisioned IOPS (SSD)** from the storage type dropdown list. Provisioned IOPS (SSD) storage is best suited for this use (though you can choose General Purpose (SSD) to reduce the costs). Read more about it at [Storage for Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html).
@@ -483,7 +489,7 @@ Connect to your GitLab instance via **Bastion Host A** using [SSH Agent Forwardi
 
 #### Disable Let's Encrypt
 
-Because we're adding our SSL certificate at the load balancer, we do not need the GitLab built-in support for Let's Encrypt. Let's Encrypt [is enabled by default](https://docs.gitlab.com/omnibus/settings/ssl.html#enable-the-lets-encrypt-integration) when using an `https` domain in GitLab 10.7 and later, so we must explicitly disable it:
+Because we're adding our SSL certificate at the load balancer, we do not need the GitLab built-in support for Let's Encrypt. Let's Encrypt [is enabled by default](https://docs.gitlab.com/omnibus/settings/ssl/index.html#enable-the-lets-encrypt-integration) when using an `https` domain in GitLab 10.7 and later, so we must explicitly disable it:
 
 1. Open `/etc/gitlab/gitlab.rb` and disable it:
 
@@ -605,7 +611,7 @@ Now that we have our EC2 instance ready, follow the [documentation to install Gi
 
 #### Add Support for Proxied SSL
 
-As we are terminating SSL at our [load balancer](#load-balancer), follow the steps at [Supporting proxied SSL](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination) to configure this in `/etc/gitlab/gitlab.rb`.
+As we are terminating SSL at our [load balancer](#load-balancer), follow the steps at [Supporting proxied SSL](https://docs.gitlab.com/omnibus/settings/ssl/index.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination) to configure this in `/etc/gitlab/gitlab.rb`.
 
 Remember to run `sudo gitlab-ctl reconfigure` after saving the changes to the `gitlab.rb` file.
 
@@ -735,7 +741,7 @@ GitLab provides its own integrated monitoring solution based on Prometheus.
 For more information about how to set it up, see
 [GitLab Prometheus](../../administration/monitoring/prometheus/index.md).
 
-GitLab also has various [health check endpoints](../../user/admin_area/monitoring/health_check.md)
+GitLab also has various [health check endpoints](../../administration/monitoring/health_check.md)
 that you can ping and get reports.
 
 ## GitLab Runner
@@ -748,16 +754,16 @@ Read more on configuring an
 
 ## Backup and restore
 
-GitLab provides [a tool to back up](../../raketasks/backup_restore.md)
+GitLab provides [a tool to back up](../../administration/backup_restore/index.md)
 and restore its Git data, database, attachments, LFS objects, and so on.
 
 Some important things to know:
 
 - The backup/restore tool **does not** store some configuration files, like secrets; you
-  must [configure this yourself](../../raketasks/backup_gitlab.md#storing-configuration-files).
+  must [configure this yourself](../../administration/backup_restore/backup_gitlab.md#storing-configuration-files).
 - By default, the backup files are stored locally, but you can
-  [backup GitLab using S3](../../raketasks/backup_gitlab.md#using-amazon-s3).
-- You can [exclude specific directories form the backup](../../raketasks/backup_gitlab.md#excluding-specific-directories-from-the-backup).
+  [backup GitLab using S3](../../administration/backup_restore/backup_gitlab.md#using-amazon-s3).
+- You can [exclude specific directories form the backup](../../administration/backup_restore/backup_gitlab.md#excluding-specific-directories-from-the-backup).
 
 ### Backing up GitLab
 
@@ -775,9 +781,9 @@ For GitLab 12.1 and earlier, use `gitlab-rake gitlab:backup:create`.
 
 ### Restoring GitLab from a backup
 
-To restore GitLab, first review the [restore documentation](../../raketasks/backup_restore.md#restore-gitlab),
+To restore GitLab, first review the [restore documentation](../../administration/backup_restore/index.md#restore-gitlab),
 and primarily the restore prerequisites. Then, follow the steps under the
-[Omnibus installations section](../../raketasks/restore_gitlab.md#restore-for-omnibus-gitlab-installations).
+[Linux package installations section](../../administration/backup_restore/restore_gitlab.md#restore-for-linux-package-installations).
 
 ## Updating GitLab
 
@@ -825,9 +831,9 @@ to request additional material:
   GitLab supports several different types of clustering.
 - [Geo replication](../../administration/geo/index.md):
   Geo is the solution for widely distributed development teams.
-- [Omnibus GitLab](https://docs.gitlab.com/omnibus/) - Everything you must know
+- [Linux package](https://docs.gitlab.com/omnibus/) - Everything you must know
   about administering your GitLab instance.
-- [Add a license](../../user/admin_area/license.md):
+- [Add a license](../../administration/license.md):
   Activate all GitLab Enterprise Edition functionality with a license.
 - [Pricing](https://about.gitlab.com/pricing/): Pricing for the different tiers.
 
@@ -845,6 +851,6 @@ If you see this page when trying to set a password via the web interface, make s
 
 ### Some job logs are not uploaded to object storage
 
-When the GitLab deployment is scaled up to more than one node, some job logs may not be uploaded to [object storage](../../administration/object_storage.md) properly. [Incremental logging is required](../../administration/object_storage.md#other-alternatives-to-file-system-storage) for CI to use object storage.
+When the GitLab deployment is scaled up to more than one node, some job logs may not be uploaded to [object storage](../../administration/object_storage.md) properly. [Incremental logging is required](../../administration/object_storage.md#alternatives-to-file-system-storage) for CI to use object storage.
 
 Enable [incremental logging](../../administration/job_logs.md#enable-or-disable-incremental-logging) if it has not already been enabled.

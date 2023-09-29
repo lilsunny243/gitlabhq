@@ -7,6 +7,8 @@ import {
   isSidebarDirty,
   formatSearchResultCount,
   getAggregationsUrl,
+  prepareSearchAggregations,
+  addCountOverLimit,
 } from '~/search/store/utils';
 import { useMockLocationHelper } from 'helpers/mock_window_location_helper';
 import {
@@ -15,6 +17,9 @@ import {
   MOCK_INFLATED_DATA,
   FRESH_STORED_DATA,
   STALE_STORED_DATA,
+  MOCK_AGGREGATIONS,
+  SMALL_MOCK_AGGREGATIONS,
+  TEST_RAW_BUCKETS,
 } from '../mock_data';
 
 const PREV_TIME = new Date().getTime() - 1;
@@ -264,6 +269,38 @@ describe('Global Search Store Utils', () => {
     it('returns zero as string if no count is provided', () => {
       const testURL = window.location.href;
       expect(getAggregationsUrl()).toStrictEqual(`${testURL}search/aggregations`);
+    });
+  });
+
+  const TEST_LANGUAGE_QUERY = ['Markdown', 'JSON'];
+  const TEST_EXPECTED_ORDERED_BUCKETS = [
+    TEST_RAW_BUCKETS.find((x) => x.key === 'Markdown'),
+    TEST_RAW_BUCKETS.find((x) => x.key === 'JSON'),
+    ...TEST_RAW_BUCKETS.filter((x) => !TEST_LANGUAGE_QUERY.includes(x.key)),
+  ];
+
+  describe('prepareSearchAggregations', () => {
+    it.each`
+      description        | query                                | data                       | result
+      ${'has no query'}  | ${undefined}                         | ${MOCK_AGGREGATIONS}       | ${MOCK_AGGREGATIONS}
+      ${'has query'}     | ${{ language: TEST_LANGUAGE_QUERY }} | ${SMALL_MOCK_AGGREGATIONS} | ${[{ ...SMALL_MOCK_AGGREGATIONS[0], buckets: TEST_EXPECTED_ORDERED_BUCKETS }]}
+      ${'has bad query'} | ${{ language: ['sdf', 'wrt'] }}      | ${SMALL_MOCK_AGGREGATIONS} | ${SMALL_MOCK_AGGREGATIONS}
+    `('$description', ({ query, data, result }) => {
+      expect(prepareSearchAggregations({ query }, data)).toStrictEqual(result);
+    });
+  });
+
+  describe('addCountOverLimit', () => {
+    it("should return '+' if count includes '+'", () => {
+      expect(addCountOverLimit('10+')).toEqual('+');
+    });
+
+    it("should return empty string if count does not include '+'", () => {
+      expect(addCountOverLimit('10')).toEqual('');
+    });
+
+    it('should return empty string if count is not provided', () => {
+      expect(addCountOverLimit()).toEqual('');
     });
   });
 });

@@ -18,6 +18,7 @@ RSpec.describe "User views incident", feature_category: :incident_management do
 
   before do
     sign_in(user)
+    stub_feature_flags(moved_mr_sidebar: false)
 
     visit(incident_project_issues_path(project, incident))
   end
@@ -30,10 +31,12 @@ RSpec.describe "User views incident", feature_category: :incident_management do
 
   describe 'user actions' do
     it 'shows the merge request and incident actions', :js, :aggregate_failures do
-      expected_href = new_project_issue_path(project,
-                                             issuable_template: 'incident',
-                                             issue: { issue_type: 'incident' },
-                                             add_related_issue: incident.iid)
+      expected_href = new_project_issue_path(
+        project,
+        issuable_template: 'incident',
+        issue: { issue_type: 'incident' },
+        add_related_issue: incident.iid
+      )
 
       click_button 'Incident actions'
 
@@ -70,37 +73,6 @@ RSpec.describe "User views incident", feature_category: :incident_management do
 
     it 'does not show the incident actions', :js do
       expect(page).not_to have_button('Incident actions')
-    end
-  end
-
-  describe 'user status' do
-    context 'when showing status of the author of the incident' do
-      subject { visit(incident_project_issues_path(project, incident)) }
-
-      it_behaves_like 'showing user status' do
-        let(:user_with_status) { user }
-      end
-    end
-
-    context 'when status message has an emoji', :js do
-      let_it_be(:message) { 'My status with an emoji' }
-      let_it_be(:message_emoji) { 'basketball' }
-      let_it_be(:status) { create(:user_status, user: user, emoji: 'smirk', message: "#{message} :#{message_emoji}:") }
-
-      it 'correctly renders the emoji' do
-        wait_for_requests
-
-        tooltip_span = page.first(".user-status-emoji[title^='#{message}']")
-        tooltip_span.hover
-
-        wait_for_requests
-
-        tooltip = page.find('.tooltip .tooltip-inner')
-
-        page.within(tooltip) do
-          expect(page).to have_emoji(message_emoji)
-        end
-      end
     end
   end
 end

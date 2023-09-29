@@ -3,7 +3,7 @@
 class SentNotification < ApplicationRecord
   include IgnorableColumns
 
-  serialize :position, Gitlab::Diff::Position # rubocop:disable Cop/ActiveRecordSerialize
+  ignore_column %i[id_convert_to_bigint], remove_with: '16.5', remove_after: '2023-09-22'
 
   belongs_to :project
   belongs_to :noteable, polymorphic: true # rubocop:disable Cop/PolymorphicAssociations
@@ -15,8 +15,6 @@ class SentNotification < ApplicationRecord
   validates :commit_id, presence: true, if: :for_commit?
   validates :in_reply_to_discussion_id, format: { with: /\A\h{40}\z/, allow_nil: true }
   validate :note_valid
-
-  ignore_column :id_convert_to_bigint, remove_with: '16.0', remove_after: '2023-05-22'
 
   after_save :keep_around_commit, if: :for_commit?
 
@@ -48,7 +46,11 @@ class SentNotification < ApplicationRecord
         commit_id: commit_id
       )
 
-      create(attrs)
+      # Non-sticky write is used as `.record` is only used in ActionMailer
+      # where there are no queries to SentNotification.
+      ::Gitlab::Database::LoadBalancing::Session.without_sticky_writes do
+        create(attrs)
+      end
     end
 
     def record_note(note, recipient_id, reply_key = self.reply_key, attrs = {})
@@ -82,32 +84,22 @@ class SentNotification < ApplicationRecord
     end
   end
 
-  def position=(new_position)
-    if new_position.is_a?(String)
-      new_position = begin
-        Gitlab::Json.parse(new_position)
-      rescue StandardError
-        nil
-      end
-    end
-
-    if new_position.is_a?(Hash)
-      new_position = new_position.with_indifferent_access
-      new_position = Gitlab::Diff::Position.new(new_position)
-    else
-      new_position = nil
-    end
-
-    super(new_position)
-  end
-
   def to_param
     self.reply_key
   end
 
-  def create_reply(message, dryrun: false)
+  def create_reply(message, external_author = nil, dryrun: false)
     klass = dryrun ? Notes::BuildService : Notes::CreateService
-    klass.new(self.project, self.recipient, reply_params.merge(note: message)).execute
+    params = reply_params.merge(
+      note: message
+    )
+
+    params[:external_author] = external_author if external_author.present?
+
+    klass.new(self.project,
+      self.recipient,
+      params
+    ).execute
   end
 
   private

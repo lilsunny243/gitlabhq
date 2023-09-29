@@ -1,23 +1,22 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group migration by direct transfer
 
-[Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2771) in GitLab 13.7.
+> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2771) in GitLab 13.7.
 
-WARNING:
-This feature is [under construction](https://gitlab.com/groups/gitlab-org/-/epics/2771) and its API/Architecture might change in the future.
+NOTE:
+To use direct transfer, ensure your GitLab installation is accessible from
+[GitLab IP addresses](../user/gitlab_com/index.md#ip-range) and has a public DNS entry.
 
 [Group migration by direct transfer](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended) is the
 evolution of migrating groups and projects using file exports. The goal is to have an easier way for the user to migrate a whole group,
 including projects, from one GitLab instance to another.
 
 ## Design decisions
-
-### Overview
 
 The following architectural diagram illustrates how the Group Migration
 works with a set of [ETL](#etl) Pipelines leveraging from the current [GitLab APIs](#api).
@@ -37,13 +36,14 @@ idea is to have one ETL pipeline for each relation to be imported.
 
 ### API
 
-The current [Project](../user/project/settings/import_export.md) and [Group](../user/group/settings/import_export.md) Import are file based, so they require an export
-step to generate the file to be imported.
+The current [project](../user/project/settings/import_export.md) and
+[group](../user/group/import/index.md#migrate-groups-by-uploading-an-export-file-deprecated) imports are file based, so
+they require an export step to generate the file to be imported.
 
-GitLab Group migration leverages on [GitLab API](../api/rest/index.md) to speed the migration.
+Group migration by direct transfer leverages the [GitLab API](../api/rest/index.md) to speed the migration.
 
 And, because we're on the road to [GraphQL](../api/graphql/index.md),
-GitLab Group Migration will be contributing towards to expand the GraphQL API coverage, which benefits both GitLab
+Group migration by direct transfer can contribute to expanding GraphQL API coverage, which benefits both GitLab
 and its users.
 
 ### Namespace

@@ -1,4 +1,4 @@
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __ } from '~/locale';
 import axios from './lib/utils/axios_utils';
 import { joinPaths } from './lib/utils/url_utility';
@@ -33,6 +33,7 @@ const Api = {
   forkedProjectsPath: '/api/:version/projects/:id/forks',
   projectLabelsPath: '/:namespace_path/:project_path/-/labels',
   projectFileSchemaPath: '/:namespace_path/:project_path/-/schema/:ref/:filename',
+  projectGroupsPath: '/api/:version/projects/:id/groups.json',
   projectUsersPath: '/api/:version/projects/:id/users',
   projectInvitationsPath: '/api/:version/projects/:id/invitations',
   projectMembersPath: '/api/:version/projects/:id/members',
@@ -86,6 +87,7 @@ const Api = {
   freezePeriodsPath: '/api/:version/projects/:id/freeze_periods',
   freezePeriodPath: '/api/:version/projects/:id/freeze_periods/:freeze_period_id',
   serviceDataIncrementCounterPath: '/api/:version/usage_data/increment_counter',
+  serviceDataInternalEventPath: '/api/:version/usage_data/track_event',
   serviceDataIncrementUniqueUsersPath: '/api/:version/usage_data/increment_unique_users',
   featureFlagUserLists: '/api/:version/projects/:id/feature_flags_user_lists',
   featureFlagUserList: '/api/:version/projects/:id/feature_flags_user_lists/:list_iid',
@@ -97,6 +99,7 @@ const Api = {
   secureFilePath: '/api/:version/projects/:project_id/secure_files/:secure_file_id',
   secureFilesPath: '/api/:version/projects/:project_id/secure_files',
   dependencyProxyPath: '/api/:version/groups/:id/dependency_proxy/cache',
+  markdownPath: '/api/:version/markdown',
 
   group(groupId, callback = () => {}) {
     const url = Api.buildUrl(Api.groupPath).replace(':id', groupId);
@@ -175,6 +178,19 @@ const Api = {
     });
   },
 
+  projectGroups(id, options) {
+    const url = Api.buildUrl(this.projectGroupsPath).replace(':id', encodeURIComponent(id));
+
+    return axios
+      .get(url, {
+        params: {
+          ...options,
+        },
+      })
+      .then(({ data }) => {
+        return data;
+      });
+  },
   /**
    * @deprecated This method will be removed soon. Use the
    * `getGroups` method in `~/rest_api` instead.
@@ -909,6 +925,20 @@ const Api = {
     return axios.post(url, { event }, { headers });
   },
 
+  trackInternalEvent(event) {
+    if (!gon.current_user_id || !gon.features?.usageDataApi) {
+      return null;
+    }
+    const url = Api.buildUrl(this.serviceDataInternalEventPath);
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+    const { data = {} } = { ...window.gl?.snowplowStandardContext };
+    const { project_id, namespace_id } = data;
+    return axios.post(url, { event, project_id, namespace_id }, { headers });
+  },
+
   buildUrl(url) {
     return joinPaths(gon.relative_url_root || '', url.replace(':version', gon.api_version));
   },
@@ -1016,6 +1046,12 @@ const Api = {
     const url = Api.buildUrl(this.dependencyProxyPath).replace(':id', groupId);
 
     return axios.delete(url, { params: { ...options } });
+  },
+
+  markdown(data = {}) {
+    const url = Api.buildUrl(this.markdownPath);
+
+    return axios.post(url, data);
   },
 };
 

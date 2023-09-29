@@ -31,10 +31,10 @@ RSpec.describe GitlabSchema.types['AlertManagementAlert'], feature_category: :in
       assignees
       notes
       discussions
-      metrics_dashboard_url
       runbook
       todos
       details_url
+      metrics_dashboard_url
       prometheus_alert
       environment
       web_url

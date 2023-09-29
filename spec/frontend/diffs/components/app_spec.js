@@ -1,23 +1,28 @@
 import { GlLoadingIcon, GlPagination } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
-import Mousetrap from 'mousetrap';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import { TEST_HOST } from 'spec/test_constants';
+
 import App from '~/diffs/components/app.vue';
 import CommitWidget from '~/diffs/components/commit_widget.vue';
 import CompareVersions from '~/diffs/components/compare_versions.vue';
 import DiffFile from '~/diffs/components/diff_file.vue';
 import NoChanges from '~/diffs/components/no_changes.vue';
-import TreeList from '~/diffs/components/tree_list.vue';
+import FindingsDrawer from '~/diffs/components/shared/findings_drawer.vue';
+import DiffsFileTree from '~/diffs/components/diffs_file_tree.vue';
 
 import CollapsedFilesWarning from '~/diffs/components/collapsed_files_warning.vue';
 import HiddenFilesWarning from '~/diffs/components/hidden_files_warning.vue';
 
+import eventHub from '~/diffs/event_hub';
+
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
+import { Mousetrap } from '~/lib/mousetrap';
 import * as urlUtils from '~/lib/utils/url_utility';
 import { stubPerformanceWebAPI } from 'helpers/performance';
 import createDiffsStore from '../create_diffs_store';
@@ -30,6 +35,8 @@ const UPDATED_COMMIT_URL = `${TEST_HOST}/COMMIT/NEW`;
 
 Vue.use(Vuex);
 
+Vue.config.ignoredElements = ['copy-code'];
+
 function getCollapsedFilesWarning(wrapper) {
   return wrapper.findComponent(CollapsedFilesWarning);
 }
@@ -40,7 +47,7 @@ describe('diffs/components/app', () => {
   let wrapper;
   let mock;
 
-  function createComponent(props = {}, extendStore = () => {}, provisions = {}) {
+  function createComponent(props = {}, extendStore = () => {}, provisions = {}, baseConfig = {}) {
     const provide = {
       ...provisions,
       glFeatures: {
@@ -54,19 +61,26 @@ describe('diffs/components/app', () => {
 
     extendStore(store);
 
+    store.dispatch('diffs/setBaseConfig', {
+      endpoint: TEST_ENDPOINT,
+      endpointMetadata: `${TEST_HOST}/diff/endpointMetadata`,
+      endpointBatch: `${TEST_HOST}/diff/endpointBatch`,
+      endpointDiffForPath: TEST_ENDPOINT,
+      projectPath: 'namespace/project',
+      dismissEndpoint: '',
+      showSuggestPopover: true,
+      mrReviews: {},
+      ...baseConfig,
+    });
+
     wrapper = shallowMount(App, {
       propsData: {
-        endpoint: TEST_ENDPOINT,
-        endpointMetadata: `${TEST_HOST}/diff/endpointMetadata`,
-        endpointBatch: `${TEST_HOST}/diff/endpointBatch`,
         endpointCoverage: `${TEST_HOST}/diff/endpointCoverage`,
         endpointCodequality: '',
+        endpointSast: '',
         projectPath: 'namespace/project',
         currentUser: {},
         changesEmptyStateIllustration: '',
-        dismissEndpoint: '',
-        showSuggestPopover: true,
-        fileByFileUserPreference: false,
         ...props,
       },
       provide,
@@ -88,12 +102,6 @@ describe('diffs/components/app', () => {
   afterEach(() => {
     // reset globals
     window.mrTabs = oldMrTabs;
-
-    // reset component
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
 
     mock.restore();
   });
@@ -173,12 +181,22 @@ describe('diffs/components/app', () => {
   });
 
   describe('codequality diff', () => {
-    it('does not fetch code quality data on FOSS', async () => {
+    it('does not fetch code quality data on FOSS', () => {
       createComponent();
       jest.spyOn(wrapper.vm, 'fetchCodequality');
       wrapper.vm.fetchData(false);
 
       expect(wrapper.vm.fetchCodequality).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('SAST diff', () => {
+    it('does not fetch Sast data on FOSS', () => {
+      createComponent();
+      jest.spyOn(wrapper.vm, 'fetchSast');
+      wrapper.vm.fetchData(false);
+
+      expect(wrapper.vm.fetchSast).not.toHaveBeenCalled();
     });
   });
 
@@ -236,33 +254,10 @@ describe('diffs/components/app', () => {
       await nextTick();
       expect(store.state.diffs.currentDiffFileId).toBe('ABC');
     });
-  });
 
-  describe('resizable', () => {
-    afterEach(() => {
-      localStorage.removeItem('mr_tree_list_width');
-    });
-
-    it('sets initial width when no localStorage has been set', () => {
+    it('renders findings-drawer', () => {
       createComponent();
-
-      expect(wrapper.vm.treeWidth).toEqual(320);
-    });
-
-    it('sets initial width to localStorage size', () => {
-      localStorage.setItem('mr_tree_list_width', '200');
-
-      createComponent();
-
-      expect(wrapper.vm.treeWidth).toEqual(200);
-    });
-
-    it('sets width of tree list', () => {
-      createComponent({}, ({ state }) => {
-        state.diffs.treeEntries = { 111: { type: 'blob', fileHash: '111', path: '111.js' } };
-      });
-
-      expect(wrapper.find('.js-diff-tree-list').element.style.width).toEqual('320px');
+      expect(wrapper.findComponent(FindingsDrawer).exists()).toBe(true);
     });
   });
 
@@ -390,10 +385,6 @@ describe('diffs/components/app', () => {
         ];
       });
       spy = jest.spyOn(store, 'dispatch');
-    });
-
-    afterEach(() => {
-      wrapper.destroy();
     });
 
     it('jumps to next and previous files in the list', async () => {
@@ -586,18 +577,21 @@ describe('diffs/components/app', () => {
       );
     });
 
-    it("doesn't render tree list when no changes exist", () => {
+    it('should always render diffs file tree', () => {
       createComponent();
-
-      expect(wrapper.findComponent(TreeList).exists()).toBe(false);
+      expect(wrapper.findComponent(DiffsFileTree).exists()).toBe(true);
     });
 
-    it('should render tree list', () => {
+    it('should pass renderDiffFiles to file tree as true when files are present', () => {
       createComponent({}, ({ state }) => {
         state.diffs.treeEntries = { 111: { type: 'blob', fileHash: '111', path: '111.js' } };
       });
+      expect(wrapper.findComponent(DiffsFileTree).props('renderDiffFiles')).toBe(true);
+    });
 
-      expect(wrapper.findComponent(TreeList).exists()).toBe(true);
+    it('should pass renderDiffFiles to file tree as false without files', () => {
+      createComponent();
+      expect(wrapper.findComponent(DiffsFileTree).props('renderDiffFiles')).toBe(false);
     });
   });
 
@@ -659,13 +653,18 @@ describe('diffs/components/app', () => {
 
   describe('file-by-file', () => {
     it('renders a single diff', async () => {
-      createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-        state.diffs.treeEntries = {
-          123: { type: 'blob', fileHash: '123' },
-          312: { type: 'blob', fileHash: '312' },
-        };
-        state.diffs.diffFiles.push({ file_hash: '312' });
-      });
+      createComponent(
+        undefined,
+        ({ state }) => {
+          state.diffs.treeEntries = {
+            123: { type: 'blob', fileHash: '123' },
+            312: { type: 'blob', fileHash: '312' },
+          };
+          state.diffs.diffFiles.push({ file_hash: '312' });
+        },
+        undefined,
+        { viewDiffsFileByFile: true },
+      );
 
       await nextTick();
 
@@ -677,12 +676,17 @@ describe('diffs/components/app', () => {
       const paginator = () => fileByFileNav().findComponent(GlPagination);
 
       it('sets previous button as disabled', async () => {
-        createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.treeEntries = {
-            123: { type: 'blob', fileHash: '123' },
-            312: { type: 'blob', fileHash: '312' },
-          };
-        });
+        createComponent(
+          undefined,
+          ({ state }) => {
+            state.diffs.treeEntries = {
+              123: { type: 'blob', fileHash: '123' },
+              312: { type: 'blob', fileHash: '312' },
+            };
+          },
+          undefined,
+          { viewDiffsFileByFile: true },
+        );
 
         await nextTick();
 
@@ -691,13 +695,18 @@ describe('diffs/components/app', () => {
       });
 
       it('sets next button as disabled', async () => {
-        createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.treeEntries = {
-            123: { type: 'blob', fileHash: '123' },
-            312: { type: 'blob', fileHash: '312' },
-          };
-          state.diffs.currentDiffFileId = '312';
-        });
+        createComponent(
+          undefined,
+          ({ state }) => {
+            state.diffs.treeEntries = {
+              123: { type: 'blob', fileHash: '123' },
+              312: { type: 'blob', fileHash: '312' },
+            };
+            state.diffs.currentDiffFileId = '312';
+          },
+          undefined,
+          { viewDiffsFileByFile: true },
+        );
 
         await nextTick();
 
@@ -706,10 +715,15 @@ describe('diffs/components/app', () => {
       });
 
       it("doesn't display when there's fewer than 2 files", async () => {
-        createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.treeEntries = { 123: { type: 'blob', fileHash: '123' } };
-          state.diffs.currentDiffFileId = '123';
-        });
+        createComponent(
+          undefined,
+          ({ state }) => {
+            state.diffs.treeEntries = { 123: { type: 'blob', fileHash: '123' } };
+            state.diffs.currentDiffFileId = '123';
+          },
+          undefined,
+          { viewDiffsFileByFile: true },
+        );
 
         await nextTick();
 
@@ -723,13 +737,18 @@ describe('diffs/components/app', () => {
       `(
         'calls navigateToDiffFileIndex with $index when $link is clicked',
         async ({ currentDiffFileId, targetFile }) => {
-          createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-            state.diffs.treeEntries = {
-              123: { type: 'blob', fileHash: '123' },
-              312: { type: 'blob', fileHash: '312' },
-            };
-            state.diffs.currentDiffFileId = currentDiffFileId;
-          });
+          createComponent(
+            undefined,
+            ({ state }) => {
+              state.diffs.treeEntries = {
+                123: { type: 'blob', fileHash: '123', filePaths: { old: '1234', new: '123' } },
+                312: { type: 'blob', fileHash: '312', filePaths: { old: '3124', new: '312' } },
+              };
+              state.diffs.currentDiffFileId = currentDiffFileId;
+            },
+            undefined,
+            { viewDiffsFileByFile: true },
+          );
 
           await nextTick();
 
@@ -742,6 +761,31 @@ describe('diffs/components/app', () => {
           expect(wrapper.vm.navigateToDiffFileIndex).toHaveBeenCalledWith(targetFile - 1);
         },
       );
+    });
+  });
+
+  describe('autoscroll', () => {
+    let loadSpy;
+
+    beforeEach(() => {
+      createComponent();
+      loadSpy = jest.spyOn(wrapper.vm, 'loadCollapsedDiff').mockResolvedValue('resolved');
+    });
+
+    it('does nothing if the location hash does not include a file hash', () => {
+      window.location.hash = 'not_a_file_hash';
+
+      eventHub.$emit('doneLoadingBatches');
+
+      expect(loadSpy).not.toHaveBeenCalled();
+    });
+
+    it('requests that the correct file be loaded', () => {
+      window.location.hash = '1c497fbb3a46b78edf04cc2a2fa33f67e3ffbe2a_0_1';
+
+      eventHub.$emit('doneLoadingBatches');
+
+      expect(loadSpy).toHaveBeenCalledWith({ file: store.state.diffs.diffFiles[0] });
     });
   });
 });

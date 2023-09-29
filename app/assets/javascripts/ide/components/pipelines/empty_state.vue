@@ -1,5 +1,6 @@
 <script>
 import { GlEmptyState } from '@gitlab/ui';
+// eslint-disable-next-line no-restricted-imports
 import { mapState } from 'vuex';
 import { s__ } from '~/locale';
 import { helpPagePath } from '~/helpers/help_page_helper';
@@ -28,6 +29,7 @@ export default {
   <gl-empty-state
     :title="$options.i18n.title"
     :svg-path="pipelinesEmptyStateSvgPath"
+    :svg-height="150"
     :description="$options.i18n.description"
     :primary-button-text="$options.i18n.primaryButtonText"
     :primary-button-link="ciHelpPagePath"

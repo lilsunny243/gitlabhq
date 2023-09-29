@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::ArtifactFileReader do
+RSpec.describe Gitlab::Ci::ArtifactFileReader, feature_category: :pipeline_composition do
   let(:job) { create(:ci_build) }
   let(:path) { 'generated.yml' } # included in the ci_build_artifacts.zip
 
@@ -49,7 +49,7 @@ RSpec.describe Gitlab::Ci::ArtifactFileReader do
 
         context 'when artifact archive size is greater than the limit' do
           let(:expected_error) do
-            "Artifacts archive for job `#{job.name}` is too large: max 1 KB"
+            "Artifacts archive for job `#{job.name}` is too large: max 1 KiB"
           end
 
           before do
@@ -63,7 +63,7 @@ RSpec.describe Gitlab::Ci::ArtifactFileReader do
 
         context 'when metadata entry shows size greater than the limit' do
           let(:expected_error) do
-            "Artifacts archive for job `#{job.name}` is too large: max 5 MB"
+            "Artifacts archive for job `#{job.name}` is too large: max 5 MiB"
           end
 
           before do
@@ -138,8 +138,8 @@ RSpec.describe Gitlab::Ci::ArtifactFileReader do
     end
 
     context 'when job does not have artifacts' do
-      it 'raises ArgumentError' do
-        expect { subject }.to raise_error(ArgumentError, 'Job does not have artifacts')
+      it 'raises an Error' do
+        expect { subject }.to raise_error(described_class::Error, 'Job does not have artifacts')
       end
     end
   end

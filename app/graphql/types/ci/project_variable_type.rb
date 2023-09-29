@@ -7,8 +7,8 @@ module Types
       graphql_name 'CiProjectVariable'
       description 'CI/CD variables for a project.'
 
-      connection_type_class(Types::Ci::ProjectVariableConnectionType)
-      implements(VariableInterface)
+      connection_type_class Types::Ci::ProjectVariableConnectionType
+      implements VariableInterface
 
       field :environment_scope, GraphQL::Types::String,
             null: true,
@@ -21,6 +21,10 @@ module Types
       field :masked, GraphQL::Types::Boolean,
             null: true,
             description: 'Indicates whether the variable is masked.'
+
+      field :description, GraphQL::Types::String,
+            null: true,
+            description: 'Description of the variable.'
     end
   end
 end

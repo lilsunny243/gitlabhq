@@ -14,6 +14,8 @@
 #     order_by: String (see ALLOWED_SORT_VALUES constant)
 #     sort: String (asc | desc)
 class DeploymentsFinder
+  include UpdatedAtFilter
+
   attr_reader :params
 
   # Warning:
@@ -23,7 +25,7 @@ class DeploymentsFinder
   # performant with the other filtering/sorting parameters.
   # The composed query could be significantly slower when the filtering and sorting columns are different.
   # See https://gitlab.com/gitlab-org/gitlab/-/issues/325627 for example.
-  ALLOWED_SORT_VALUES = %w[id iid created_at updated_at ref finished_at].freeze
+  ALLOWED_SORT_VALUES = %w[id iid created_at updated_at finished_at].freeze
   DEFAULT_SORT_VALUE = 'id'
 
   ALLOWED_SORT_DIRECTIONS = %w[asc desc].freeze
@@ -50,23 +52,13 @@ class DeploymentsFinder
 
   private
 
-  def raise_for_inefficient_updated_at_query?
-    params.fetch(:raise_for_inefficient_updated_at_query, Rails.env.development? || Rails.env.test?)
-  end
-
   def validate!
     if filter_by_updated_at? && filter_by_finished_at?
       raise InefficientQueryError, 'Both `updated_at` filter and `finished_at` filter can not be specified'
     end
 
-    # Currently, the inefficient parameters are allowed in order to avoid breaking changes in Deployment API.
-    # We'll switch to a hard error in https://gitlab.com/gitlab-org/gitlab/-/issues/328500.
-    if (filter_by_updated_at? && !order_by_updated_at?) || (!filter_by_updated_at? && order_by_updated_at?)
-      error = InefficientQueryError.new('`updated_at` filter and `updated_at` sorting must be paired')
-
-      Gitlab::ErrorTracking.log_exception(error)
-
-      raise error if raise_for_inefficient_updated_at_query?
+    if filter_by_updated_at? && !order_by_updated_at?
+      raise InefficientQueryError, '`updated_at` filter requires `updated_at` sort'
     end
 
     if filter_by_finished_at? && !order_by_finished_at?
@@ -107,13 +99,6 @@ class DeploymentsFinder
     sort_params = build_sort_params
     optimize_sort_params!(sort_params)
     items.order(sort_params) # rubocop: disable CodeReuse/ActiveRecord
-  end
-
-  def by_updated_at(items)
-    items = items.updated_before(params[:updated_before]) if params[:updated_before].present?
-    items = items.updated_after(params[:updated_after]) if params[:updated_after].present?
-
-    items
   end
 
   def by_finished_at(items)

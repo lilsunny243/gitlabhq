@@ -16,7 +16,7 @@ module MembershipActions
     member_data = if member.expires?
                     {
                       expires_soon: member.expires_soon?,
-                      expires_at_formatted: member.expires_at.to_time.in_time_zone.to_s(:medium)
+                      expires_at_formatted: member.expires_at.to_time.in_time_zone.to_fs(:medium)
                     }
                   else
                     {}
@@ -51,7 +51,7 @@ module MembershipActions
             _("User was successfully removed from project.")
           end
 
-        redirect_to members_page_url, notice: message
+        redirect_to members_page_url, notice: message, status: :see_other
       end
 
       format.js { head :ok }
@@ -156,7 +156,7 @@ module MembershipActions
       [:inherited]
     else
       if Feature.enabled?(:webui_members_inherited_users, current_user)
-        [:inherited, :direct, :shared_from_groups]
+        [:inherited, :direct, :shared_from_groups, (:invited_groups if params[:project_id])].compact
       else
         [:inherited, :direct]
       end

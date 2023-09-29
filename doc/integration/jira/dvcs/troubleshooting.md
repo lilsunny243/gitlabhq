@@ -1,12 +1,12 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Troubleshooting Jira DVCS connector **(FREE)**
+# Troubleshooting Jira DVCS connector **(FREE ALL)**
 
-Refer to the items in this section if you're having problems with your DVCS connector.
+Refer to the items in this section if you're having problems with your Jira DVCS connector.
 
 ## Jira cannot access GitLab server
 
@@ -18,6 +18,12 @@ appear in any logs:
 Error obtaining access token. Cannot access https://gitlab.example.com from Jira.
 ```
 
+## Session token bug in Jira
+
+When using GitLab 15.0 and later (including GitLab.com) with Jira Server, you might experience
+a [session token bug in Jira](https://jira.atlassian.com/browse/JSWSERVER-21389). As a workaround,
+ensure Jira Server is version 9.1.0 and later or 8.20.11 and later.
+
 ## SSL and TLS problems
 
 Problems with SSL and TLS can cause this error message:
@@ -26,12 +32,12 @@ Problems with SSL and TLS can cause this error message:
 Error obtaining access token. Cannot access https://gitlab.example.com from Jira.
 ```
 
-- The [GitLab Jira integration](../index.md) requires
+- The [Jira integration](../index.md) requires
   GitLab to connect to Jira. Any TLS issues that arise from a private certificate
   authority or self-signed certificate are resolved
-  [on the GitLab server](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates),
+  [on the GitLab server](https://docs.gitlab.com/omnibus/settings/ssl/index.html#install-custom-public-certificates),
   as GitLab is the TLS client.
-- The Jira Development panel integration requires Jira to connect to GitLab, which
+- The Jira development panel requires Jira to connect to GitLab, which
   causes Jira to be the TLS client. If your GitLab server's certificate is not
   issued by a public certificate authority, add the appropriate certificate
   (such as your organization's root certificate) to the Java Truststore on Jira Server.
@@ -74,7 +80,7 @@ Potential resolutions:
    [Jira DVCS connector setup](index.md#configure-jira-for-dvcs) includes `scope=api` in
    the query string.
 1. If `scope=api` is missing from the URL, edit the
-   [GitLab account configuration](index.md#configure-a-gitlab-application-for-dvcs). Review
+   [GitLab account configuration](index.md#create-a-gitlab-application-for-dvcs). Review
    the **Scopes** field and ensure the `api` checkbox is selected.
 
 ## Jira error adding account and no repositories listed
@@ -119,19 +125,19 @@ For more information, see the
 
 ## `Sync Failed` error when refreshing repository data
 
-If you get a `Sync Failed` error in Jira when [refreshing repository data](index.md#refresh-data-imported-to-jira) for specific projects, check your DVCS connector logs. Look for errors that occur when executing requests to API resources in GitLab. For example:
+If you get a `Sync Failed` error in Jira when [refreshing repository data](index.md#refresh-data-imported-to-jira) for specific projects, check your Jira DVCS connector logs. Look for errors that occur when executing requests to API resources in GitLab. For example:
 
 ```plaintext
 Failed to execute request [https://gitlab.com/api/v4/projects/:id/merge_requests?page=1&per_page=100 GET https://gitlab.com/api/v4/projects/:id/merge_requests?page=1&per_page=100 returned a response status of 403 Forbidden] errors:
 {"message":"403 Forbidden"}
 ```
 
-If you find a `{"message":"403 Forbidden"}` error, it is possible that this specific project has some [GitLab features disabled](../../../user/project/settings/index.md#configure-project-visibility-features-and-permissions).
+If you find a `{"message":"403 Forbidden"}` error, it is possible that this specific project has some [GitLab features disabled](../../../user/project/settings/index.md#configure-project-features-and-permissions).
 In the example above, the merge requests feature is disabled.
 
 To resolve the issue, enable the relevant feature:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. Use the toggles to enable the features as needed.
@@ -140,7 +146,7 @@ To resolve the issue, enable the relevant feature:
 
 To find webhook logs in a DVCS-linked project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. On the left sidebar, select **Settings > Webhooks**.
 1. Scroll down to **Project Hooks**.
 1. Next to the log that points to your Jira instance, select **Edit**.

@@ -36,7 +36,9 @@ class WebHookService
   attr_accessor :hook, :data, :hook_name, :request_options
   attr_reader :uniqueness_token
 
-  def self.hook_to_event(hook_name)
+  def self.hook_to_event(hook_name, hook = nil)
+    return hook.class.name.titleize if hook.is_a?(SystemHook)
+
     hook_name.to_s.singularize.titleize
   end
 
@@ -57,6 +59,11 @@ class WebHookService
   end
 
   def execute
+    if Gitlab::SilentMode.enabled?
+      log_silent_mode_enabled
+      return ServiceResponse.error(message: 'Silent mode enabled')
+    end
+
     return ServiceResponse.error(message: 'Hook disabled') if disabled?
 
     if recursion_blocked?
@@ -98,6 +105,7 @@ class WebHookService
 
   def async_execute
     Gitlab::ApplicationContext.with_context(hook.application_context) do
+      break log_silent_mode_enabled if Gitlab::SilentMode.enabled?
       break log_rate_limited if rate_limit!
       break log_recursion_blocked if recursion_blocked?
 
@@ -188,7 +196,8 @@ class WebHookService
       headers = {
         'Content-Type' => 'application/json',
         'User-Agent' => "GitLab/#{Gitlab::VERSION}",
-        Gitlab::WebHooks::GITLAB_EVENT_HEADER => self.class.hook_to_event(hook_name),
+        Gitlab::WebHooks::GITLAB_EVENT_HEADER => self.class.hook_to_event(hook_name, hook),
+        Gitlab::WebHooks::GITLAB_UUID_HEADER => SecureRandom.uuid,
         Gitlab::WebHooks::GITLAB_INSTANCE_HEADER => Gitlab.config.gitlab.base_url
       }
 
@@ -234,6 +243,10 @@ class WebHookService
       'Recursive webhook blocked from executing',
       recursion_detection: ::Gitlab::WebHooks::RecursionDetection.to_log(hook)
     )
+  end
+
+  def log_silent_mode_enabled
+    log_auth_error('GitLab is in silent mode')
   end
 
   def log_auth_error(message, params = {})

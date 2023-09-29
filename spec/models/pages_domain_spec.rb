@@ -9,7 +9,6 @@ RSpec.describe PagesDomain do
 
   describe 'associations' do
     it { is_expected.to belong_to(:project) }
-    it { is_expected.to have_many(:serverless_domain_clusters) }
   end
 
   describe '.for_project' do
@@ -202,6 +201,17 @@ RSpec.describe PagesDomain do
 
   describe 'validations' do
     it { is_expected.to validate_presence_of(:verification_code) }
+
+    context 'when validating max certificate key length' do
+      it 'validates the certificate key length' do
+        valid_domain = build(:pages_domain, :key_length_8192)
+        expect(valid_domain).to be_valid
+
+        invalid_domain = build(:pages_domain, :extra_long_key)
+        expect(invalid_domain).to be_invalid
+        expect(invalid_domain.errors[:key]).to include('Certificate Key is too long. (Max 8192 bytes)')
+      end
+    end
   end
 
   describe 'default values' do
@@ -428,23 +438,27 @@ RSpec.describe PagesDomain do
   end
 
   describe '#user_provided_key=' do
-    include_examples('certificate setter', 'key', 'user_provided_key=',
-                     'gitlab_provided', 'user_provided')
+    include_examples(
+      'certificate setter', 'key', 'user_provided_key=', 'gitlab_provided', 'user_provided'
+    )
   end
 
   describe '#gitlab_provided_key=' do
-    include_examples('certificate setter', 'key', 'gitlab_provided_key=',
-                     'user_provided', 'gitlab_provided')
+    include_examples(
+      'certificate setter', 'key', 'gitlab_provided_key=', 'user_provided', 'gitlab_provided'
+    )
   end
 
   describe '#user_provided_certificate=' do
-    include_examples('certificate setter', 'certificate', 'user_provided_certificate=',
-                     'gitlab_provided', 'user_provided')
+    include_examples(
+      'certificate setter', 'certificate', 'user_provided_certificate=', 'gitlab_provided', 'user_provided'
+    )
   end
 
   describe '#gitlab_provided_certificate=' do
-    include_examples('certificate setter', 'certificate', 'gitlab_provided_certificate=',
-                     'user_provided', 'gitlab_provided')
+    include_examples(
+      'certificate setter', 'certificate', 'gitlab_provided_certificate=', 'user_provided', 'gitlab_provided'
+    )
   end
 
   describe '#save' do
@@ -546,44 +560,6 @@ RSpec.describe PagesDomain do
     end
   end
 
-  describe '#pages_virtual_domain' do
-    let(:project) { create(:project) }
-    let(:pages_domain) { create(:pages_domain, project: project) }
-
-    context 'when there are no pages deployed for the project' do
-      it 'returns nil' do
-        expect(pages_domain.pages_virtual_domain).to be_nil
-      end
-    end
-
-    context 'when there are pages deployed for the project' do
-      let(:virtual_domain) { pages_domain.pages_virtual_domain }
-
-      before do
-        project.mark_pages_as_deployed
-        project.update_pages_deployment!(create(:pages_deployment, project: project))
-      end
-
-      it 'returns the virual domain when there are pages deployed for the project' do
-        expect(virtual_domain).to be_an_instance_of(Pages::VirtualDomain)
-        expect(virtual_domain.lookup_paths).not_to be_empty
-        expect(virtual_domain.cache_key).to match(/pages_domain_for_domain_#{pages_domain.id}_/)
-      end
-
-      context 'when :cache_pages_domain_api is disabled' do
-        before do
-          stub_feature_flags(cache_pages_domain_api: false)
-        end
-
-        it 'returns the virual domain when there are pages deployed for the project' do
-          expect(virtual_domain).to be_an_instance_of(Pages::VirtualDomain)
-          expect(virtual_domain.lookup_paths).not_to be_empty
-          expect(virtual_domain.cache_key).to be_nil
-        end
-      end
-    end
-  end
-
   describe '#validate_custom_domain_count_per_project' do
     let_it_be(:project) { create(:project) }
 
@@ -614,7 +590,7 @@ RSpec.describe PagesDomain do
     it 'lookup is case-insensitive' do
       pages_domain = create(:pages_domain, domain: "Pages.IO")
 
-      expect(PagesDomain.find_by_domain_case_insensitive('pages.io')).to eq(pages_domain)
+      expect(described_class.find_by_domain_case_insensitive('pages.io')).to eq(pages_domain)
     end
   end
 end

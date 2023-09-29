@@ -8,14 +8,14 @@
 module Gitlab
   module Middleware
     class SidekiqWebStatic
-      SIDEKIQ_REGEX = %r{\A/admin/sidekiq/}.freeze
+      SIDEKIQ_REGEX = %r{\A/admin/sidekiq/}
 
       def initialize(app)
         @app = app
       end
 
       def call(env)
-        env.delete('HTTP_X_SENDFILE_TYPE') if env['PATH_INFO'] =~ SIDEKIQ_REGEX
+        env.delete('HTTP_X_SENDFILE_TYPE') if SIDEKIQ_REGEX.match?(env['PATH_INFO'])
 
         @app.call(env)
       end

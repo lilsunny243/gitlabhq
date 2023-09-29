@@ -11,8 +11,9 @@ import {
   GlIcon,
   GlEmptyState,
 } from '@gitlab/ui';
-import { isValidSlaDueAt } from 'ee_else_ce/vue_shared/components/incidents/utils';
+import { STATUS_CLOSED } from '~/issues/constants';
 import { visitUrl, mergeUrlParams, joinPaths } from '~/lib/utils/url_utility';
+import { isValidDateString } from '~/lib/utils/datetime_range';
 import { s__, n__ } from '~/locale';
 import { INCIDENT_SEVERITY } from '~/sidebar/constants';
 import SeverityToken from '~/sidebar/components/severity/severity.vue';
@@ -301,6 +302,9 @@ export default {
     getEscalationStatus(escalationStatus) {
       return ESCALATION_STATUSES[escalationStatus] || this.$options.i18n.noEscalationStatus;
     },
+    isClosed(item) {
+      return item.state === STATUS_CLOSED;
+    },
     showIncidentLink({ iid }) {
       return joinPaths(this.issuePath, INCIDENT_DETAILS_PATH, iid);
     },
@@ -326,7 +330,7 @@ export default {
         item.assignees.nodes.length - MAX_VISIBLE_ASSIGNEES,
       );
     },
-    isValidSlaDueAt,
+    isValidDateString,
   },
 };
 </script>
@@ -353,8 +357,7 @@ export default {
         <gl-button
           v-if="isHeaderButtonVisible"
           class="gl-my-3 gl-mr-5 create-incident-button"
-          data-testid="createIncidentBtn"
-          data-qa-selector="create_incident_button"
+          data-testid="create-incident-button"
           :loading="redirecting"
           :disabled="redirecting"
           category="primary"
@@ -397,12 +400,11 @@ export default {
           <template #cell(title)="{ item }">
             <div
               :class="{
-                'gl-display-flex gl-align-items-center gl-max-w-full': item.state === 'closed',
+                'gl-display-flex gl-align-items-center gl-max-w-full': isClosed(item),
               }"
             >
               <gl-link
                 data-testid="incident-link"
-                data-qa-selector="incident_link"
                 :href="showIncidentLink(item)"
                 class="gl-min-w-0"
               >
@@ -411,7 +413,7 @@ export default {
                 </tooltip-on-truncate>
               </gl-link>
               <gl-icon
-                v-if="item.state === 'closed'"
+                v-if="isClosed(item)"
                 name="issue-close"
                 class="gl-ml-2 gl-fill-blue-500 gl-flex-shrink-0"
                 :size="16"
@@ -439,11 +441,10 @@ export default {
 
           <template v-if="slaFeatureAvailable" #cell(incidentSla)="{ item }">
             <service-level-agreement-cell
-              v-if="isValidSlaDueAt(item.slaDueAt)"
+              v-if="isValidDateString(item.slaDueAt)"
               :issue-iid="item.iid"
               :project-path="projectPath"
               :sla-due-at="item.slaDueAt"
-              data-testid="incident-sla"
               class="gl-display-block gl-max-w-full gl-text-truncate"
             />
           </template>

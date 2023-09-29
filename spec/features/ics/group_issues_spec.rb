@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group Issues Calendar Feed', feature_category: :subgroups do
+RSpec.describe 'Group Issues Calendar Feed', feature_category: :groups_and_projects do
   describe 'GET /issues' do
     let!(:user) do
       user = create(:user, email: 'private1@example.com')
@@ -71,8 +71,15 @@ RSpec.describe 'Group Issues Calendar Feed', feature_category: :subgroups do
 
     context 'issue with due date' do
       let!(:issue) do
-        create(:issue, author: user, assignees: [assignee], project: project, title: 'test title',
-                       description: 'test desc', due_date: Date.tomorrow)
+        create(
+          :issue,
+          author: user,
+          assignees: [assignee],
+          project: project,
+          title: 'test title',
+          description: 'test desc',
+          due_date: Date.tomorrow
+        )
       end
 
       it 'renders issue fields' do

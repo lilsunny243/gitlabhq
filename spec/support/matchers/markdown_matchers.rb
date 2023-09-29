@@ -110,12 +110,33 @@ module MarkdownMatchers
     end
   end
 
+  # UserReferenceFilter
+  # TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/18442
+  # When `@all` is completely deprecated, this matcher should be renamed to
+  # `reference_users` and remove the original matcher `reference_users`
+  matcher :reference_users_excluding_all do
+    set_default_markdown_messages
+
+    match do |actual|
+      expect(actual).to have_selector('a.gfm.gfm-project_member', count: 3)
+    end
+  end
+
   # IssueReferenceFilter
   matcher :reference_issues do
     set_default_markdown_messages
 
     match do |actual|
-      expect(actual).to have_selector('a.gfm.gfm-issue', count: 6)
+      expect(actual).to have_selector('a.gfm.gfm-issue', count: 9)
+    end
+  end
+
+  # WorkItemReferenceFilter
+  matcher :reference_work_items do
+    set_default_markdown_messages
+
+    match do |actual|
+      expect(actual).to have_selector('a.gfm.gfm-work_item', count: 2)
     end
   end
 
@@ -202,7 +223,7 @@ module MarkdownMatchers
 
     match do |actual|
       expect(actual).to have_selector('[data-math-style="inline"]', count: 4)
-      expect(actual).to have_selector('[data-math-style="display"]', count: 4)
+      expect(actual).to have_selector('[data-math-style="display"]', count: 6)
     end
   end
 

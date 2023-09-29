@@ -2,31 +2,28 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'Gitlab migration', product_group: :import do
+    describe 'Gitlab migration', product_group: :import_and_integrate do
       include_context 'with gitlab project migration'
 
       # this spec is used as a sanity test for gitlab migration because it can run outside of orchestrated setup
-      context 'with import within same instance', :reliable, orchestrated: false, import: false do
+      context 'with import within same instance', :skip_live_env, orchestrated: false, import: false do
         let!(:source_project_with_readme) { true }
         let!(:source_gitlab_address) { Runtime::Scenario.gitlab_address }
         let!(:source_admin_api_client) { admin_api_client }
 
-        let!(:source_sandbox) do
-          Resource::Sandbox.fabricate_via_api! do |group|
-            group.api_client = admin_api_client
-          end
+        # do not use top level group (sandbox) to avoid issues when applying permissions etc. because it will contain
+        # a lot subgroups and projects on live envs
+        let!(:source_sandbox) { create(:group, api_client: admin_api_client) }
+
+        let!(:source_group) do
+          create(:group,
+            api_client: admin_api_client,
+            sandbox: source_sandbox,
+            path: "source-group-for-import-#{SecureRandom.hex(4)}",
+            avatar: File.new(Runtime::Path.fixture('designs', 'tanuki.jpg'), 'r'))
         end
 
         let!(:target_sandbox) { source_sandbox }
-
-        let!(:source_group) do
-          Resource::Group.fabricate_via_api! do |group|
-            group.api_client = admin_api_client
-            group.sandbox = source_sandbox
-            group.path = "source-group-for-import-#{SecureRandom.hex(4)}"
-            group.avatar = File.new(File.join(Runtime::Path.fixtures_path, 'designs', 'tanuki.jpg'), 'r')
-          end
-        end
 
         let(:destination_group_path) { "target-group-for-import-#{SecureRandom.hex(4)}" }
         let(:cleanup!) { user.remove_via_api! }
@@ -93,7 +90,11 @@ module QA
 
         it(
           'successfully imports repository',
-          testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347570'
+          testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347570',
+          quarantine: {
+            type: :bug,
+            issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/422430'
+          }
         ) do
           expect_project_import_finished_successfully
 

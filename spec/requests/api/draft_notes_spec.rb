@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe API::DraftNotes, feature_category: :code_review_workflow do
   let_it_be(:user) { create(:user) }
   let_it_be(:user_2) { create(:user) }
-  let_it_be(:project) { create(:project, :public) }
+  let_it_be(:project) { create(:project, :public, :repository) }
   let_it_be(:merge_request) { create(:merge_request, source_project: project, target_project: project, author: user) }
 
   let_it_be(:private_project) { create(:project, :private) }
@@ -184,6 +184,24 @@ RSpec.describe API::DraftNotes, feature_category: :code_review_workflow do
         end
       end
 
+      context "when using a diff with position" do
+        let!(:draft_note) { create(:draft_note_on_text_diff, merge_request: merge_request, author: user) }
+
+        it_behaves_like 'diff draft notes API', 'iid'
+
+        context "when position is for a previous commit on the merge request" do
+          it "returns a 400 bad request error because the line_code is old" do
+            # SHA taken from an earlier commit listed in spec/factories/merge_requests.rb
+            position = draft_note.position.to_h.merge(new_line: 'c1acaa58bbcbc3eafe538cb8274ba387047b69f8')
+
+            post api("/projects/#{project.id}/merge_requests/#{merge_request['iid']}/draft_notes", user),
+              params: { body: 'hi!', position: position }
+
+            expect(response).to have_gitlab_http_status(:bad_request)
+          end
+        end
+      end
+
       context "when attempting to resolve a disscussion" do
         context "when providing a non-existant ID" do
           it "returns a 400 Bad Request" do
@@ -211,6 +229,57 @@ RSpec.describe API::DraftNotes, feature_category: :code_review_workflow do
             expect(response.body)
               .to eq("{\"message\":{\"base\":[\"User is not allowed to resolve thread\"]}}")
           end
+        end
+      end
+    end
+  end
+
+  def update_draft_note(params = {}, url = base_url)
+    put api("#{url}/#{draft_note_by_current_user.id}", user), params: params
+  end
+
+  describe "Update a draft note" do
+    let(:basic_update_params) do
+      {
+        note: "Example updated body string"
+      }
+    end
+
+    context "when updating an existing draft note" do
+      context "with required params" do
+        it "returns 200 Success status" do
+          update_draft_note(basic_update_params)
+
+          expect(response).to have_gitlab_http_status(:success)
+        end
+
+        it "updates draft note with the new content" do
+          update_draft_note(basic_update_params)
+
+          expect(json_response["note"]).to eq(basic_update_params[:note])
+        end
+      end
+
+      context "without including an update to the note body" do
+        it "returns the draft note with no changes" do
+          expect { update_draft_note({}) }
+            .not_to change { draft_note_by_current_user.note }
+        end
+      end
+
+      context "when updating a non-existent draft note" do
+        it "returns a 404 Not Found" do
+          put api("#{base_url}/#{non_existing_record_id}", user), params: basic_update_params
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+
+      context "when updating a draft note by a different user" do
+        it "returns a 404 Not Found" do
+          put api("#{base_url}/#{draft_note_by_random_user.id}", user), params: basic_update_params
+
+          expect(response).to have_gitlab_http_status(:not_found)
         end
       end
     end
@@ -266,6 +335,49 @@ RSpec.describe API::DraftNotes, feature_category: :code_review_workflow do
         end
 
         publish_draft_note
+
+        expect(response).to have_gitlab_http_status(:internal_server_error)
+      end
+    end
+  end
+
+  describe "Bulk publishing draft notes" do
+    let(:bulk_publish_draft_notes) do
+      post api(
+        "#{base_url}/bulk_publish",
+        user
+      )
+    end
+
+    let!(:draft_note_by_current_user_2) { create(:draft_note, merge_request: merge_request, author: user) }
+
+    context "when publishing an existing draft note by the user" do
+      it "returns 204 No Content status" do
+        bulk_publish_draft_notes
+
+        expect(response).to have_gitlab_http_status(:no_content)
+      end
+
+      it "publishes the specified draft notes" do
+        expect { bulk_publish_draft_notes }.to change { Note.count }.by(2)
+        expect(DraftNote.exists?(draft_note_by_current_user.id)).to eq(false)
+        expect(DraftNote.exists?(draft_note_by_current_user_2.id)).to eq(false)
+      end
+
+      it "only publishes the user's draft notes" do
+        bulk_publish_draft_notes
+
+        expect(DraftNote.exists?(draft_note_by_random_user.id)).to eq(true)
+      end
+    end
+
+    context "when DraftNotes::PublishService returns a non-success" do
+      it "returns an :internal_server_error and a message" do
+        expect_next_instance_of(DraftNotes::PublishService) do |instance|
+          expect(instance).to receive(:execute).and_return({ status: :failure, message: "Error message" })
+        end
+
+        bulk_publish_draft_notes
 
         expect(response).to have_gitlab_http_status(:internal_server_error)
       end

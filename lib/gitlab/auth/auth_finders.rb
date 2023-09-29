@@ -30,6 +30,7 @@ module Gitlab
       DEPLOY_TOKEN_HEADER = 'HTTP_DEPLOY_TOKEN'
       RUNNER_TOKEN_PARAM = :token
       RUNNER_JOB_TOKEN_PARAM = :token
+      PATH_DEPENDENT_FEED_TOKEN_REGEX = /\A#{User::FEED_TOKEN_PREFIX}(\h{64})-(\d+)\z/
 
       # Check the Rails session for valid authentication details
       def find_user_from_warden
@@ -54,7 +55,7 @@ module Gitlab
         token = current_request.params[:feed_token].presence || current_request.params[:rss_token].presence
         return unless token
 
-        User.find_by_feed_token(token) || raise(UnauthorizedError)
+        find_feed_token_user(token) || raise(UnauthorizedError)
       end
 
       def find_user_from_bearer_token
@@ -195,6 +196,8 @@ module Gitlab
         when AccessTokenValidationService::EXPIRED
           raise ExpiredError
         when AccessTokenValidationService::REVOKED
+          revoke_token_family(access_token)
+
           raise RevokedError
         when AccessTokenValidationService::IMPERSONATION_DISABLED
           raise ImpersonationDisabled
@@ -225,6 +228,12 @@ module Gitlab
 
       def access_token
         strong_memoize(:access_token) do
+          # Kubernetes API OAuth header is not OauthAccessToken or PersonalAccessToken
+          # and should be ignored by this method. When the kubernetes API uses a different
+          # header, we can remove this guard
+          # https://gitlab.com/gitlab-org/gitlab/-/issues/406582
+          next if current_request.path.starts_with? "/api/v4/internal/kubernetes/"
+
           if try(:namespace_inheritable, :authentication)
             access_token_from_namespace_inheritable
           else
@@ -269,6 +278,30 @@ module Gitlab
 
         _username, password = user_name_and_password(current_request)
         PersonalAccessToken.find_by_token(password)
+      end
+
+      def find_feed_token_user(token)
+        find_user_from_path_feed_token(token) || User.find_by_feed_token(token)
+      end
+
+      def find_user_from_path_feed_token(token)
+        glft = token.match(PATH_DEPENDENT_FEED_TOKEN_REGEX)
+
+        return unless glft
+
+        # make sure that user id uses decimal notation
+        user_id = glft[2].to_i(10)
+        digest = glft[1]
+
+        user = User.find_by_id(user_id)
+        return unless user
+
+        feed_token = user.feed_token
+        our_digest = OpenSSL::HMAC.hexdigest("SHA256", feed_token, current_request.path)
+
+        return unless ActiveSupport::SecurityUtils.secure_compare(digest, our_digest)
+
+        user
       end
 
       def parsed_oauth_token
@@ -367,6 +400,16 @@ module Gitlab
         ::Ci::AuthJobFinder.new(token: token).execute.tap do |job|
           raise UnauthorizedError unless job
         end
+      end
+
+      def revoke_token_family(token)
+        return unless access_token_rotation_request?
+
+        PersonalAccessTokens::RevokeTokenFamilyService.new(token).execute
+      end
+
+      def access_token_rotation_request?
+        current_request.path.match(%r{access_tokens/\d+/rotate$})
       end
     end
   end

@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Label do
+RSpec.describe Label, feature_category: :team_planning do
+  using RSpec::Parameterized::TableSyntax
+
   let_it_be(:project) { create(:project) }
 
   describe 'modules' do
@@ -44,13 +46,172 @@ RSpec.describe Label do
       is_expected.to allow_value("customer's request").for(:title)
       is_expected.to allow_value('s' * 255).for(:title)
     end
+
+    describe 'description length' do
+      let(:invalid_description) { 'x' * (::Label::DESCRIPTION_LENGTH_MAX + 1) }
+      let(:valid_description) { 'short description' }
+      let(:label) { build(:label, project: project, description: description) }
+
+      let(:error_message) do
+        format(
+          _('is too long (%{size}). The maximum size is %{max_size}.'),
+          size: ActiveSupport::NumberHelper.number_to_human_size(invalid_description.bytesize),
+          max_size: ActiveSupport::NumberHelper.number_to_human_size(::Label::DESCRIPTION_LENGTH_MAX)
+        )
+      end
+
+      subject(:validate) { label.validate }
+
+      context 'when label is a new record' do
+        context 'when description exceeds the maximum size' do
+          let(:description) { invalid_description }
+
+          it 'adds a description too long error' do
+            validate
+
+            expect(label.errors[:description]).to contain_exactly(error_message)
+          end
+        end
+
+        context 'when description is within the allowed limits' do
+          let(:description) { valid_description }
+
+          it 'does not add a validation error' do
+            validate
+
+            expect(label.errors).not_to have_key(:description)
+          end
+        end
+      end
+
+      context 'when label is an existing record' do
+        before do
+          label.description = existing_description
+          label.save!(validate: false)
+          label.description = description
+        end
+
+        context 'when record already had a valid description' do
+          let(:existing_description) { 'small difference so it triggers description_changed?' }
+
+          context 'when new description exceeds the maximum size' do
+            let(:description) { invalid_description }
+
+            it 'adds a description too long error' do
+              validate
+
+              expect(label.errors[:description]).to contain_exactly(error_message)
+            end
+          end
+
+          context 'when new description is within the allowed limits' do
+            let(:description) { valid_description }
+
+            it 'does not add a validation error' do
+              validate
+
+              expect(label.errors).not_to have_key(:description)
+            end
+          end
+        end
+
+        context 'when record existed with an invalid description' do
+          let(:existing_description) { "#{invalid_description} small difference so it triggers description_changed?" }
+
+          context 'when description is not changed' do
+            let(:description) { existing_description }
+
+            it 'does not add a validation error' do
+              validate
+
+              expect(label.errors).not_to have_key(:description)
+            end
+          end
+
+          context 'when new description exceeds the maximum size' do
+            context 'when new description is shorter than existing description' do
+              let(:description) { invalid_description }
+
+              it 'allows updating descriptions that already existed above the limit' do
+                validate
+
+                expect(label.errors).not_to have_key(:description)
+              end
+            end
+
+            context 'when new description is longer than existing description' do
+              let(:description) { "#{existing_description}1" }
+
+              it 'adds a description too long error' do
+                validate
+
+                expect(label.errors[:description]).to contain_exactly(error_message)
+              end
+            end
+          end
+
+          context 'when new description is within the allowed limits' do
+            let(:description) { valid_description }
+
+            it 'does not add a validation error' do
+              validate
+
+              expect(label.errors).not_to have_key(:description)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  describe 'ensure_lock_on_merge_allowed' do
+    let(:validation_error) { 'can not be set for template labels' }
+
+    # rubocop:disable Rails/SaveBang
+    context 'when creating a label' do
+      let(:label) { described_class.create(title: 'test', template: template, lock_on_merge: lock_on_merge) }
+
+      where(:template, :lock_on_merge, :valid, :errors) do
+        false         | false        | true    | []
+        false         | true         | true    | []
+        true          | false        | true    | []
+        true          | true         | false   | [validation_error]
+        false         | true         | true    | []
+      end
+
+      with_them do
+        it 'validates lock_on_merge on label creation' do
+          expect(label.valid?).to be(valid)
+          expect(label.errors[:lock_on_merge]).to eq(errors)
+        end
+      end
+    end
+    # rubocop:enable Rails/SaveBang
+
+    context 'when updating a label' do
+      let_it_be(:template_label) { create(:label, template: true) }
+
+      where(:lock_on_merge, :valid, :errors) do
+        true         | false   | [validation_error]
+        false        | true    | []
+      end
+
+      with_them do
+        it 'validates lock_on_merge value if label is a template' do
+          template_label.update_column(:lock_on_merge, lock_on_merge)
+
+          expect(template_label.valid?).to be(valid)
+          expect(template_label.errors[:lock_on_merge]).to eq(errors)
+        end
+      end
+    end
   end
 
   describe 'scopes' do
     describe '.on_board' do
       let(:board) { create(:board, project: project) }
-      let!(:list1)   { create(:list, board: board, label: development) }
-      let!(:list2)   { create(:list, board: board, label: testing) }
+      let!(:list1) { create(:list, board: board, label: development) }
+      let!(:list2) { create(:list, board: board, label: testing) }
 
       let!(:development) { create(:label, project: project, name: 'Development') }
       let!(:testing) { create(:label, project: project, name: 'Testing') }
@@ -58,6 +219,35 @@ RSpec.describe Label do
 
       it 'returns only the board labels' do
         expect(described_class.on_board(board.id)).to match_array([development, testing])
+      end
+    end
+
+    describe '.with_lock_on_merge' do
+      let(:label) { create(:label, project: project, name: 'Label') }
+      let(:label_locked) { create(:label, project: project, name: 'Label locked', lock_on_merge: true) }
+
+      it 'return only locked labels' do
+        expect(described_class.with_lock_on_merge).to match_array([label_locked])
+      end
+    end
+  end
+
+  describe 'destroying labels' do
+    context 'when lock_on_merge is true' do
+      it 'prevents label from being destroyed' do
+        label = create(:label, lock_on_merge: true)
+
+        expect(label.destroy).to be false
+        expect(label.errors.full_messages).to include("#{label.name} is locked and was not removed")
+      end
+    end
+
+    context 'when lock_on_merge is false' do
+      it 'allows label to be destroyed' do
+        label = create(:label, lock_on_merge: false)
+
+        expect(label.destroy).to eq label
+        expect(label.destroyed?).to be_truthy
       end
     end
   end
@@ -255,6 +445,17 @@ RSpec.describe Label do
 
         expect(described_class.templates).to eq([valid_template_label])
       end
+    end
+  end
+
+  describe '.pluck_titles' do
+    subject(:pluck_titles) { described_class.pluck_titles }
+
+    it 'returns the audit event type of the event type filter' do
+      label1 =  create(:label, title: "TITLE1")
+      label2 = create(:label, title: "TITLE2")
+
+      expect(pluck_titles).to contain_exactly(label1.title, label2.title)
     end
   end
 end

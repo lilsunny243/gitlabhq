@@ -2,7 +2,7 @@ cache-workhorse:
   extends:
     - .default-retry
     - .default-before_script
-    - .rails-cache
+    - .ruby-cache
     - .setup-test-env-cache
     - .caching:rules:cache-workhorse
   stage: prepare
@@ -45,6 +45,7 @@ cache-assets:test as-if-foss:
   extends:
     - .cache-assets-base
     - .as-if-foss
+    - .caching:rules:cache-assets-as-if-foss
 
 cache-assets:production:
   extends:

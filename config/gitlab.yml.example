@@ -127,8 +127,8 @@ production: &base
     # username_changing_enabled: false # default: true - User can change their username/namespace
     ## Default theme ID
     ##   1 - Indigo
-    ##   2 - Dark
-    ##   3 - Light
+    ##   2 - Gray
+    ##   3 - Light Gray
     ##   4 - Blue
     ##   5 - Green
     ##   6 - Light Indigo
@@ -136,6 +136,7 @@ production: &base
     ##   8 - Light Green
     ##   9 - Red
     ##   10 - Light Red
+    ##   11 - Dark Mode (alpha)
     # default_theme: 1 # default: 1
 
     ## Automatic issue closing
@@ -272,7 +273,7 @@ production: &base
     # secret_file: /home/git/gitlab/.gitlab_mailroom_secret
 
     # File location to read encrypted incoming email secrets from
-    # encrypted_secret_file: /mnt/gitlab/smtp.yaml.enc 
+    # encrypted_secret_file: /mnt/gitlab/smtp.yaml.enc
     # Default: shared/encrypted_settings/incoming_email.yaml.enc
 
   ## Consolidated object store config
@@ -509,7 +510,7 @@ production: &base
 
   ## Sidekiq
   sidekiq:
-    log_format: json # (default is the original format)
+    log_format: json # (text is the original format)
     # An array of tuples indicating the rules for re-routing a worker to a
     # desirable queue before scheduling. For example:
     # routing_rules:
@@ -583,7 +584,7 @@ production: &base
 
     # Periodically clean up stale runner machines.
     ci_runners_stale_machines_cleanup_worker:
-      cron: "36 4 * * *"
+      cron: "36 * * * *"
 
   # GitLab EE only jobs. These jobs are automatically enabled for an EE
   # installation, and ignored for a CE installation.
@@ -627,9 +628,14 @@ production: &base
     geo_secondary_registry_consistency_worker:
       cron: "* * * * *"
 
-    # GitLab Geo registry sync worker (for backfilling)
+    # GitLab Geo blob registry sync worker (for backfilling)
     # NOTE: This will only take effect if Geo is enabled (secondary nodes only)
     geo_registry_sync_worker:
+      cron: "*/1 * * * *"
+
+    # GitLab Geo repository registry sync worker (for backfilling)
+    # NOTE: This will only take effect if Geo is enabled (secondary nodes only)
+    geo_repository_registry_sync_worker:
       cron: "*/1 * * * *"
 
     # Elasticsearch bulk updater for incremental updates.
@@ -996,7 +1002,7 @@ production: &base
     # auto_sign_in_with_provider: saml
 
     # Sync user's profile from the specified Omniauth providers every time the user logs in (default: empty).
-    # Define the allowed providers using an array, e.g. ["cas3", "saml", "twitter"],
+    # Define the allowed providers using an array, e.g. ["saml", "twitter"],
     # or as true/false to allow all providers or none.
     # When authenticating using LDAP, the user's email is always synced.
     # sync_profile_from_provider: []
@@ -1062,15 +1068,6 @@ production: &base
       # - { name: 'alicloud',
       #     app_id: 'YOUR_APP_ID',
       #     app_secret: 'YOUR_APP_SECRET' }
-      # See omniauth-cas3 for more configuration details
-      # - { name: 'cas3',
-      #     label: 'cas3',
-      #     args: {
-      #             url: 'https://sso.example.com',
-      #             disable_ssl_verification: false,
-      #             login_url: '/cas/login',
-      #             service_validate_url: '/cas/p3/serviceValidate',
-      #             logout_url: '/cas/logout' } }
       # - { name: 'github',
       #     app_id: 'YOUR_APP_ID',
       #     app_secret: 'YOUR_APP_SECRET',
@@ -1134,10 +1131,6 @@ production: &base
       #       client_secret: 'YOUR_AUTH0_CLIENT_SECRET',
       #       namespace: 'YOUR_AUTH0_DOMAIN' } }
 
-    # SSO maximum session duration in seconds. Defaults to CAS default of 8 hours.
-    # cas3:
-    #   session_duration: 28800
-
   # FortiAuthenticator settings
   forti_authenticator:
     # Allow using FortiAuthenticator as OTP provider
@@ -1161,6 +1154,16 @@ production: &base
     # Client ID and Secret to access FortiToken Cloud API
     # client_id: 'YOUR_FORTI_TOKEN_CLOUD_CLIENT_ID'
     # client_secret: 'YOUR_FORTI_TOKEN_CLOUD_CLIENT_SECRET'
+
+  # Duo Auth settings
+  duo_auth:
+    # Allow using Duo as an OTP provider
+    enabled: false
+
+    # Client ID and Secret to access Duo's API
+    # integration_key: 'YOUR_DUO_INTEGRATION_KEY'
+    # secret_key: 'YOUR_DUO_SECRET_KEY'
+    # hostname: 'YOUR_DUO_API_FQDN'
 
   # Shared file storage settings
   shared:
@@ -1272,6 +1275,12 @@ production: &base
     # File that contains the secret key for verifying access to GitLab internal API for Suggested Reviewers.
     # Default is '.gitlab_suggested_reviewers_secret' relative to Rails.root (i.e. root of the GitLab app).
     # secret_file: /home/git/gitlab/.gitlab_suggested_reviewers_secret
+
+  zoekt:
+    # Files that contain username and password for basic auth for Zoekt
+    # Default is '.gitlab_zoekt_username' and '.gitlab_zoekt_password' in Rails.root
+    # username_file: /home/git/gitlab/.gitlab_zoekt_username
+    # password_file: /home/git/gitlab/.gitlab_zoekt_password
 
   ## GitLab Elasticsearch settings
   elasticsearch:
@@ -1568,13 +1577,6 @@ test:
       - { name: 'alicloud',
           app_id: 'YOUR_APP_ID',
           app_secret: 'YOUR_APP_SECRET' }
-      - { name: 'cas3',
-          label: 'cas3',
-          args: { url: 'https://sso.example.com',
-                  disable_ssl_verification: false,
-                  login_url: '/cas/login',
-                  service_validate_url: '/cas/p3/serviceValidate',
-                  logout_url: '/cas/logout' } }
       - { name: 'github',
           app_id: 'YOUR_APP_ID',
           app_secret: 'YOUR_APP_SECRET',

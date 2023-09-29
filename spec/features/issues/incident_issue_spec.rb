@@ -51,8 +51,8 @@ RSpec.describe 'Incident Detail', :js, feature_category: :team_planning do
         aggregate_failures 'when on summary tab (default tab)' do
           hidden_items = find_all('.js-issue-widgets')
 
-          # Linked Issues/MRs and comment box and emoji block
-          expect(hidden_items.count).to eq(3)
+          # Description footer + Linked Issues/MRs + comment box + emoji block
+          expect(hidden_items.count).to eq(4)
           expect(hidden_items).to all(be_visible)
 
           edit_button = find_all('[aria-label="Edit title and description"]')
@@ -70,10 +70,6 @@ RSpec.describe 'Incident Detail', :js, feature_category: :team_planning do
 
           # Linked Issues/MRs and comment box are hidden on page
           expect(hidden_items.count).to eq(0)
-
-          # does not show the edit title and description button
-          edit_button = find_all('[aria-label="Edit title and description"]', wait: false)
-          expect(edit_button.count).to eq(0)
         end
       end
     end

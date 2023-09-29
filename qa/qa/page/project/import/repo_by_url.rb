@@ -6,8 +6,12 @@ module QA
       module Import
         class RepoByURL < Page::Base
           view 'app/assets/javascripts/projects/new/components/new_project_url_select.vue' do
-            element :select_namespace_dropdown
-            element :select_namespace_dropdown_search_field
+            element 'select-namespace-dropdown'
+            element 'select-namespace-dropdown-search-field'
+          end
+
+          view 'app/views/projects/_new_project_fields.html.haml' do
+            element 'project-create-button'
           end
 
           def import!(gitlab_repo_path, name)
@@ -17,8 +21,6 @@ module QA
             click_create_button
 
             wait_for_success
-
-            go_to_project(name)
           end
 
           private
@@ -37,26 +39,19 @@ module QA
 
           def choose_namespace(namespace)
             retry_on_exception do
-              click_element :select_namespace_dropdown
-              fill_element :select_namespace_dropdown_search_field, namespace
+              click_element 'select-namespace-dropdown'
+              fill_element 'select-namespace-dropdown-search-field', namespace
               click_button namespace
             end
           end
 
           def click_create_button
-            find('.btn-confirm').click
+            click_element('project-create-button')
           end
 
           def wait_for_success
             wait_until(max_duration: 60, sleep_interval: 5.0, reload: true, skip_finished_loading_check_on_refresh: true) do
               page.has_no_content?('Import in progress', wait: 3.0)
-            end
-          end
-
-          def go_to_project(name)
-            Page::Main::Menu.perform(&:go_to_projects)
-            Page::Dashboard::Projects.perform do |dashboard|
-              dashboard.go_to_project(name)
             end
           end
         end

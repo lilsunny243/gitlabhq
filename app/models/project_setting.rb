@@ -3,12 +3,37 @@
 class ProjectSetting < ApplicationRecord
   include ::Gitlab::Utils::StrongMemoize
   include EachBatch
+  include IgnorableColumns
 
-  ALLOWED_TARGET_PLATFORMS = %w(ios osx tvos watchos android).freeze
+  ALLOWED_TARGET_PLATFORMS = %w[ios osx tvos watchos android].freeze
 
   belongs_to :project, inverse_of: :project_setting
 
   scope :for_projects, ->(projects) { where(project_id: projects) }
+
+  ignore_columns %i[
+    encrypted_product_analytics_clickhouse_connection_string
+    encrypted_product_analytics_clickhouse_connection_string_iv
+    encrypted_jitsu_administrator_password
+    encrypted_jitsu_administrator_password_iv
+    jitsu_host
+    jitsu_project_xid
+    jitsu_administrator_email
+  ], remove_with: '16.5', remove_after: '2023-09-22'
+
+  attr_encrypted :cube_api_key,
+    mode: :per_attribute_iv,
+    key: Settings.attr_encrypted_db_key_base_32,
+    algorithm: 'aes-256-gcm',
+    encode: false,
+    encode_iv: false
+
+  attr_encrypted :product_analytics_configurator_connection_string,
+    mode: :per_attribute_iv,
+    key: Settings.attr_encrypted_db_key_base_32,
+    algorithm: 'aes-256-gcm',
+    encode: false,
+    encode_iv: false
 
   enum squash_option: {
     never: 0,
@@ -30,6 +55,8 @@ class ProjectSetting < ApplicationRecord
     presence: { if: :require_unique_domain? }
 
   validate :validates_mr_default_target_self
+
+  validate :pages_unique_domain_availability, if: :pages_unique_domain_changed?
 
   attribute :legacy_open_source_license_available, default: -> do
     Feature.enabled?(:legacy_open_source_license_available, type: :ops)
@@ -65,6 +92,15 @@ class ProjectSetting < ApplicationRecord
   end
   strong_memoize_attr :show_diff_preview_in_email?
 
+  def runner_registration_enabled
+    Gitlab::CurrentSettings.valid_runner_registrars.include?('project') && read_attribute(:runner_registration_enabled)
+  end
+
+  def emails_enabled?
+    super && project.namespace.emails_enabled?
+  end
+  strong_memoize_attr :emails_enabled?
+
   private
 
   def validates_mr_default_target_self
@@ -76,6 +112,15 @@ class ProjectSetting < ApplicationRecord
   def require_unique_domain?
     pages_unique_domain_enabled ||
       pages_unique_domain_in_database.present?
+  end
+
+  def pages_unique_domain_availability
+    host = Gitlab.config.pages&.dig('host')
+
+    return if host.blank?
+    return unless Project.where(path: "#{pages_unique_domain}.#{host}").exists?
+
+    errors.add(:pages_unique_domain, s_('ProjectSetting|already in use'))
   end
 end
 

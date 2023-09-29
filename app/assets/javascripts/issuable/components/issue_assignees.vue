@@ -84,11 +84,12 @@ export default {
       :link-href="webUrl(assignee)"
       :img-alt="avatarUrlTitle(assignee)"
       :img-css-classes="imgCssClasses"
+      img-css-wrapper-classes="gl-display-inline-flex"
       :img-src="avatarUrl(assignee)"
       :img-size="iconSize"
       class="js-no-trigger author-link"
       tooltip-placement="bottom"
-      data-qa-selector="assignee_link"
+      data-testid="assignee-link"
     >
       <span class="js-assignee-tooltip">
         <span class="bold d-block">{{ s__('Label|Assignee') }}</span> {{ assignee.name }}
@@ -100,7 +101,7 @@ export default {
       v-gl-tooltip.bottom
       :title="assigneesCounterTooltip"
       class="avatar-counter"
-      data-qa-selector="avatar_counter_content"
+      data-testid="avatar-counter-content"
       >{{ assigneeCounterLabel }}</span
     >
   </div>

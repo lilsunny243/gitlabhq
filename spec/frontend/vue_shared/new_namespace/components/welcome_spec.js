@@ -27,9 +27,7 @@ describe('Welcome page', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     window.location.hash = '';
-    wrapper = null;
   });
 
   it('tracks link clicks', async () => {
@@ -39,6 +37,18 @@ describe('Welcome page', () => {
     await nextTick();
     await nextTick();
     expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_tab', { label: 'test' });
+  });
+
+  it('renders image', () => {
+    const mockImgSrc = 'image1.svg';
+
+    createComponent({
+      propsData: {
+        panels: [{ name: 'test', href: '#', imageSrc: mockImgSrc }],
+      },
+    });
+
+    expect(wrapper.find('img').attributes('src')).toBe(mockImgSrc);
   });
 
   it('renders footer slot if provided', () => {

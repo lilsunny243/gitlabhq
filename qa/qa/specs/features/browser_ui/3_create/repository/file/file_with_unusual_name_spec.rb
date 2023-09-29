@@ -4,12 +4,7 @@ module QA
   RSpec.describe 'Create' do
     describe 'File with unusual name', product_group: :source_code do
       let(:file_name) { '-un:usually;named#file?.md' }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |resource|
-          resource.name = 'unusually-named-file-project'
-          resource.initialize_with_readme = true
-        end
-      end
+      let(:project) { create(:project, :with_readme, name: 'unusually-named-file-project') }
 
       before do
         Flow::Login.sign_in
@@ -17,12 +12,10 @@ module QA
 
       context 'when file name starts with a dash and contains hash, semicolon, colon, and question mark' do
         it 'renders repository file tree correctly', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347714' do
-          Resource::File.fabricate_via_api! do |file|
-            file.project = project
-            file.commit_message = 'Add new file'
-            file.name = "test-folder/#{file_name}"
-            file.content = "### Heading\n\n[Example link](https://example.com/)"
-          end
+          create(:file,
+            project: project,
+            name: "test-folder/#{file_name}",
+            content: "### Heading\n\n[Example link](https://example.com/)")
 
           project.visit!
 

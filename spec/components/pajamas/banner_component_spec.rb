@@ -13,7 +13,7 @@ RSpec.describe Pajamas::BannerComponent, type: :component do
   describe 'basic usage' do
     before do
       render_inline(subject) do |c|
-        c.title { title }
+        c.with_title { title }
         content
       end
     end
@@ -27,7 +27,7 @@ RSpec.describe Pajamas::BannerComponent, type: :component do
     end
 
     it 'renders a close button' do
-      expect(page).to have_css "button.gl-banner-close"
+      expect(page).to have_css "button.gl-button.gl-banner-close"
     end
 
     describe 'button_text and button_link' do
@@ -124,8 +124,8 @@ RSpec.describe Pajamas::BannerComponent, type: :component do
   context 'with illustration slot' do
     before do
       render_inline(subject) do |c|
-        c.title { title }
-        c.illustration { "<svg></svg>".html_safe }
+        c.with_title { title }
+        c.with_illustration { "<svg></svg>".html_safe }
         content
       end
     end
@@ -147,8 +147,8 @@ RSpec.describe Pajamas::BannerComponent, type: :component do
   context 'with primary_action slot' do
     before do
       render_inline(subject) do |c|
-        c.title { title }
-        c.primary_action { "<a class='special' href='#'>Special</a>".html_safe }
+        c.with_title { title }
+        c.with_primary_action { "<a class='special' href='#'>Special</a>".html_safe }
         content
       end
     end

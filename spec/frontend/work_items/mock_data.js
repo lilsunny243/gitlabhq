@@ -1,3 +1,5 @@
+import { WIDGET_TYPE_LINKED_ITEMS } from '~/work_items/constants';
+
 export const mockAssignees = [
   {
     __typename: 'UserCore',
@@ -44,6 +46,64 @@ export const mockMilestone = {
   expired: false,
   startDate: '2022-10-17',
   dueDate: '2022-10-24',
+  webPath: '123',
+};
+
+export const mockAwardEmojiThumbsUp = {
+  name: 'thumbsup',
+  __typename: 'AwardEmoji',
+  user: {
+    id: 'gid://gitlab/User/5',
+    name: 'Dave Smith',
+    __typename: 'UserCore',
+  },
+};
+
+export const mockAwardEmojiThumbsDown = {
+  name: 'thumbsdown',
+  __typename: 'AwardEmoji',
+  user: {
+    id: 'gid://gitlab/User/5',
+    name: 'Dave Smith',
+    __typename: 'UserCore',
+  },
+};
+
+export const mockAwardsWidget = {
+  nodes: [mockAwardEmojiThumbsUp, mockAwardEmojiThumbsDown],
+  pageInfo: {
+    hasNextPage: false,
+    hasPreviousPage: false,
+    startCursor: null,
+    endCursor: null,
+    __typename: 'PageInfo',
+  },
+  __typename: 'AwardEmojiConnection',
+};
+
+export const mockMoreThanDefaultAwardEmojisWidget = {
+  nodes: [
+    mockAwardEmojiThumbsUp,
+    mockAwardEmojiThumbsDown,
+    { ...mockAwardEmojiThumbsUp, name: 'one' },
+    { ...mockAwardEmojiThumbsUp, name: 'two' },
+    { ...mockAwardEmojiThumbsUp, name: 'three' },
+    { ...mockAwardEmojiThumbsUp, name: 'four' },
+    { ...mockAwardEmojiThumbsUp, name: 'five' },
+    { ...mockAwardEmojiThumbsUp, name: 'six' },
+    { ...mockAwardEmojiThumbsUp, name: 'seven' },
+    { ...mockAwardEmojiThumbsUp, name: 'eight' },
+    { ...mockAwardEmojiThumbsUp, name: 'nine' },
+    { ...mockAwardEmojiThumbsUp, name: 'ten' },
+  ],
+  pageInfo: {
+    hasNextPage: true,
+    hasPreviousPage: false,
+    startCursor: null,
+    endCursor: 'endCursor',
+    __typename: 'PageInfo',
+  },
+  __typename: 'AwardEmojiConnection',
 };
 
 export const workItemQueryResponse = {
@@ -72,6 +132,7 @@ export const workItemQueryResponse = {
         id: '1',
         fullPath: 'test-project-path',
         archived: false,
+        name: 'Project name',
       },
       workItemType: {
         __typename: 'WorkItemType',
@@ -82,6 +143,10 @@ export const workItemQueryResponse = {
       userPermissions: {
         deleteWorkItem: false,
         updateWorkItem: false,
+        setWorkItemMetadata: false,
+        adminParentLink: false,
+        createNote: false,
+        adminWorkItemLink: true,
         __typename: 'WorkItemPermissions',
       },
       widgets: [
@@ -173,6 +238,7 @@ export const updateWorkItemMutationResponse = {
           id: '1',
           fullPath: 'test-project-path',
           archived: false,
+          name: 'Project name',
         },
         workItemType: {
           __typename: 'WorkItemType',
@@ -183,8 +249,15 @@ export const updateWorkItemMutationResponse = {
         userPermissions: {
           deleteWorkItem: false,
           updateWorkItem: false,
+          setWorkItemMetadata: false,
+          adminParentLink: false,
+          createNote: false,
+          adminWorkItemLink: true,
           __typename: 'WorkItemPermissions',
         },
+        reference: 'test-project-path#1',
+        createNoteEmail:
+          'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-1@gmail.com',
         widgets: [
           {
             type: 'HIERARCHY',
@@ -241,6 +314,106 @@ export const updateWorkItemMutationErrorResponse = {
   },
 };
 
+export const convertWorkItemMutationErrorResponse = {
+  data: {
+    workItemConvert: {
+      __typename: 'WorkItemConvertPayload',
+      errors: ['Error!'],
+      workItem: {},
+    },
+  },
+};
+
+export const convertWorkItemMutationResponse = {
+  data: {
+    workItemConvert: {
+      __typename: 'WorkItemConvertPayload',
+      errors: [],
+      workItem: {
+        __typename: 'WorkItem',
+        id: 'gid://gitlab/WorkItem/1',
+        iid: '1',
+        title: 'Updated title',
+        state: 'OPEN',
+        description: 'description',
+        confidential: false,
+        createdAt: '2022-08-03T12:41:54Z',
+        updatedAt: '2022-08-08T12:41:54Z',
+        closedAt: null,
+        author: {
+          ...mockAssignees[0],
+        },
+        project: {
+          __typename: 'Project',
+          id: '1',
+          fullPath: 'test-project-path',
+          archived: false,
+          name: 'Project name',
+        },
+        workItemType: {
+          __typename: 'WorkItemType',
+          id: 'gid://gitlab/WorkItems::Type/4',
+          name: 'Objective',
+          iconName: 'issue-type-objective',
+        },
+        userPermissions: {
+          deleteWorkItem: false,
+          updateWorkItem: false,
+          setWorkItemMetadata: false,
+          adminParentLink: false,
+          createNote: false,
+          adminWorkItemLink: true,
+          __typename: 'WorkItemPermissions',
+        },
+        reference: 'gitlab-org/gitlab-test#1',
+        createNoteEmail:
+          'gitlab-incoming+gitlab-org-gitlab-test-2-ddpzuq0zd2wefzofcpcdr3dg7-issue-1@gmail.com',
+        widgets: [
+          {
+            type: 'HIERARCHY',
+            children: {
+              nodes: [
+                {
+                  id: 'gid://gitlab/WorkItem/444',
+                  iid: '4',
+                  createdAt: '2022-08-03T12:41:54Z',
+                  closedAt: null,
+                  confidential: false,
+                  title: '123',
+                  state: 'OPEN',
+                  workItemType: {
+                    id: '1',
+                    name: 'Task',
+                    iconName: 'issue-type-task',
+                  },
+                },
+              ],
+            },
+            __typename: 'WorkItemConnection',
+          },
+          {
+            __typename: 'WorkItemWidgetAssignees',
+            type: 'ASSIGNEES',
+            allowsMultipleAssignees: true,
+            canInviteMembers: true,
+            assignees: {
+              nodes: [mockAssignees[0]],
+            },
+          },
+          {
+            __typename: 'WorkItemWidgetLabels',
+            type: 'LABELS',
+            allowsScopedLabels: false,
+            labels: {
+              nodes: mockLabels,
+            },
+          },
+        ],
+      },
+    },
+  },
+};
+
 export const mockParent = {
   parent: {
     id: 'gid://gitlab/Issue/1',
@@ -283,9 +456,137 @@ export const objectiveType = {
   iconName: 'issue-type-objective',
 };
 
+export const mockEmptyLinkedItems = {
+  type: WIDGET_TYPE_LINKED_ITEMS,
+  blocked: false,
+  blockedByCount: 0,
+  blockingCount: 0,
+  linkedItems: {
+    nodes: [],
+    __typename: 'LinkedWorkItemTypeConnection',
+  },
+  __typename: 'WorkItemWidgetLinkedItems',
+};
+
+export const mockBlockingLinkedItem = {
+  type: WIDGET_TYPE_LINKED_ITEMS,
+  linkedItems: {
+    nodes: [
+      {
+        linkId: 'gid://gitlab/WorkItems::RelatedWorkItemLink/8',
+        linkType: 'blocks',
+        workItem: {
+          id: 'gid://gitlab/WorkItem/675',
+          iid: '83',
+          confidential: true,
+          workItemType: {
+            id: 'gid://gitlab/WorkItems::Type/5',
+            name: 'Task',
+            iconName: 'issue-type-task',
+            __typename: 'WorkItemType',
+          },
+          title: 'Task 1201',
+          state: 'OPEN',
+          createdAt: '2023-03-28T10:50:16Z',
+          closedAt: null,
+          widgets: [],
+          __typename: 'WorkItem',
+        },
+        __typename: 'LinkedWorkItemType',
+      },
+    ],
+    __typename: 'LinkedWorkItemTypeConnection',
+  },
+  __typename: 'WorkItemWidgetLinkedItems',
+};
+
+export const mockLinkedItems = {
+  type: WIDGET_TYPE_LINKED_ITEMS,
+  linkedItems: {
+    nodes: [
+      {
+        linkId: 'gid://gitlab/WorkItems::RelatedWorkItemLink/8',
+        linkType: 'relates_to',
+        workItem: {
+          id: 'gid://gitlab/WorkItem/675',
+          iid: '83',
+          confidential: true,
+          workItemType: {
+            id: 'gid://gitlab/WorkItems::Type/5',
+            name: 'Task',
+            iconName: 'issue-type-task',
+            __typename: 'WorkItemType',
+          },
+          title: 'Task 1201',
+          state: 'OPEN',
+          createdAt: '2023-03-28T10:50:16Z',
+          closedAt: null,
+          widgets: [],
+          __typename: 'WorkItem',
+        },
+        __typename: 'LinkedWorkItemType',
+      },
+      {
+        linkId: 'gid://gitlab/WorkItems::RelatedWorkItemLink/9',
+        linkType: 'is_blocked_by',
+        workItem: {
+          id: 'gid://gitlab/WorkItem/646',
+          iid: '55',
+          confidential: true,
+          workItemType: {
+            id: 'gid://gitlab/WorkItems::Type/6',
+            name: 'Objective',
+            iconName: 'issue-type-objective',
+            __typename: 'WorkItemType',
+          },
+          title: 'Multilevel Objective 1',
+          state: 'OPEN',
+          createdAt: '2023-03-28T10:50:16Z',
+          closedAt: null,
+          widgets: [],
+          __typename: 'WorkItem',
+        },
+        __typename: 'LinkedWorkItemType',
+      },
+      {
+        linkId: 'gid://gitlab/WorkItems::RelatedWorkItemLink/10',
+        linkType: 'blocks',
+        workItem: {
+          id: 'gid://gitlab/WorkItem/647',
+          iid: '56',
+          confidential: true,
+          workItemType: {
+            id: 'gid://gitlab/WorkItems::Type/6',
+            name: 'Objective',
+            iconName: 'issue-type-objective',
+            __typename: 'WorkItemType',
+          },
+          title: 'Multilevel Objective 2',
+          state: 'OPEN',
+          createdAt: '2023-03-28T10:50:16Z',
+          closedAt: null,
+          widgets: [],
+          __typename: 'WorkItem',
+        },
+        __typename: 'LinkedWorkItemType',
+      },
+    ],
+    __typename: 'LinkedWorkItemTypeConnection',
+  },
+  __typename: 'WorkItemWidgetLinkedItems',
+};
+
 export const workItemResponseFactory = ({
+  iid = '1',
   canUpdate = false,
   canDelete = false,
+  canCreateNote = false,
+  adminParentLink = false,
+  canAdminWorkItemLink = true,
+  notificationsWidgetPresent = true,
+  currentUserTodosWidgetPresent = true,
+  awardEmojiWidgetPresent = true,
+  subscribed = true,
   allowsMultipleAssignees = true,
   assigneesWidgetPresent = true,
   datesWidgetPresent = true,
@@ -298,6 +599,7 @@ export const workItemResponseFactory = ({
   confidential = false,
   canInviteMembers = false,
   labelsWidgetPresent = true,
+  linkedItemsWidgetPresent = true,
   labels = mockLabels,
   allowsScopedLabels = false,
   lastEditedAt = null,
@@ -308,14 +610,17 @@ export const workItemResponseFactory = ({
   author = mockAssignees[0],
   createdAt = '2022-08-03T12:41:54Z',
   updatedAt = '2022-08-08T12:32:54Z',
+  awardEmoji = mockAwardsWidget,
+  state = 'OPEN',
+  linkedItems = mockEmptyLinkedItems,
 } = {}) => ({
   data: {
     workItem: {
       __typename: 'WorkItem',
       id: 'gid://gitlab/WorkItem/1',
-      iid: 1,
+      iid,
       title: 'Updated title',
-      state: 'OPEN',
+      state,
       description: 'description',
       confidential,
       createdAt,
@@ -327,13 +632,21 @@ export const workItemResponseFactory = ({
         id: '1',
         fullPath: 'test-project-path',
         archived: false,
+        name: 'Project name',
       },
       workItemType,
       userPermissions: {
         deleteWorkItem: canDelete,
         updateWorkItem: canUpdate,
+        setWorkItemMetadata: canUpdate,
+        adminParentLink,
+        adminWorkItemLink: canAdminWorkItemLink,
+        createNote: canCreateNote,
         __typename: 'WorkItemPermissions',
       },
+      reference: 'test-project-path#1',
+      createNoteEmail:
+        'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-1@gmail.com',
       widgets: [
         {
           __typename: 'WorkItemWidgetDescription',
@@ -400,6 +713,7 @@ export const workItemResponseFactory = ({
               __typename: 'WorkItemWidgetProgress',
               type: 'PROGRESS',
               progress: 0,
+              updatedAt: new Date(),
             }
           : { type: 'MOCK TYPE' },
         milestoneWidgetPresent
@@ -469,10 +783,67 @@ export const workItemResponseFactory = ({
               type: 'NOTES',
             }
           : { type: 'MOCK TYPE' },
+        notificationsWidgetPresent
+          ? {
+              __typename: 'WorkItemWidgetNotifications',
+              type: 'NOTIFICATIONS',
+              subscribed,
+            }
+          : { type: 'MOCK TYPE' },
+        currentUserTodosWidgetPresent
+          ? {
+              type: 'CURRENT_USER_TODOS',
+              currentUserTodos: {
+                nodes: [
+                  {
+                    id: 'gid://gitlab/Todo/1',
+                    __typename: 'Todo',
+                  },
+                ],
+                __typename: 'TodoConnection',
+              },
+              __typename: 'WorkItemWidgetCurrentUserTodos',
+            }
+          : { type: 'MOCK TYPE' },
+        awardEmojiWidgetPresent
+          ? {
+              __typename: 'WorkItemWidgetAwardEmoji',
+              type: 'AWARD_EMOJI',
+              awardEmoji,
+            }
+          : { type: 'MOCK TYPE' },
+        linkedItemsWidgetPresent ? linkedItems : { type: 'MOCK TYPE' },
       ],
     },
   },
 });
+
+export const workItemByIidResponseFactory = (options) => {
+  const response = workItemResponseFactory(options);
+  return {
+    data: {
+      workspace: {
+        __typename: 'Project',
+        id: 'gid://gitlab/Project/1',
+        workItems: {
+          nodes: [response.data.workItem],
+        },
+      },
+    },
+  };
+};
+
+export const updateWorkItemMutationResponseFactory = (options) => {
+  const response = workItemResponseFactory(options);
+  return {
+    data: {
+      workItemUpdate: {
+        workItem: response.data.workItem,
+        errors: [],
+      },
+    },
+  };
+};
 
 export const getIssueDetailsResponse = ({ confidential = false } = {}) => ({
   data: {
@@ -503,6 +874,8 @@ export const projectWorkItemTypesQueryResponse = {
           { id: 'gid://gitlab/WorkItems::Type/1', name: 'Issue' },
           { id: 'gid://gitlab/WorkItems::Type/2', name: 'Incident' },
           { id: 'gid://gitlab/WorkItems::Type/3', name: 'Task' },
+          { id: 'gid://gitlab/WorkItems::Type/4', name: 'Objective' },
+          { id: 'gid://gitlab/WorkItems::Type/5', name: 'Key Result' },
         ],
       },
     },
@@ -532,6 +905,7 @@ export const createWorkItemMutationResponse = {
           id: '1',
           fullPath: 'test-project-path',
           archived: false,
+          name: 'Project name',
         },
         workItemType: {
           __typename: 'WorkItemType',
@@ -542,8 +916,15 @@ export const createWorkItemMutationResponse = {
         userPermissions: {
           deleteWorkItem: false,
           updateWorkItem: false,
+          setWorkItemMetadata: false,
+          adminParentLink: false,
+          createNote: false,
+          adminWorkItemLink: true,
           __typename: 'WorkItemPermissions',
         },
+        reference: 'test-project-path#1',
+        createNoteEmail:
+          'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-1@gmail.com',
         widgets: [],
       },
       errors: [],
@@ -557,85 +938,6 @@ export const createWorkItemMutationErrorResponse = {
       __typename: 'WorkItemCreatePayload',
       workItem: null,
       errors: ['an error'],
-    },
-  },
-};
-
-export const createWorkItemFromTaskMutationResponse = {
-  data: {
-    workItemCreateFromTask: {
-      __typename: 'WorkItemCreateFromTaskPayload',
-      errors: [],
-      workItem: {
-        __typename: 'WorkItem',
-        description: 'New description',
-        id: 'gid://gitlab/WorkItem/1',
-        iid: '1',
-        title: 'Updated title',
-        state: 'OPEN',
-        confidential: false,
-        createdAt: '2022-08-03T12:41:54Z',
-        closedAt: null,
-        project: {
-          __typename: 'Project',
-          id: '1',
-          fullPath: 'test-project-path',
-          archived: false,
-        },
-        workItemType: {
-          __typename: 'WorkItemType',
-          id: 'gid://gitlab/WorkItems::Type/5',
-          name: 'Task',
-          iconName: 'issue-type-task',
-        },
-        userPermissions: {
-          deleteWorkItem: false,
-          updateWorkItem: false,
-          __typename: 'WorkItemPermissions',
-        },
-        widgets: [
-          {
-            __typename: 'WorkItemWidgetDescription',
-            type: 'DESCRIPTION',
-            description: 'New description',
-            descriptionHtml: '<p>New description</p>',
-            lastEditedAt: '2022-09-21T06:18:42Z',
-            lastEditedBy: {
-              name: 'Administrator',
-              webPath: '/root',
-            },
-          },
-        ],
-      },
-      newWorkItem: {
-        __typename: 'WorkItem',
-        id: 'gid://gitlab/WorkItem/1000000',
-        iid: '100',
-        title: 'Updated title',
-        state: 'OPEN',
-        createdAt: '2022-08-03T12:41:54Z',
-        closedAt: null,
-        description: '',
-        confidential: false,
-        project: {
-          __typename: 'Project',
-          id: '1',
-          fullPath: 'test-project-path',
-          archived: false,
-        },
-        workItemType: {
-          __typename: 'WorkItemType',
-          id: 'gid://gitlab/WorkItems::Type/5',
-          name: 'Task',
-          iconName: 'issue-type-task',
-        },
-        userPermissions: {
-          deleteWorkItem: false,
-          updateWorkItem: false,
-          __typename: 'WorkItemPermissions',
-        },
-        widgets: [],
-      },
     },
   },
 };
@@ -664,215 +966,65 @@ export const deleteWorkItemMutationErrorResponse = {
   },
 };
 
-export const deleteWorkItemFromTaskMutationResponse = {
-  data: {
-    workItemDeleteTask: {
-      workItem: { id: 123, descriptionHtml: 'updated work item desc' },
-      errors: [],
-    },
-  },
-};
-
-export const deleteWorkItemFromTaskMutationErrorResponse = {
-  data: {
-    workItemDeleteTask: {
-      workItem: { id: 123, descriptionHtml: 'updated work item desc' },
-      errors: ['Error'],
-    },
-  },
-};
-
-export const workItemDatesSubscriptionResponse = {
-  data: {
-    issuableDatesUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetStartAndDueDate',
-          dueDate: '2022-12-31',
-          startDate: '2022-01-01',
-        },
-      ],
-    },
-  },
-};
-
-export const workItemTitleSubscriptionResponse = {
-  data: {
-    issuableTitleUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      title: 'new title',
-    },
-  },
-};
-
-export const workItemDescriptionSubscriptionResponse = {
-  data: {
-    issuableDescriptionUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetDescription',
-          type: 'DESCRIPTION',
-          description: 'New description',
-          descriptionHtml: '<p>New description</p>',
-          lastEditedAt: '2022-09-21T06:18:42Z',
-          lastEditedBy: {
-            id: 'gid://gitlab/User/2',
-            name: 'Someone else',
-            webPath: '/not-you',
-          },
-        },
-      ],
-    },
-  },
-};
-
-export const workItemWeightSubscriptionResponse = {
-  data: {
-    issuableWeightUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetWeight',
-          weight: 1,
-        },
-      ],
-    },
-  },
-};
-
-export const workItemAssigneesSubscriptionResponse = {
-  data: {
-    issuableAssigneesUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemAssigneesWeight',
-          assignees: {
-            nodes: [mockAssignees[0]],
-          },
-        },
-      ],
-    },
-  },
-};
-
-export const workItemLabelsSubscriptionResponse = {
-  data: {
-    issuableLabelsUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetLabels',
-          type: 'LABELS',
-          allowsScopedLabels: false,
-          labels: {
-            nodes: mockLabels,
-          },
-        },
-      ],
-    },
-  },
-};
-
-export const workItemIterationSubscriptionResponse = {
-  data: {
-    issuableIterationUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetIteration',
-          iteration: {
-            description: 'Iteration description',
-            dueDate: '2022-07-29',
-            id: 'gid://gitlab/Iteration/1125',
-            iid: '95',
-            startDate: '2022-06-22',
-            title: 'Iteration subcription title',
-          },
-        },
-      ],
-    },
-  },
-};
-
-export const workItemHealthStatusSubscriptionResponse = {
-  data: {
-    issuableHealthStatusUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetHealthStatus',
-          healthStatus: 'needsAttention',
-        },
-      ],
-    },
-  },
-};
-
-export const workItemMilestoneSubscriptionResponse = {
-  data: {
-    issuableMilestoneUpdated: {
-      id: 'gid://gitlab/WorkItem/1',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetMilestone',
-          type: 'MILESTONE',
-          milestone: {
-            id: 'gid://gitlab/Milestone/1125',
-            expired: false,
-            title: 'Milestone title',
-          },
-        },
-      ],
-    },
-  },
-};
-
 export const workItemHierarchyEmptyResponse = {
   data: {
-    workItem: {
-      id: 'gid://gitlab/WorkItem/1',
-      iid: 1,
-      state: 'OPEN',
-      workItemType: {
-        id: 'gid://gitlab/WorkItems::Type/1',
-        name: 'Issue',
-        iconName: 'issue-type-issue',
-        __typename: 'WorkItemType',
-      },
-      title: 'New title',
-      description: '',
-      createdAt: '2022-08-03T12:41:54Z',
-      updatedAt: null,
-      closedAt: null,
-      author: mockAssignees[0],
-      project: {
-        __typename: 'Project',
-        id: '1',
-        fullPath: 'test-project-path',
-        archived: false,
-      },
-      userPermissions: {
-        deleteWorkItem: false,
-        updateWorkItem: false,
-        __typename: 'WorkItemPermissions',
-      },
-      confidential: false,
-      widgets: [
-        {
-          type: 'HIERARCHY',
-          parent: null,
-          hasChildren: false,
-          children: {
-            nodes: [],
-            __typename: 'WorkItemConnection',
+    workspace: {
+      __typename: 'Project',
+      id: 'gid://gitlab/Project/2',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/1',
+            iid: '1',
+            state: 'OPEN',
+            workItemType: {
+              id: 'gid://gitlab/WorkItems::Type/1',
+              name: 'Issue',
+              iconName: 'issue-type-issue',
+              __typename: 'WorkItemType',
+            },
+            title: 'New title',
+            description: '',
+            createdAt: '2022-08-03T12:41:54Z',
+            updatedAt: null,
+            closedAt: null,
+            author: mockAssignees[0],
+            project: {
+              __typename: 'Project',
+              id: '1',
+              fullPath: 'test-project-path',
+              archived: false,
+              name: 'Project name',
+            },
+            userPermissions: {
+              deleteWorkItem: false,
+              updateWorkItem: false,
+              setWorkItemMetadata: false,
+              adminParentLink: false,
+              createNote: false,
+              adminWorkItemLink: true,
+              __typename: 'WorkItemPermissions',
+            },
+            confidential: false,
+            reference: 'test-project-path#1',
+            createNoteEmail:
+              'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-1@gmail.com',
+            widgets: [
+              {
+                type: 'HIERARCHY',
+                parent: null,
+                hasChildren: false,
+                children: {
+                  nodes: [],
+                  __typename: 'WorkItemConnection',
+                },
+                __typename: 'WorkItemWidgetHierarchy',
+              },
+            ],
+            __typename: 'WorkItem',
           },
-          __typename: 'WorkItemWidgetHierarchy',
-        },
-      ],
-      __typename: 'WorkItem',
+        ],
+      },
     },
   },
 };
@@ -881,7 +1033,7 @@ export const workItemHierarchyNoUpdatePermissionResponse = {
   data: {
     workItem: {
       id: 'gid://gitlab/WorkItem/1',
-      iid: 1,
+      iid: '1',
       state: 'OPEN',
       workItemType: {
         id: 'gid://gitlab/WorkItems::Type/6',
@@ -898,6 +1050,10 @@ export const workItemHierarchyNoUpdatePermissionResponse = {
       userPermissions: {
         deleteWorkItem: false,
         updateWorkItem: false,
+        setWorkItemMetadata: false,
+        adminParentLink: false,
+        createNote: false,
+        adminWorkItemLink: true,
         __typename: 'WorkItemPermissions',
       },
       project: {
@@ -905,6 +1061,7 @@ export const workItemHierarchyNoUpdatePermissionResponse = {
         id: '1',
         fullPath: 'test-project-path',
         archived: false,
+        name: 'Project name',
       },
       confidential: false,
       widgets: [
@@ -1026,49 +1183,65 @@ export const childrenWorkItems = [
 
 export const workItemHierarchyResponse = {
   data: {
-    workItem: {
-      id: 'gid://gitlab/WorkItem/1',
-      iid: '1',
-      workItemType: {
-        id: 'gid://gitlab/WorkItems::Type/1',
-        name: 'Issue',
-        iconName: 'issue-type-issue',
-        __typename: 'WorkItemType',
-      },
-      title: 'New title',
-      userPermissions: {
-        deleteWorkItem: true,
-        updateWorkItem: true,
-        __typename: 'WorkItemPermissions',
-      },
-      author: {
-        ...mockAssignees[0],
-      },
-      confidential: false,
-      project: {
-        __typename: 'Project',
-        id: '1',
-        fullPath: 'test-project-path',
-        archived: false,
-      },
-      description: 'Issue description',
-      state: 'OPEN',
-      createdAt: '2022-08-03T12:41:54Z',
-      updatedAt: null,
-      closedAt: null,
-      widgets: [
-        {
-          type: 'HIERARCHY',
-          parent: null,
-          hasChildren: true,
-          children: {
-            nodes: childrenWorkItems,
-            __typename: 'WorkItemConnection',
+    workspace: {
+      __typename: 'Project',
+      id: 'gid://gitlab/Project/2',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/1',
+            iid: '1',
+            workItemType: {
+              id: 'gid://gitlab/WorkItems::Type/1',
+              name: 'Issue',
+              iconName: 'issue-type-issue',
+              __typename: 'WorkItemType',
+            },
+            title: 'New title',
+            userPermissions: {
+              deleteWorkItem: true,
+              updateWorkItem: true,
+              setWorkItemMetadata: true,
+              adminParentLink: true,
+              createNote: true,
+              adminWorkItemLink: true,
+              __typename: 'WorkItemPermissions',
+            },
+            author: {
+              ...mockAssignees[0],
+            },
+            confidential: false,
+            project: {
+              __typename: 'Project',
+              id: '1',
+              fullPath: 'test-project-path',
+              archived: false,
+              name: 'Project name',
+            },
+            description: 'Issue description',
+            state: 'OPEN',
+            createdAt: '2022-08-03T12:41:54Z',
+            updatedAt: null,
+            closedAt: null,
+            reference: 'test-project-path#1',
+            createNoteEmail:
+              'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-1@gmail.com',
+            widgets: [
+              {
+                type: 'HIERARCHY',
+                parent: null,
+                hasChildren: true,
+                children: {
+                  nodes: childrenWorkItems,
+                  __typename: 'WorkItemConnection',
+                },
+                __typename: 'WorkItemWidgetHierarchy',
+              },
+            ],
+            __typename: 'WorkItem',
           },
-          __typename: 'WorkItemWidgetHierarchy',
-        },
-      ],
-      __typename: 'WorkItem',
+        ],
+      },
     },
   },
 };
@@ -1107,6 +1280,7 @@ export const workItemObjectiveMetadataWidgets = {
     type: 'PROGRESS',
     __typename: 'WorkItemWidgetProgress',
     progress: 10,
+    updatedAt: new Date(),
   },
 };
 
@@ -1124,10 +1298,15 @@ export const workItemObjectiveWithChild = {
     id: '1',
     fullPath: 'test-project-path',
     archived: false,
+    name: 'Project name',
   },
   userPermissions: {
     deleteWorkItem: true,
     updateWorkItem: true,
+    setWorkItemMetadata: true,
+    adminParentLink: true,
+    createNote: true,
+    adminWorkItemLink: true,
     __typename: 'WorkItemPermissions',
   },
   author: {
@@ -1171,6 +1350,7 @@ export const workItemObjectiveNoMetadata = {
       __typename: 'WorkItemWidgetProgress',
       type: 'PROGRESS',
       progress: null,
+      updatedAt: null,
     },
     {
       __typename: 'WorkItemWidgetMilestone',
@@ -1195,6 +1375,10 @@ export const workItemHierarchyTreeResponse = {
       userPermissions: {
         deleteWorkItem: true,
         updateWorkItem: true,
+        setWorkItemMetadata: true,
+        adminParentLink: true,
+        createNote: true,
+        adminWorkItemLink: true,
         __typename: 'WorkItemPermissions',
       },
       confidential: false,
@@ -1203,6 +1387,7 @@ export const workItemHierarchyTreeResponse = {
         id: '1',
         fullPath: 'test-project-path',
         archived: false,
+        name: 'Project name',
       },
       widgets: [
         {
@@ -1258,6 +1443,75 @@ export const workItemHierarchyTreeFailureResponse = {
   ],
 };
 
+export const changeIndirectWorkItemParentMutationResponse = {
+  data: {
+    workItemUpdate: {
+      workItem: {
+        __typename: 'WorkItem',
+        workItemType: {
+          id: 'gid://gitlab/WorkItems::Type/2411',
+          name: 'Objective',
+          iconName: 'issue-type-objective',
+          __typename: 'WorkItemType',
+        },
+        userPermissions: {
+          deleteWorkItem: true,
+          updateWorkItem: true,
+          setWorkItemMetadata: true,
+          adminParentLink: true,
+          createNote: true,
+          adminWorkItemLink: true,
+          __typename: 'WorkItemPermissions',
+        },
+        description: null,
+        id: 'gid://gitlab/WorkItem/13',
+        iid: '13',
+        state: 'OPEN',
+        title: 'Objective 2',
+        confidential: false,
+        createdAt: '2022-08-03T12:41:54Z',
+        updatedAt: null,
+        closedAt: null,
+        author: {
+          ...mockAssignees[0],
+        },
+        project: {
+          __typename: 'Project',
+          id: '1',
+          fullPath: 'test-project-path',
+          archived: false,
+          name: 'Project name',
+        },
+        reference: 'test-project-path#13',
+        createNoteEmail:
+          'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-13@gmail.com',
+        widgets: [
+          {
+            __typename: 'WorkItemWidgetHierarchy',
+            type: 'HIERARCHY',
+            parent: null,
+            hasChildren: false,
+            children: {
+              nodes: [],
+            },
+          },
+        ],
+      },
+      errors: [],
+      __typename: 'WorkItemUpdatePayload',
+    },
+  },
+};
+
+export const workItemUpdateFailureResponse = {
+  data: {},
+  errors: [
+    {
+      message: 'Something went wrong',
+    },
+  ],
+};
+
 export const changeWorkItemParentMutationResponse = {
   data: {
     workItemUpdate: {
@@ -1272,6 +1526,10 @@ export const changeWorkItemParentMutationResponse = {
         userPermissions: {
           deleteWorkItem: true,
           updateWorkItem: true,
+          setWorkItemMetadata: true,
+          adminParentLink: true,
+          createNote: true,
+          adminWorkItemLink: true,
           __typename: 'WorkItemPermissions',
         },
         description: null,
@@ -1291,7 +1549,11 @@ export const changeWorkItemParentMutationResponse = {
           id: '1',
           fullPath: 'test-project-path',
           archived: false,
+          name: 'Project name',
         },
+        reference: 'test-project-path#2',
+        createNoteEmail:
+          'gitlab-incoming+test-project-path-13fp7g6i9agekcv71s0jx9p58-issue-2@gmail.com',
         widgets: [
           {
             __typename: 'WorkItemWidgetHierarchy',
@@ -1319,6 +1581,7 @@ export const availableWorkItemsResponse = {
         nodes: [
           {
             id: 'gid://gitlab/WorkItem/458',
+            iid: '2',
             title: 'Task 1',
             state: 'OPEN',
             createdAt: '2022-08-03T12:41:54Z',
@@ -1327,6 +1590,7 @@ export const availableWorkItemsResponse = {
           },
           {
             id: 'gid://gitlab/WorkItem/459',
+            iid: '3',
             title: 'Task 2',
             state: 'OPEN',
             createdAt: '2022-08-03T12:41:54Z',
@@ -1335,10 +1599,33 @@ export const availableWorkItemsResponse = {
           },
           {
             id: 'gid://gitlab/WorkItem/460',
+            iid: '4',
             title: 'Task 3',
             state: 'OPEN',
             createdAt: '2022-08-03T12:41:54Z',
             confidential: true,
+            __typename: 'WorkItem',
+          },
+        ],
+      },
+    },
+  },
+};
+
+export const searchedWorkItemsResponse = {
+  data: {
+    workspace: {
+      __typename: 'Project',
+      id: 'gid://gitlab/Project/2',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/459',
+            iid: '3',
+            title: 'Task 2',
+            state: 'OPEN',
+            createdAt: '2022-08-03T12:41:54Z',
+            confidential: false,
             __typename: 'WorkItem',
           },
         ],
@@ -1368,6 +1655,74 @@ export const projectMembersResponseWithCurrentUser = {
           },
           {
             id: 'user-1',
+            user: {
+              __typename: 'UserCore',
+              id: 'gid://gitlab/User/1',
+              avatarUrl:
+                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80\u0026d=identicon',
+              name: 'Administrator',
+              username: 'root',
+              webUrl: '/root',
+              status: null,
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          endCursor: null,
+          startCursor: null,
+        },
+      },
+    },
+  },
+};
+
+export const projectMembersResponseWithDuplicates = {
+  data: {
+    workspace: {
+      id: '1',
+      __typename: 'Project',
+      users: {
+        nodes: [
+          {
+            id: 'user-2',
+            user: {
+              __typename: 'UserCore',
+              id: 'gid://gitlab/User/5',
+              avatarUrl: '/avatar2',
+              name: 'rookie',
+              username: 'rookie',
+              webUrl: 'rookie',
+              status: null,
+            },
+          },
+          {
+            id: 'user-4',
+            user: {
+              __typename: 'UserCore',
+              id: 'gid://gitlab/User/5',
+              avatarUrl: '/avatar2',
+              name: 'rookie',
+              username: 'rookie',
+              webUrl: 'rookie',
+              status: null,
+            },
+          },
+          {
+            id: 'user-1',
+            user: {
+              __typename: 'UserCore',
+              id: 'gid://gitlab/User/1',
+              avatarUrl:
+                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80\u0026d=identicon',
+              name: 'Administrator',
+              username: 'root',
+              webUrl: '/root',
+              status: null,
+            },
+          },
+          {
+            id: 'user-3',
             user: {
               __typename: 'UserCore',
               id: 'gid://gitlab/User/1',
@@ -1638,18 +1993,6 @@ export const projectMilestonesResponseWithNoMilestones = {
   },
 };
 
-export const projectWorkItemResponse = {
-  data: {
-    workspace: {
-      id: 'gid://gitlab/Project/1',
-      workItems: {
-        nodes: [workItemQueryResponse.data.workItem],
-      },
-      __typename: 'Project',
-    },
-  },
-};
-
 export const mockWorkItemNotesResponse = {
   data: {
     workItem: {
@@ -1703,9 +2046,12 @@ export const mockWorkItemNotesResponse = {
                       systemNoteIconName: 'link',
                       createdAt: '2022-11-14T04:18:59Z',
                       lastEditedAt: null,
+                      url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_199',
                       lastEditedBy: null,
                       system: true,
                       internal: false,
+                      maxAccessLevelOfAuthor: 'Owner',
+                      authorIsContributor: false,
                       discussion: {
                         id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723561234',
                       },
@@ -1717,6 +2063,10 @@ export const mockWorkItemNotesResponse = {
                         resolveNote: true,
                         repositionNote: true,
                         __typename: 'NotePermissions',
+                      },
+                      systemNoteMetadata: {
+                        id: 'gid://gitlab/SystemNoteMetadata/36',
+                        descriptionVersion: null,
                       },
                       author: {
                         avatarUrl:
@@ -1746,9 +2096,12 @@ export const mockWorkItemNotesResponse = {
                       systemNoteIconName: 'clock',
                       createdAt: '2022-11-14T04:18:59Z',
                       lastEditedAt: null,
+                      url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_201',
                       lastEditedBy: null,
                       system: true,
                       internal: false,
+                      maxAccessLevelOfAuthor: 'Owner',
+                      authorIsContributor: false,
                       discussion: {
                         id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723565678',
                       },
@@ -1760,6 +2113,10 @@ export const mockWorkItemNotesResponse = {
                         resolveNote: true,
                         repositionNote: true,
                         __typename: 'NotePermissions',
+                      },
+                      systemNoteMetadata: {
+                        id: 'gid://gitlab/SystemNoteMetadata/76',
+                        descriptionVersion: null,
                       },
                       author: {
                         avatarUrl:
@@ -1788,9 +2145,12 @@ export const mockWorkItemNotesResponse = {
                       systemNoteIconName: 'weight',
                       createdAt: '2022-11-25T07:16:20Z',
                       lastEditedAt: null,
+                      url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_202',
                       lastEditedBy: null,
                       system: true,
                       internal: false,
+                      maxAccessLevelOfAuthor: 'Owner',
+                      authorIsContributor: false,
                       discussion: {
                         id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723560987',
                       },
@@ -1803,6 +2163,10 @@ export const mockWorkItemNotesResponse = {
                         repositionNote: true,
                         __typename: 'NotePermissions',
                       },
+                      systemNoteMetadata: {
+                        id: 'gid://gitlab/SystemNoteMetadata/71',
+                        descriptionVersion: null,
+                      },
                       author: {
                         avatarUrl:
                           'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
@@ -1811,6 +2175,9 @@ export const mockWorkItemNotesResponse = {
                         username: 'root',
                         webUrl: 'http://127.0.0.1:3000/root',
                         __typename: 'UserCore',
+                      },
+                      awardEmoji: {
+                        nodes: [],
                       },
                       __typename: 'Note',
                     },
@@ -1890,9 +2257,12 @@ export const mockWorkItemNotesByIidResponse = {
                             systemNoteIconName: 'link',
                             createdAt: '2022-11-14T04:18:59Z',
                             lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
                             lastEditedBy: null,
                             system: true,
                             internal: false,
+                            maxAccessLevelOfAuthor: null,
+                            authorIsContributor: false,
                             discussion: {
                               id:
                                 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723561234',
@@ -1906,6 +2276,10 @@ export const mockWorkItemNotesByIidResponse = {
                               repositionNote: true,
                               __typename: 'NotePermissions',
                             },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/72',
+                              descriptionVersion: null,
+                            },
                             author: {
                               id: 'gid://gitlab/User/1',
                               avatarUrl:
@@ -1914,6 +2288,9 @@ export const mockWorkItemNotesByIidResponse = {
                               username: 'root',
                               webUrl: 'http://127.0.0.1:3000/root',
                               __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
                             },
                             __typename: 'Note',
                           },
@@ -1935,9 +2312,12 @@ export const mockWorkItemNotesByIidResponse = {
                             systemNoteIconName: 'clock',
                             createdAt: '2022-11-14T04:18:59Z',
                             lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
                             lastEditedBy: null,
                             system: true,
                             internal: false,
+                            maxAccessLevelOfAuthor: null,
+                            authorIsContributor: false,
                             discussion: {
                               id:
                                 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723568765',
@@ -1951,6 +2331,10 @@ export const mockWorkItemNotesByIidResponse = {
                               repositionNote: true,
                               __typename: 'NotePermissions',
                             },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/76',
+                              descriptionVersion: null,
+                            },
                             author: {
                               id: 'gid://gitlab/User/1',
                               avatarUrl:
@@ -1959,6 +2343,9 @@ export const mockWorkItemNotesByIidResponse = {
                               username: 'root',
                               webUrl: 'http://127.0.0.1:3000/root',
                               __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
                             },
                             __typename: 'Note',
                           },
@@ -1981,9 +2368,12 @@ export const mockWorkItemNotesByIidResponse = {
                             systemNoteIconName: 'iteration',
                             createdAt: '2022-11-14T04:19:00Z',
                             lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
                             lastEditedBy: null,
                             system: true,
                             internal: false,
+                            maxAccessLevelOfAuthor: null,
+                            authorIsContributor: false,
                             discussion: {
                               id:
                                 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723569876',
@@ -1997,6 +2387,10 @@ export const mockWorkItemNotesByIidResponse = {
                               repositionNote: true,
                               __typename: 'NotePermissions',
                             },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/22',
+                              descriptionVersion: null,
+                            },
                             author: {
                               id: 'gid://gitlab/User/1',
                               avatarUrl:
@@ -2005,6 +2399,9 @@ export const mockWorkItemNotesByIidResponse = {
                               username: 'root',
                               webUrl: 'http://127.0.0.1:3000/root',
                               __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
                             },
                             __typename: 'Note',
                           },
@@ -2030,180 +2427,221 @@ export const mockWorkItemNotesByIidResponse = {
 };
 export const mockMoreWorkItemNotesResponse = {
   data: {
-    workItem: {
-      id: 'gid://gitlab/WorkItem/600',
-      iid: '60',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetIteration',
-        },
-        {
-          __typename: 'WorkItemWidgetWeight',
-        },
-        {
-          __typename: 'WorkItemWidgetAssignees',
-        },
-        {
-          __typename: 'WorkItemWidgetLabels',
-        },
-        {
-          __typename: 'WorkItemWidgetDescription',
-        },
-        {
-          __typename: 'WorkItemWidgetHierarchy',
-        },
-        {
-          __typename: 'WorkItemWidgetStartAndDueDate',
-        },
-        {
-          __typename: 'WorkItemWidgetMilestone',
-        },
-        {
-          type: 'NOTES',
-          discussions: {
-            pageInfo: {
-              hasNextPage: true,
-              hasPreviousPage: false,
-              startCursor: null,
-              endCursor: 'endCursor',
-              __typename: 'PageInfo',
-            },
-            nodes: [
+    workspace: {
+      id: 'gid://gitlab/Project/6',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/600',
+            iid: '60',
+            widgets: [
               {
-                id: 'gid://gitlab/Discussion/8bbc4890b6ff0f2cde93a5a0947cd2b8a13d3b6e',
-                notes: {
-                  nodes: [
-                    {
-                      id: 'gid://gitlab/Note/2428',
-                      body: 'added #31 as parent issue',
-                      bodyHtml:
-                        '<p data-sourcepos="1:1-1:25" dir="auto">added <a href="/flightjs/Flight/-/issues/31" data-reference-type="issue" data-original="#31" data-link="false" data-link-reference="false" data-project="6" data-issue="224" data-project-path="flightjs/Flight" data-iid="31" data-issue-type="issue" data-container=body data-placement="top" title="Perferendis est quae totam quia laborum tempore ut voluptatem." class="gfm gfm-issue">#31</a> as parent issue</p>',
-                      systemNoteIconName: 'link',
-                      createdAt: '2022-11-14T04:18:59Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      system: true,
-                      internal: false,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da1112356a59e',
-                      },
-                      userPermissions: {
-                        adminNote: false,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
-                      },
-                      author: {
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        id: 'gid://gitlab/User/1',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
-                      },
-                      __typename: 'Note',
-                    },
-                  ],
-                  __typename: 'NoteConnection',
-                },
-                __typename: 'Discussion',
+                __typename: 'WorkItemWidgetIteration',
               },
               {
-                id: 'gid://gitlab/Discussion/7b08b89a728a5ceb7de8334246837ba1d07270dc',
-                notes: {
-                  nodes: [
-                    {
-                      id: 'gid://gitlab/MilestoneNote/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83823',
-                      body: 'changed milestone to %v4.0',
-                      bodyHtml:
-                        '<p data-sourcepos="1:1-1:23" dir="auto">changed milestone to <a href="/flightjs/Flight/-/milestones/5" data-reference-type="milestone" data-original="%5" data-link="false" data-link-reference="false" data-project="6" data-milestone="30" data-container=body data-placement="top" title="" class="gfm gfm-milestone has-tooltip">%v4.0</a></p>',
-                      systemNoteIconName: 'clock',
-                      createdAt: '2022-11-14T04:18:59Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      system: true,
-                      internal: false,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da1272356a59e',
-                      },
-                      userPermissions: {
-                        adminNote: false,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
-                      },
-                      author: {
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        id: 'gid://gitlab/User/1',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
-                      },
-                      __typename: 'Note',
-                    },
-                  ],
-                  __typename: 'NoteConnection',
-                },
-                __typename: 'Discussion',
+                __typename: 'WorkItemWidgetWeight',
               },
               {
-                id: 'gid://gitlab/Discussion/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
-                notes: {
+                __typename: 'WorkItemWidgetAssignees',
+              },
+              {
+                __typename: 'WorkItemWidgetLabels',
+              },
+              {
+                __typename: 'WorkItemWidgetDescription',
+              },
+              {
+                __typename: 'WorkItemWidgetHierarchy',
+              },
+              {
+                __typename: 'WorkItemWidgetStartAndDueDate',
+              },
+              {
+                __typename: 'WorkItemWidgetMilestone',
+              },
+              {
+                type: 'NOTES',
+                discussions: {
+                  pageInfo: {
+                    hasNextPage: true,
+                    hasPreviousPage: false,
+                    startCursor: null,
+                    endCursor: 'endCursor',
+                    __typename: 'PageInfo',
+                  },
                   nodes: [
                     {
-                      id: 'gid://gitlab/WeightNote/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
-                      body: 'changed weight to **89**',
-                      bodyHtml: '<p dir="auto">changed weight to <strong>89</strong></p>',
-                      systemNoteIconName: 'weight',
-                      createdAt: '2022-11-25T07:16:20Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      system: true,
-                      internal: false,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723569876',
+                      id: 'gid://gitlab/Discussion/8bbc4890b6ff0f2cde93a5a0947cd2b8a13d3b6e',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/Note/2428',
+                            body: 'added #31 as parent issue',
+                            bodyHtml:
+                              '<p data-sourcepos="1:1-1:25" dir="auto">added <a href="/flightjs/Flight/-/issues/31" data-reference-type="issue" data-original="#31" data-link="false" data-link-reference="false" data-project="6" data-issue="224" data-project-path="flightjs/Flight" data-iid="31" data-issue-type="issue" data-container=body data-placement="top" title="Perferendis est quae totam quia laborum tempore ut voluptatem." class="gfm gfm-issue">#31</a> as parent issue</p>',
+                            systemNoteIconName: 'link',
+                            createdAt: '2022-11-14T04:18:59Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            system: true,
+                            internal: false,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da1112356a59e',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/16',
+                              descriptionVersion: null,
+                            },
+                            author: {
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              id: 'gid://gitlab/User/1',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
                       },
-                      userPermissions: {
-                        adminNote: false,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
+                      __typename: 'Discussion',
+                    },
+                    {
+                      id: 'gid://gitlab/Discussion/7b08b89a728a5ceb7de8334246837ba1d07270dc',
+                      notes: {
+                        nodes: [
+                          {
+                            id:
+                              'gid://gitlab/MilestoneNote/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83823',
+                            body: 'changed milestone to %v4.0',
+                            bodyHtml:
+                              '<p data-sourcepos="1:1-1:23" dir="auto">changed milestone to <a href="/flightjs/Flight/-/milestones/5" data-reference-type="milestone" data-original="%5" data-link="false" data-link-reference="false" data-project="6" data-milestone="30" data-container=body data-placement="top" title="" class="gfm gfm-milestone has-tooltip">%v4.0</a></p>',
+                            systemNoteIconName: 'clock',
+                            createdAt: '2022-11-14T04:18:59Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            system: true,
+                            internal: false,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da1272356a59e',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/96',
+                              descriptionVersion: null,
+                            },
+                            author: {
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              id: 'gid://gitlab/User/1',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
                       },
-                      author: {
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        id: 'gid://gitlab/User/1',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
+                      __typename: 'Discussion',
+                    },
+                    {
+                      id: 'gid://gitlab/Discussion/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/WeightNote/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
+                            body: 'changed weight to **89**',
+                            bodyHtml: '<p dir="auto">changed weight to <strong>89</strong></p>',
+                            systemNoteIconName: 'weight',
+                            createdAt: '2022-11-25T07:16:20Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            system: true,
+                            internal: false,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723569876',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/56',
+                              descriptionVersion: null,
+                            },
+                            author: {
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              id: 'gid://gitlab/User/1',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
                       },
-                      __typename: 'Note',
+                      __typename: 'Discussion',
                     },
                   ],
-                  __typename: 'NoteConnection',
+                  __typename: 'DiscussionConnection',
                 },
-                __typename: 'Discussion',
+                __typename: 'WorkItemWidgetNotes',
               },
             ],
-            __typename: 'DiscussionConnection',
+            __typename: 'WorkItem',
           },
-          __typename: 'WorkItemWidgetNotes',
-        },
-      ],
-      __typename: 'WorkItem',
+        ],
+      },
     },
   },
 };
@@ -2227,7 +2665,10 @@ export const createWorkItemNoteResponse = {
                 systemNoteIconName: null,
                 createdAt: '2023-01-25T04:49:46Z',
                 lastEditedAt: null,
+                url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
                 lastEditedBy: null,
+                maxAccessLevelOfAuthor: 'Owner',
+                authorIsContributor: false,
                 discussion: {
                   id: 'gid://gitlab/Discussion/c872ba2d7d3eb780d2255138d67ca8b04f65b122',
                   __typename: 'Discussion',
@@ -2241,6 +2682,7 @@ export const createWorkItemNoteResponse = {
                   webUrl: 'http://127.0.0.1:3000/root',
                   __typename: 'UserCore',
                 },
+                systemNoteMetadata: null,
                 userPermissions: {
                   adminNote: true,
                   awardEmoji: true,
@@ -2249,6 +2691,9 @@ export const createWorkItemNoteResponse = {
                   resolveNote: true,
                   repositionNote: true,
                   __typename: 'NotePermissions',
+                },
+                awardEmoji: {
+                  nodes: [],
                 },
                 __typename: 'Note',
               },
@@ -2274,9 +2719,12 @@ export const mockWorkItemCommentNote = {
   systemNoteIconName: false,
   createdAt: '2022-11-25T07:16:20Z',
   lastEditedAt: null,
+  url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
   lastEditedBy: null,
   system: false,
   internal: false,
+  maxAccessLevelOfAuthor: 'Owner',
+  authorIsContributor: false,
   discussion: {
     id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723569876',
   },
@@ -2289,6 +2737,7 @@ export const mockWorkItemCommentNote = {
     repositionNote: true,
     __typename: 'NotePermissions',
   },
+  systemNoteMetadata: null,
   author: {
     avatarUrl: 'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
     id: 'gid://gitlab/User/1',
@@ -2297,175 +2746,219 @@ export const mockWorkItemCommentNote = {
     webUrl: 'http://127.0.0.1:3000/root',
     __typename: 'UserCore',
   },
+  awardEmoji: {
+    nodes: [mockAwardEmojiThumbsDown],
+  },
+};
+
+export const mockWorkItemCommentNoteByContributor = {
+  ...mockWorkItemCommentNote,
+  authorIsContributor: true,
+};
+
+export const mockWorkItemCommentByMaintainer = {
+  ...mockWorkItemCommentNote,
+  maxAccessLevelOfAuthor: 'Maintainer',
 };
 
 export const mockWorkItemNotesResponseWithComments = {
   data: {
-    workItem: {
-      id: 'gid://gitlab/WorkItem/600',
-      iid: '60',
-      widgets: [
-        {
-          __typename: 'WorkItemWidgetIteration',
-        },
-        {
-          __typename: 'WorkItemWidgetWeight',
-        },
-        {
-          __typename: 'WorkItemWidgetAssignees',
-        },
-        {
-          __typename: 'WorkItemWidgetLabels',
-        },
-        {
-          __typename: 'WorkItemWidgetDescription',
-        },
-        {
-          __typename: 'WorkItemWidgetHierarchy',
-        },
-        {
-          __typename: 'WorkItemWidgetStartAndDueDate',
-        },
-        {
-          __typename: 'WorkItemWidgetMilestone',
-        },
-        {
-          type: 'NOTES',
-          discussions: {
-            pageInfo: {
-              hasNextPage: false,
-              hasPreviousPage: false,
-              startCursor: null,
-              endCursor: null,
-              __typename: 'PageInfo',
-            },
-            nodes: [
+    workspace: {
+      id: 'gid://gitlab/Project/6',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/600',
+            iid: '60',
+            widgets: [
               {
-                id: 'gid://gitlab/Discussion/8bbc4890b6ff0f2cde93a5a0947cd2b8a13d3b6e',
-                notes: {
-                  nodes: [
-                    {
-                      id: 'gid://gitlab/DiscussionNote/174',
-                      body: 'Separate thread',
-                      bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Separate thread</p>',
-                      system: false,
-                      internal: false,
-                      systemNoteIconName: null,
-                      createdAt: '2023-01-12T07:47:40Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/2bb1162fd0d39297d1a68fdd7d4083d3780af0f3',
-                        __typename: 'Discussion',
-                      },
-                      author: {
-                        id: 'gid://gitlab/User/1',
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
-                      },
-                      userPermissions: {
-                        adminNote: true,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
-                      },
-                      __typename: 'Note',
-                    },
-                    {
-                      id: 'gid://gitlab/DiscussionNote/235',
-                      body: 'Thread comment',
-                      bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Thread comment</p>',
-                      system: false,
-                      internal: false,
-                      systemNoteIconName: null,
-                      createdAt: '2023-01-18T09:09:54Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/2bb1162fd0d39297d1a68fdd7d4083d3780af0f3',
-                        __typename: 'Discussion',
-                      },
-                      author: {
-                        id: 'gid://gitlab/User/1',
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
-                      },
-                      userPermissions: {
-                        adminNote: true,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
-                      },
-                      __typename: 'Note',
-                    },
-                  ],
-                  __typename: 'NoteConnection',
-                },
-                __typename: 'Discussion',
+                __typename: 'WorkItemWidgetIteration',
               },
               {
-                id: 'gid://gitlab/Discussion/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
-                notes: {
+                __typename: 'WorkItemWidgetWeight',
+              },
+              {
+                __typename: 'WorkItemWidgetAssignees',
+              },
+              {
+                __typename: 'WorkItemWidgetLabels',
+              },
+              {
+                __typename: 'WorkItemWidgetDescription',
+              },
+              {
+                __typename: 'WorkItemWidgetHierarchy',
+              },
+              {
+                __typename: 'WorkItemWidgetStartAndDueDate',
+              },
+              {
+                __typename: 'WorkItemWidgetMilestone',
+              },
+              {
+                type: 'NOTES',
+                discussions: {
+                  pageInfo: {
+                    hasNextPage: false,
+                    hasPreviousPage: false,
+                    startCursor: null,
+                    endCursor: null,
+                    __typename: 'PageInfo',
+                  },
                   nodes: [
                     {
-                      id: 'gid://gitlab/WeightNote/0f2f195ec0d1ef95ee9d5b10446b8e96a9883864',
-                      body: 'Main thread 2',
-                      bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Main thread 2</p>',
-                      systemNoteIconName: 'weight',
-                      createdAt: '2022-11-25T07:16:20Z',
-                      lastEditedAt: null,
-                      lastEditedBy: null,
-                      system: false,
-                      internal: false,
-                      discussion: {
-                        id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723560987',
+                      id: 'gid://gitlab/Discussion/8bbc4890b6ff0f2cde93a5a0947cd2b8a13d3b6e',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/DiscussionNote/174',
+                            body: 'Separate thread',
+                            bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Separate thread</p>',
+                            system: false,
+                            internal: false,
+                            systemNoteIconName: null,
+                            createdAt: '2023-01-12T07:47:40Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/2bb1162fd0d39297d1a68fdd7d4083d3780af0f3',
+                              __typename: 'Discussion',
+                            },
+                            author: {
+                              id: 'gid://gitlab/User/1',
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            systemNoteMetadata: null,
+                            userPermissions: {
+                              adminNote: true,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            awardEmoji: {
+                              nodes: [mockAwardEmojiThumbsDown],
+                            },
+                            __typename: 'Note',
+                          },
+                          {
+                            id: 'gid://gitlab/DiscussionNote/235',
+                            body: 'Thread comment',
+                            bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Thread comment</p>',
+                            system: false,
+                            internal: false,
+                            systemNoteIconName: null,
+                            createdAt: '2023-01-18T09:09:54Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/2bb1162fd0d39297d1a68fdd7d4083d3780af0f3',
+                              __typename: 'Discussion',
+                            },
+                            author: {
+                              id: 'gid://gitlab/User/1',
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            systemNoteMetadata: null,
+                            userPermissions: {
+                              adminNote: true,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
                       },
-                      userPermissions: {
-                        adminNote: false,
-                        awardEmoji: true,
-                        readNote: true,
-                        createNote: true,
-                        resolveNote: true,
-                        repositionNote: true,
-                        __typename: 'NotePermissions',
+                      __typename: 'Discussion',
+                    },
+                    {
+                      id: 'gid://gitlab/Discussion/0f2f195ec0d1ef95ee9d5b10446b8e96a7d83864',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/WeightNote/0f2f195ec0d1ef95ee9d5b10446b8e96a9883864',
+                            body: 'Main thread 2',
+                            bodyHtml: '<p data-sourcepos="1:1-1:15" dir="auto">Main thread 2</p>',
+                            systemNoteIconName: 'weight',
+                            createdAt: '2022-11-25T07:16:20Z',
+                            lastEditedAt: null,
+                            url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
+                            lastEditedBy: null,
+                            system: false,
+                            internal: false,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723560987',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: true,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: null,
+                            author: {
+                              avatarUrl:
+                                'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              id: 'gid://gitlab/User/1',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'http://127.0.0.1:3000/root',
+                              __typename: 'UserCore',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
                       },
-                      author: {
-                        avatarUrl:
-                          'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
-                        id: 'gid://gitlab/User/1',
-                        name: 'Administrator',
-                        username: 'root',
-                        webUrl: 'http://127.0.0.1:3000/root',
-                        __typename: 'UserCore',
-                      },
-                      __typename: 'Note',
+                      __typename: 'Discussion',
                     },
                   ],
-                  __typename: 'NoteConnection',
+                  __typename: 'DiscussionConnection',
                 },
-                __typename: 'Discussion',
+                __typename: 'WorkItemWidgetNotes',
               },
             ],
-            __typename: 'DiscussionConnection',
+            __typename: 'WorkItem',
           },
-          __typename: 'WorkItemWidgetNotes',
-        },
-      ],
-      __typename: 'WorkItem',
+        ],
+      },
     },
   },
 };
@@ -2479,6 +2972,7 @@ export const workItemNotesCreateSubscriptionResponse = {
       systemNoteIconName: 'weight',
       createdAt: '2022-11-25T07:16:20Z',
       lastEditedAt: null,
+      url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
       lastEditedBy: null,
       system: true,
       internal: false,
@@ -2493,9 +2987,12 @@ export const workItemNotesCreateSubscriptionResponse = {
               systemNoteIconName: 'weight',
               createdAt: '2022-11-25T07:16:20Z',
               lastEditedAt: null,
+              url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
               lastEditedBy: null,
               system: true,
               internal: false,
+              maxAccessLevelOfAuthor: 'Owner',
+              authorIsContributor: false,
               discussion: {
                 id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723560987',
               },
@@ -2508,6 +3005,10 @@ export const workItemNotesCreateSubscriptionResponse = {
                 repositionNote: true,
                 __typename: 'NotePermissions',
               },
+              systemNoteMetadata: {
+                id: 'gid://gitlab/SystemNoteMetadata/65',
+                descriptionVersion: null,
+              },
               author: {
                 avatarUrl:
                   'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
@@ -2516,6 +3017,9 @@ export const workItemNotesCreateSubscriptionResponse = {
                 username: 'root',
                 webUrl: 'http://127.0.0.1:3000/root',
                 __typename: 'UserCore',
+              },
+              awardEmoji: {
+                nodes: [],
               },
               __typename: 'Note',
             },
@@ -2531,6 +3035,10 @@ export const workItemNotesCreateSubscriptionResponse = {
         repositionNote: true,
         __typename: 'NotePermissions',
       },
+      systemNoteMetadata: {
+        id: 'gid://gitlab/SystemNoteMetadata/26',
+        descriptionVersion: null,
+      },
       author: {
         avatarUrl:
           'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
@@ -2539,6 +3047,9 @@ export const workItemNotesCreateSubscriptionResponse = {
         username: 'root',
         webUrl: 'http://127.0.0.1:3000/root',
         __typename: 'UserCore',
+      },
+      awardEmoji: {
+        nodes: [],
       },
       __typename: 'Note',
     },
@@ -2554,9 +3065,12 @@ export const workItemNotesUpdateSubscriptionResponse = {
       systemNoteIconName: 'pencil',
       createdAt: '2022-11-25T07:16:20Z',
       lastEditedAt: null,
+      url: 'http://127.0.0.1:3000/flightjs/Flight/-/work_items/37#note_191',
       lastEditedBy: null,
       system: true,
       internal: false,
+      maxAccessLevelOfAuthor: 'Owner',
+      authorIsContributor: false,
       discussion: {
         id: 'gid://gitlab/Discussion/9c17769ca29798eddaed539d010da12723560987',
       },
@@ -2569,6 +3083,10 @@ export const workItemNotesUpdateSubscriptionResponse = {
         repositionNote: true,
         __typename: 'NotePermissions',
       },
+      systemNoteMetadata: {
+        id: 'gid://gitlab/SystemNoteMetadata/46',
+        descriptionVersion: null,
+      },
       author: {
         avatarUrl:
           'https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
@@ -2577,6 +3095,9 @@ export const workItemNotesUpdateSubscriptionResponse = {
         username: 'root',
         webUrl: 'http://127.0.0.1:3000/root',
         __typename: 'UserCore',
+      },
+      awardEmoji: {
+        nodes: [],
       },
       __typename: 'Note',
     },
@@ -2589,6 +3110,421 @@ export const workItemNotesDeleteSubscriptionResponse = {
       id: 'gid://gitlab/DiscussionNote/235',
       discussionId: 'gid://gitlab/Discussion/2bb1162fd0d39297d1a68fdd7d4083d3780af0f3',
       lastDiscussionNote: false,
+    },
+  },
+};
+
+export const workItemSystemNoteWithMetadata = {
+  id: 'gid://gitlab/Note/1651',
+  body: 'changed the description',
+  bodyHtml: '<p data-sourcepos="1:1-1:23" dir="auto">changed the description</p>',
+  system: true,
+  internal: false,
+  systemNoteIconName: 'pencil',
+  createdAt: '2023-05-05T07:19:37Z',
+  lastEditedAt: '2023-05-05T07:19:37Z',
+  url: 'https://gdk.test:3443/flightjs/Flight/-/work_items/46#note_1651',
+  lastEditedBy: null,
+  maxAccessLevelOfAuthor: 'Owner',
+  authorIsContributor: false,
+  discussion: {
+    id: 'gid://gitlab/Discussion/7d4a46ea0525e2eeed451f7b718b0ebe73205374',
+    __typename: 'Discussion',
+  },
+  author: {
+    id: 'gid://gitlab/User/1',
+    avatarUrl:
+      'https://secure.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+    name: 'Administrator',
+    username: 'root',
+    webUrl: 'https://gdk.test:3443/root',
+    __typename: 'UserCore',
+  },
+  userPermissions: {
+    adminNote: false,
+    awardEmoji: true,
+    readNote: true,
+    createNote: true,
+    resolveNote: true,
+    repositionNote: false,
+    __typename: 'NotePermissions',
+  },
+  systemNoteMetadata: {
+    id: 'gid://gitlab/SystemNoteMetadata/670',
+    descriptionVersion: {
+      id: 'gid://gitlab/DescriptionVersion/167',
+      description: '5th May 90 987',
+      diff: '<span class="idiff">5th May 90</span><span class="idiff addition"> 987</span>',
+      diffPath: '/flightjs/Flight/-/issues/46/descriptions/167/diff',
+      deletePath: '/flightjs/Flight/-/issues/46/descriptions/167',
+      canDelete: true,
+      deleted: false,
+      startVersionId: '',
+      __typename: 'DescriptionVersion',
+    },
+    __typename: 'SystemNoteMetadata',
+  },
+  __typename: 'Note',
+};
+
+export const workItemNotesWithSystemNotesWithChangedDescription = {
+  data: {
+    workspace: {
+      id: 'gid://gitlab/Project/4',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/733',
+            iid: '79',
+            widgets: [
+              {
+                __typename: 'WorkItemWidgetAssignees',
+              },
+              {
+                __typename: 'WorkItemWidgetLabels',
+              },
+              {
+                __typename: 'WorkItemWidgetDescription',
+              },
+              {
+                __typename: 'WorkItemWidgetHierarchy',
+              },
+              {
+                __typename: 'WorkItemWidgetMilestone',
+              },
+              {
+                type: 'NOTES',
+                discussions: {
+                  pageInfo: {
+                    hasNextPage: false,
+                    hasPreviousPage: false,
+                    startCursor: null,
+                    endCursor: null,
+                    __typename: 'PageInfo',
+                  },
+                  nodes: [
+                    {
+                      id: 'gid://gitlab/Discussion/aa72f4c2f3eef66afa6d79a805178801ce4bd89f',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/Note/1687',
+                            body: 'changed the description',
+                            bodyHtml:
+                              '<p data-sourcepos="1:1-1:23" dir="auto">changed the description</p>',
+                            system: true,
+                            internal: false,
+                            systemNoteIconName: 'pencil',
+                            createdAt: '2023-05-10T05:21:01Z',
+                            lastEditedAt: '2023-05-10T05:21:01Z',
+                            url: 'https://gdk.test:3443/gnuwget/Wget2/-/work_items/79#note_1687',
+                            lastEditedBy: null,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/aa72f4c2f3eef66afa6d79a805178801ce4bd89f',
+                              __typename: 'Discussion',
+                            },
+                            author: {
+                              id: 'gid://gitlab/User/1',
+                              avatarUrl:
+                                'https://secure.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'https://gdk.test:3443/root',
+                              __typename: 'UserCore',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: false,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/703',
+                              descriptionVersion: {
+                                id: 'gid://gitlab/DescriptionVersion/198',
+                                description: 'Desc1',
+                                diff: '<span class="idiff addition">Desc1</span>',
+                                diffPath: '/gnuwget/Wget2/-/issues/79/descriptions/198/diff',
+                                deletePath: '/gnuwget/Wget2/-/issues/79/descriptions/198',
+                                canDelete: true,
+                                deleted: false,
+                                __typename: 'DescriptionVersion',
+                              },
+                              __typename: 'SystemNoteMetadata',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
+                      },
+                      __typename: 'Discussion',
+                    },
+                    {
+                      id: 'gid://gitlab/Discussion/a7d3cf7bd72f7a98f802845f538af65cb11a02cc',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/Note/1688',
+                            body: 'changed the description',
+                            bodyHtml:
+                              '<p data-sourcepos="1:1-1:23" dir="auto">changed the description</p>',
+                            system: true,
+                            internal: false,
+                            systemNoteIconName: 'pencil',
+                            createdAt: '2023-05-10T05:21:05Z',
+                            lastEditedAt: '2023-05-10T05:21:05Z',
+                            url: 'https://gdk.test:3443/gnuwget/Wget2/-/work_items/79#note_1688',
+                            lastEditedBy: null,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/a7d3cf7bd72f7a98f802845f538af65cb11a02cc',
+                              __typename: 'Discussion',
+                            },
+                            author: {
+                              id: 'gid://gitlab/User/1',
+                              avatarUrl:
+                                'https://secure.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'https://gdk.test:3443/root',
+                              __typename: 'UserCore',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: false,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/704',
+                              descriptionVersion: {
+                                id: 'gid://gitlab/DescriptionVersion/199',
+                                description: 'Desc2',
+                                diff:
+                                  '<span class="idiff">Desc</span><span class="idiff deletion">1</span><span class="idiff addition">2</span>',
+                                diffPath: '/gnuwget/Wget2/-/issues/79/descriptions/199/diff',
+                                deletePath: '/gnuwget/Wget2/-/issues/79/descriptions/199',
+                                canDelete: true,
+                                deleted: false,
+                                __typename: 'DescriptionVersion',
+                              },
+                              __typename: 'SystemNoteMetadata',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
+                      },
+                      __typename: 'Discussion',
+                    },
+                    {
+                      id: 'gid://gitlab/Discussion/391eed1ee0a258cc966a51dde900424f3b51b95d',
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/Note/1689',
+                            body: 'changed the description',
+                            bodyHtml:
+                              '<p data-sourcepos="1:1-1:23" dir="auto">changed the description</p>',
+                            system: true,
+                            internal: false,
+                            systemNoteIconName: 'pencil',
+                            createdAt: '2023-05-10T05:21:08Z',
+                            lastEditedAt: '2023-05-10T05:21:08Z',
+                            url: 'https://gdk.test:3443/gnuwget/Wget2/-/work_items/79#note_1689',
+                            lastEditedBy: null,
+                            maxAccessLevelOfAuthor: 'Owner',
+                            authorIsContributor: false,
+                            discussion: {
+                              id:
+                                'gid://gitlab/Discussion/391eed1ee0a258cc966a51dde900424f3b51b95d',
+                              __typename: 'Discussion',
+                            },
+                            author: {
+                              id: 'gid://gitlab/User/1',
+                              avatarUrl:
+                                'https://secure.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon',
+                              name: 'Administrator',
+                              username: 'root',
+                              webUrl: 'https://gdk.test:3443/root',
+                              __typename: 'UserCore',
+                            },
+                            userPermissions: {
+                              adminNote: false,
+                              awardEmoji: true,
+                              readNote: true,
+                              createNote: true,
+                              resolveNote: true,
+                              repositionNote: false,
+                              __typename: 'NotePermissions',
+                            },
+                            systemNoteMetadata: {
+                              id: 'gid://gitlab/SystemNoteMetadata/705',
+                              descriptionVersion: {
+                                id: 'gid://gitlab/DescriptionVersion/200',
+                                description: 'Desc3',
+                                diff:
+                                  '<span class="idiff">Desc</span><span class="idiff deletion">2</span><span class="idiff addition">3</span>',
+                                diffPath: '/gnuwget/Wget2/-/issues/79/descriptions/200/diff',
+                                deletePath: '/gnuwget/Wget2/-/issues/79/descriptions/200',
+                                canDelete: true,
+                                deleted: false,
+                                __typename: 'DescriptionVersion',
+                              },
+                              __typename: 'SystemNoteMetadata',
+                            },
+                            awardEmoji: {
+                              nodes: [],
+                            },
+                            __typename: 'Note',
+                          },
+                        ],
+                        __typename: 'NoteConnection',
+                      },
+                      __typename: 'Discussion',
+                    },
+                  ],
+                  __typename: 'DiscussionConnection',
+                },
+                __typename: 'WorkItemWidgetNotes',
+              },
+              {
+                __typename: 'WorkItemWidgetHealthStatus',
+              },
+              {
+                __typename: 'WorkItemWidgetProgress',
+              },
+              {
+                __typename: 'WorkItemWidgetNotifications',
+              },
+              {
+                __typename: 'WorkItemWidgetCurrentUserTodos',
+              },
+              {
+                __typename: 'WorkItemWidgetAwardEmoji',
+              },
+            ],
+            __typename: 'WorkItem',
+          },
+        ],
+        __typename: 'WorkItemConnection',
+      },
+      __typename: 'Project',
+    },
+  },
+};
+
+export const getAwardEmojiResponse = (toggledOn) => {
+  return {
+    data: {
+      awardEmojiToggle: {
+        errors: [],
+        toggledOn,
+      },
+    },
+  };
+};
+
+export const getTodosMutationResponse = (state) => {
+  return {
+    data: {
+      todoMutation: {
+        todo: {
+          id: 'gid://gitlab/Todo/1',
+          state,
+        },
+        errors: [],
+      },
+    },
+  };
+};
+
+export const linkedWorkItemResponse = (options, errors = []) => {
+  const response = workItemResponseFactory(options);
+  return {
+    data: {
+      workItemAddLinkedItems: {
+        workItem: response.data.workItem,
+        errors,
+        __typename: 'WorkItemAddLinkedItemsPayload',
+      },
+    },
+  };
+};
+
+export const groupWorkItemsQueryResponse = {
+  data: {
+    group: {
+      id: 'gid://gitlab/Group/3',
+      workItems: {
+        nodes: [
+          {
+            id: 'gid://gitlab/WorkItem/58',
+            iid: '23',
+            author: {
+              id: 'gid://gitlab/User/9',
+              avatarUrl: 'author/avatar/url',
+              name: 'Arthur',
+              username: 'arthur',
+              webUrl: 'author/web/url',
+            },
+            closedAt: '',
+            confidential: true,
+            createdAt: '2020-01-23T12:34:56Z',
+            reference: 'javascriptjs/js#23',
+            state: 'OPEN',
+            title: 'a group level work item',
+            updatedAt: '',
+            webUrl: 'web/url',
+            widgets: [
+              {
+                __typename: 'WorkItemWidgetAssignees',
+                assignees: {
+                  nodes: mockAssignees,
+                },
+                type: 'ASSIGNEES',
+              },
+              {
+                __typename: 'WorkItemWidgetLabels',
+                allowsScopedLabels: false,
+                labels: {
+                  nodes: [
+                    {
+                      __typename: 'Label',
+                      id: 'gid://gitlab/Label/7',
+                      color: '#f00',
+                      description: '',
+                      title: 'Label 7',
+                    },
+                  ],
+                },
+                type: 'LABELS',
+              },
+            ],
+            workItemType: {
+              id: 'gid://gitlab/WorkItems::Type/5',
+              name: 'Issue',
+            },
+          },
+        ],
+      },
     },
   },
 };

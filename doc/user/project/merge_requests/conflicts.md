@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, concepts
 ---
 
-# Merge conflicts **(FREE)**
+# Merge conflicts **(FREE ALL)**
 
 _Merge conflicts_ happen when the two branches in a merge request (the source and target) each have different
 changes, and you must decide which change to accept. In a merge request, Git compares
@@ -59,8 +59,8 @@ in the user interface, and you can also resolve conflicts locally through the co
 
 To resolve less-complex conflicts from the GitLab user interface:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests** and find the merge request.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and find the merge request.
 1. Select **Overview**, and scroll to the merge request reports section.
 1. Find the merge conflicts message, and select **Resolve conflicts**.
    GitLab shows a list of files with merge conflicts. The conflicts are
@@ -84,8 +84,8 @@ Some merge conflicts are more complex, requiring you to manually modify lines to
 resolve their conflicts. Use the merge conflict resolution editor to resolve complex
 conflicts in the GitLab interface:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Merge requests** and find the merge request.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Code > Merge requests** and find the merge request.
 1. Select **Overview**, and scroll to the merge request reports section.
 1. Find the merge conflicts message, and select **Resolve conflicts**.
    GitLab shows a list of files with merge conflicts.
@@ -162,9 +162,8 @@ merge commit. Verify it contains no unintended changes and doesn't break your bu
 
 ## Related topics
 
-- [Introduction to Git rebase and force-push](../../../topics/git/git_rebase.md).
-- [Git GUI apps](https://git-scm.com/downloads/guis) to help you visualize the
-  differences between branches and resolve them.
+- [Introduction to Git rebase and force-push](../../../topics/git/git_rebase.md)
+- [Git applications for visualizing the Git workflow](https://git-scm.com/downloads/guis)
 
 <!-- ## Troubleshooting
 

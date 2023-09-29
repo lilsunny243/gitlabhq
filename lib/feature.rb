@@ -30,6 +30,20 @@ module Feature
     superclass.table_name = 'feature_gates'
   end
 
+  # Generates the same flipper_id when in a request
+  # If not in a request, it generates a unique flipper_id every time
+  class FlipperRequest
+    def id
+      Gitlab::SafeRequestStore.fetch("flipper_request_id") do
+        SecureRandom.uuid
+      end
+    end
+
+    def flipper_id
+      "FlipperRequest:#{id}"
+    end
+  end
+
   # To enable EE overrides
   class ActiveSupportCacheStoreAdapter < Flipper::Adapters::ActiveSupportCacheStore
   end
@@ -39,19 +53,6 @@ module Feature
 
   class << self
     delegate :group, to: :flipper
-
-    def feature_flags_available?
-      # When the DBMS is not available, an exception (e.g. PG::ConnectionBad) is raised
-      active_db_connection = begin
-        ActiveRecord::Base.connection.active? # rubocop:disable Database/MultipleDatabases
-      rescue StandardError
-        false
-      end
-
-      active_db_connection && Feature::FlipperFeature.table_exists?
-    rescue ActiveRecord::NoDatabaseError
-      false
-    end
 
     def all
       flipper.features.to_a
@@ -202,12 +203,12 @@ module Feature
       @flipper = nil
     end
 
-    # This method is called from config/initializers/flipper.rb and can be used
+    # This method is called from config/initializers/0_inject_feature_flags.rb and can be used
     # to register Flipper groups.
     # See https://docs.gitlab.com/ee/development/feature_flags/index.html
-    def register_feature_groups
-      Flipper.register(:gitlab_team_members) { |actor| FeatureGroups::GitlabTeamMembers.enabled?(actor.thing) }
-    end
+    #
+    # EE feature groups should go inside the ee/lib/ee/feature.rb version of this method.
+    def register_feature_groups; end
 
     def register_definitions
       Feature::Definition.reload!
@@ -217,6 +218,14 @@ module Feature
       return unless check_feature_flags_definition?
 
       Feature::Definition.register_hot_reloader!
+    end
+
+    def current_request
+      if Gitlab::SafeRequestStore.active?
+        Gitlab::SafeRequestStore[:flipper_request] ||= FlipperRequest.new
+      else
+        @flipper_request ||= FlipperRequest.new
+      end
     end
 
     def logger
@@ -339,7 +348,7 @@ module Feature
     end
 
     def l2_cache_backend
-      Rails.cache
+      ::Gitlab::Redis::FeatureFlag.cache_store
     end
 
     def log(key:, action:, **extra)
@@ -361,7 +370,7 @@ module Feature
     end
 
     def gate_specified?
-      %i(user project group feature_group namespace repository).any? { |key| params.key?(key) }
+      %i[user project group feature_group namespace repository].any? { |key| params.key?(key) }
     end
 
     def targets

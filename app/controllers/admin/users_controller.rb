@@ -7,6 +7,7 @@ class Admin::UsersController < Admin::ApplicationController
   before_action :user, except: [:index, :new, :create]
   before_action :check_impersonation_availability, only: :impersonate
   before_action :ensure_destroy_prerequisites_met, only: [:destroy]
+  before_action :set_shared_view_parameters, only: [:show, :projects, :keys]
 
   feature_category :user_management
 
@@ -24,10 +25,7 @@ class Admin::UsersController < Admin::ApplicationController
     @users = @users.without_count if paginate_without_count?
   end
 
-  def show
-    @can_impersonate = can_impersonate_user
-    @impersonation_error_text = @can_impersonate ? nil : impersonation_error_text
-  end
+  def show; end
 
   # rubocop: disable CodeReuse/ActiveRecord
   def projects
@@ -48,7 +46,7 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def impersonate
-    if can_impersonate_user
+    if helpers.can_impersonate_user(user, impersonation_in_progress?)
       session[:impersonator_id] = current_user.id
 
       warden.set_user(user, scope: :user)
@@ -56,11 +54,11 @@ class Admin::UsersController < Admin::ApplicationController
 
       log_impersonation_event
 
-      flash[:alert] = format(_("You are now impersonating %{username}"), username: user.username)
+      flash[:notice] = format(_("You are now impersonating %{username}"), username: user.username)
 
       redirect_to root_path
     else
-      flash[:alert] = impersonation_error_text
+      flash[:alert] = helpers.impersonation_error_text(user, impersonation_in_progress?)
 
       redirect_to admin_user_path(user)
     end
@@ -87,37 +85,40 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def activate
-    if user.blocked?
-      return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user must be unblocked to be activated"))
-    end
+    activate_service = Users::ActivateService.new(current_user)
+    result = activate_service.execute(user)
 
-    user.activate
-    redirect_back_or_admin_user(notice: _("Successfully activated"))
+    if result.success?
+      redirect_back_or_admin_user(notice: _("Successfully activated"))
+    else
+      redirect_back_or_admin_user(alert: result.message)
+    end
   end
 
   def deactivate
-    if user.blocked?
-      return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user cannot be deactivated"))
+    deactivate_service = Users::DeactivateService.new(current_user, skip_authorization: true)
+    result = deactivate_service.execute(user)
+
+    if result.success?
+      redirect_back_or_admin_user(notice: _("Successfully deactivated"))
+    else
+      redirect_back_or_admin_user(alert: result.message)
     end
-
-    return redirect_back_or_admin_user(notice: _("Successfully deactivated")) if user.deactivated?
-    return redirect_back_or_admin_user(notice: _("Internal users cannot be deactivated")) if user.internal?
-
-    unless user.can_be_deactivated?
-      return redirect_back_or_admin_user(notice: format(_("The user you are trying to deactivate has been active in the past %{minimum_inactive_days} days and cannot be deactivated"), minimum_inactive_days: Gitlab::CurrentSettings.deactivate_dormant_users_period))
-    end
-
-    user.deactivate
-    redirect_back_or_admin_user(notice: _("Successfully deactivated"))
   end
 
   def block
     result = Users::BlockService.new(current_user).execute(user)
 
-    if result[:status] == :success
-      redirect_back_or_admin_user(notice: _("Successfully blocked"))
-    else
-      redirect_back_or_admin_user(alert: _("Error occurred. User was not blocked"))
+    respond_to do |format|
+      if result[:status] == :success
+        notice = _("Successfully blocked")
+        format.json { render json: { notice: notice } }
+        format.html { redirect_back_or_admin_user(notice: notice) }
+      else
+        alert = _("Error occurred. User was not blocked")
+        format.json { render json: { error: alert } }
+        format.html { redirect_back_or_admin_user(alert: alert) }
+      end
     end
   end
 
@@ -156,7 +157,7 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def unlock
-    if update_user(&:unlock_access!)
+    if unlock_user
       redirect_back_or_admin_user(notice: _("Successfully unlocked"))
     else
       redirect_back_or_admin_user(alert: _("Error occurred. User was not unlocked"))
@@ -220,8 +221,7 @@ class Admin::UsersController < Admin::ApplicationController
 
     respond_to do |format|
       result = Users::UpdateService.new(current_user, user_params_with_pass.merge(user: user)).execute do |user|
-        user.skip_reconfirmation!
-        user.send_only_admin_changed_your_password_notification! if admin_making_changes_for_another_user?
+        prepare_user_for_update(user)
       end
 
       if result[:status] == :success
@@ -381,22 +381,22 @@ class Admin::UsersController < Admin::ApplicationController
     Gitlab::AppLogger.info(format(_("User %{current_user_username} has started impersonating %{username}"), current_user_username: current_user.username, username: user.username))
   end
 
-  def can_impersonate_user
-    can?(user, :log_in) && !user.password_expired? && !impersonation_in_progress?
+  # method overriden in EE
+  def unlock_user
+    update_user(&:unlock_access!)
   end
 
-  def impersonation_error_text
-    if impersonation_in_progress?
-      _("You are already impersonating another user")
-    elsif user.blocked?
-      _("You cannot impersonate a blocked user")
-    elsif user.password_expired?
-      _("You cannot impersonate a user with an expired password")
-    elsif user.internal?
-      _("You cannot impersonate an internal user")
-    else
-      _("You cannot impersonate a user who cannot log in")
-    end
+  private
+
+  def set_shared_view_parameters
+    @can_impersonate = helpers.can_impersonate_user(user, impersonation_in_progress?)
+    @impersonation_error_text = @can_impersonate ? nil : helpers.impersonation_error_text(user, impersonation_in_progress?)
+  end
+
+  # method overriden in EE
+  def prepare_user_for_update(user)
+    user.skip_reconfirmation!
+    user.send_only_admin_changed_your_password_notification! if admin_making_changes_for_another_user?
   end
 end
 

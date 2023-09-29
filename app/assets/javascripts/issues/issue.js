@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { joinPaths } from '~/lib/utils/url_utility';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { EVENT_ISSUABLE_VUE_APP_CHANGE } from '~/issuable/constants';
 import axios from '~/lib/utils/axios_utils';
 import { addDelimiter } from '~/lib/utils/text_utility';
@@ -49,12 +49,7 @@ export default class Issue {
     issueFailMessage = __('Unable to update this issue at this time.'),
   ) {
     if ('id' in data) {
-      const isClosedBadge = $('.issuable-status-badge-closed');
-      const isOpenBadge = $('.issuable-status-badge-open');
       const projectIssuesCounter = $('.issue_counter');
-
-      isClosedBadge.toggleClass('hidden', !isClosed);
-      isOpenBadge.toggleClass('hidden', isClosed);
 
       $(document).trigger('issuable:change', isClosed);
 

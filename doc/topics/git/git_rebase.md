@@ -6,7 +6,7 @@ type: concepts, howto
 description: "Introduction to Git rebase and force push, methods to resolve merge conflicts through the command line."
 ---
 
-# Git rebase and force push **(FREE)**
+# Git rebase and force push **(FREE ALL)**
 
 This guide helps you to get started with rebases, force pushes, and fixing
 [merge conflicts](../../user/project/merge_requests/conflicts.md) locally.
@@ -44,10 +44,9 @@ branch, such as `release-15-3`. You can also specify a different remote reposito
 To back up a branch before taking any destructive action, like a rebase or force push:
 
 1. Open your feature branch in the terminal: `git checkout my-feature`
-1. Check out a new branch from it: `git checkout -b my-feature-backup`
+1. Create a backup branch: `git branch my-feature-backup`
    Any changes added to `my-feature` after this point are lost
    if you restore from the backup branch.
-1. Change back to your original branch: `git checkout my-feature`
 
 Your branch is backed up, and you can try a rebase or a force push.
 If anything goes wrong, restore your branch from its backup:
@@ -226,5 +225,4 @@ git push --force origin my-feature
 ## Related topics
 
 - [Numerous undo possibilities in Git](numerous_undo_possibilities_in_git/index.md#undo-staged-local-changes-without-modifying-history)
-for a deeper look into interactive rebases.
-- [Git documentation for branches and rebases](https://git-scm.com/book/en/v2/Git-Branching-Rebasing).
+- [Git documentation for branches and rebases](https://git-scm.com/book/en/v2/Git-Branching-Rebasing)

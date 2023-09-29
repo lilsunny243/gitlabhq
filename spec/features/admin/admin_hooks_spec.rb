@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin::Hooks', feature_category: :integrations do
+RSpec.describe 'Admin::Hooks', feature_category: :webhooks do
   include Spec::Support::Helpers::ModalHelpers
 
-  let_it_be(:user) { create(:admin) }
+  let_it_be(:user) { create(:admin, :no_super_sidebar) }
 
   before do
     sign_in(user)
@@ -46,10 +46,12 @@ RSpec.describe 'Admin::Hooks', feature_category: :integrations do
 
     it 'adds new hook' do
       visit admin_hooks_path
+
+      click_button 'Add new webhook'
       fill_in 'hook_url', with: url
       check 'Enable SSL verification'
 
-      expect { click_button 'Add system hook' }.to change(SystemHook, :count).by(1)
+      expect { click_button 'Add webhook' }.to change(SystemHook, :count).by(1)
       expect(page).to have_content 'SSL Verification: enabled'
       expect(page).to have_current_path(admin_hooks_path, ignore_query: true)
       expect(page).to have_content(url)
@@ -106,7 +108,7 @@ RSpec.describe 'Admin::Hooks', feature_category: :integrations do
       visit admin_hooks_path
 
       click_button 'Test'
-      click_button 'Push events'
+      click_link 'Push events'
     end
 
     it { expect(page).to have_current_path(admin_hooks_path, ignore_query: true) }
@@ -119,11 +121,12 @@ RSpec.describe 'Admin::Hooks', feature_category: :integrations do
       it 'adds new hook' do
         visit admin_hooks_path
 
+        click_button 'Add new webhook'
         fill_in 'hook_url', with: url
         uncheck 'Repository update events'
         check 'Merge request events'
 
-        expect { click_button 'Add system hook' }.to change(SystemHook, :count).by(1)
+        expect { click_button 'Add webhook' }.to change(SystemHook, :count).by(1)
         expect(page).to have_current_path(admin_hooks_path, ignore_query: true)
         expect(page).to have_content(url)
       end
@@ -142,7 +145,7 @@ RSpec.describe 'Admin::Hooks', feature_category: :integrations do
 
         visit admin_hooks_path
         click_button 'Test'
-        click_button 'Merge request events'
+        click_link 'Merge request events'
 
         expect(page).to have_content 'Hook executed successfully'
       end

@@ -20,14 +20,16 @@ RSpec.describe Operations::FeatureFlags::Strategy do
         end
         with_them do
           it 'skips parameters validation' do
-            strategy = build(:operations_strategy,
-                             feature_flag: feature_flag,
-                             name: invalid_name,
-                             parameters: { bad: 'params' })
+            strategy = build(
+              :operations_strategy,
+              feature_flag: feature_flag,
+              name: invalid_name,
+              parameters: { bad: 'params' }
+            )
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:name]).to eq(['strategy name is invalid'])
+            expect(strategy.errors[:name]).to eq([s_('Validation|strategy name is invalid')])
             expect(strategy.errors[:parameters]).to be_empty
           end
         end
@@ -40,22 +42,26 @@ RSpec.describe Operations::FeatureFlags::Strategy do
         end
         with_them do
           it 'must have valid parameters for the strategy' do
-            strategy = build(:operations_strategy,
-                             :gradual_rollout,
-                             feature_flag: feature_flag,
-                             parameters: invalid_parameters)
+            strategy = build(
+              :operations_strategy,
+              :gradual_rollout,
+              feature_flag: feature_flag,
+              parameters: invalid_parameters
+            )
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:parameters]).to eq(['parameters are invalid'])
+            expect(strategy.errors[:parameters]).to eq([s_('Validation|parameters are invalid')])
           end
         end
 
         it 'allows the parameters in any order' do
-          strategy = build(:operations_strategy,
-                           :gradual_rollout,
-                           feature_flag: feature_flag,
-                           parameters: { percentage: '10', groupId: 'mygroup' })
+          strategy = build(
+            :operations_strategy,
+            :gradual_rollout,
+            feature_flag: feature_flag,
+            parameters: { percentage: '10', groupId: 'mygroup' }
+          )
 
           expect(strategy).to be_valid
         end
@@ -68,14 +74,18 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'must be a string value between 0 and 100 inclusive and without a percentage sign' do
-              strategy = build(:operations_strategy,
-                               :gradual_rollout,
-                               feature_flag: feature_flag,
-                               parameters: { groupId: 'mygroup', percentage: invalid_value })
+              strategy = build(
+                :operations_strategy,
+                :gradual_rollout,
+                feature_flag: feature_flag,
+                parameters: { groupId: 'mygroup', percentage: invalid_value }
+              )
 
               expect(strategy).to be_invalid
 
-              expect(strategy.errors[:parameters]).to eq(['percentage must be a string between 0 and 100 inclusive'])
+              expect(strategy.errors[:parameters]).to eq([
+                s_('Validation|percentage must be a string between 0 and 100 inclusive')
+              ])
             end
           end
 
@@ -84,10 +94,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'must be a string value between 0 and 100 inclusive and without a percentage sign' do
-              strategy = build(:operations_strategy,
-                               :gradual_rollout,
-                               feature_flag: feature_flag,
-                               parameters: { groupId: 'mygroup', percentage: valid_value })
+              strategy = build(
+                :operations_strategy,
+                :gradual_rollout,
+                feature_flag: feature_flag,
+                parameters: { groupId: 'mygroup', percentage: valid_value }
+              )
 
               expect(strategy).to be_valid
             end
@@ -101,14 +113,16 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'must be a string value of up to 32 lowercase characters' do
-              strategy = build(:operations_strategy,
-                               :gradual_rollout,
-                               feature_flag: feature_flag,
-                               parameters: { groupId: invalid_value, percentage: '40' })
+              strategy = build(
+                :operations_strategy,
+                :gradual_rollout,
+                feature_flag: feature_flag,
+                parameters: { groupId: invalid_value, percentage: '40' }
+              )
 
               expect(strategy).to be_invalid
 
-              expect(strategy.errors[:parameters]).to eq(['groupId parameter is invalid'])
+              expect(strategy.errors[:parameters]).to eq([s_('Validation|groupId parameter is invalid')])
             end
           end
 
@@ -117,10 +131,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'must be a string value of up to 32 lowercase characters' do
-              strategy = build(:operations_strategy,
-                               :gradual_rollout,
-                               feature_flag: feature_flag,
-                               parameters: { groupId: valid_value, percentage: '40' })
+              strategy = build(
+                :operations_strategy,
+                :gradual_rollout,
+                feature_flag: feature_flag,
+                parameters: { groupId: valid_value, percentage: '40' }
+              )
 
               expect(strategy).to be_valid
             end
@@ -141,14 +157,16 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           ])
         with_them do
           it 'must have valid parameters for the strategy' do
-            strategy = build(:operations_strategy,
-                             :flexible_rollout,
-                             feature_flag: feature_flag,
-                             parameters: invalid_parameters)
+            strategy = build(
+              :operations_strategy,
+              :flexible_rollout,
+              feature_flag: feature_flag,
+              parameters: invalid_parameters
+            )
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:parameters]).to eq(['parameters are invalid'])
+            expect(strategy.errors[:parameters]).to eq([s_('Validation|parameters are invalid')])
           end
         end
 
@@ -158,10 +176,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           [:groupId, 'mygroup']
         ].permutation(3).each do |parameters|
           it "allows the parameters in the order #{parameters.map { |p| p.first }.join(', ')}" do
-            strategy = build(:operations_strategy,
-                             :flexible_rollout,
-                             feature_flag: feature_flag,
-                             parameters: Hash[parameters])
+            strategy = build(
+              :operations_strategy,
+              :flexible_rollout,
+              feature_flag: feature_flag,
+              parameters: Hash[parameters]
+            )
 
             expect(strategy).to be_valid
           end
@@ -174,14 +194,18 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string value between 0 and 100 inclusive and without a percentage sign' do
               parameters = { stickiness: 'default', groupId: 'mygroup', rollout: invalid_value }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_invalid
 
-              expect(strategy.errors[:parameters]).to eq(['rollout must be a string between 0 and 100 inclusive'])
+              expect(strategy.errors[:parameters]).to eq([
+                s_('Validation|rollout must be a string between 0 and 100 inclusive')
+              ])
             end
           end
 
@@ -189,10 +213,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string value between 0 and 100 inclusive and without a percentage sign' do
               parameters = { stickiness: 'default', groupId: 'mygroup', rollout: valid_value }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_valid
             end
@@ -205,10 +231,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string value of up to 32 lowercase characters' do
               parameters = { stickiness: 'default', groupId: invalid_value, rollout: '40' }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_invalid
 
@@ -220,10 +248,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string value of up to 32 lowercase characters' do
               parameters = { stickiness: 'default', groupId: valid_value, rollout: '40' }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_valid
             end
@@ -235,10 +265,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string representing a supported stickiness setting' do
               parameters = { stickiness: invalid_value, groupId: 'mygroup', rollout: '40' }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_invalid
 
@@ -251,10 +283,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           with_them do
             it 'must be a string representing a supported stickiness setting' do
               parameters = { stickiness: valid_value, groupId: 'mygroup', rollout: '40' }
-              strategy = build(:operations_strategy,
-                               :flexible_rollout,
-                               feature_flag: feature_flag,
-                               parameters: parameters)
+              strategy = build(
+                :operations_strategy,
+                :flexible_rollout,
+                feature_flag: feature_flag,
+                parameters: parameters
+              )
 
               expect(strategy).to be_valid
             end
@@ -268,13 +302,16 @@ RSpec.describe Operations::FeatureFlags::Strategy do
         end
         with_them do
           it 'must have valid parameters for the strategy' do
-            strategy = build(:operations_strategy,
-                             feature_flag: feature_flag,
-                             name: 'userWithId', parameters: invalid_parameters)
+            strategy = build(
+              :operations_strategy,
+              feature_flag: feature_flag,
+              name: 'userWithId',
+              parameters: invalid_parameters
+            )
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:parameters]).to eq(['parameters are invalid'])
+            expect(strategy.errors[:parameters]).to eq([s_('Validation|parameters are invalid')])
           end
         end
 
@@ -287,10 +324,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'is valid with a string of comma separated values' do
-              strategy = build(:operations_strategy,
-                               feature_flag: feature_flag,
-                               name: 'userWithId',
-                               parameters: { userIds: valid_value })
+              strategy = build(
+                :operations_strategy,
+                feature_flag: feature_flag,
+                name: 'userWithId',
+                parameters: { userIds: valid_value }
+              )
 
               expect(strategy).to be_valid
             end
@@ -303,10 +342,12 @@ RSpec.describe Operations::FeatureFlags::Strategy do
           end
           with_them do
             it 'is invalid' do
-              strategy = build(:operations_strategy,
-                               feature_flag: feature_flag,
-                               name: 'userWithId',
-                               parameters: { userIds: invalid_value })
+              strategy = build(
+                :operations_strategy,
+                feature_flag: feature_flag,
+                name: 'userWithId',
+                parameters: { userIds: invalid_value }
+              )
 
               expect(strategy).to be_invalid
 
@@ -328,7 +369,7 @@ RSpec.describe Operations::FeatureFlags::Strategy do
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:parameters]).to eq(['parameters are invalid'])
+            expect(strategy.errors[:parameters]).to eq([s_('Validation|parameters are invalid')])
           end
         end
 
@@ -347,23 +388,27 @@ RSpec.describe Operations::FeatureFlags::Strategy do
         end
         with_them do
           it 'is invalid' do
-            strategy = build(:operations_strategy,
-                             :gitlab_userlist,
-                             user_list: user_list,
-                             feature_flag: feature_flag,
-                             parameters: invalid_value)
+            strategy = build(
+              :operations_strategy,
+              :gitlab_userlist,
+              user_list: user_list,
+              feature_flag: feature_flag,
+              parameters: invalid_value
+            )
 
             expect(strategy).to be_invalid
 
-            expect(strategy.errors[:parameters]).to eq(['parameters are invalid'])
+            expect(strategy.errors[:parameters]).to eq([s_('Validation|parameters are invalid')])
           end
         end
 
         it 'is valid' do
-          strategy = build(:operations_strategy,
-                           :gitlab_userlist,
-                           user_list: user_list,
-                           feature_flag: feature_flag)
+          strategy = build(
+            :operations_strategy,
+            :gitlab_userlist,
+            user_list: user_list,
+            feature_flag: feature_flag
+          )
 
           expect(strategy).to be_valid
         end
@@ -394,7 +439,7 @@ RSpec.describe Operations::FeatureFlags::Strategy do
 
           expect(strategy).to be_invalid
 
-          expect(strategy.errors[:user_list]).to eq(['must belong to the same project'])
+          expect(strategy.errors[:user_list]).to eq([s_('Validation|must belong to the same project')])
         end
       end
 

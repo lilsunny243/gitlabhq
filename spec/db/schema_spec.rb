@@ -10,10 +10,21 @@ RSpec.describe 'Database schema', feature_category: :database do
   let(:columns_name_with_jsonb) { retrieve_columns_name_with_jsonb }
 
   IGNORED_INDEXES_ON_FKS = {
-    slack_integrations_scopes: %w[slack_api_scope_id]
+    # `search_index_id index_type` is the composite foreign key configured for `search_namespace_index_assignments`,
+    # but in Search::NamespaceIndexAssignment model, only `search_index_id` is used as foreign key and indexed
+    search_namespace_index_assignments: [%w[search_index_id index_type]],
+    slack_integrations_scopes: [%w[slack_api_scope_id]],
+    notes: %w[namespace_id] # this index is added in an async manner, hence it needs to be ignored in the first phase.
   }.with_indifferent_access.freeze
 
   TABLE_PARTITIONS = %w[ci_builds_metadata].freeze
+
+  # If splitting FK and table removal into two MRs as suggested in the docs, use this constant in the initial FK removal MR.
+  # In the subsequent table removal MR, remove the entries.
+  # See: https://docs.gitlab.com/ee/development/migration_style_guide.html#dropping-a-database-table
+  REMOVED_FKS = {
+    # example_table: %w[example_column]
+  }.with_indifferent_access.freeze
 
   # List of columns historically missing a FK, don't add more columns
   # See: https://docs.gitlab.com/ee/development/database/foreign_keys.html#naming-foreign-keys
@@ -25,34 +36,22 @@ RSpec.describe 'Database schema', feature_category: :database do
     approvers: %w[target_id user_id],
     analytics_cycle_analytics_aggregations: %w[last_full_issues_id last_full_merge_requests_id last_incremental_issues_id last_full_run_issues_id last_full_run_merge_requests_id last_incremental_merge_requests_id last_consistency_check_issues_stage_event_hash_id last_consistency_check_issues_issuable_id last_consistency_check_merge_requests_stage_event_hash_id last_consistency_check_merge_requests_issuable_id],
     analytics_cycle_analytics_merge_request_stage_events: %w[author_id group_id merge_request_id milestone_id project_id stage_event_hash_id state_id],
-    analytics_cycle_analytics_issue_stage_events: %w[author_id group_id issue_id milestone_id project_id stage_event_hash_id state_id],
+    analytics_cycle_analytics_issue_stage_events: %w[author_id group_id issue_id milestone_id project_id stage_event_hash_id state_id sprint_id],
     audit_events: %w[author_id entity_id target_id],
     award_emoji: %w[awardable_id user_id],
     aws_roles: %w[role_external_id],
     boards: %w[milestone_id iteration_id],
-    chat_names: %w[chat_id team_id user_id integration_id],
+    broadcast_messages: %w[namespace_id],
+    chat_names: %w[chat_id team_id user_id],
     chat_teams: %w[team_id],
-    ci_build_needs: %w[partition_id build_id],
-    ci_build_pending_states: %w[partition_id build_id],
-    ci_build_report_results: %w[partition_id build_id],
-    ci_build_trace_chunks: %w[partition_id build_id],
-    ci_build_trace_metadata: %w[partition_id build_id],
-    ci_builds: %w[erased_by_id trigger_request_id partition_id],
-    ci_builds_runner_session: %w[partition_id build_id],
-    p_ci_builds_metadata: %w[partition_id],
-    ci_job_artifacts: %w[partition_id job_id],
-    ci_job_variables: %w[partition_id job_id],
+    ci_builds: %w[project_id runner_id user_id erased_by_id trigger_request_id partition_id],
     ci_namespace_monthly_usages: %w[namespace_id],
-    ci_pending_builds: %w[partition_id build_id],
     ci_pipeline_variables: %w[partition_id],
     ci_pipelines: %w[partition_id],
-    ci_resources: %w[partition_id build_id],
     ci_runner_projects: %w[runner_id],
-    ci_running_builds: %w[partition_id build_id],
     ci_sources_pipelines: %w[partition_id source_partition_id source_job_id],
     ci_stages: %w[partition_id],
     ci_trigger_requests: %w[commit_id],
-    ci_unit_test_failures: %w[partition_id build_id],
     cluster_providers_aws: %w[security_group_id vpc_id access_key_id],
     cluster_providers_gcp: %w[gcp_project_id operation_id],
     compliance_management_frameworks: %w[group_id],
@@ -83,17 +82,18 @@ RSpec.describe 'Database schema', feature_category: :database do
     merge_requests_compliance_violations: %w[target_project_id],
     merge_request_diff_commits: %w[commit_author_id committer_id],
     namespaces: %w[owner_id parent_id],
-    notes: %w[author_id commit_id noteable_id updated_by_id resolved_by_id confirmed_by_id discussion_id],
+    notes: %w[author_id commit_id noteable_id updated_by_id resolved_by_id confirmed_by_id discussion_id namespace_id],
     notification_settings: %w[source_id],
     oauth_access_grants: %w[resource_owner_id application_id],
     oauth_access_tokens: %w[resource_owner_id application_id],
     oauth_applications: %w[owner_id],
-    p_ci_runner_machine_builds: %w[partition_id build_id runner_machine_id],
+    p_ci_builds: %w[erased_by_id trigger_request_id partition_id],
+    p_batched_git_ref_updates_deletions: %w[project_id partition_id],
+    p_ci_finished_build_ch_sync_events: %w[build_id],
     product_analytics_events_experimental: %w[event_id txn_id user_id],
     project_build_artifacts_size_refreshes: %w[last_job_artifact_id],
     project_data_transfers: %w[project_id namespace_id],
     project_error_tracking_settings: %w[sentry_project_id],
-    project_group_links: %w[group_id],
     project_statistics: %w[namespace_id],
     projects: %w[ci_id mirror_user_id],
     redirect_routes: %w[source_id],
@@ -111,19 +111,23 @@ RSpec.describe 'Database schema', feature_category: :database do
     todos: %w[target_id commit_id],
     uploads: %w[model_id],
     user_agent_details: %w[subject_id],
-    users: %w[color_scheme_id created_by_id theme_id email_opted_in_source_id],
+    users: %w[color_scheme_id created_by_id theme_id email_opted_in_source_id managing_group_id],
     users_star_projects: %w[user_id],
     vulnerability_identifiers: %w[external_id],
     vulnerability_scanners: %w[external_id],
     security_scans: %w[pipeline_id], # foreign key is not added as ci_pipeline table will be moved into different db soon
+    dependency_list_exports: %w[pipeline_id], # foreign key is not added as ci_pipeline table is in different db
     vulnerability_reads: %w[cluster_agent_id],
     # See: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87584
     # Fixes performance issues with the deletion of web-hooks with many log entries
-    web_hook_logs: %w[web_hook_id]
+    web_hook_logs: %w[web_hook_id],
+    webauthn_registrations: %w[u2f_registration_id], # this column will be dropped
+    ml_candidates: %w[internal_id],
+    value_stream_dashboard_counts: %w[namespace_id]
   }.with_indifferent_access.freeze
 
   context 'for table' do
-    Gitlab::Database::EachDatabase.each_database_connection do |connection, _|
+    Gitlab::Database::EachDatabase.each_connection do |connection, _|
       schemas_for_connection = Gitlab::Database.gitlab_schemas_for_connection(connection)
       (connection.tables - TABLE_PARTITIONS).sort.each do |table|
         table_schema = Gitlab::Database::GitlabSchema.table_schema(table)
@@ -132,52 +136,94 @@ RSpec.describe 'Database schema', feature_category: :database do
         describe table do
           let(:indexes) { connection.indexes(table) }
           let(:columns) { connection.columns(table) }
-          let(:foreign_keys) { connection.foreign_keys(table) }
+          let(:foreign_keys) { to_foreign_keys(Gitlab::Database::PostgresForeignKey.by_constrained_table_name(table)) }
           let(:loose_foreign_keys) { Gitlab::Database::LooseForeignKeys.definitions.group_by(&:from_table).fetch(table, []) }
           let(:all_foreign_keys) { foreign_keys + loose_foreign_keys }
-          # take the first column in case we're using a composite primary key
-          let(:primary_key_column) { Array(connection.primary_key(table)).first }
+          let(:composite_primary_key) { Array.wrap(connection.primary_key(table)) }
 
           context 'all foreign keys' do
             # for index to be effective, the FK constraint has to be at first place
             it 'are indexed' do
-              first_indexed_column = indexes.filter_map do |index|
+              indexed_columns = indexes.filter_map do |index|
                 columns = index.columns
 
                 # In cases of complex composite indexes, a string is returned eg:
                 # "lower((extern_uid)::text), group_id"
-                columns = columns.split(',') if columns.is_a?(String)
-                column = columns.first.chomp
+                columns = columns.split(',').map(&:chomp) if columns.is_a?(String)
 
                 # A partial index is not suitable for a foreign key column, unless
                 # the only condition is for the presence of the foreign key itself
-                column if index.where.nil? || index.where == "(#{column} IS NOT NULL)"
+                columns if index.where.nil? || index.where == "(#{columns.first} IS NOT NULL)"
               end
               foreign_keys_columns = all_foreign_keys.map(&:column)
-              required_indexed_columns = foreign_keys_columns - ignored_index_columns(table)
+              required_indexed_columns = to_columns(foreign_keys_columns - ignored_index_columns(table))
 
-              # Add the primary key column to the list of indexed columns because
+              # Add the composite primary key to the list of indexed columns because
               # postgres and mysql both automatically create an index on the primary
               # key. Also, the rails connection.indexes() method does not return
               # automatically generated indexes (like the primary key index).
-              first_indexed_column.push(primary_key_column)
+              indexed_columns.push(composite_primary_key)
 
-              expect(first_indexed_column.uniq).to include(*required_indexed_columns)
+              expect(required_indexed_columns).to be_indexed_by(indexed_columns)
             end
           end
 
           context 'columns ending with _id' do
             let(:column_names) { columns.map(&:name) }
             let(:column_names_with_id) { column_names.select { |column_name| column_name.ends_with?('_id') } }
-            let(:foreign_keys_columns) { all_foreign_keys.reject { |fk| fk.name&.end_with?("_p") }.map(&:column).uniq } # we can have FK and loose FK present at the same time
             let(:ignored_columns) { ignored_fk_columns(table) }
+            let(:foreign_keys_columns) do
+              to_columns(
+                all_foreign_keys
+                  .reject { |fk| fk.name&.end_with?("_id_convert_to_bigint") }
+                  .map(&:column)
+              )
+            end
 
             it 'do have the foreign keys' do
-              expect(column_names_with_id - ignored_columns).to match_array(foreign_keys_columns)
+              expect(column_names_with_id - ignored_columns).to be_a_foreign_key_column_of(foreign_keys_columns)
             end
 
             it 'and having foreign key are not in the ignore list' do
               expect(ignored_columns).to match_array(ignored_columns - foreign_keys)
+            end
+          end
+
+          context 'btree indexes' do
+            it 'only has existing indexes in the ignored duplicate indexes duplicate_indexes.yml' do
+              table_ignored_indexes = (ignored_indexes[table] || {}).to_a.flatten.uniq
+              indexes_by_name = indexes.map(&:name)
+              expect(indexes_by_name).to include(*table_ignored_indexes)
+            end
+
+            it 'does not have any duplicated indexes' do
+              duplicate_indexes = Database::DuplicateIndexes.new(table, indexes).duplicate_indexes
+              expect(duplicate_indexes).to be_an_instance_of Hash
+
+              table_ignored_indexes = ignored_indexes[table] || {}
+
+              # We ignore all the indexes that are explicitly ignored in duplicate_indexes.yml
+              duplicate_indexes.each do |index, matching_indexes|
+                duplicate_indexes[index] = matching_indexes.reject do |matching_index|
+                  table_ignored_indexes.fetch(index.name, []).include?(matching_index.name) ||
+                    table_ignored_indexes.fetch(matching_index.name, []).include?(index.name)
+                end
+
+                duplicate_indexes.delete(index) if duplicate_indexes[index].empty?
+              end
+
+              if duplicate_indexes.present?
+                btree_index = duplicate_indexes.each_key.first
+                matching_indexes = duplicate_indexes[btree_index]
+
+                error_message = <<~ERROR
+                    Duplicate index: #{btree_index.name} with #{matching_indexes.map(&:name)}
+                    #{btree_index.name} : #{btree_index.columns.inspect}
+                    #{matching_indexes.first.name} : #{matching_indexes.first.columns.inspect}.
+                    Consider dropping the indexes #{matching_indexes.map(&:name).join(', ')}
+                ERROR
+                raise error_message
+              end
             end
           end
         end
@@ -198,11 +244,9 @@ RSpec.describe 'Database schema', feature_category: :database do
     'Ci::Processable' => %w[failure_reason],
     'Ci::Runner' => %w[access_level],
     'Ci::Stage' => %w[status],
-    'Clusters::Applications::Ingress' => %w[ingress_type],
     'Clusters::Cluster' => %w[platform_type provider_type],
     'CommitStatus' => %w[failure_reason],
     'GenericCommitStatus' => %w[failure_reason],
-    'Gitlab::DatabaseImporters::CommonMetrics::PrometheusMetric' => %w[group],
     'InternalId' => %w[usage],
     'List' => %w[list_type],
     'NotificationSetting' => %w[level],
@@ -234,18 +278,17 @@ RSpec.describe 'Database schema', feature_category: :database do
     "ApplicationSetting" => %w[repository_storages_weighted],
     "AlertManagement::Alert" => %w[payload],
     "Ci::BuildMetadata" => %w[config_options config_variables],
-    "Ci::BuildMetadata::Partitioned" => %w[config_options config_variables id_tokens runtime_runner_features secrets],
     "ExperimentSubject" => %w[context],
     "ExperimentUser" => %w[context],
     "Geo::Event" => %w[payload],
     "GeoNodeStatus" => %w[status],
     "Operations::FeatureFlagScope" => %w[strategies],
     "Operations::FeatureFlags::Strategy" => %w[parameters],
+    "Organizations::OrganizationSetting" => %w[settings], # Custom validations
     "Packages::Composer::Metadatum" => %w[composer_json],
     "RawUsageData" => %w[payload], # Usage data payload changes often, we cannot use one schema
     "Releases::Evidence" => %w[summary],
-    "Vulnerabilities::Finding::Evidence" => %w[data], # Validation work in progress
-    "EE::Gitlab::BackgroundMigration::FixSecurityScanStatuses::SecurityScan" => %w[info] # This is a migration model
+    "Vulnerabilities::Finding::Evidence" => %w[data] # Validation work in progress
   }.freeze
 
   # We are skipping GEO models for now as it adds up complexity
@@ -255,8 +298,10 @@ RSpec.describe 'Database schema', feature_category: :database do
         next if models_by_table_name[hash["table_name"]].nil?
 
         models_by_table_name[hash["table_name"]].each do |model|
-          jsonb_columns = [hash["column_name"]] - ignored_jsonb_columns(model.name)
+          # Skip migration models
+          next if model.name.include?('Gitlab::BackgroundMigration')
 
+          jsonb_columns = [hash["column_name"]] - ignored_jsonb_columns(model.name)
           expect(model).to validate_jsonb_schema(jsonb_columns)
         end
       end
@@ -295,7 +340,7 @@ RSpec.describe 'Database schema', feature_category: :database do
 
   context 'primary keys' do
     it 'expects every table to have a primary key defined' do
-      Gitlab::Database::EachDatabase.each_database_connection do |connection, _|
+      Gitlab::Database::EachDatabase.each_connection do |connection, _|
         schemas_for_connection = Gitlab::Database.gitlab_schemas_for_connection(connection)
 
         problematic_tables = connection.tables.select do |table|
@@ -304,6 +349,28 @@ RSpec.describe 'Database schema', feature_category: :database do
         end.map(&:to_sym)
 
         expect(problematic_tables).to be_empty
+      end
+    end
+
+    context 'for CI partitioned table' do
+      # Check that each partitionable model with more than 1 column has the partition_id column at the trailing
+      # position. Using PARTITIONABLE_MODELS instead of iterating tables since when partitioning existing tables,
+      # the routing table only gets created after the PK has already been created, which would be too late for a check.
+
+      skip_tables = %w[]
+      partitionable_models = Ci::Partitionable::Testing::PARTITIONABLE_MODELS
+      (partitionable_models - skip_tables).each do |klass|
+        model = klass.safe_constantize
+        table_name = model.table_name
+
+        primary_key_columns = Array.wrap(model.connection.primary_key(table_name))
+        next if primary_key_columns.count == 1
+
+        describe table_name do
+          it 'expects every PK to have partition_id at trailing position' do
+            expect(primary_key_columns).to match([an_instance_of(String), 'partition_id'])
+          end
+        end
       end
     end
   end
@@ -336,12 +403,32 @@ RSpec.describe 'Database schema', feature_category: :database do
     ApplicationRecord.connection.select_all(sql).to_a
   end
 
+  def to_foreign_keys(constraints)
+    constraints.map do |constraint|
+      from_table = constraint.constrained_table_identifier
+      ActiveRecord::ConnectionAdapters::ForeignKeyDefinition.new(
+        from_table,
+        constraint.referenced_table_identifier,
+        {
+          name: constraint.name,
+          column: constraint.constrained_columns,
+          on_delete: constraint.on_delete_action&.to_sym,
+          gitlab_schema: Gitlab::Database::GitlabSchema.table_schema!(from_table)
+        }
+      )
+    end
+  end
+
+  def to_columns(items)
+    items.map { |item| Array.wrap(item) }.uniq
+  end
+
   def models_by_table_name
     @models_by_table_name ||= ApplicationRecord.descendants.reject(&:abstract_class).group_by(&:table_name)
   end
 
   def ignored_fk_columns(table)
-    IGNORED_FK_COLUMNS.fetch(table, [])
+    REMOVED_FKS.merge(IGNORED_FK_COLUMNS).fetch(table, [])
   end
 
   def ignored_index_columns(table)
@@ -354,5 +441,10 @@ RSpec.describe 'Database schema', feature_category: :database do
 
   def ignored_jsonb_columns(model)
     IGNORED_JSONB_COLUMNS.fetch(model, [])
+  end
+
+  def ignored_indexes
+    duplicate_indexes_file_path = "spec/support/helpers/database/duplicate_indexes.yml"
+    @ignored_indexes ||= YAML.load_file(Rails.root.join(duplicate_indexes_file_path)) || {}
   end
 end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::DependencyProxyForContainersController do
+RSpec.describe Groups::DependencyProxyForContainersController, feature_category: :dependency_proxy do
   include HttpBasicAuthHelpers
   include DependencyProxyHelpers
   include WorkhorseHelpers
@@ -28,7 +28,7 @@ RSpec.describe Groups::DependencyProxyForContainersController do
       let(:image) { '../path_traversal' }
 
       it 'raises an error' do
-        expect { subject }.to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+        expect { subject }.to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
       end
     end
 
@@ -36,7 +36,7 @@ RSpec.describe Groups::DependencyProxyForContainersController do
       let(:tag) { 'latest%2f..%2f..%2fpath_traversal' }
 
       it 'raises an error' do
-        expect { subject }.to raise_error(Gitlab::Utils::PathTraversalAttackError, 'Invalid path')
+        expect { subject }.to raise_error(Gitlab::PathTraversal::PathTraversalAttackError, 'Invalid path')
       end
     end
   end
@@ -244,12 +244,12 @@ RSpec.describe Groups::DependencyProxyForContainersController do
             subject
 
             send_data_type, send_data = workhorse_send_data
-            header, url = send_data.values_at('Header', 'Url')
+            header, url = send_data.values_at('Headers', 'Url')
 
             expect(send_data_type).to eq('send-dependency')
             expect(header).to eq(
               "Authorization" => ["Bearer abcd1234"],
-              "Accept" => ::ContainerRegistry::Client::ACCEPTED_TYPES
+              "Accept" => ::DependencyProxy::Manifest::ACCEPTED_TYPES
             )
             expect(url).to eq(DependencyProxy::Registry.manifest_url(image, tag))
             expect(response.headers['Content-Type']).to eq('application/gzip')
@@ -312,7 +312,7 @@ RSpec.describe Groups::DependencyProxyForContainersController do
             subject
 
             send_data_type, send_data = workhorse_send_data
-            header, url = send_data.values_at('Header', 'Url')
+            header, url = send_data.values_at('Headers', 'Url')
 
             expect(send_data_type).to eq('send-dependency')
             expect(header).to eq("Authorization" => ["Bearer abcd1234"])

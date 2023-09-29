@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class UserStatus < ApplicationRecord
+class UserStatus < MainClusterwide::ApplicationRecord
   include CacheMarkdownField
 
   self.primary_key = :user_id
@@ -17,7 +17,7 @@ class UserStatus < ApplicationRecord
     '30_days' => 30.days
   }.freeze
 
-  belongs_to :user
+  belongs_to :user, inverse_of: :status
 
   enum availability: { not_set: 0, busy: 1 }
 

@@ -23,9 +23,6 @@ export default {
     currentProject: {
       default: () => ({}),
     },
-    currentBranch: {
-      default: () => ({}),
-    },
     inputs: {
       default: () => ({}),
     },
@@ -35,8 +32,15 @@ export default {
     toggleClass: {
       default: () => ({}),
     },
-    branchQaSelector: {
-      default: '',
+    compareSide: {
+      default: null,
+    },
+  },
+  props: {
+    currentBranch: {
+      type: Object,
+      required: false,
+      default: () => ({}),
     },
   },
   data() {
@@ -57,6 +61,12 @@ export default {
       return this.commitHtml || this.loading || !this.selectedBranch.value;
     },
   },
+  watch: {
+    currentBranch(newVal) {
+      this.selectedBranch = newVal;
+      this.fetchCommit();
+    },
+  },
   mounted() {
     this.fetchCommit();
   },
@@ -67,6 +77,7 @@ export default {
     selectBranch(branch) {
       this.selectedBranch = branch;
       this.fetchCommit();
+      this.$emit('select-branch', branch.value);
     },
     async fetchCommit() {
       if (!this.selectedBranch.value) return;
@@ -108,7 +119,8 @@ export default {
           :input-name="inputs.branch.name"
           :default="currentBranch"
           :toggle-class="toggleClass.branch"
-          :qa-selector="branchQaSelector"
+          :data-qa-compare-side="compareSide"
+          data-testid="compare-dropdown"
           @selected="selectBranch"
         />
       </div>

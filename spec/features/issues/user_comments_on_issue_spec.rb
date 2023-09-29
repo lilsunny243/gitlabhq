@@ -3,7 +3,8 @@
 require "spec_helper"
 
 RSpec.describe "User comments on issue", :js, feature_category: :team_planning do
-  include Spec::Support::Helpers::Features::NotesHelpers
+  include Features::AutocompleteHelpers
+  include Features::NotesHelpers
 
   let_it_be(:project) { create(:project, :public) }
   let_it_be(:issue) { create(:issue, project: project) }
@@ -32,6 +33,8 @@ RSpec.describe "User comments on issue", :js, feature_category: :team_planning d
       end
     end
 
+    it_behaves_like 'edits content using the content editor'
+
     it "adds comment with code block" do
       code_block_content = "Command [1]: /usr/local/bin/git , see [text](doc/text)"
       comment = "```\n#{code_block_content}\n```"
@@ -48,6 +51,17 @@ RSpec.describe "User comments on issue", :js, feature_category: :team_planning d
       fill_in 'Comment', with: '/l'
 
       expect(find_highlighted_autocomplete_item).to have_content('/label')
+    end
+
+    it "switches back to edit mode if a comment is submitted in preview mode" do
+      fill_in 'Comment', with: 'just a regular comment'
+      click_button 'Preview'
+
+      expect(page).to have_content('Continue editing')
+
+      click_button 'Comment'
+
+      expect(page).not_to have_content('Continue editing')
     end
   end
 
@@ -89,11 +103,5 @@ RSpec.describe "User comments on issue", :js, feature_category: :team_planning d
         expect(page).to have_content(comment)
       end
     end
-  end
-
-  private
-
-  def find_highlighted_autocomplete_item
-    find('.atwho-view li.cur', visible: true)
   end
 end

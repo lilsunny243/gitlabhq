@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::RetryPipelineService, '#execute' do
+RSpec.describe Ci::RetryPipelineService, '#execute', feature_category: :continuous_integration do
   include ProjectForksHelper
 
   let_it_be_with_refind(:user) { create(:user) }
@@ -19,8 +19,7 @@ RSpec.describe Ci::RetryPipelineService, '#execute' do
     before do
       project.add_developer(user)
 
-      create(:protected_branch, :developers_can_merge,
-             name: pipeline.ref, project: project)
+      create(:protected_branch, :developers_can_merge, name: pipeline.ref, project: project)
     end
 
     context 'when there are already retried jobs present' do
@@ -408,8 +407,7 @@ RSpec.describe Ci::RetryPipelineService, '#execute' do
   context 'when user is not allowed to trigger manual action' do
     before do
       project.add_developer(user)
-      create(:protected_branch, :maintainers_can_push,
-             name: pipeline.ref, project: project)
+      create(:protected_branch, :maintainers_can_push, name: pipeline.ref, project: project)
     end
 
     context 'when there is a failed manual action present' do
@@ -453,22 +451,18 @@ RSpec.describe Ci::RetryPipelineService, '#execute' do
 
     before do
       project.add_maintainer(user)
-      create(:merge_request,
-        source_project: forked_project,
-        target_project: project,
-        source_branch: 'fixes',
-        allow_collaboration: true)
-      create_build('rspec 1', :failed, test_stage)
+
+      create_build('rspec 1', :failed, test_stage, project: project, ref: pipeline.ref)
+
+      allow_any_instance_of(Project).to receive(:empty_repo?).and_return(false)
+      allow_any_instance_of(Project).to receive(:branch_allows_collaboration?).and_return(true)
     end
 
     it 'allows to retry failed pipeline' do
-      allow_any_instance_of(Project).to receive(:branch_allows_collaboration?).and_return(true)
-      allow_any_instance_of(Project).to receive(:empty_repo?).and_return(false)
-
       service.execute(pipeline)
 
       expect(build('rspec 1')).to be_pending
-      expect(pipeline.reload).to be_running
+      expect(pipeline).to be_running
     end
   end
 
@@ -490,11 +484,15 @@ RSpec.describe Ci::RetryPipelineService, '#execute' do
   end
 
   def create_processable(type, name, status, stage, **opts)
-    create(type, name: name,
-                 status: status,
-                 ci_stage: stage,
-                 stage_idx: stage.position,
-                 pipeline: pipeline, **opts) do |_job|
+    create(
+      type,
+      name: name,
+      status: status,
+      ci_stage: stage,
+      stage_idx: stage.position,
+      pipeline: pipeline,
+      **opts
+    ) do |_job|
       ::Ci::ProcessPipelineService.new(pipeline).execute
     end
   end

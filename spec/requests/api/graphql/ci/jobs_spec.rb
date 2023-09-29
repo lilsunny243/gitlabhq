@@ -1,6 +1,130 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
+RSpec.describe 'Query.jobs', feature_category: :continuous_integration do
+  include GraphqlHelpers
+
+  let_it_be(:admin) { create(:admin) }
+  let_it_be(:project) { create(:project, :repository, :public) }
+  let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+  let_it_be(:runner) { create(:ci_runner) }
+  let_it_be(:build) do
+    create(:ci_build, pipeline: pipeline, name: 'my test job', ref: 'HEAD', tag_list: %w[tag1 tag2], runner: runner)
+  end
+
+  let(:query) do
+    %(
+      query {
+        jobs {
+          nodes {
+            id
+            #{fields.join(' ')}
+          }
+        }
+      }
+    )
+  end
+
+  let(:jobs_graphql_data) { graphql_data_at(:jobs, :nodes) }
+
+  let(:fields) do
+    %w[commitPath refPath webPath browseArtifactsPath playPath tags runner{id}]
+  end
+
+  it 'returns the paths in each job of a pipeline' do
+    post_graphql(query, current_user: admin)
+
+    expect(jobs_graphql_data).to contain_exactly(
+      a_graphql_entity_for(
+        build,
+        commit_path: "/#{project.full_path}/-/commit/#{build.sha}",
+        ref_path: "/#{project.full_path}/-/commits/HEAD",
+        web_path: "/#{project.full_path}/-/jobs/#{build.id}",
+        browse_artifacts_path: "/#{project.full_path}/-/jobs/#{build.id}/artifacts/browse",
+        play_path: "/#{project.full_path}/-/jobs/#{build.id}/play",
+        tags: build.tag_list,
+        runner: a_graphql_entity_for(runner)
+      )
+    )
+  end
+
+  context 'when requesting individual fields' do
+    using RSpec::Parameterized::TableSyntax
+
+    let_it_be(:admin2) { create(:admin) }
+    let_it_be(:project2) { create(:project) }
+    let_it_be(:pipeline2) { create(:ci_pipeline, project: project2) }
+
+    where(:field) { fields }
+
+    with_them do
+      let(:fields) do
+        [field]
+      end
+
+      it 'does not generate N+1 queries', :request_store, :use_sql_query_cache do
+        # warm-up cache and so on:
+        args = { current_user: admin }
+        args2 = { current_user: admin2 }
+        post_graphql(query, **args2)
+
+        control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
+          post_graphql(query, **args)
+        end
+
+        create(:ci_build, pipeline: pipeline2, name: 'my test job2', ref: 'HEAD', tag_list: %w[tag3])
+        post_graphql(query, **args)
+
+        expect { post_graphql(query, **args) }.not_to exceed_all_query_limit(control)
+      end
+    end
+  end
+end
+
+RSpec.describe 'Query.jobs.runner', feature_category: :continuous_integration do
+  include GraphqlHelpers
+
+  let_it_be(:admin) { create(:admin) }
+
+  let(:jobs_runner_graphql_data) { graphql_data_at(:jobs, :nodes, :runner) }
+  let(:query) do
+    %(
+      query {
+        jobs {
+          nodes {
+            runner{
+              id
+              adminUrl
+              description
+            }
+          }
+        }
+      }
+    )
+  end
+
+  context 'when job has no runner' do
+    let_it_be(:build) { create(:ci_build) }
+
+    it 'returns nil' do
+      post_graphql(query, current_user: admin)
+
+      expect(jobs_runner_graphql_data).to eq([nil])
+    end
+  end
+
+  context 'when job has runner' do
+    let_it_be(:runner) { create(:ci_runner) }
+    let_it_be(:build_with_runner) { create(:ci_build, runner: runner) }
+
+    it 'returns runner attributes' do
+      post_graphql(query, current_user: admin)
+
+      expect(jobs_runner_graphql_data).to contain_exactly(a_graphql_entity_for(runner, :description, 'adminUrl' => "http://localhost/admin/runners/#{runner.id}"))
+    end
+  end
+end
+
 RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integration do
   include GraphqlHelpers
 
@@ -15,7 +139,10 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
     let(:pipeline) do
       pipeline = create(:ci_pipeline, project: project, user: user)
       stage = create(:ci_stage, project: project, pipeline: pipeline, name: 'first', position: 1)
-      create(:ci_build, stage_id: stage.id, pipeline: pipeline, name: 'my test job', scheduling_type: :stage)
+      create(
+        :ci_build, pipeline: pipeline, name: 'my test job',
+        scheduling_type: :stage, stage_id: stage.id, stage_idx: stage.position
+      )
 
       pipeline
     end
@@ -56,10 +183,10 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
                 previousStageJobsOrNeeds {
                   nodes {
                       ... on CiBuildNeed {
-                        #{all_graphql_fields_for('CiBuildNeed')}
+                        name
                       }
                       ... on CiJob {
-                        #{all_graphql_fields_for('CiJob')}
+                        name
                       }
                     }
                 }
@@ -87,10 +214,12 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
       before do
         build_stage = create(:ci_stage, position: 2, name: 'build', project: project, pipeline: pipeline)
         test_stage = create(:ci_stage, position: 3, name: 'test', project: project, pipeline: pipeline)
+        deploy_stage = create(:ci_stage, position: 4, name: 'deploy', project: project, pipeline: pipeline)
 
         create(:ci_build, pipeline: pipeline, name: 'docker 1 2', scheduling_type: :stage, ci_stage: build_stage, stage_idx: build_stage.position)
         create(:ci_build, pipeline: pipeline, name: 'docker 2 2', ci_stage: build_stage, stage_idx: build_stage.position, scheduling_type: :dag)
         create(:ci_build, pipeline: pipeline, name: 'rspec 1 2', scheduling_type: :stage, ci_stage: test_stage, stage_idx: test_stage.position)
+        create(:ci_build, pipeline: pipeline, name: 'deploy', scheduling_type: :stage, ci_stage: deploy_stage, stage_idx: deploy_stage.position)
         test_job = create(:ci_build, pipeline: pipeline, name: 'rspec 2 2', scheduling_type: :dag, ci_stage: test_stage, stage_idx: test_stage.position)
 
         create(:ci_build_need, build: test_job, name: 'my test job')
@@ -130,6 +259,14 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
             'needs' => { 'nodes' => [a_hash_including('name' => 'my test job')] },
             'previousStageJobsOrNeeds' => { 'nodes' => [
               a_hash_including('name' => 'my test job')
+            ] }
+          ),
+          a_hash_including(
+            'name' => 'deploy',
+            'needs' => { 'nodes' => [] },
+            'previousStageJobsOrNeeds' => { 'nodes' => [
+              a_hash_including('name' => 'rspec 1 2'),
+              a_hash_including('name' => 'rspec 2 2')
             ] }
           )
         )
@@ -257,6 +394,66 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
         job_data = graphql_data_at(:project, :pipeline, :stages, :nodes, :groups, :nodes, :jobs, :nodes).first
         expect(job_data['artifacts']).to be_nil
       end
+    end
+  end
+
+  describe '.jobs.runnerManager' do
+    let_it_be(:admin) { create(:admin) }
+    let_it_be(:runner_manager) { create(:ci_runner_machine, created_at: Time.current, contacted_at: Time.current) }
+    let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+    let_it_be(:build) do
+      create(:ci_build, pipeline: pipeline, name: 'my test job', runner_manager: runner_manager)
+    end
+
+    let(:query) do
+      %(
+        query {
+          project(fullPath: "#{project.full_path}") {
+            pipeline(iid: "#{pipeline.iid}") {
+              jobs {
+                nodes {
+                  id
+                  name
+                  runnerManager {
+                    #{all_graphql_fields_for('CiRunnerManager', excluded: [:runner], max_depth: 1)}
+                  }
+                }
+              }
+            }
+          }
+        }
+      )
+    end
+
+    let(:jobs_graphql_data) { graphql_data_at(:project, :pipeline, :jobs, :nodes) }
+
+    it 'returns the runner manager in each job of a pipeline' do
+      post_graphql(query, current_user: admin)
+
+      expect(jobs_graphql_data).to contain_exactly(
+        a_graphql_entity_for(
+          build,
+          name: build.name,
+          runner_manager: a_graphql_entity_for(
+            runner_manager,
+            system_id: runner_manager.system_xid,
+            created_at: runner_manager.created_at.iso8601,
+            contacted_at: runner_manager.contacted_at.iso8601,
+            status: runner_manager.status.to_s.upcase
+          )
+        )
+      )
+    end
+
+    it 'does not generate N+1 queries', :request_store, :use_sql_query_cache do
+      control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
+        post_graphql(query, current_user: admin)
+      end
+
+      runner_manager2 = create(:ci_runner_machine)
+      create(:ci_build, pipeline: pipeline, name: 'my test job2', runner_manager: runner_manager2)
+
+      expect { post_graphql(query, current_user: admin) }.not_to exceed_all_query_limit(control)
     end
   end
 
@@ -426,6 +623,90 @@ RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integrati
       expect(resp.second.dig('data', 'projects', 'nodes').first.dig('jobs', 'nodes').first['name']).to eq('test')
       expect(resp.second['errors'].first['message'])
         .to match(/"jobs" field can be requested only for 1 Project\(s\) at a time./)
+    end
+  end
+end
+
+RSpec.describe 'previousStageJobs', feature_category: :pipeline_composition do
+  include GraphqlHelpers
+
+  let_it_be(:project) { create(:project, :public) }
+  let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+
+  let(:query) do
+    <<~QUERY
+    {
+      project(fullPath: "#{project.full_path}") {
+        pipeline(iid: "#{pipeline.iid}") {
+          stages {
+            nodes {
+              groups {
+                nodes {
+                  jobs {
+                    nodes {
+                      name
+                      previousStageJobs {
+                        nodes {
+                          name
+                          downstreamPipeline {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    QUERY
+  end
+
+  it 'does not produce N+1 queries', :request_store, :use_sql_query_cache do
+    user1 = create(:user)
+    user2 = create(:user)
+
+    create_stage_with_build_and_bridge('build', 0)
+    create_stage_with_build_and_bridge('test', 1)
+
+    control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
+      post_graphql(query, current_user: user1)
+    end
+
+    expect(graphql_data_previous_stage_jobs).to eq(
+      'build_build' => [],
+      'test_build' => %w[build_build]
+    )
+
+    create_stage_with_build_and_bridge('deploy', 2)
+
+    expect do
+      post_graphql(query, current_user: user2)
+    end.to issue_same_number_of_queries_as(control)
+
+    expect(graphql_data_previous_stage_jobs).to eq(
+      'build_build' => [],
+      'test_build' => %w[build_build],
+      'deploy_build' => %w[test_build]
+    )
+  end
+
+  def create_stage_with_build_and_bridge(stage_name, stage_position)
+    stage = create(:ci_stage, position: stage_position, name: "#{stage_name}_stage", project: project, pipeline: pipeline)
+
+    create(:ci_build, pipeline: pipeline, name: "#{stage_name}_build", ci_stage: stage, stage_idx: stage.position)
+  end
+
+  def graphql_data_previous_stage_jobs
+    stages = graphql_data.dig('project', 'pipeline', 'stages', 'nodes')
+    groups = stages.flat_map { |stage| stage.dig('groups', 'nodes') }
+    jobs = groups.flat_map { |group| group.dig('jobs', 'nodes') }
+
+    jobs.each_with_object({}) do |job, previous_stage_jobs|
+      previous_stage_jobs[job['name']] = job.dig('previousStageJobs', 'nodes').pluck('name')
     end
   end
 end

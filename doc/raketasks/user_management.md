@@ -7,7 +7,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 # User management Rake tasks **(FREE SELF)**
 
 GitLab provides Rake tasks for managing users. Administrators can also use the Admin Area to
-[manage users](../user/admin_area/index.md#administering-users).
+[manage users](../administration/admin_area.md#administering-users).
 
 ## Add user as a developer to all projects
 
@@ -180,4 +180,4 @@ sudo /etc/init.d/gitlab start
 
 ## Related topics
 
-- [Reset a user's password](../security/reset_user_password.md#use-a-rake-task).
+- [Reset a user's password](../security/reset_user_password.md#use-a-rake-task)

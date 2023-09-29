@@ -1,27 +1,25 @@
 <script>
 import {
-  GlButton,
-  GlDropdown,
-  GlDropdownItem,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownItem,
   GlIcon,
+  GlButtonGroup,
+  GlButton,
   GlTooltipDirective as GlTooltip,
 } from '@gitlab/ui';
 
 export default {
   components: {
     GlIcon,
+    GlDisclosureDropdown,
+    GlDisclosureDropdownItem,
+    GlButtonGroup,
     GlButton,
-    GlDropdown,
-    GlDropdownItem,
   },
   directives: {
     GlTooltip,
   },
   props: {
-    isProjectsImportEnabled: {
-      type: Boolean,
-      required: true,
-    },
     isFinished: {
       type: Boolean,
       required: true,
@@ -45,30 +43,31 @@ export default {
 
 <template>
   <span class="gl-white-space-nowrap gl-inline-flex gl-align-items-center">
-    <gl-dropdown
-      v-if="isProjectsImportEnabled && (isAvailableForImport || isFinished)"
-      :text="isFinished ? __('Re-import with projects') : __('Import with projects')"
-      :disabled="isInvalid"
-      variant="confirm"
-      category="secondary"
-      data-qa-selector="import_group_button"
-      split
-      @click="importGroup({ migrateProjects: true })"
-    >
-      <gl-dropdown-item @click="importGroup({ migrateProjects: false })">{{
-        isFinished ? __('Re-import without projects') : __('Import without projects')
-      }}</gl-dropdown-item>
-    </gl-dropdown>
-    <gl-button
-      v-else-if="isAvailableForImport || isFinished"
-      :disabled="isInvalid"
-      variant="confirm"
-      category="secondary"
-      data-qa-selector="import_group_button"
-      @click="$emit('import-group')"
-    >
-      {{ isFinished ? __('Re-import') : __('Import') }}
-    </gl-button>
+    <gl-button-group v-if="isAvailableForImport || isFinished">
+      <gl-button
+        variant="confirm"
+        category="secondary"
+        data-testid="import-group-button"
+        @click="importGroup({ migrateProjects: true })"
+        >{{ isFinished ? __('Re-import with projects') : __('Import with projects') }}</gl-button
+      >
+      <gl-disclosure-dropdown
+        toggle-text="Import options"
+        text-sr-only
+        :disabled="isInvalid"
+        icon="chevron-down"
+        no-caret
+        variant="confirm"
+        category="secondary"
+      >
+        <gl-disclosure-dropdown-item @action="importGroup({ migrateProjects: false })">
+          <template #list-item>
+            {{ isFinished ? __('Re-import without projects') : __('Import without projects') }}
+          </template></gl-disclosure-dropdown-item
+        >
+      </gl-disclosure-dropdown>
+    </gl-button-group>
+
     <gl-icon
       v-if="isFinished"
       v-gl-tooltip

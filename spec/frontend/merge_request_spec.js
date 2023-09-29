@@ -1,14 +1,15 @@
 import MockAdapter from 'axios-mock-adapter';
 import $ from 'jquery';
-import { loadHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+import htmlMergeRequestWithTaskList from 'test_fixtures/merge_requests/merge_request_with_task_list.html';
+import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { TEST_HOST } from 'spec/test_constants';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_CONFLICT, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import MergeRequest from '~/merge_request';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('MergeRequest', () => {
   const test = {};
@@ -16,7 +17,7 @@ describe('MergeRequest', () => {
     let mock;
 
     beforeEach(() => {
-      loadHTMLFixture('merge_requests/merge_request_with_task_list.html');
+      setHTMLFixture(htmlMergeRequestWithTaskList);
 
       jest.spyOn(axios, 'patch');
       mock = new MockAdapter(axios);
@@ -105,22 +106,6 @@ describe('MergeRequest', () => {
               'Someone edited this merge request at the same time you did. Please refresh the page to see changes.',
           }),
         );
-      });
-    });
-  });
-
-  describe('hideCloseButton', () => {
-    describe('merge request of current_user', () => {
-      beforeEach(() => {
-        loadHTMLFixture('merge_requests/merge_request_of_current_user.html');
-        test.el = document.querySelector('.js-issuable-actions');
-        MergeRequest.hideCloseButton();
-      });
-
-      it('hides the close button', () => {
-        const smallCloseItem = test.el.querySelector('.js-close-item');
-
-        expect(smallCloseItem).toHaveClass('hidden');
       });
     });
   });

@@ -8,13 +8,11 @@ module QA
       before do
         Flow::Login.sign_in
 
-        Resource::Issue.fabricate_via_api! do |issue|
-          issue.title = issue_title
-        end.project.visit!
+        create(:issue, title: issue_title).project.visit!
       end
 
       it 'shows issue suggestions when creating a new issue', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347995' do
-        Page::Project::Show.perform(&:go_to_new_issue)
+        Page::Project::Menu.perform(&:go_to_new_issue)
         Page::Project::Issue::New.perform do |new_page|
           new_page.fill_title("issue")
           expect(new_page).to have_content(issue_title)

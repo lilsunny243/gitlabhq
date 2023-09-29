@@ -31,7 +31,7 @@ RSpec.describe Settings, feature_category: :system_access do
     with_them do
       before do
         allow(Gitlab.config).to receive(:gitlab).and_return(
-          Settingslogic.new({
+          GitlabSettings::Options.build({
             'host' => host,
             'https' => true,
             'port' => port,
@@ -170,12 +170,12 @@ RSpec.describe Settings, feature_category: :system_access do
 
     it 'defaults to using the encrypted_settings_key_base for the key' do
       expect(Gitlab::EncryptedConfiguration).to receive(:new).with(hash_including(base_key: Gitlab::Application.secrets.encrypted_settings_key_base))
-      Settings.encrypted('tmp/tests/test.enc')
+      described_class.encrypted('tmp/tests/test.enc')
     end
 
     it 'returns empty encrypted config when a key has not been set' do
       allow(Gitlab::Application.secrets).to receive(:encrypted_settings_key_base).and_return(nil)
-      expect(Settings.encrypted('tmp/tests/test.enc').read).to be_empty
+      expect(described_class.encrypted('tmp/tests/test.enc').read).to be_empty
     end
   end
 
@@ -203,8 +203,8 @@ RSpec.describe Settings, feature_category: :system_access do
     using RSpec::Parameterized::TableSyntax
 
     where(:input_rules, :result) do
-      nil                         | [['*', nil]]
-      []                          | [['*', nil]]
+      nil                         | [['*', 'default']]
+      []                          | [['*', 'default']]
       [['name=foobar', 'foobar']] | [['name=foobar', 'foobar']]
     end
 

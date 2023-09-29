@@ -2,8 +2,34 @@
 
 require 'spec_helper'
 
-RSpec.describe OmniauthCallbacksController, type: :controller do
+RSpec.describe OmniauthCallbacksController, type: :controller, feature_category: :system_access do
   include LoginHelpers
+
+  shared_examples 'store provider2FA value in session' do
+    before do
+      stub_omniauth_setting(allow_bypass_two_factor: true)
+      saml_config.args[:upstream_two_factor_authn_contexts] << "urn:oasis:names:tc:SAML:2.0:ac:classes:Password"
+      sign_in user
+    end
+
+    it "sets the session varible for provider 2FA" do
+      post :saml, params: { SAMLResponse: mock_saml_response }
+
+      expect(session[:provider_2FA]).to eq(true)
+    end
+
+    context 'when by_pass_two_factor_for_current_session feature flag is false' do
+      before do
+        stub_feature_flags(by_pass_two_factor_for_current_session: false)
+      end
+
+      it "does not set the session variable for provider 2FA" do
+        post :saml, params: { SAMLResponse: mock_saml_response }
+
+        expect(session[:provider_2FA]).to be_nil
+      end
+    end
+  end
 
   describe 'omniauth' do
     let(:user) { create(:omniauth_user, extern_uid: extern_uid, provider: provider) }
@@ -18,7 +44,40 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       Rails.application.env_config['omniauth.auth'] = @original_env_config_omniauth_auth
     end
 
-    context 'a deactivated user' do
+    context 'when authentication succeeds' do
+      let(:extern_uid) { 'my-uid' }
+      let(:provider) { :github }
+
+      context 'without signed-in user' do
+        it 'increments Prometheus counter' do
+          expect { post(provider) }.to(
+            change do
+              Gitlab::Metrics.registry
+                             .get(:gitlab_omniauth_login_total)
+                             .get(omniauth_provider: 'github', status: 'succeeded')
+            end.by(1)
+          )
+        end
+      end
+
+      context 'with signed-in user' do
+        before do
+          sign_in user
+        end
+
+        it 'increments Prometheus counter' do
+          expect { post(provider) }.to(
+            change do
+              Gitlab::Metrics.registry
+                             .get(:gitlab_omniauth_login_total)
+                             .get(omniauth_provider: 'github', status: 'succeeded')
+            end.by(1)
+          )
+        end
+      end
+    end
+
+    context 'for a deactivated user' do
       let(:provider) { :github }
       let(:extern_uid) { 'my-uid' }
 
@@ -96,20 +155,30 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       let(:extern_uid) { 'my-uid' }
       let(:provider) { :saml }
 
-      def stub_route_as(path)
-        allow(@routes).to receive(:generate_extras) { [path, []] }
+      before do
+        request.env['omniauth.error'] = OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch")
+        request.env['omniauth.error.strategy'] = OmniAuth::Strategies::SAML.new(nil)
+        allow(@routes).to receive(:generate_extras).and_return(['/users/auth/saml/callback', []])
       end
 
       it 'calls through to the failure handler' do
-        request.env['omniauth.error'] = OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch")
-        request.env['omniauth.error.strategy'] = OmniAuth::Strategies::SAML.new(nil)
-        stub_route_as('/users/auth/saml/callback')
-
         ForgeryProtection.with_forgery_protection do
           post :failure
         end
 
         expect(flash[:alert]).to match(/Fingerprint mismatch/)
+      end
+
+      it 'increments Prometheus counter' do
+        ForgeryProtection.with_forgery_protection do
+          expect { post :failure }.to(
+            change do
+              Gitlab::Metrics.registry
+                             .get(:gitlab_omniauth_login_total)
+                             .get(omniauth_provider: 'saml', status: 'failed')
+            end.by(1)
+          )
+        end
       end
     end
 
@@ -147,8 +216,8 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       end
     end
 
-    context 'strategies' do
-      shared_context 'sign_up' do
+    context 'with strategies' do
+      shared_context 'with sign_up' do
         let(:user) { double(email: 'new@example.com') }
 
         before do
@@ -156,7 +225,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         end
       end
 
-      context 'github' do
+      context 'for github' do
         let(:extern_uid) { 'my-uid' }
         let(:provider) { :github }
 
@@ -202,56 +271,46 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
           end
         end
 
-        context 'when user with 2FA is unconfirmed' do
+        context 'when a user has 2FA enabled' do
           render_views
 
           let(:user) { create(:omniauth_user, :two_factor, extern_uid: 'my-uid', provider: provider) }
 
-          before do
-            user.update_column(:confirmed_at, nil)
+          context 'when a user is unconfirmed' do
+            before do
+              stub_application_setting_enum('email_confirmation_setting', 'hard')
+
+              user.update!(confirmed_at: nil)
+            end
+
+            it 'redirects to login page' do
+              post provider
+
+              expect(response).to redirect_to(new_user_session_path)
+              expect(flash[:alert]).to match(/You have to confirm your email address before continuing./)
+            end
           end
 
-          it 'redirects to login page' do
-            post provider
-
-            expect(response).to redirect_to(new_user_session_path)
-            expect(flash[:alert]).to match(/You have to confirm your email address before continuing./)
+          context 'when a user is confirmed' do
+            it 'returns 200 response' do
+              expect(response).to have_gitlab_http_status(:ok)
+            end
           end
         end
 
-        context 'sign up' do
-          include_context 'sign_up'
+        context 'for sign up' do
+          include_context 'with sign_up'
 
-          context 'when intent to register is added to omniauth params' do
-            before do
-              request.env['omniauth.params'] = { 'intent' => 'register' }
-            end
+          it 'is allowed' do
+            post provider
 
-            it 'is allowed' do
-              post provider
-
-              expect(request.env['warden']).to be_authenticated
-            end
-
-            it 'redirects to welcome path' do
-              post provider
-
-              expect(response).to redirect_to(users_sign_up_welcome_path)
-            end
+            expect(request.env['warden']).to be_authenticated
           end
 
-          context 'when intent to register is not added to omniauth params' do
-            it 'is allowed' do
-              post provider
+          it_behaves_like Onboarding::Redirectable do
+            let(:email) { user.email }
 
-              expect(request.env['warden']).to be_authenticated
-            end
-
-            it 'redirects to root path' do
-              post provider
-
-              expect(response).to redirect_to(root_path)
-            end
+            subject(:post_create) { post provider }
           end
         end
 
@@ -282,8 +341,8 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
             expect { post provider }.to change { user.reload.identities.count }.by(1)
           end
 
-          context 'sign up' do
-            include_context 'sign_up'
+          context 'for sign up' do
+            include_context 'with sign_up'
 
             it 'is prevented' do
               post provider
@@ -294,7 +353,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         end
       end
 
-      context 'auth0' do
+      context 'for auth0' do
         let(:extern_uid) { '' }
         let(:provider) { :auth0 }
 
@@ -307,7 +366,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         end
       end
 
-      context 'atlassian_oauth2' do
+      context 'for atlassian_oauth2' do
         let(:provider) { :atlassian_oauth2 }
         let(:extern_uid) { 'my-uid' }
 
@@ -324,9 +383,10 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
             expect(controller).to receive(:atlassian_oauth2).and_wrap_original do |m, *args|
               m.call(*args)
 
-              expect(Gitlab::ApplicationContext.current)
-                .to include('meta.user' => user.username,
-                            'meta.caller_id' => 'OmniauthCallbacksController#atlassian_oauth2')
+              expect(Gitlab::ApplicationContext.current).to include(
+                'meta.user' => user.username,
+                'meta.caller_id' => 'OmniauthCallbacksController#atlassian_oauth2'
+              )
             end
 
             post :atlassian_oauth2
@@ -364,7 +424,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         end
       end
 
-      context 'salesforce' do
+      context 'for salesforce' do
         let(:extern_uid) { 'my-uid' }
         let(:provider) { :salesforce }
         let(:additional_info) { { extra: { email_verified: false } } }
@@ -380,7 +440,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         end
 
         context 'with verified email' do
-          include_context 'sign_up'
+          include_context 'with sign_up'
           let(:additional_info) { { extra: { email_verified: true } } }
 
           it 'allows sign in' do
@@ -419,6 +479,31 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
     end
   end
 
+  describe '#openid_connect' do
+    let(:user) { create(:omniauth_user, extern_uid: extern_uid, provider: provider) }
+    let(:extern_uid) { 'my-uid' }
+    let(:provider) { 'openid_connect' }
+
+    before do
+      prepare_provider_route('openid_connect')
+
+      mock_auth_hash(provider, extern_uid, user.email, additional_info: {})
+
+      request.env['devise.mapping'] = Devise.mappings[:user]
+      request.env['omniauth.auth'] = Rails.application.env_config['omniauth.auth']
+    end
+
+    it_behaves_like 'known sign in' do
+      let(:post_action) { post provider }
+    end
+
+    it 'allows sign in' do
+      post provider
+
+      expect(request.env['warden']).to be_authenticated
+    end
+  end
+
   describe '#saml' do
     let(:last_request_id) { 'ONELOGIN_4fee3b046395c4e751011e97f8900b5273d56685' }
     let(:user) { create(:omniauth_user, :two_factor, extern_uid: 'my-uid', provider: 'saml') }
@@ -431,8 +516,12 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
 
     before do
       stub_last_request_id(last_request_id)
-      stub_omniauth_saml_config(enabled: true, auto_link_saml_user: true, allow_single_sign_on: ['saml'],
-                                providers: [saml_config])
+      stub_omniauth_saml_config(
+        enabled: true,
+        auto_link_saml_user: true,
+        allow_single_sign_on: ['saml'],
+        providers: [saml_config]
+      )
       mock_auth_hash_with_saml_xml('saml', +'my-uid', user.email, mock_saml_response)
       request.env['devise.mapping'] = Devise.mappings[:user]
       request.env['omniauth.auth'] = Rails.application.env_config['omniauth.auth']
@@ -443,14 +532,13 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       let(:post_action) { post :saml, params: { SAMLResponse: mock_saml_response } }
     end
 
-    context 'sign up' do
+    context 'for sign up' do
       before do
         user.destroy!
       end
 
       it 'denies login if sign up is enabled, but block_auto_created_users is set' do
         post :saml, params: { SAMLResponse: mock_saml_response }
-
         expect(flash[:alert]).to start_with 'Your account is pending approval'
       end
 
@@ -523,12 +611,19 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
         expect(controller).to receive(:saml).and_wrap_original do |m, *args|
           m.call(*args)
 
-          expect(Gitlab::ApplicationContext.current)
-            .to include('meta.user' => user.username,
-                        'meta.caller_id' => 'OmniauthCallbacksController#saml')
+          expect(Gitlab::ApplicationContext.current).to include(
+            'meta.user' => user.username,
+            'meta.caller_id' => 'OmniauthCallbacksController#saml'
+          )
         end
 
         post :saml, params: { SAMLResponse: mock_saml_response }
+      end
+
+      context 'with IDP bypass two factor request' do
+        let(:user) { create(:omniauth_user, extern_uid: 'my-uid', provider: 'saml') }
+
+        it_behaves_like 'store provider2FA value in session'
       end
     end
 
@@ -543,6 +638,30 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       end
 
       it { expect { post_action }.not_to raise_error }
+    end
+
+    context 'with a non default SAML provider' do
+      let(:user) { create(:omniauth_user, extern_uid: 'my-uid', provider: 'saml') }
+
+      controller(described_class) do
+        alias_method :saml_okta, :handle_omniauth
+      end
+
+      before do
+        allow(AuthHelper).to receive(:saml_providers).and_return([:saml, :saml_okta])
+        allow(@routes).to receive(:generate_extras).and_return(['/users/auth/saml_okta/callback', []])
+      end
+
+      it 'authenticate with SAML module' do
+        expect(@controller).to receive(:omniauth_flow).with(Gitlab::Auth::Saml).and_call_original
+        post :saml_okta, params: { SAMLResponse: mock_saml_response }
+
+        expect(request.env['warden']).to be_authenticated
+      end
+    end
+
+    context 'with IDP bypass two factor request' do
+      it_behaves_like 'store provider2FA value in session'
     end
   end
 
@@ -564,7 +683,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       expect(subject.current_user_mode.admin_mode?).to be(expected_admin_mode)
     end
 
-    context 'user and admin mode requested by the same user' do
+    context 'when user and admin mode is requested by the same user' do
       before do
         sign_in user
 
@@ -605,7 +724,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
       end
     end
 
-    context 'user and admin mode requested by different users' do
+    context 'when user and admin mode is requested by different users' do
       let(:reauth_extern_uid) { 'another_uid' }
       let(:reauth_user) { create(:omniauth_user, extern_uid: reauth_extern_uid, provider: provider) }
 

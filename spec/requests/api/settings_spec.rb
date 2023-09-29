@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, feature_category: :not_owned do
+RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, feature_category: :shared do
   let(:user) { create(:user) }
 
   let_it_be(:admin) { create(:admin) }
@@ -19,12 +19,15 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
       expect(json_response['password_authentication_enabled']).to be_truthy
       expect(json_response['plantuml_enabled']).to be_falsey
       expect(json_response['plantuml_url']).to be_nil
+      expect(json_response['diagramsnet_enabled']).to be_truthy
+      expect(json_response['diagramsnet_url']).to eq('https://embed.diagrams.net')
       expect(json_response['default_ci_config_path']).to be_nil
       expect(json_response['sourcegraph_enabled']).to be_falsey
       expect(json_response['sourcegraph_url']).to be_nil
       expect(json_response['secret_detection_token_revocation_url']).to be_nil
       expect(json_response['secret_detection_revocation_token_types_url']).to be_nil
       expect(json_response['sourcegraph_public_only']).to be_truthy
+      expect(json_response['decompress_archive_file_timeout']).to eq(210)
       expect(json_response['default_preferred_language']).to be_a String
       expect(json_response['default_project_visibility']).to be_a String
       expect(json_response['default_snippet_visibility']).to be_a String
@@ -46,6 +49,7 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
       expect(json_response['spam_check_endpoint_url']).to be_nil
       expect(json_response['spam_check_api_key']).to be_nil
       expect(json_response['wiki_page_max_content_bytes']).to be_a(Integer)
+      expect(json_response['wiki_asciidoc_allow_uri_includes']).to be_falsey
       expect(json_response['require_admin_approval_after_user_signup']).to eq(true)
       expect(json_response['personal_access_token_prefix']).to eq('glpat-')
       expect(json_response['admin_mode']).to be(false)
@@ -56,6 +60,7 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
       expect(json_response['group_runner_token_expiration_interval']).to be_nil
       expect(json_response['project_runner_token_expiration_interval']).to be_nil
       expect(json_response['max_export_size']).to eq(0)
+      expect(json_response['max_decompressed_archive_size']).to eq(25600)
       expect(json_response['max_terraform_state_size_bytes']).to eq(0)
       expect(json_response['pipeline_limit_per_project_user_sha']).to eq(0)
       expect(json_response['delete_inactive_projects']).to be(false)
@@ -68,6 +73,18 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
       expect(json_response['user_defaults_to_private_profile']).to eq(false)
       expect(json_response['default_syntax_highlighting_theme']).to eq(1)
       expect(json_response['projects_api_rate_limit_unauthenticated']).to eq(400)
+      expect(json_response['silent_mode_enabled']).to be(false)
+      expect(json_response['slack_app_enabled']).to be(false)
+      expect(json_response['slack_app_id']).to be_nil
+      expect(json_response['slack_app_secret']).to be_nil
+      expect(json_response['slack_app_signing_secret']).to be_nil
+      expect(json_response['slack_app_verification_token']).to be_nil
+      expect(json_response['valid_runner_registrars']).to match_array(%w(project group))
+      expect(json_response['ci_max_includes']).to eq(150)
+      expect(json_response['allow_account_deletion']).to eq(true)
+      expect(json_response['gitlab_shell_operation_limit']).to eq(600)
+      expect(json_response['namespace_aggregation_schedule_lease_duration_in_seconds']).to eq(300)
+      expect(json_response['default_branch_protection_defaults']).to be_kind_of(Hash)
     end
   end
 
@@ -115,6 +132,8 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
             repository_storages_weighted: { 'custom' => 100 },
             plantuml_enabled: true,
             plantuml_url: 'http://plantuml.example.com',
+            diagramsnet_enabled: false,
+            diagramsnet_url: nil,
             sourcegraph_enabled: true,
             sourcegraph_url: 'https://sourcegraph.com',
             sourcegraph_public_only: false,
@@ -135,10 +154,12 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
             enforce_terms: true,
             terms: 'Hello world!',
             performance_bar_allowed_group_path: group.full_path,
+            decompress_archive_file_timeout: 60,
             diff_max_patch_bytes: 300_000,
             diff_max_files: 2000,
             diff_max_lines: 50000,
             default_branch_protection: ::Gitlab::Access::PROTECTION_DEV_CAN_MERGE,
+            default_branch_protection_defaults: ::Gitlab::Access::BranchProtection.protected_against_developer_pushes.stringify_keys,
             local_markdown_version: 3,
             allow_local_requests_from_web_hooks_and_services: true,
             allow_local_requests_from_system_hooks: false,
@@ -153,10 +174,12 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
             mailgun_events_enabled: true,
             mailgun_signing_key: 'MAILGUN_SIGNING_KEY',
             max_export_size: 6,
+            max_decompressed_archive_size: 20000,
             max_terraform_state_size_bytes: 1_000,
             disabled_oauth_sign_in_sources: 'unknown',
             import_sources: 'github,bitbucket',
             wiki_page_max_content_bytes: 12345,
+            wiki_asciidoc_allow_uri_includes: true,
             personal_access_token_prefix: "GL-",
             user_deactivation_emails_enabled: false,
             admin_mode: true,
@@ -170,10 +193,17 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
             jira_connect_application_key: '123',
             jira_connect_proxy_url: 'http://example.com',
             bulk_import_enabled: false,
+            bulk_import_max_download_file_size: 1,
             allow_runner_registration_token: true,
             user_defaults_to_private_profile: true,
             default_syntax_highlighting_theme: 2,
-            projects_api_rate_limit_unauthenticated: 100
+            projects_api_rate_limit_unauthenticated: 100,
+            silent_mode_enabled: true,
+            valid_runner_registrars: ['group'],
+            allow_account_deletion: false,
+            gitlab_shell_operation_limit: 500,
+            namespace_aggregation_schedule_lease_duration_in_seconds: 400,
+            max_import_remote_file_size: 2
           }
 
         expect(response).to have_gitlab_http_status(:ok)
@@ -184,6 +214,8 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
         expect(json_response['repository_storages_weighted']).to eq({ 'custom' => 100 })
         expect(json_response['plantuml_enabled']).to be_truthy
         expect(json_response['plantuml_url']).to eq('http://plantuml.example.com')
+        expect(json_response['diagramsnet_enabled']).to be_falsey
+        expect(json_response['diagramsnet_url']).to be_nil
         expect(json_response['sourcegraph_enabled']).to be_truthy
         expect(json_response['sourcegraph_url']).to eq('https://sourcegraph.com')
         expect(json_response['sourcegraph_public_only']).to eq(false)
@@ -204,10 +236,12 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
         expect(json_response['enforce_terms']).to be(true)
         expect(json_response['terms']).to eq('Hello world!')
         expect(json_response['performance_bar_allowed_group_id']).to eq(group.id)
+        expect(json_response['decompress_archive_file_timeout']).to eq(60)
         expect(json_response['diff_max_patch_bytes']).to eq(300_000)
         expect(json_response['diff_max_files']).to eq(2000)
         expect(json_response['diff_max_lines']).to eq(50000)
         expect(json_response['default_branch_protection']).to eq(Gitlab::Access::PROTECTION_DEV_CAN_MERGE)
+        expect(json_response['default_branch_protection_defaults']).to eq(::Gitlab::Access::BranchProtection.protected_against_developer_pushes.stringify_keys)
         expect(json_response['local_markdown_version']).to eq(3)
         expect(json_response['allow_local_requests_from_web_hooks_and_services']).to eq(true)
         expect(json_response['allow_local_requests_from_system_hooks']).to eq(false)
@@ -222,10 +256,12 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
         expect(json_response['mailgun_events_enabled']).to be(true)
         expect(json_response['mailgun_signing_key']).to eq('MAILGUN_SIGNING_KEY')
         expect(json_response['max_export_size']).to eq(6)
+        expect(json_response['max_decompressed_archive_size']).to eq(20000)
         expect(json_response['max_terraform_state_size_bytes']).to eq(1_000)
         expect(json_response['disabled_oauth_sign_in_sources']).to eq([])
         expect(json_response['import_sources']).to match_array(%w(github bitbucket))
         expect(json_response['wiki_page_max_content_bytes']).to eq(12345)
+        expect(json_response['wiki_asciidoc_allow_uri_includes']).to be(true)
         expect(json_response['personal_access_token_prefix']).to eq("GL-")
         expect(json_response['admin_mode']).to be(true)
         expect(json_response['user_deactivation_emails_enabled']).to be(false)
@@ -243,7 +279,25 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
         expect(json_response['user_defaults_to_private_profile']).to be(true)
         expect(json_response['default_syntax_highlighting_theme']).to eq(2)
         expect(json_response['projects_api_rate_limit_unauthenticated']).to be(100)
+        expect(json_response['silent_mode_enabled']).to be(true)
+        expect(json_response['valid_runner_registrars']).to eq(['group'])
+        expect(json_response['allow_account_deletion']).to be(false)
+        expect(json_response['gitlab_shell_operation_limit']).to be(500)
+        expect(json_response['namespace_aggregation_schedule_lease_duration_in_seconds']).to be(400)
+        expect(json_response['max_import_remote_file_size']).to be(2)
+        expect(json_response['bulk_import_max_download_file_size']).to be(1)
       end
+    end
+
+    it "updates default_branch_protection_defaults from the default_branch_protection param" do
+      expected_update = ::Gitlab::Access::BranchProtection.protected_against_developer_pushes.stringify_keys
+
+      put api("/application/settings", admin),
+          params: { default_branch_protection: ::Gitlab::Access::PROTECTION_DEV_CAN_MERGE }
+
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(json_response['default_branch_protection']).to eq(Gitlab::Access::PROTECTION_DEV_CAN_MERGE)
+      expect(ApplicationSetting.first.default_branch_protection_defaults).to eq(expected_update)
     end
 
     it "supports legacy performance_bar_allowed_group_id" do
@@ -516,12 +570,100 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
       end
     end
 
+    context 'GitLab for Slack app settings' do
+      let(:settings) do
+        {
+          slack_app_enabled: slack_app_enabled,
+          slack_app_id: slack_app_id,
+          slack_app_secret: slack_app_secret,
+          slack_app_signing_secret: slack_app_signing_secret,
+          slack_app_verification_token: slack_app_verification_token
+        }
+      end
+
+      context 'when GitLab for Slack app is enabled' do
+        let(:slack_app_enabled) { true }
+
+        context 'when other params are blank' do
+          let(:slack_app_id) { nil }
+          let(:slack_app_secret) { nil }
+          let(:slack_app_signing_secret) { nil }
+          let(:slack_app_verification_token) { nil }
+
+          it 'does not update the settings' do
+            put api("/application/settings", admin), params: settings
+
+            expect(response).to have_gitlab_http_status(:bad_request)
+
+            expect(json_response['slack_app_enabled']).to be(nil)
+            expect(json_response['slack_app_id']).to be(nil)
+            expect(json_response['slack_app_secret']).to be(nil)
+            expect(json_response['slack_app_signing_secret']).to be(nil)
+            expect(json_response['slack_app_verification_token']).to be(nil)
+
+            message = json_response['message']
+
+            expect(message['slack_app_id']).to include("can't be blank")
+            expect(message['slack_app_secret']).to include("can't be blank")
+            expect(message['slack_app_signing_secret']).to include("can't be blank")
+            expect(message['slack_app_verification_token']).to include("can't be blank")
+          end
+        end
+
+        context 'when other params are present' do
+          let(:slack_app_id) { 'ID' }
+          let(:slack_app_secret) { 'SECRET' }
+          let(:slack_app_signing_secret) { 'SIGNING_SECRET' }
+          let(:slack_app_verification_token) { 'VERIFICATION_TOKEN' }
+
+          it 'updates the settings' do
+            put api("/application/settings", admin), params: settings
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(json_response['slack_app_enabled']).to be(true)
+            expect(json_response['slack_app_id']).to eq('ID')
+            expect(json_response['slack_app_secret']).to eq('SECRET')
+            expect(json_response['slack_app_signing_secret']).to eq('SIGNING_SECRET')
+            expect(json_response['slack_app_verification_token']).to eq('VERIFICATION_TOKEN')
+          end
+        end
+      end
+
+      context 'when GitLab for Slack app is not enabled' do
+        let(:slack_app_enabled) { false }
+        let(:slack_app_id) { nil }
+        let(:slack_app_secret) { nil }
+        let(:slack_app_signing_secret) { nil }
+        let(:slack_app_verification_token) { nil }
+
+        it 'allows blank attributes' do
+          put api("/application/settings", admin), params: settings
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response['slack_app_enabled']).to be(false)
+          expect(json_response['slack_app_id']).to be(nil)
+          expect(json_response['slack_app_secret']).to be(nil)
+          expect(json_response['slack_app_signing_secret']).to be(nil)
+          expect(json_response['slack_app_verification_token']).to be(nil)
+        end
+      end
+    end
+
     context "missing plantuml_url value when plantuml_enabled is true" do
       it "returns a blank parameter error message" do
         put api("/application/settings", admin), params: { plantuml_enabled: true }
 
         expect(response).to have_gitlab_http_status(:bad_request)
         expect(json_response['error']).to eq('plantuml_url is missing')
+      end
+    end
+
+    context "missing diagramsnet_url value when diagramsnet_enabled is true" do
+      it "returns a blank parameter error message" do
+        put api("/application/settings", admin), params: { diagramsnet_enabled: true }
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+        expect(json_response['error']).to eq('diagramsnet_url is missing')
       end
     end
 
@@ -712,7 +854,8 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
           sentry_enabled: true,
           sentry_dsn: 'http://sentry.example.com',
           sentry_clientside_dsn: 'http://sentry.example.com',
-          sentry_environment: 'production'
+          sentry_environment: 'production',
+          sentry_clientside_traces_sample_rate: 0.25
         }
       end
 
@@ -809,6 +952,40 @@ RSpec.describe API::Settings, 'Settings', :do_not_mock_admin_mode_setting, featu
 
         expect(response).to have_gitlab_http_status(:bad_request)
         expect(json_response['message']['pipeline_limit_per_project_user_sha'])
+          .to include(a_string_matching('is not a number'))
+      end
+    end
+
+    context 'with ci_max_includes' do
+      it 'updates the settings' do
+        put api("/application/settings", admin), params: {
+          ci_max_includes: 200
+        }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response).to include(
+          'ci_max_includes' => 200
+        )
+      end
+
+      it 'allows a zero value' do
+        put api("/application/settings", admin), params: {
+          ci_max_includes: 0
+        }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response).to include(
+          'ci_max_includes' => 0
+        )
+      end
+
+      it 'does not allow a nil value' do
+        put api("/application/settings", admin), params: {
+          ci_max_includes: nil
+        }
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+        expect(json_response['message']['ci_max_includes'])
           .to include(a_string_matching('is not a number'))
       end
     end

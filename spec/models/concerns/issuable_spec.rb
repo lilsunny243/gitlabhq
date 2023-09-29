@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Issuable do
+RSpec.describe Issuable, feature_category: :team_planning do
   include ProjectForksHelper
   using RSpec::Parameterized::TableSyntax
 
@@ -150,8 +150,10 @@ RSpec.describe Issuable do
     end
 
     it 'gives preference to state_id if present' do
-      issuable = MergeRequest.new('state' => 'opened',
-                                  'state_id' => described_class::STATE_ID_MAP['merged'])
+      issuable = MergeRequest.new(
+        'state' => 'opened',
+        'state_id' => described_class::STATE_ID_MAP['merged']
+      )
 
       expect(issuable.state).to eq('merged')
       expect(issuable.state_id).to eq(described_class::STATE_ID_MAP['merged'])
@@ -624,6 +626,21 @@ RSpec.describe Issuable do
     end
   end
 
+  describe "#importing_or_transitioning?" do
+    let(:merge_request) { build(:merge_request, transitioning: transitioning, importing: importing) }
+
+    where(:transitioning, :importing, :result) do
+      true  | false | true
+      false | true  | true
+      true  | true  | true
+      false | false | false
+    end
+
+    with_them do
+      it { expect(merge_request.importing_or_transitioning?).to eq(result) }
+    end
+  end
+
   describe '#labels_array' do
     let(:project) { create(:project) }
     let(:bug) { create(:label, project: project, title: 'bug') }
@@ -858,22 +875,16 @@ RSpec.describe Issuable do
     end
   end
 
-  describe '#first_contribution?' do
+  describe '#first_contribution?', feature_category: :code_review_workflow do
     let(:group) { create(:group) }
     let(:project) { create(:project, namespace: group) }
     let(:other_project) { create(:project) }
-    let(:owner) { create(:owner) }
-    let(:maintainer) { create(:user) }
-    let(:reporter) { create(:user) }
     let(:guest) { create(:user) }
 
     let(:contributor) { create(:user) }
     let(:first_time_contributor) { create(:user) }
 
     before do
-      group.add_owner(owner)
-      project.add_maintainer(maintainer)
-      project.add_reporter(reporter)
       project.add_guest(guest)
       project.add_guest(contributor)
       project.add_guest(first_time_contributor)
@@ -884,24 +895,6 @@ RSpec.describe Issuable do
     let(:merged_mr_other_project) { create(:merge_request, :merged, author: first_time_contributor, target_project: other_project, source_project: other_project) }
 
     context "for merge requests" do
-      it "is false for MAINTAINER" do
-        mr = create(:merge_request, author: maintainer, target_project: project, source_project: project)
-
-        expect(mr).not_to be_first_contribution
-      end
-
-      it "is false for OWNER" do
-        mr = create(:merge_request, author: owner, target_project: project, source_project: project)
-
-        expect(mr).not_to be_first_contribution
-      end
-
-      it "is false for REPORTER" do
-        mr = create(:merge_request, author: reporter, target_project: project, source_project: project)
-
-        expect(mr).not_to be_first_contribution
-      end
-
       it "is true when you don't have any merged MR" do
         expect(open_mr).to be_first_contribution
         expect(merged_mr).not_to be_first_contribution
@@ -918,7 +911,7 @@ RSpec.describe Issuable do
       let(:first_time_contributor_issue) { create(:issue, author: first_time_contributor, project: project) }
 
       it "is false even without merged MR" do
-        expect(merged_mr).to be
+        expect(merged_mr).to be_present
         expect(first_time_contributor_issue).not_to be_first_contribution
         expect(contributor_issue).not_to be_first_contribution
       end
@@ -998,7 +991,7 @@ RSpec.describe Issuable do
     end
   end
 
-  describe '#incident?' do
+  describe '#incident_type_issue?' do
     where(:issuable_type, :incident) do
       :issue         | false
       :incident      | true
@@ -1008,7 +1001,7 @@ RSpec.describe Issuable do
     with_them do
       let(:issuable) { build_stubbed(issuable_type) }
 
-      subject { issuable.incident? }
+      subject { issuable.incident_type_issue? }
 
       it { is_expected.to eq(incident) }
     end
@@ -1045,6 +1038,22 @@ RSpec.describe Issuable do
     end
   end
 
+  describe '#supports_lock_on_merge?' do
+    where(:issuable_type, :supports_lock_on_merge) do
+      :issue         | false
+      :merge_request | false
+      :incident      | false
+    end
+
+    with_them do
+      let(:issuable) { build_stubbed(issuable_type) }
+
+      subject { issuable.supports_lock_on_merge? }
+
+      it { is_expected.to eq(supports_lock_on_merge) }
+    end
+  end
+
   describe '#severity' do
     subject { issuable.severity }
 
@@ -1077,6 +1086,24 @@ RSpec.describe Issuable do
           is_expected.to eq('critical')
         end
       end
+    end
+  end
+
+  context 'with exportable associations' do
+    let_it_be(:project) { create(:project, group: create(:group, :private)) }
+
+    context 'for issues' do
+      let_it_be_with_reload(:resource) { create(:issue, project: project) }
+
+      it_behaves_like 'an exportable'
+    end
+
+    context 'for merge requests' do
+      let_it_be_with_reload(:resource) do
+        create(:merge_request, source_project: project, project: project)
+      end
+
+      it_behaves_like 'an exportable'
     end
   end
 end

@@ -2,15 +2,12 @@
 
 class Clusters::ClustersController < Clusters::BaseController
   include RoutableActions
-  include Metrics::Dashboard::PrometheusApiProxy
-  include MetricsDashboard
 
   before_action :cluster, only: [:cluster_status, :show, :update, :destroy, :clear_cache]
   before_action :user_cluster, only: [:connect]
   before_action :authorize_read_cluster!, only: [:show, :index]
   before_action :authorize_create_cluster!, only: [:connect]
   before_action :authorize_update_cluster!, only: [:update]
-  before_action :update_applications_status, only: [:cluster_status]
   before_action :ensure_feature_enabled!, except: [:index, :new_cluster_docs]
 
   helper_method :token_in_session
@@ -222,10 +219,6 @@ class Clusters::ClustersController < Clusters::BaseController
   def expires_at_in_session
     @expires_at_in_session ||=
       session[GoogleApi::CloudPlatform::Client.session_key_for_expires_at]
-  end
-
-  def update_applications_status
-    @cluster.applications.each(&:schedule_status_update)
   end
 end
 

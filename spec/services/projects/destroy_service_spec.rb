@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publisher, feature_category: :projects do
+RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publisher, feature_category: :groups_and_projects do
   include ProjectForksHelper
   include BatchDestroyDependentAssociationsHelper
 
@@ -113,7 +113,24 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
       destroy_project(project, user, {})
 
       expect(project.reload.delete_error).to be_present
-      expect(project.delete_error).to include(error_message)
+      expect(project.delete_error).to match(error_message)
+    end
+
+    context 'when parent group visibility was made more restrictive while project was marked "pending deletion"' do
+      let!(:group) { create(:group, :public) }
+      let!(:project) { create(:project, :repository, :public, namespace: group) }
+
+      it 'sets the project visibility level to that of the parent group' do
+        group.add_owner(user)
+        project.group.update_attribute(:visibility_level, Gitlab::VisibilityLevel::INTERNAL)
+
+        expect(project.reload.visibility_level).to be(Gitlab::VisibilityLevel::PUBLIC)
+        expect(project.group.visibility_level).to be(Gitlab::VisibilityLevel::INTERNAL)
+
+        destroy_project(project, user, {})
+
+        expect(project.reload.visibility_level).to be(Gitlab::VisibilityLevel::INTERNAL)
+      end
     end
   end
 
@@ -207,9 +224,11 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
   context 'when project has exports' do
     let!(:project_with_export) do
       create(:project, :repository, namespace: user.namespace).tap do |project|
-        create(:import_export_upload,
-                project: project,
-                export_file: fixture_file_upload('spec/fixtures/project_export.tar.gz'))
+        create(
+          :import_export_upload,
+          project: project,
+          export_file: fixture_file_upload('spec/fixtures/project_export.tar.gz')
+        )
       end
     end
 
@@ -285,7 +304,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
             .to receive(:remove_legacy_registry_tags).and_return(false)
         end
 
-        it_behaves_like 'handles errors thrown during async destroy', "Failed to remove some tags"
+        it_behaves_like 'handles errors thrown during async destroy', /Failed to remove some tags/
       end
 
       context 'when `remove_repository` fails' do
@@ -294,7 +313,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
             .to receive(:remove_repository).and_return(false)
         end
 
-        it_behaves_like 'handles errors thrown during async destroy', "Failed to remove project repository"
+        it_behaves_like 'handles errors thrown during async destroy', /Failed to remove/
       end
 
       context 'when `execute` raises expected error' do
@@ -303,7 +322,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
             .to receive(:destroy!).and_raise(StandardError.new("Other error message"))
         end
 
-        it_behaves_like 'handles errors thrown during async destroy', "Other error message"
+        it_behaves_like 'handles errors thrown during async destroy', /Other error message/
       end
 
       context 'when `execute` raises unexpected error' do
@@ -337,8 +356,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
       let(:container_repository) { create(:container_repository) }
 
       before do
-        stub_container_registry_tags(repository: project.full_path + '/image',
-                                     tags: ['tag'])
+        stub_container_registry_tags(repository: project.full_path + '/image', tags: ['tag'])
         project.container_repositories << container_repository
       end
 
@@ -387,8 +405,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
 
     context 'when there are tags for legacy root repository' do
       before do
-        stub_container_registry_tags(repository: project.full_path,
-                                     tags: ['tag'])
+        stub_container_registry_tags(repository: project.full_path, tags: ['tag'])
       end
 
       context 'when image repository tags deletion succeeds' do
@@ -414,8 +431,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
 
     context 'when there are no tags for legacy root repository' do
       before do
-        stub_container_registry_tags(repository: project.full_path,
-                                     tags: [])
+        stub_container_registry_tags(repository: project.full_path, tags: [])
       end
 
       it 'does not try to destroy the repository' do
@@ -457,12 +473,63 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
   end
 
   context 'repository removal' do
-    it 'removal of existing repos' do
-      expect_next_instances_of(Repositories::DestroyService, 2) do |instance|
-        expect(instance).to receive(:execute).and_return(status: :success)
+    describe '.trash_project_repositories!' do
+      let(:trash_project_repositories!) { described_class.new(project, user, {}).send(:trash_project_repositories!) }
+
+      # Destroys 3 repositories:
+      # 1. Project repository
+      # 2. Wiki repository
+      # 3. Design repository
+
+      it 'Repositories::DestroyService is called for existing repos' do
+        expect_next_instances_of(Repositories::DestroyService, 3) do |instance|
+          expect(instance).to receive(:execute).and_return(status: :success)
+        end
+
+        trash_project_repositories!
       end
 
-      described_class.new(project, user, {}).execute
+      context 'when the removal has errors' do
+        using RSpec::Parameterized::TableSyntax
+
+        let(:mock_error) { instance_double(Repositories::DestroyService, execute: { message: 'foo', status: :error }) }
+        let(:project_repository) { project.repository }
+        let(:wiki_repository) { project.wiki.repository }
+        let(:design_repository) { project.design_repository }
+
+        where(:repo, :message) do
+          ref(:project_repository) | 'Failed to remove project repository. Please try again or contact administrator.'
+          ref(:wiki_repository)    | 'Failed to remove wiki repository. Please try again or contact administrator.'
+          ref(:design_repository)  | 'Failed to remove design repository. Please try again or contact administrator.'
+        end
+
+        with_them do
+          before do
+            allow(Repositories::DestroyService).to receive(:new).with(anything).and_call_original
+            allow(Repositories::DestroyService).to receive(:new).with(repo).and_return(mock_error)
+          end
+
+          it 'raises correct error' do
+            expect { trash_project_repositories! }.to raise_error(Projects::DestroyService::DestroyError, message)
+          end
+        end
+      end
+    end
+
+    it 'removes project repository' do
+      expect { destroy_project(project, user, {}) }.to change { project.repository.exists? }.from(true).to(false)
+    end
+
+    it 'removes wiki repository' do
+      project.create_wiki unless project.wiki.repository.exists?
+
+      expect { destroy_project(project, user, {}) }.to change { project.wiki.repository.exists? }.from(true).to(false)
+    end
+
+    it 'removes design repository' do
+      project.design_repository.create_if_not_exists
+
+      expect { destroy_project(project, user, {}) }.to change { project.design_repository.exists? }.from(true).to(false)
     end
   end
 
@@ -530,7 +597,7 @@ RSpec.describe Projects::DestroyService, :aggregate_failures, :event_store_publi
         end
       end
 
-      it_behaves_like 'handles errors thrown during async destroy', "Failed to remove webhooks"
+      it_behaves_like 'handles errors thrown during async destroy', /Failed to remove webhooks/
     end
   end
 

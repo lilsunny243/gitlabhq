@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab Generic Packages Repository **(FREE)**
+# GitLab Generic Packages Repository **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4209) in GitLab 13.5 [with a flag](../../../administration/feature_flags.md) named `generic_packages`. Enabled by default.
 > - [Feature flag `generic_packages`](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80886) removed in GitLab 14.8.
@@ -21,6 +21,8 @@ API allows authentication with HTTP Basic authentication for use with tools that
 do not support the other available mechanisms. The `user-id` is not checked and
 may be any value, and the `password` must be either a [personal access token](../../../api/rest/index.md#personalprojectgroup-access-tokens),
 a [CI/CD job token](../../../ci/jobs/ci_job_token.md), or a [deploy token](../../project/deploy_tokens/index.md).
+
+Do not use authentication methods other than the methods documented here. Undocumented authentication methods might be removed in the future.
 
 ## Publish a package file
 
@@ -109,25 +111,26 @@ Example response with attribute `select = package_file`:
 ### Publishing a package with the same name or version
 
 When you publish a package with the same name and version as an existing package, the new package
-files are added to the existing package. You can still use the UI or API to access and view the
+files are added to the existing package. When you install a generic package that has a duplicate, GitLab downloads the latest version.
+
+You can use the UI or API to access and view the
 existing package's older files. To delete these older package revisions, consider using the Packages
 API or the UI.
 
 #### Do not allow duplicate Generic packages
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/293755) in GitLab 13.12.
-> - [Required permissions](https://gitlab.com/gitlab-org/gitlab/-/issues/350682) changed from developer to maintainer in GitLab 15.0.
+> - Required role [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/350682) from Developer to Maintainer in GitLab 15.0.
 
 To prevent users from publishing duplicate generic packages, you can use the [GraphQL API](../../../api/graphql/reference/index.md#packagesettings)
 or the UI.
 
 In the UI:
 
-1. For your group, go to **Settings > Packages and registries**.
-1. Expand the **Package Registry** section.
-1. Turn on the **Reject duplicates** toggle.
-1. Optional. To allow some duplicate packages, in the **Exceptions** box enter a regex pattern that
-   matches the names and/or versions of packages to allow.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > Packages and registries**.
+1. In the **Generic** row of the **Duplicate packages** table, turn off the **Allow duplicates** toggle.
+1. Optional. In the **Exceptions** text box, enter a regular expression that matches the names and versions of packages to allow.
 
 Your changes are automatically saved.
 
@@ -223,12 +226,12 @@ If you are receiving `HTTP 500: Internal Server Error` responses when publishing
 # Consolidated Object Storage settings
 gitlab_rails['object_store']['connection'] = {
   # Other connection settings
-  `aws_signature_version` => '4'
+  'aws_signature_version' => '4'
 }
 # OR 
 # Storage-specific form settings
 gitlab_rails['packages_object_store_connection'] = {
   # Other connection settings
-  `aws_signature_version` => '4'
+  'aws_signature_version' => '4'
 }
 ```

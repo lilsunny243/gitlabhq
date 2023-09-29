@@ -5,12 +5,12 @@ class ConfirmationsController < Devise::ConfirmationsController
   include GitlabRecaptcha
   include OneTrustCSP
   include GoogleAnalyticsCSP
+  include GoogleSyndicationCSP
 
-  skip_before_action :required_signup_info
   prepend_before_action :check_recaptcha, only: :create
   before_action :load_recaptcha, only: :new
 
-  feature_category :authentication_and_authorization
+  feature_category :user_management
 
   def almost_there
     flash[:notice] = nil
@@ -20,7 +20,7 @@ class ConfirmationsController < Devise::ConfirmationsController
   protected
 
   def after_resending_confirmation_instructions_path_for(resource)
-    return users_almost_there_path unless Feature.enabled?(:soft_email_confirmation)
+    return users_almost_there_path unless Gitlab::CurrentSettings.email_confirmation_setting_soft?
 
     stored_location_for(resource) || dashboard_projects_path
   end

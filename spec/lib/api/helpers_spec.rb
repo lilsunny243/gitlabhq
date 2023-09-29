@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Helpers, feature_category: :not_owned do
+RSpec.describe API::Helpers, feature_category: :shared do
   using RSpec::Parameterized::TableSyntax
 
   subject(:helper) { Class.new.include(described_class).new }
@@ -11,7 +11,6 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
     include Rack::Test::Methods
 
     let(:user) { build(:user, id: 42) }
-    let(:request) { instance_double(Rack::Request) }
     let(:helper) do
       Class.new(Grape::API::Instance) do
         helpers API::APIGuard::HelperMethods
@@ -33,21 +32,26 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
     end
 
     it 'handles sticking when a user could be found' do
-      allow_any_instance_of(API::Helpers).to receive(:initial_current_user).and_return(user)
+      allow_any_instance_of(described_class).to receive(:initial_current_user).and_return(user)
 
       expect(ApplicationRecord.sticking)
-        .to receive(:stick_or_unstick_request).with(any_args, :user, 42)
+        .to receive(:find_caught_up_replica).with(:user, 42)
 
       get 'user'
 
       expect(Gitlab::Json.parse(last_response.body)).to eq({ 'id' => user.id })
+
+      stick_object = last_request.env[::Gitlab::Database::LoadBalancing::RackMiddleware::STICK_OBJECT].first
+      expect(stick_object[0]).to eq(User.sticking)
+      expect(stick_object[1]).to eq(:user)
+      expect(stick_object[2]).to eq(42)
     end
 
     it 'does not handle sticking if no user could be found' do
-      allow_any_instance_of(API::Helpers).to receive(:initial_current_user).and_return(nil)
+      allow_any_instance_of(described_class).to receive(:initial_current_user).and_return(nil)
 
       expect(ApplicationRecord.sticking)
-        .not_to receive(:stick_or_unstick_request)
+        .not_to receive(:find_caught_up_replica)
 
       get 'user'
 
@@ -55,7 +59,7 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
     end
 
     it 'returns the user if one could be found' do
-      allow_any_instance_of(API::Helpers).to receive(:initial_current_user).and_return(user)
+      allow_any_instance_of(described_class).to receive(:initial_current_user).and_return(user)
 
       get 'user'
 
@@ -238,6 +242,165 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
 
             helper.find_project!(non_existing_id)
           end
+        end
+      end
+    end
+  end
+
+  describe '#find_pipeline' do
+    let(:pipeline) { create(:ci_pipeline) }
+
+    shared_examples 'pipeline finder' do
+      context 'when pipeline exists' do
+        it 'returns requested pipeline' do
+          expect(helper.find_pipeline(existing_id)).to eq(pipeline)
+        end
+      end
+
+      context 'when pipeline does not exists' do
+        it 'returns nil' do
+          expect(helper.find_pipeline(non_existing_id)).to be_nil
+        end
+      end
+
+      context 'when pipeline id is not provided' do
+        it 'returns nil' do
+          expect(helper.find_pipeline(nil)).to be_nil
+        end
+      end
+    end
+
+    context 'when ID is used as an argument' do
+      let(:existing_id) { pipeline.id }
+      let(:non_existing_id) { non_existing_record_id }
+
+      it_behaves_like 'pipeline finder'
+    end
+
+    context 'when string ID is used as an argument' do
+      let(:existing_id) { pipeline.id.to_s }
+      let(:non_existing_id) { non_existing_record_id }
+
+      it_behaves_like 'pipeline finder'
+    end
+
+    context 'when ID is a negative number' do
+      let(:existing_id) { pipeline.id }
+      let(:non_existing_id) { -1 }
+
+      it_behaves_like 'pipeline finder'
+    end
+  end
+
+  describe '#find_pipeline!' do
+    let_it_be(:project) { create(:project, :public) }
+    let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+    let_it_be(:user) { create(:user) }
+
+    shared_examples 'private project without access' do
+      before do
+        project.update_column(:visibility_level, Gitlab::VisibilityLevel.level_value('private'))
+        allow(helper).to receive(:authenticate_non_public?).and_return(false)
+      end
+
+      it 'returns not found' do
+        expect(helper).to receive(:not_found!)
+
+        helper.find_pipeline!(pipeline.id)
+      end
+    end
+
+    context 'when user is authenticated' do
+      before do
+        allow(helper).to receive(:current_user).and_return(user)
+        allow(helper).to receive(:initial_current_user).and_return(user)
+      end
+
+      context 'public project' do
+        it 'returns requested pipeline' do
+          expect(helper.find_pipeline!(pipeline.id)).to eq(pipeline)
+        end
+      end
+
+      context 'private project' do
+        it_behaves_like 'private project without access'
+
+        context 'without read pipeline permission' do
+          before do
+            allow(helper).to receive(:can?).with(user, :read_pipeline, pipeline).and_return(false)
+          end
+
+          it_behaves_like 'private project without access'
+        end
+      end
+
+      context 'with read pipeline permission' do
+        before do
+          allow(helper).to receive(:can?).with(user, :read_pipeline, pipeline).and_return(true)
+        end
+
+        it 'returns requested pipeline' do
+          expect(helper.find_pipeline!(pipeline.id)).to eq(pipeline)
+        end
+      end
+    end
+
+    context 'when user is not authenticated' do
+      before do
+        allow(helper).to receive(:current_user).and_return(nil)
+        allow(helper).to receive(:initial_current_user).and_return(nil)
+      end
+
+      context 'public project' do
+        it 'returns requested pipeline' do
+          expect(helper.find_pipeline!(pipeline.id)).to eq(pipeline)
+        end
+      end
+
+      context 'private project' do
+        it_behaves_like 'private project without access'
+      end
+    end
+
+    context 'support for IDs and paths as argument' do
+      let_it_be(:project) { create(:project) }
+      let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+
+      let(:user) { project.first_owner }
+
+      before do
+        allow(helper).to receive(:current_user).and_return(user)
+        allow(helper).to receive(:authorized_project_scope?).and_return(true)
+        allow(helper).to receive(:job_token_authentication?).and_return(false)
+        allow(helper).to receive(:authenticate_non_public?).and_return(false)
+      end
+
+      shared_examples 'pipeline finder' do
+        context 'when pipeline exists' do
+          it 'returns requested pipeline' do
+            expect(helper.find_pipeline!(existing_id)).to eq(pipeline)
+          end
+
+          it 'returns nil' do
+            expect(helper).to receive(:render_api_error!).with('404 Pipeline Not Found', 404)
+            expect(helper.find_pipeline!(non_existing_id)).to be_nil
+          end
+        end
+      end
+
+      context 'when ID is used as an argument' do
+        context 'when pipeline id is an integer' do
+          let(:existing_id) { pipeline.id }
+          let(:non_existing_id) { non_existing_record_id }
+
+          it_behaves_like 'pipeline finder'
+        end
+
+        context 'when pipeline id is a string' do
+          let(:existing_id) { pipeline.id.to_s }
+          let(:non_existing_id) { "non_existing_record_id" }
+
+          it_behaves_like 'pipeline finder'
         end
       end
     end
@@ -609,8 +772,76 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
     end
   end
 
+  describe '#track_event' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:namespace) { create(:namespace) }
+    let_it_be(:project) { create(:project) }
+    let(:event_name) { 'i_compliance_dashboard' }
+    let(:unknown_event) { 'unknown' }
+
+    it 'tracks internal event' do
+      expect(Gitlab::InternalEvents).to receive(:track_event).with(
+        event_name,
+        send_snowplow_event: true,
+        user: user,
+        namespace: namespace,
+        project: project
+      )
+
+      helper.track_event(event_name,
+        user: user,
+        namespace_id: namespace.id,
+        project_id: project.id
+      )
+    end
+
+    it 'passes send_snowplow_event on to InternalEvents.track_event' do
+      expect(Gitlab::InternalEvents).to receive(:track_event).with(
+        event_name,
+        send_snowplow_event: false,
+        user: user,
+        namespace: namespace,
+        project: project
+      )
+
+      helper.track_event(event_name,
+        send_snowplow_event: false,
+        user: user,
+        namespace_id: namespace.id,
+        project_id: project.id
+      )
+    end
+
+    it 'logs an exception for unknown event' do
+      expect(Gitlab::InternalEvents).to receive(:track_event).and_raise(Gitlab::InternalEvents::UnknownEventError, "Unknown event: #{unknown_event}")
+      expect(Gitlab::ErrorTracking).to receive(:track_and_raise_for_dev_exception)
+        .with(
+          instance_of(Gitlab::InternalEvents::UnknownEventError),
+          event_name: unknown_event
+        )
+
+      helper.track_event(unknown_event,
+        user: user,
+        namespace_id: namespace.id,
+        project_id: project.id
+      )
+    end
+
+    it 'does not track event for nil user' do
+      expect(Gitlab::InternalEvents).not_to receive(:track_event)
+
+      helper.track_event(unknown_event,
+        user: nil,
+        namespace_id: namespace.id,
+        project_id: project.id
+      )
+    end
+  end
+
   shared_examples '#order_options_with_tie_breaker' do
-    subject { Class.new.include(described_class).new.order_options_with_tie_breaker }
+    subject { Class.new.include(described_class).new.order_options_with_tie_breaker(**reorder_params) }
+
+    let(:reorder_params) { {} }
 
     before do
       allow_any_instance_of(described_class).to receive(:params).and_return(params)
@@ -654,11 +885,25 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
   describe '#order_options_with_tie_breaker' do
     include_examples '#order_options_with_tie_breaker'
 
-    context 'with created_at order given' do
-      let(:params) { { order_by: 'created_at', sort: 'asc' } }
+    context 'by default' do
+      context 'with created_at order given' do
+        let(:params) { { order_by: 'created_at', sort: 'asc' } }
 
-      it 'converts to id' do
-        is_expected.to eq({ 'id' => 'asc' })
+        it 'converts to id' do
+          is_expected.to eq({ 'id' => 'asc' })
+        end
+      end
+    end
+
+    context 'when override_created_at is false' do
+      let(:reorder_params) { { override_created_at: false } }
+
+      context 'with created_at order given' do
+        let(:params) { { order_by: 'created_at', sort: 'asc' } }
+
+        it 'does not convert to id' do
+          is_expected.to eq({ "created_at" => "asc", "id" => "asc" })
+        end
       end
     end
   end
@@ -952,6 +1197,42 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
     end
   end
 
+  describe '#too_many_requests!', :aggregate_failures do
+    let(:headers) { instance_double(Hash) }
+
+    before do
+      allow(helper).to receive(:header).and_return(headers)
+    end
+
+    it 'renders 429' do
+      expect(helper).to receive(:render_api_error!).with('429 Too Many Requests', 429)
+      expect(headers).to receive(:[]=).with('Retry-After', 60)
+
+      helper.too_many_requests!
+    end
+
+    it 'renders 429 with a custom message' do
+      expect(helper).to receive(:render_api_error!).with('custom message', 429)
+      expect(headers).to receive(:[]=).with('Retry-After', 60)
+
+      helper.too_many_requests!('custom message')
+    end
+
+    it 'renders 429 with a custom Retry-After value' do
+      expect(helper).to receive(:render_api_error!).with('429 Too Many Requests', 429)
+      expect(headers).to receive(:[]=).with('Retry-After', 120)
+
+      helper.too_many_requests!(retry_after: 2.minutes)
+    end
+
+    it 'renders 429 without a Retry-After value' do
+      expect(helper).to receive(:render_api_error!).with('429 Too Many Requests', 429)
+      expect(headers).not_to receive(:[]=)
+
+      helper.too_many_requests!(retry_after: nil)
+    end
+  end
+
   describe '#authenticate_by_gitlab_shell_token!' do
     include GitlabShellHelpers
 
@@ -1001,6 +1282,49 @@ RSpec.describe API::Helpers, feature_category: :not_owned do
       let(:headers) { gitlab_shell_internal_api_request_header }
 
       it_behaves_like 'authorized'
+    end
+  end
+
+  describe "attributes_for_keys" do
+    let(:hash) do
+      {
+        existing_key_with_present_value: 'actual value',
+        existing_key_with_nil_value: nil,
+        existing_key_with_false_value: false
+      }
+    end
+
+    let(:parameters) { ::ActionController::Parameters.new(hash) }
+    let(:symbol_keys) do
+      %i[
+        existing_key_with_present_value
+        existing_key_with_nil_value
+        existing_key_with_false_value
+        non_existing_key
+      ]
+    end
+
+    let(:string_keys) { symbol_keys.map(&:to_s) }
+    let(:filtered_attrs) do
+      {
+        'existing_key_with_present_value' => 'actual value',
+        'existing_key_with_false_value' => false
+      }
+    end
+
+    let(:empty_attrs) { {} }
+
+    where(:params, :keys, :attrs_result) do
+      ref(:hash) | ref(:symbol_keys) | ref(:filtered_attrs)
+      ref(:hash) | ref(:string_keys) | ref(:empty_attrs)
+      ref(:parameters) | ref(:symbol_keys) | ref(:filtered_attrs)
+      ref(:parameters) | ref(:string_keys) | ref(:filtered_attrs)
+    end
+
+    with_them do
+      it 'returns the values for given keys' do
+        expect(helper.attributes_for_keys(keys, params)).to eq(attrs_result)
+      end
     end
   end
 end

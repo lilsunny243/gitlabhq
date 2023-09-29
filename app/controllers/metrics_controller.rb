@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
-# rubocop:disable Rails/ApplicationController
-class MetricsController < ActionController::Base
-  include RequiresWhitelistedMonitoringClient
+class MetricsController < BaseActionController
+  include RequiresAllowlistedMonitoringClient
 
   protect_from_forgery with: :exception, prepend: true
 
@@ -36,4 +35,3 @@ class MetricsController < ActionController::Base
     )
   end
 end
-# rubocop:enable Rails/ApplicationController

@@ -2,17 +2,15 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin updates settings', feature_category: :not_owned do
+RSpec.describe 'Admin updates settings', feature_category: :shared do
   include StubENV
   include TermsHelper
   include UsageDataHelpers
 
-  let_it_be(:admin) { create(:admin) }
-  let(:dot_com?) { false }
+  let_it_be(:admin) { create(:admin, :no_super_sidebar) }
 
   context 'application setting :admin_mode is enabled', :request_store do
     before do
-      allow(Gitlab).to receive(:com?).and_return(dot_com?)
       stub_env('IN_MEMORY_APPLICATION_SETTINGS', 'false')
       sign_in(admin)
       gitlab_enable_admin_mode_sign_in(admin)
@@ -53,20 +51,9 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
 
       it 'modify import sources' do
-        expect(current_settings.import_sources).not_to be_empty
-
-        page.within('[data-testid="admin-visibility-access-settings"]') do
-          Gitlab::ImportSources.options.map do |name, _|
-            uncheck name
-          end
-
-          click_button 'Save changes'
-        end
-
-        expect(page).to have_content "Application settings saved successfully"
         expect(current_settings.import_sources).to be_empty
 
-        page.within('[data-testid="admin-visibility-access-settings"]') do
+        page.within('[data-testid="admin-import-export-settings"]') do
           check "Repository by URL"
           click_button 'Save changes'
         end
@@ -76,7 +63,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
 
       it 'change Visibility and Access Controls' do
-        page.within('[data-testid="admin-visibility-access-settings"]') do
+        page.within('[data-testid="admin-import-export-settings"]') do
           page.within('[data-testid="project-export"]') do
             uncheck 'Enabled'
           end
@@ -126,8 +113,8 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
 
       it 'change Maximum export size' do
-        page.within(find('[data-testid="account-limit"]')) do
-          fill_in 'Maximum export size (MB)', with: 25
+        page.within(find('[data-testid="admin-import-export-settings"]')) do
+          fill_in 'Maximum export size (MiB)', with: 25
           click_button 'Save changes'
         end
 
@@ -136,8 +123,8 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
 
       it 'change Maximum import size' do
-        page.within(find('[data-testid="account-limit"]')) do
-          fill_in 'Maximum import size (MB)', with: 15
+        page.within(find('[data-testid="admin-import-export-settings"]')) do
+          fill_in 'Maximum import size (MiB)', with: 15
           click_button 'Save changes'
         end
 
@@ -157,10 +144,8 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         expect(user_internal_regex['placeholder']).to eq 'Regex pattern'
       end
 
-      context 'Dormant users' do
-        context 'when Gitlab.com' do
-          let(:dot_com?) { true }
-
+      context 'Dormant users', feature_category: :user_management do
+        context 'when Gitlab.com', :saas do
           it 'does not expose the setting section' do
             # NOTE: not_to have_content may have false positives for content
             #       that might not load instantly, so before checking that
@@ -174,15 +159,13 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         end
 
         context 'when not Gitlab.com' do
-          let(:dot_com?) { false }
-
           it 'exposes the setting section' do
             expect(page).to have_content('Dormant users')
             expect(page).to have_field('Deactivate dormant users after a period of inactivity')
             expect(page).to have_field('Days of inactivity before deactivation')
           end
 
-          it 'changes dormant users' do
+          it 'changes dormant users', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408224' do
             expect(page).to have_unchecked_field('Deactivate dormant users after a period of inactivity')
             expect(current_settings.deactivate_dormant_users).to be_falsey
 
@@ -199,7 +182,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
             expect(page).to have_checked_field('Deactivate dormant users after a period of inactivity')
           end
 
-          it 'change dormant users period' do
+          it 'change dormant users period', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408224' do
             expect(page).to have_field _('Days of inactivity before deactivation')
 
             page.within(find('[data-testid="account-limit"]')) do
@@ -360,8 +343,8 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         end
       end
 
-      context 'GitLab for Jira App settings' do
-        it 'changes the setting' do
+      context 'GitLab for Jira App settings', feature_category: :integrations do
+        it 'changes the settings' do
           page.within('#js-jira_connect-settings') do
             fill_in 'Jira Connect Application ID', with: '1234'
             fill_in 'Jira Connect Proxy URL', with: 'https://example.com'
@@ -373,6 +356,51 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
           expect(current_settings.jira_connect_proxy_url).to eq('https://example.com')
           expect(current_settings.jira_connect_public_key_storage_enabled).to eq(true)
           expect(page).to have_content "Application settings saved successfully"
+        end
+      end
+
+      context 'GitLab for Slack app settings', feature_category: :integrations do
+        let(:create_heading) { 'Create your GitLab for Slack app' }
+        let(:configure_heading) { 'Configure the app settings' }
+        let(:update_heading) { 'Update your Slack app' }
+
+        it 'has all sections' do
+          page.within('.as-slack') do
+            expect(page).to have_content(create_heading)
+            expect(page).to have_content(configure_heading)
+            expect(page).to have_content(update_heading)
+          end
+        end
+
+        context 'when GitLab.com', :saas do
+          it 'only has the configure section' do
+            page.within('.as-slack') do
+              expect(page).to have_content(configure_heading)
+
+              expect(page).not_to have_content(create_heading)
+              expect(page).not_to have_content(update_heading)
+            end
+          end
+        end
+
+        it 'changes the settings' do
+          page.within('.as-slack') do
+            check 'Enable GitLab for Slack app'
+            fill_in 'Client ID', with: 'slack_app_id'
+            fill_in 'Client secret', with: 'slack_app_secret'
+            fill_in 'Signing secret', with: 'slack_app_signing_secret'
+            fill_in 'Verification token', with: 'slack_app_verification_token'
+            click_button 'Save changes'
+          end
+
+          expect(current_settings).to have_attributes(
+            slack_app_enabled: true,
+            slack_app_id: 'slack_app_id',
+            slack_app_secret: 'slack_app_secret',
+            slack_app_signing_secret: 'slack_app_signing_secret',
+            slack_app_verification_token: 'slack_app_verification_token'
+          )
+          expect(page).to have_content 'Application settings saved successfully'
         end
       end
     end
@@ -426,6 +454,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
           fill_in 'application_setting_auto_devops_domain', with: 'domain.com'
           uncheck 'Keep the latest artifacts for all jobs in the latest successful pipelines'
           uncheck 'Enable pipeline suggestion banner'
+          fill_in 'application_setting_ci_max_includes', with: 200
           click_button 'Save changes'
         end
 
@@ -433,6 +462,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         expect(current_settings.auto_devops_domain).to eq('domain.com')
         expect(current_settings.keep_latest_artifact).to be false
         expect(current_settings.suggest_pipeline_enabled).to be false
+        expect(current_settings.ci_max_includes).to be 200
         expect(page).to have_content "Application settings saved successfully"
       end
 
@@ -442,7 +472,6 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         page.within('.as-ci-cd') do
           fill_in 'plan_limits_ci_pipeline_size', with: 10
           fill_in 'plan_limits_ci_active_jobs', with: 20
-          fill_in 'plan_limits_ci_active_pipelines', with: 25
           fill_in 'plan_limits_ci_project_subscriptions', with: 30
           fill_in 'plan_limits_ci_pipeline_schedules', with: 40
           fill_in 'plan_limits_ci_needs_size_limit', with: 50
@@ -454,7 +483,6 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         limits = default_plan.reload.limits
         expect(limits.ci_pipeline_size).to eq(10)
         expect(limits.ci_active_jobs).to eq(20)
-        expect(limits.ci_active_pipelines).to eq(25)
         expect(limits.ci_project_subscriptions).to eq(30)
         expect(limits.ci_pipeline_schedules).to eq(40)
         expect(limits.ci_needs_size_limit).to eq(50)
@@ -487,7 +515,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
             container_registry_delete_tags_service_timeout: 'Container Registry delete tags service execution timeout',
             container_registry_expiration_policies_worker_capacity: 'Cleanup policy maximum workers running concurrently',
             container_registry_cleanup_tags_service_max_list_size: 'Cleanup policy maximum number of tags to be deleted',
-            container_registry_expiration_policies_caching: 'Enable container expiration caching'
+            container_registry_expiration_policies_caching: 'Enable cleanup policy caching'
           }
         end
 
@@ -638,6 +666,8 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
 
       it 'loads togglable usage ping payload on click', :js do
+        allow(Gitlab::Usage::ServicePingReport).to receive(:for).and_return({ uuid: '12345678', hostname: '127.0.0.1' })
+
         stub_usage_data_connections
         stub_database_flavor_check
 
@@ -666,11 +696,11 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         visit network_admin_application_settings_path
 
         page.within('.as-outbound') do
-          check 'Allow requests to the local network from web hooks and services'
+          check 'Allow requests to the local network from webhooks and integrations'
           # Enabled by default
           uncheck 'Allow requests to the local network from system hooks'
           # Enabled by default
-          uncheck 'Enforce DNS rebinding attack protection'
+          uncheck 'Enforce DNS-rebinding attack protection'
           click_button 'Save changes'
         end
 
@@ -760,6 +790,18 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
         expect(page).to have_content "Application settings saved successfully"
         expect(current_settings.users_get_by_id_limit).to eq(0)
         expect(current_settings.users_get_by_id_limit_allowlist).to eq(%w[someone someone_else])
+      end
+
+      it 'changes gitlab shell operation limits settings' do
+        visit network_admin_application_settings_path
+
+        page.within('[data-testid="gitlab-shell-operation-limits"]') do
+          fill_in 'Maximum number of Git operations per minute', with: 100
+          click_button 'Save changes'
+        end
+
+        expect(page).to have_content "Application settings saved successfully"
+        expect(current_settings.gitlab_shell_operation_limit).to eq(100)
       end
 
       it 'changes Projects API rate limits settings' do
@@ -892,7 +934,7 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
 
       it 'change Pages settings' do
         page.within('.as-pages') do
-          fill_in 'Maximum size of pages (MB)', with: 15
+          fill_in 'Maximum size of pages (MiB)', with: 15
           check 'Require users to prove ownership of custom domains'
           click_button 'Save changes'
         end
@@ -964,14 +1006,24 @@ RSpec.describe 'Admin updates settings', feature_category: :not_owned do
       end
     end
 
-    context 'Service usage data page' do
+    context 'Service usage data page', :with_license do
       before do
         stub_usage_data_connections
         stub_database_flavor_check
       end
 
       context 'when service data cached', :use_clean_rails_memory_store_caching do
+        let(:usage_data) { { uuid: "1111", hostname: "localhost", counts: { issue: 0 } }.deep_stringify_keys }
+
         before do
+          # We are mocking Gitlab::Usage::ServicePingReport because this dataset generation
+          # takes a very long time, and is not what we're testing in this context.
+          #
+          # See https://gitlab.com/gitlab-org/gitlab/-/issues/414929
+          allow(Gitlab::UsageData).to receive(:data).and_return(usage_data)
+          allow(Gitlab::Usage::ServicePingReport).to receive(:with_instrumentation_classes)
+            .with(usage_data, :with_value).and_return(usage_data)
+
           visit usage_data_admin_application_settings_path
           visit service_usage_data_admin_application_settings_path
         end

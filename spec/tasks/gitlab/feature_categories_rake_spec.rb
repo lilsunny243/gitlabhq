@@ -21,7 +21,7 @@ RSpec.describe 'gitlab:feature_categories:index', :silence_stdout, feature_categ
         )
       ),
       'api_endpoints' => a_hash_including(
-        'authentication_and_authorization' => a_collection_including(
+        'system_access' => a_collection_including(
           klass: 'API::AccessRequests',
           action: '/groups/:id/access_requests',
           source_location: [
@@ -40,7 +40,8 @@ RSpec.describe 'gitlab:feature_categories:index', :silence_stdout, feature_categ
         )
       ),
       'database_tables' => a_hash_including(
-        'container_scanning' => a_collection_including('vulnerability_advisories')
+        'continuous_integration' => a_collection_including('ci_pipelines'),
+        'user_profile' => a_collection_including('users')
       )
     }
 

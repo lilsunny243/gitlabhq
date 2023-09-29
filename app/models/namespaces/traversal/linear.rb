@@ -96,38 +96,13 @@ module Namespaces
         traversal_ids.present?
       end
 
-      def use_traversal_ids_for_self_and_hierarchy?
-        return false unless use_traversal_ids?
-        return false unless Feature.enabled?(:use_traversal_ids_for_self_and_hierarchy, root_ancestor)
-
-        traversal_ids.present?
-      end
-
-      def use_traversal_ids_for_ancestors?
-        return false unless use_traversal_ids?
-        return false unless Feature.enabled?(:use_traversal_ids_for_ancestors, root_ancestor)
-
-        traversal_ids.present?
-      end
-
-      def use_traversal_ids_for_ancestors_upto?
-        return false unless use_traversal_ids?
-        return false unless Feature.enabled?(:use_traversal_ids_for_ancestors_upto, root_ancestor)
-
-        traversal_ids.present?
-      end
-
-      def use_traversal_ids_for_root_ancestor?
-        return false unless Feature.enabled?(:use_traversal_ids_for_root_ancestor)
-
-        traversal_ids.present?
-      end
-
       def root_ancestor
-        return super unless use_traversal_ids_for_root_ancestor?
-
         strong_memoize(:root_ancestor) do
-          if parent_id.nil?
+          if association(:parent).loaded? && parent.present?
+            # This case is possible when parent has not been persisted or we're inside a transaction.
+            parent.root_ancestor
+          elsif parent_id.nil?
+            # There is no parent, so we are the root ancestor.
             self
           else
             Namespace.find_by(id: traversal_ids.first)
@@ -154,13 +129,13 @@ module Namespaces
       end
 
       def self_and_hierarchy
-        return super unless use_traversal_ids_for_self_and_hierarchy?
+        return super unless use_traversal_ids?
 
         self_and_descendants.or(ancestors)
       end
 
       def ancestors(hierarchy_order: nil)
-        return super unless use_traversal_ids_for_ancestors?
+        return super unless use_traversal_ids?
 
         return self.class.none if parent_id.blank?
 
@@ -168,7 +143,7 @@ module Namespaces
       end
 
       def ancestor_ids(hierarchy_order: nil)
-        return super unless use_traversal_ids_for_ancestors?
+        return super unless use_traversal_ids?
 
         hierarchy_order == :desc ? traversal_ids[0..-2] : traversal_ids[0..-2].reverse
       end
@@ -180,7 +155,7 @@ module Namespaces
       # This copies the behavior of the recursive method. We will deprecate
       # this behavior soon.
       def ancestors_upto(top = nil, hierarchy_order: nil)
-        return super unless use_traversal_ids_for_ancestors_upto?
+        return super unless use_traversal_ids?
 
         # We can't use a default value in the method definition above because
         # we need to preserve those specific parameters for super.
@@ -202,7 +177,7 @@ module Namespaces
       end
 
       def self_and_ancestors(hierarchy_order: nil)
-        return super unless use_traversal_ids_for_ancestors?
+        return super unless use_traversal_ids?
 
         return self.class.where(id: id) if parent_id.blank?
 
@@ -210,7 +185,7 @@ module Namespaces
       end
 
       def self_and_ancestor_ids(hierarchy_order: nil)
-        return super unless use_traversal_ids_for_ancestors?
+        return super unless use_traversal_ids?
 
         hierarchy_order == :desc ? traversal_ids : traversal_ids.reverse
       end

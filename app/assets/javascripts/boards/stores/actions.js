@@ -602,8 +602,8 @@ export default {
           cache,
           {
             data: {
-              issueMoveList: {
-                issue: { weight },
+              issuableMoveList: {
+                issuable: { weight },
               },
             },
           },
@@ -661,11 +661,11 @@ export default {
         },
       });
 
-      if (data?.issueMoveList?.errors.length || !data.issueMoveList) {
+      if (data?.issuableMoveList?.errors.length || !data.issuableMoveList) {
         throw new Error('issueMoveList empty');
       }
 
-      commit(types.MUTATE_ISSUE_SUCCESS, { issue: data.issueMoveList.issue });
+      commit(types.MUTATE_ISSUE_SUCCESS, { issue: data.issuableMoveList.issuable });
       commit(types.MUTATE_ISSUE_IN_PROGRESS, false);
     } catch {
       commit(types.MUTATE_ISSUE_IN_PROGRESS, false);
@@ -743,11 +743,11 @@ export default {
         },
       })
       .then(({ data }) => {
-        if (data.createIssue.errors.length) {
+        if (data.createIssuable.errors.length) {
           throw new Error();
         }
 
-        const rawIssue = data.createIssue?.issue;
+        const rawIssue = data.createIssuable?.issuable;
         const formattedIssue = formatIssue(rawIssue);
         dispatch('removeListItem', { listId: list.id, itemId: placeholderId });
         dispatch('addListItem', { list, item: formattedIssue, position: 0 });

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Types::WorkItems::WidgetInterface do
+RSpec.describe Types::WorkItems::WidgetInterface, feature_category: :team_planning do
   include GraphqlHelpers
 
   it 'exposes the expected fields' do
@@ -15,11 +15,15 @@ RSpec.describe Types::WorkItems::WidgetInterface do
     using RSpec::Parameterized::TableSyntax
 
     where(:widget_class, :widget_type_name) do
-      WorkItems::Widgets::Description | Types::WorkItems::Widgets::DescriptionType
-      WorkItems::Widgets::Hierarchy   | Types::WorkItems::Widgets::HierarchyType
-      WorkItems::Widgets::Assignees   | Types::WorkItems::Widgets::AssigneesType
-      WorkItems::Widgets::Labels      | Types::WorkItems::Widgets::LabelsType
-      WorkItems::Widgets::Notes       | Types::WorkItems::Widgets::NotesType
+      WorkItems::Widgets::Description      | Types::WorkItems::Widgets::DescriptionType
+      WorkItems::Widgets::Hierarchy        | Types::WorkItems::Widgets::HierarchyType
+      WorkItems::Widgets::Assignees        | Types::WorkItems::Widgets::AssigneesType
+      WorkItems::Widgets::Labels           | Types::WorkItems::Widgets::LabelsType
+      WorkItems::Widgets::Notes            | Types::WorkItems::Widgets::NotesType
+      WorkItems::Widgets::Notifications    | Types::WorkItems::Widgets::NotificationsType
+      WorkItems::Widgets::CurrentUserTodos | Types::WorkItems::Widgets::CurrentUserTodosType
+      WorkItems::Widgets::AwardEmoji       | Types::WorkItems::Widgets::AwardEmojiType
+      WorkItems::Widgets::LinkedItems      | Types::WorkItems::Widgets::LinkedItemsType
     end
 
     with_them do

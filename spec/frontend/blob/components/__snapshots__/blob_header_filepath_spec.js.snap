@@ -2,9 +2,8 @@
 
 exports[`Blob Header Filepath rendering matches the snapshot 1`] = `
 <div
-  class="file-header-content d-flex align-items-center lh-100"
+  class="align-items-center d-flex file-header-content lh-100"
 >
-   
   <file-icon-stub
     aria-hidden="true"
     cssclasses="gl-mr-3"
@@ -12,17 +11,15 @@ exports[`Blob Header Filepath rendering matches the snapshot 1`] = `
     filename="foo/bar/dummy.md"
     size="16"
   />
-   
   <strong
-    class="file-title-name mr-1 js-blob-header-filepath"
+    class="file-title-name js-blob-header-filepath mr-1"
     data-qa-selector="file_title_content"
   >
     foo/bar/dummy.md
   </strong>
-   
   <clipboard-button-stub
     category="tertiary"
-    cssclass="btn-clipboard btn-transparent lh-100 position-static"
+    cssclass="gl-mr-2"
     gfm="\`foo/bar/dummy.md\`"
     size="medium"
     text="foo/bar/dummy.md"
@@ -30,13 +27,10 @@ exports[`Blob Header Filepath rendering matches the snapshot 1`] = `
     tooltipplacement="top"
     variant="default"
   />
-   
   <small
     class="gl-mr-3"
   >
     a lot
   </small>
-   
-  <!---->
 </div>
 `;

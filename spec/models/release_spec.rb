@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Release do
+RSpec.describe Release, feature_category: :release_orchestration do
   let_it_be(:user)    { create(:user) }
   let_it_be(:project) { create(:project, :public, :repository) }
 
@@ -17,6 +17,7 @@ RSpec.describe Release do
     it { is_expected.to have_many(:milestones) }
     it { is_expected.to have_many(:milestone_releases) }
     it { is_expected.to have_many(:evidences).class_name('Releases::Evidence') }
+    it { is_expected.to have_one(:catalog_resource_version).class_name('Ci::Catalog::Resources::Version') }
   end
 
   describe 'validation' do
@@ -54,9 +55,9 @@ RSpec.describe Release do
       it 'creates a validation error' do
         milestone = build(:milestone, project: create(:project))
 
-        expect { release.milestones << milestone }
-          .to raise_error(ActiveRecord::RecordInvalid,
-                          'Validation failed: Release does not have the same project as the milestone')
+        expect { release.milestones << milestone }.to raise_error(
+          ActiveRecord::RecordInvalid, 'Validation failed: Release does not have the same project as the milestone'
+        )
       end
     end
 
@@ -85,8 +86,96 @@ RSpec.describe Release do
     end
   end
 
+  describe 'latest releases' do
+    let_it_be(:yesterday) { Time.zone.now - 1.day }
+    let_it_be(:tomorrow) { Time.zone.now + 1.day }
+
+    let_it_be(:project2) { create(:project) }
+
+    let_it_be(:project_release1) do
+      create(:release, project: project, released_at: yesterday, created_at: tomorrow)
+    end
+
+    let_it_be(:project_release2) do
+      create(:release, project: project, released_at: tomorrow, created_at: yesterday)
+    end
+
+    let_it_be(:project2_release1) do
+      create(:release, project: project2, released_at: yesterday, created_at: tomorrow)
+    end
+
+    let_it_be(:project2_release2) do
+      create(:release, project: project2, released_at: tomorrow, created_at: yesterday)
+    end
+
+    let(:args) { {} }
+
+    describe '.latest' do
+      subject(:latest) { project.releases.latest(**args) }
+
+      context 'without order_by' do
+        it 'returns the latest release by released date' do
+          expect(latest).to eq(project_release2)
+        end
+      end
+
+      context 'with order_by: created_at' do
+        let(:args) { { order_by: 'created_at' } }
+
+        it 'returns the latest release by created date' do
+          expect(latest).to eq(project_release1)
+        end
+      end
+
+      context 'when there are no releases' do
+        it 'returns nil' do
+          project.releases.delete_all
+
+          expect(latest).to eq(nil)
+        end
+      end
+    end
+
+    describe '.latest_for_projects' do
+      let(:projects) { [project, project2] }
+
+      subject(:latest_for_projects) { described_class.latest_for_projects(projects, **args) }
+
+      context 'without order_by' do
+        it 'returns the latest release by released date for each project' do
+          expect(latest_for_projects).to match_array([project_release2, project2_release2])
+        end
+      end
+
+      context 'with order_by: created_at' do
+        let(:args) { { order_by: 'created_at' } }
+
+        it 'returns the latest release by created date for each project' do
+          expect(latest_for_projects).to match_array([project_release1, project2_release1])
+        end
+      end
+
+      context 'when no projects are provided' do
+        let(:projects) { [] }
+
+        it 'returns empty response' do
+          expect(latest_for_projects).to be_empty
+        end
+      end
+
+      context 'when there are no releases' do
+        it 'returns empty response' do
+          project.releases.delete_all
+          project2.releases.delete_all
+
+          expect(latest_for_projects).to be_empty
+        end
+      end
+    end
+  end
+
   describe '#assets_count' do
-    subject { Release.find(release.id).assets_count }
+    subject { described_class.find(release.id).assets_count }
 
     it 'returns the number of sources' do
       is_expected.to eq(Gitlab::Workhorse::ARCHIVE_FORMATS.count)
@@ -100,7 +189,7 @@ RSpec.describe Release do
       end
 
       it "excludes sources count when asked" do
-        assets_count = Release.find(release.id).assets_count(except: [:sources])
+        assets_count = described_class.find(release.id).assets_count(except: [:sources])
         expect(assets_count).to eq(1)
       end
     end

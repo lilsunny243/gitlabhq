@@ -15,10 +15,14 @@ export function dispatchSnowplowEvent(
   let { value } = data;
 
   const standardContext = getStandardContext({ extra });
-  const contexts = [standardContext];
+  let contexts = [standardContext];
 
   if (data.context) {
-    contexts.push(data.context);
+    if (Array.isArray(data.context)) {
+      contexts = [...contexts, ...data.context];
+    } else {
+      contexts.push(data.context);
+    }
   }
 
   if (value !== undefined) {
@@ -26,7 +30,14 @@ export function dispatchSnowplowEvent(
   }
 
   try {
-    window.snowplow('trackStructEvent', category, action, label, property, value, contexts);
+    window.snowplow('trackStructEvent', {
+      category,
+      action,
+      label,
+      property,
+      value,
+      context: contexts,
+    });
     return true;
   } catch (error) {
     Sentry.captureException(error);

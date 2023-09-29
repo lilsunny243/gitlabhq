@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state, feature_category: :integrations do
+RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state, feature_category: :webhooks do
   include StubRequests
 
   let(:ellipsis) { '…' }
@@ -69,20 +69,23 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state,
   end
 
   describe '#execute' do
-    let!(:uuid) { SecureRandom.uuid }
+    let(:uuid) { SecureRandom.uuid }
+    let!(:recursion_uuid) { SecureRandom.uuid }
     let(:headers) do
       {
         'Content-Type' => 'application/json',
         'User-Agent' => "GitLab/#{Gitlab::VERSION}",
+        'X-Gitlab-Webhook-UUID' => uuid,
         'X-Gitlab-Event' => 'Push Hook',
-        'X-Gitlab-Event-UUID' => uuid,
+        'X-Gitlab-Event-UUID' => recursion_uuid,
         'X-Gitlab-Instance' => Gitlab.config.gitlab.base_url
       }
     end
 
     before do
-      # Set a stable value for the `X-Gitlab-Event-UUID` header.
-      Gitlab::WebHooks::RecursionDetection.set_request_uuid(uuid)
+      # Set stable values for the `X-Gitlab-Webhook-UUID` and `X-Gitlab-Event-UUID` headers.
+      allow(SecureRandom).to receive(:uuid).and_return(uuid)
+      Gitlab::WebHooks::RecursionDetection.set_request_uuid(recursion_uuid)
     end
 
     context 'when there is an interpolation error' do
@@ -130,8 +133,8 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state,
       context 'there is userinfo' do
         before do
           project_hook.update!(
-            url: 'http://{one}:{two}@example.com',
-            url_variables: { 'one' => 'a', 'two' => 'b' }
+            url: 'http://{foo}:{bar}@example.com',
+            url_variables: { 'foo' => 'a', 'bar' => 'b' }
           )
           stub_full_request('http://example.com', method: :post)
         end
@@ -164,6 +167,23 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state,
 
         expect(WebMock).to have_requested(:post, stubbed_hostname(project_hook.url)).with(
           headers: headers.merge({ 'X-Gitlab-Token' => project_hook.token })
+        ).once
+      end
+    end
+
+    context 'with SystemHook' do
+      let_it_be(:system_hook) { create(:system_hook) }
+      let(:service_instance) { described_class.new(system_hook, data, :push_hooks) }
+
+      before do
+        stub_full_request(system_hook.url, method: :post)
+      end
+
+      it 'POSTs to the webhook URL with correct headers' do
+        service_instance.execute
+
+        expect(WebMock).to have_requested(:post, stubbed_hostname(system_hook.url)).with(
+          headers: headers.merge({ 'X-Gitlab-Event' => 'System Hook' })
         ).once
       end
     end
@@ -290,6 +310,20 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state,
       service_instance.execute
 
       expect(WebMock).not_to have_requested(:post, stubbed_hostname(project_hook.url))
+    end
+
+    context 'when silent mode is enabled' do
+      before do
+        stub_application_setting(silent_mode_enabled: true)
+      end
+
+      it 'blocks and logs an error' do
+        stub_full_request(project_hook.url, method: :post)
+
+        expect(Gitlab::AuthLogger).to receive(:error).with(include(message: 'GitLab is in silent mode'))
+        expect(service_instance.execute).to be_error
+        expect(WebMock).not_to have_requested(:post, stubbed_hostname(project_hook.url))
+      end
     end
 
     it 'handles exceptions' do
@@ -725,6 +759,19 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state,
             'meta.root_namespace' => project.root_namespace.full_path
           )
         )
+
+        service_instance.async_execute
+      end
+    end
+
+    context 'when silent mode is enabled' do
+      before do
+        stub_application_setting(silent_mode_enabled: true)
+      end
+
+      it 'does not queue a worker and logs an error' do
+        expect(WebHookWorker).not_to receive(:perform_async)
+        expect(Gitlab::AuthLogger).to receive(:error).with(include(message: 'GitLab is in silent mode'))
 
         service_instance.async_execute
       end

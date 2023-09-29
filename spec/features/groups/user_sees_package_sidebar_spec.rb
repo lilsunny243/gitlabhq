@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Groups > sidebar', feature_category: :subgroups do
-  let(:user) { create(:user) }
+RSpec.describe 'Groups > sidebar', feature_category: :groups_and_projects do
+  let(:user) { create(:user, :no_super_sidebar) }
   let(:group) { create(:group) }
 
   before do

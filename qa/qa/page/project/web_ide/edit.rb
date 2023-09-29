@@ -58,7 +58,7 @@ module QA
           end
 
           view 'app/assets/javascripts/vue_shared/components/file_row.vue' do
-            element :file_name_content
+            element 'file-row-name-container'
             element :file_row_container
           end
 
@@ -68,7 +68,7 @@ module QA
             element :delete_button
           end
 
-          view 'app/assets/javascripts/vue_shared/components/confirm_fork_modal.vue' do
+          view 'app/assets/javascripts/vue_shared/components/web_ide/confirm_fork_modal.vue' do
             element :fork_project_button
             element :confirm_fork_modal
           end
@@ -111,15 +111,19 @@ module QA
 
           # Used for stablility, due to feature_caching of vscode_web_ide
           def wait_until_ide_loads
-            Support::Waiter.wait_until(sleep_interval: 2, max_duration: 60, reload_page: page,
-                                       retry_on_exception: true) do
+            Support::Waiter.wait_until(
+              sleep_interval: 2,
+              max_duration: 120,
+              reload_page: page,
+              retry_on_exception: true
+            ) do
               has_element?(:commit_mode_tab)
             end
           end
 
           def has_file?(file_name)
             within_element(:file_list_container) do
-              has_element?(:file_name_content, file_name: file_name)
+              has_element?('file-row-name-container', file_name: file_name)
             end
           end
 
@@ -174,7 +178,7 @@ module QA
             within_element(:template_list_content) do
               click_on file_name
             rescue Capybara::ElementNotFound
-              raise ElementNotFound, %Q(Couldn't find file template named "#{file_name}". Please confirm that it is a valid option.)
+              raise ElementNotFound, %(Couldn't find file template named "#{file_name}". Please confirm that it is a valid option.)
             end
 
             # Wait for the modal to fade out too
@@ -188,7 +192,7 @@ module QA
                 begin
                   click_on template
                 rescue Capybara::ElementNotFound
-                  raise ElementNotFound, %Q(Couldn't find template "#{template}" for #{file_name}. Please confirm that it exists in the list of templates.)
+                  raise ElementNotFound, %(Couldn't find template "#{template}" for #{file_name}. Please confirm that it exists in the list of templates.)
                 end
               end
             end
@@ -285,7 +289,7 @@ module QA
           end
 
           def rename_file(file_name, new_file_name)
-            click_element(:file_name_content, file_name: file_name)
+            click_element('file-row-name-container', file_name: file_name)
             click_element(:dropdown_button)
             click_element(:rename_move_button, Page::Component::WebIDE::Modal::CreateNewFile)
             fill_element(:file_name_field, new_file_name)
@@ -310,7 +314,7 @@ module QA
           end
 
           def delete_file(file_name)
-            click_element(:file_name_content, file_name: file_name)
+            click_element('file-row-name-container', file_name: file_name)
             click_element(:dropdown_button)
             click_element(:delete_button)
           end
@@ -322,9 +326,9 @@ module QA
           def select_file(file_name)
             # wait for the list of files to load
             wait_until(reload: true) do
-              has_element?(:file_name_content, file_name: file_name)
+              has_element?('file-row-name-container', file_name: file_name)
             end
-            click_element(:file_name_content, file_name: file_name)
+            click_element('file-row-name-container', file_name: file_name)
           end
 
           def link_line(line_number)

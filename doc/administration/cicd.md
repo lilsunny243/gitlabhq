@@ -14,13 +14,13 @@ GitLab administrators can manage the GitLab CI/CD configuration for their instan
 GitLab CI/CD is enabled by default in all new projects on an instance. You can set
 CI/CD to be disabled by default in new projects by modifying the settings in:
 
-- `gitlab.yml` for source installations.
-- `gitlab.rb` for Omnibus GitLab installations.
+- `gitlab.yml` for self-compiled installations.
+- `gitlab.rb` for Linux package installations.
 
 Existing projects that already had CI/CD enabled are unchanged. Also, this setting only changes
-the project default, so project owners [can still enable CI/CD in the project settings](../ci/enable_or_disable_ci.md#enable-cicd-in-a-project).
+the project default, so project owners [can still enable CI/CD in the project settings](../ci/enable_or_disable_ci.md).
 
-For installations from source:
+For self-compiled installations:
 
 1. Open `gitlab.yml` with your editor and set `builds` to `false`:
 
@@ -42,7 +42,7 @@ For installations from source:
    sudo service gitlab restart
    ```
 
-For Omnibus GitLab installations:
+For Linux package installations:
 
 1. Edit `/etc/gitlab/gitlab.rb` and add this line:
 
@@ -88,7 +88,7 @@ is listed in the [GitLab.com settings](../user/gitlab_com/index.md#gitlab-cicd).
 To change the frequency of the pipeline schedule worker:
 
 1. Edit the `gitlab_rails['pipeline_schedule_worker_cron']` value in your instance's `gitlab.rb` file.
-1. [Reconfigure GitLab](restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 For example, to set the maximum frequency of pipelines to twice a day, set `pipeline_schedule_worker_cron`
 to a cron value of `0 */12 * * *` (`00:00` and `12:00` every day).

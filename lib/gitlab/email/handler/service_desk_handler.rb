@@ -10,9 +10,9 @@ module Gitlab
         include ReplyProcessing
         include Gitlab::Utils::StrongMemoize
 
-        HANDLER_REGEX        = /\A#{HANDLER_ACTION_BASE_REGEX}-issue-\z/.freeze
-        HANDLER_REGEX_LEGACY = /\A(?<project_path>[^\+]*)\z/.freeze
-        PROJECT_KEY_PATTERN  = /\A(?<slug>.+)-(?<key>[a-z0-9_]+)\z/.freeze
+        HANDLER_REGEX        = /\A#{HANDLER_ACTION_BASE_REGEX}-issue-\z/
+        HANDLER_REGEX_LEGACY = /\A(?<project_path>[^\+]*)\z/
+        PROJECT_KEY_PATTERN  = /\A(?<slug>.+)-(?<key>[a-z0-9_]+)\z/
 
         def initialize(mail, mail_key, service_desk_key: nil)
           if service_desk_key
@@ -31,6 +31,9 @@ module Gitlab
 
         def execute
           raise ProjectNotFound if project.nil?
+
+          # Verification emails should never create issues
+          return if handled_custom_email_address_verification?
 
           create_issue_or_note
 
@@ -70,6 +73,27 @@ module Gitlab
 
         attr_reader :project_id, :project_path, :service_desk_key
 
+        def contains_custom_email_address_verification_subaddress?
+          return false unless Feature.enabled?(:service_desk_custom_email, project)
+
+          # Verification email only has one recipient
+          mail.to.first.include?(ServiceDeskSetting::CUSTOM_EMAIL_VERIFICATION_SUBADDRESS)
+        end
+
+        def handled_custom_email_address_verification?
+          return false unless contains_custom_email_address_verification_subaddress?
+
+          ::ServiceDesk::CustomEmailVerifications::UpdateService.new(
+            project: project,
+            current_user: nil,
+            params: {
+              mail: mail
+            }
+          ).execute
+
+          true
+        end
+
         def project_from_key
           return unless match = service_desk_key.match(PROJECT_KEY_PATTERN)
 
@@ -93,7 +117,7 @@ module Gitlab
         def create_issue!
           result = ::Issues::CreateService.new(
             container: project,
-            current_user: User.support_bot,
+            current_user: Users::Internal.support_bot,
             params: {
               title: mail.subject,
               description: message_including_template,
@@ -103,7 +127,7 @@ module Gitlab
                 cc: mail.cc
               }
             },
-            spam_params: nil
+            perform_spam_check: false
           ).execute
 
           raise InvalidIssueError if result.error?
@@ -175,7 +199,7 @@ module Gitlab
         def create_note(note)
           ::Notes::CreateService.new(
             project,
-            User.support_bot,
+            Users::Internal.support_bot,
             noteable: @issue,
             note: note
           ).execute
@@ -190,7 +214,7 @@ module Gitlab
         end
 
         def author
-          User.support_bot
+          Users::Internal.support_bot
         end
 
         def add_email_participant

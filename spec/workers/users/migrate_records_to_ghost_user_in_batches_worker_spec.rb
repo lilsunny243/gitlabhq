@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Users::MigrateRecordsToGhostUserInBatchesWorker do
+RSpec.describe Users::MigrateRecordsToGhostUserInBatchesWorker, feature_category: :seat_cost_management do
   include ExclusiveLeaseHelpers
 
   let(:worker) { described_class.new }
@@ -34,8 +34,8 @@ RSpec.describe Users::MigrateRecordsToGhostUserInBatchesWorker do
     it 'migrates issue to ghost user' do
       subject
 
-      expect(issue.reload.author).to eq(User.ghost)
-      expect(issue.last_edited_by).to eq(User.ghost)
+      expect(issue.reload.author).to eq(Users::Internal.ghost)
+      expect(issue.last_edited_by).to eq(Users::Internal.ghost)
     end
   end
 end

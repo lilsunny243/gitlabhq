@@ -1,12 +1,12 @@
 ---
 type: reference
 description: "Automatic Let's Encrypt SSL certificates for GitLab Pages."
-stage: Create
-group: Editor
+stage: Plan
+group: Knowledge
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab Pages integration with Let's Encrypt **(FREE)**
+# GitLab Pages Let's Encrypt certificates **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/28996) in GitLab 12.1.
 
@@ -21,7 +21,7 @@ open source Certificate Authority.
 WARNING:
 This feature covers only certificates for **custom domains**, not the wildcard certificate required to run [Pages daemon](../../../../administration/pages/index.md) **(FREE SELF)**. Wildcard certificate generation is tracked in [this issue](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/3342).
 
-## Requirements
+## Prerequisites
 
 Before you can enable automatic provisioning of an SSL certificate for your domain, make sure you have:
 
@@ -42,11 +42,8 @@ For **self-managed** GitLab instances, make sure your administrator has
 
 Once you've met the requirements, enable Let's Encrypt integration:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Pages**.
-
-   If this path is not visible, select **Deployments > Pages**.
-   [This location is part of an experiment](../index.md#menu-position-test).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
 1. Next to the domain name, select **Edit**.
 1. Turn on the **Automatic certificate management using Let's Encrypt** toggle.
 
@@ -72,11 +69,8 @@ associated Pages domain. GitLab also renews it automatically.
 
 If you get an error **Something went wrong while obtaining the Let's Encrypt certificate**, first, make sure that your pages site is set to "Everyone" in your project's **Settings > General > Visibility**. This allows the Let's Encrypt Servers reach your pages site. Once this is confirmed, you can try obtaining the certificate again by following these steps:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Pages**.
-
-   If this path is not visible, select **Deployments > Pages**.
-   [This location is part of an experiment](../index.md#menu-position-test).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
 1. Next to the domain name, select **Edit**.
 1. In **Verification status**, select **Retry verification** (**{retry}**).
 1. If you're still getting the same error:
@@ -90,11 +84,8 @@ If you get an error **Something went wrong while obtaining the Let's Encrypt cer
 
 If you've enabled Let's Encrypt integration, but a certificate is absent after an hour and you see the message, "GitLab is obtaining a Let's Encrypt SSL certificate for this domain. This process can take some time. Please try again later.", try to remove and add the domain for GitLab Pages again by following these steps:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Pages**.
-
-   If this path is not visible, select **Deployments > Pages**.
-   [This location is part of an experiment](../index.md#menu-position-test).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
 1. Next to the domain name, select **Remove**.
 1. [Add the domain again, and verify it](index.md#1-add-a-custom-domain).
 1. [Enable Let's Encrypt integration for your domain](#enabling-lets-encrypt-integration-for-your-custom-domain).

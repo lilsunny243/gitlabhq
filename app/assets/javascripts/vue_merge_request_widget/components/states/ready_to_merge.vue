@@ -11,11 +11,12 @@ import {
   GlTooltipDirective,
   GlSkeletonLoader,
 } from '@gitlab/ui';
-import { isEmpty } from 'lodash';
+import { isEmpty, isNil } from 'lodash';
 import readyToMergeMixin from 'ee_else_ce/vue_merge_request_widget/mixins/ready_to_merge';
 import readyToMergeQuery from 'ee_else_ce/vue_merge_request_widget/queries/states/ready_to_merge.query.graphql';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
+import { STATUS_CLOSED, STATUS_MERGED } from '~/issues/constants';
 import { secondsToMilliseconds } from '~/lib/utils/datetime_utility';
 import simplePoll from '~/lib/utils/simple_poll';
 import { __, s__, n__ } from '~/locale';
@@ -23,9 +24,9 @@ import SmartInterval from '~/smart_interval';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import readyToMergeSubscription from '~/vue_merge_request_widget/queries/states/ready_to_merge.subscription.graphql';
+import HelpPopover from '~/vue_shared/components/help_popover.vue';
 import {
   AUTO_MERGE_STRATEGIES,
-  WARNING,
   MT_MERGE_STRATEGY,
   PIPELINE_FAILED_STATE,
   STATE_MACHINE,
@@ -40,7 +41,6 @@ import CommitMessageDropdown from './commit_message_dropdown.vue';
 import SquashBeforeMerge from './squash_before_merge.vue';
 import MergeFailedPipelineConfirmationDialog from './merge_failed_pipeline_confirmation_dialog.vue';
 
-const PIPELINE_RUNNING_STATE = 'running';
 const PIPELINE_PENDING_STATE = 'pending';
 const PIPELINE_SUCCESS_STATE = 'success';
 
@@ -86,7 +86,7 @@ export default {
           this.squashCommitMessage = this.state.defaultSquashCommitMessage;
         }
 
-        if (this.state.mergeTrainsCount !== null && this.state.mergeTrainsCount !== undefined) {
+        if (!isNil(this.state.mergeTrainsCount) && !this.pollingInterval) {
           this.initPolling();
         }
       },
@@ -95,7 +95,7 @@ export default {
           return readyToMergeSubscription;
         },
         skip() {
-          return !this.mr?.id || this.loading || !window.gon?.features?.realtimeMrStatusChange;
+          return !this.mr?.id || this.loading;
         },
         variables() {
           return {
@@ -131,8 +131,6 @@ export default {
     GlFormCheckbox,
     GlSkeletonLoader,
     MergeFailedPipelineConfirmationDialog,
-    MergeTrainHelperIcon: () =>
-      import('ee_component/vue_merge_request_widget/components/merge_train_helper_icon.vue'),
     MergeImmediatelyConfirmationDialog: () =>
       import(
         'ee_component/vue_merge_request_widget/components/merge_immediately_confirmation_dialog.vue'
@@ -143,6 +141,9 @@ export default {
       ),
     AddedCommitMessage,
     RelatedLinks,
+    HelpPopover,
+    AiCommitMessage: () =>
+      import('ee_component/vue_merge_request_widget/components/ai_commit_message.vue'),
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -171,14 +172,11 @@ export default {
     };
   },
   computed: {
-    stateData() {
-      return this.state;
-    },
     hasCI() {
-      return this.stateData.hasCI || this.stateData.hasCi;
+      return this.state.hasCI || this.state.hasCi;
     },
     isAutoMergeAvailable() {
-      return !isEmpty(this.stateData.availableAutoMergeStrategies);
+      return !isEmpty(this.state.availableAutoMergeStrategies);
     },
     pipeline() {
       return this.state.headPipeline;
@@ -241,22 +239,6 @@ export default {
 
       return PIPELINE_SUCCESS_STATE;
     },
-    iconClass() {
-      if (this.shouldRenderMergeTrainHelperIcon && !this.mr.preventMerge) {
-        return PIPELINE_RUNNING_STATE;
-      }
-
-      if (
-        this.status === PIPELINE_FAILED_STATE ||
-        !this.commitMessage.length ||
-        !this.isMergeAllowed ||
-        this.mr.preventMerge
-      ) {
-        return WARNING;
-      }
-
-      return PIPELINE_SUCCESS_STATE;
-    },
     mergeButtonText() {
       if (this.isMergingImmediately) {
         return __('Merge in progress');
@@ -271,8 +253,20 @@ export default {
 
       return __('Merge');
     },
+    showAutoMergeHelperText() {
+      return (
+        !(this.status === PIPELINE_FAILED_STATE || this.isPipelineFailed) &&
+        this.isAutoMergeAvailable
+      );
+    },
     hasPipelineMustSucceedConflict() {
-      return !this.hasCI && this.stateData.onlyAllowMergeIfPipelineSucceeds;
+      return !this.hasCI && this.state.onlyAllowMergeIfPipelineSucceeds;
+    },
+    isNotClosed() {
+      return this.mr.state !== STATUS_CLOSED;
+    },
+    isNeitherClosedNorMerged() {
+      return this.mr.state !== STATUS_CLOSED && this.mr.state !== STATUS_MERGED;
     },
     isRemoveSourceBranchButtonDisabled() {
       return this.isMergeButtonDisabled;
@@ -299,15 +293,10 @@ export default {
       return this.preferredAutoMergeStrategy === MT_MERGE_STRATEGY && this.isPipelineFailed;
     },
     shouldShowMergeControls() {
-      return (
-        (this.isMergeAllowed || this.isAutoMergeAvailable) &&
-        (this.stateData.userPermissions?.canMerge || this.mr.canMerge) &&
-        !this.mr.mergeOngoing &&
-        !this.mr.autoMergeEnabled
-      );
+      return this.state.userPermissions?.canMerge && this.mr.state === 'readyToMerge';
     },
     sourceBranchDeletedText() {
-      const isPreMerge = this.mr.state !== 'merged';
+      const isPreMerge = this.mr.state !== STATUS_MERGED;
 
       if (isPreMerge) {
         return this.mr.shouldRemoveSourceBranch
@@ -324,6 +313,16 @@ export default {
     },
     showMergeDetailsHeader() {
       return !['readyToMerge'].includes(this.mr.state);
+    },
+    autoMergeHelpPopoverOptions() {
+      return {
+        title: this.autoMergePopoverSettings.title,
+      };
+    },
+  },
+  watch: {
+    'mr.state': function mrStateWatcher() {
+      this.isMakingRequest = false;
     },
   },
   mounted() {
@@ -413,8 +412,6 @@ export default {
           }
 
           this.updateGraphqlState();
-
-          this.isMakingRequest = false;
         })
         .catch(() => {
           this.isMakingRequest = false;
@@ -476,18 +473,22 @@ export default {
       this.squashCommitMessage = val;
       this.squashCommitMessageIsTouched = true;
     },
+    appendCommitMessage(val) {
+      this.commitMessage = `${this.commitMessage}\n\n${val}`;
+      this.commitMessageIsTouched = true;
+    },
   },
   i18n: {
     mergeCommitTemplateHintText: s__(
-      'mrWidget|To change this default message, edit the template for merge commit messages. %{linkStart}Learn more.%{linkEnd}',
+      'mrWidget|To change this default message, edit the template for merge commit messages. %{linkStart}Learn more%{linkEnd}.',
     ),
     squashCommitTemplateHintText: s__(
-      'mrWidget|To change this default message, edit the template for squash commit messages. %{linkStart}Learn more.%{linkEnd}',
+      'mrWidget|To change this default message, edit the template for squash commit messages. %{linkStart}Learn more%{linkEnd}.',
     ),
     mergeAndSquashCommitTemplatesHintText: s__(
-      'mrWidget|To change these default messages, edit the templates for both the merge and squash commit messages. %{linkStart}Learn more.%{linkEnd}',
+      'mrWidget|To change these default messages, edit the templates for both the merge and squash commit messages. %{linkStart}Learn more%{linkEnd}.',
     ),
-    sourceDivergedFromTargetText: s__('mrWidget|The source branch is %{link} the target branch'),
+    sourceDivergedFromTargetText: s__('mrWidget|The source branch is %{link} the target branch.'),
     divergedCommits: (count) => n__('%d commit behind', '%d commits behind', count),
   },
 };
@@ -495,17 +496,19 @@ export default {
 
 <template>
   <div
-    :class="{ 'gl-bg-gray-10': mr.state !== 'closed' && mr.state !== 'merged' }"
+    :class="{ 'gl-bg-gray-10': isNeitherClosedNorMerged }"
     data-testid="ready_to_merge_state"
     class="gl-border-t-1 gl-border-t-solid gl-border-gray-100 gl-pl-7"
   >
     <div v-if="loading" class="mr-widget-body">
       <div class="gl-w-full mr-ready-to-merge-loader">
-        <gl-skeleton-loader :width="418" :height="30">
-          <rect x="0" y="3" width="24" height="24" rx="4" />
-          <rect x="32" y="0" width="70" height="30" rx="4" />
-          <rect x="110" y="7" width="150" height="16" rx="4" />
-          <rect x="268" y="7" width="150" height="16" rx="4" />
+        <gl-skeleton-loader :width="418" :height="86">
+          <rect x="0" y="0" width="144" height="20" rx="4" />
+          <rect x="0" y="26" width="100" height="16" rx="4" />
+          <rect x="108" y="26" width="100" height="16" rx="4" />
+          <rect x="0" y="48" width="130" height="16" rx="4" />
+          <rect x="0" y="70" width="80" height="16" rx="4" />
+          <rect x="88" y="70" width="90" height="16" rx="4" />
         </gl-skeleton-loader>
       </div>
     </div>
@@ -517,14 +520,14 @@ export default {
           <div class="mr-widget-body-controls gl-display-flex gl-align-items-center gl-flex-wrap">
             <template v-if="shouldShowMergeControls">
               <div
-                class="gl-display-flex gl-sm-flex-direction-column gl-md-align-items-center gl-flex-wrap gl-w-full gl-md-pb-5"
+                class="gl-display-flex gl-sm-flex-direction-column gl-md-align-items-center gl-flex-wrap gl-w-full"
               >
                 <gl-form-checkbox
                   v-if="canRemoveSourceBranch"
                   id="remove-source-branch-input"
                   v-model="removeSourceBranch"
                   :disabled="isRemoveSourceBranchButtonDisabled"
-                  class="js-remove-source-branch-checkbox gl-display-flex gl-align-items-center gl-mr-5 gl-mb-3 gl-md-mb-0"
+                  class="js-remove-source-branch-checkbox gl-display-flex gl-align-items-center gl-mr-5"
                   data-testid="delete-source-branch-checkbox"
                 >
                   {{ __('Delete source branch') }}
@@ -536,14 +539,13 @@ export default {
                   v-model="squashBeforeMerge"
                   :help-path="mr.squashBeforeMergeHelpPath"
                   :is-disabled="isSquashReadOnly"
-                  class="gl-mr-5 gl-mb-3 gl-md-mb-0"
+                  class="gl-mr-5"
                 />
 
                 <gl-form-checkbox
                   v-if="shouldShowSquashEdit || shouldShowMergeEdit"
                   v-model="editCommitMessage"
                   data-testid="widget_edit_commit_message"
-                  class="gl-display-flex gl-align-items-center gl-mb-3 gl-md-mb-0"
                 >
                   {{ __('Edit commit message') }}
                 </gl-form-checkbox>
@@ -569,7 +571,15 @@ export default {
                     input-id="merge-message-edit"
                     class="gl-m-0! gl-p-0!"
                     @input="setCommitMessage"
-                  />
+                  >
+                    <template #header>
+                      <ai-commit-message
+                        v-if="mr.aiCommitMessageEnabled"
+                        :id="mr.id"
+                        @update="appendCommitMessage"
+                      />
+                    </template>
+                  </commit-edit>
                   <li class="gl-m-0! gl-p-0!">
                     <p class="form-text text-muted">
                       <gl-sprintf :message="commitTemplateHintText">
@@ -578,18 +588,15 @@ export default {
                             :href="commitTemplateHelpPage"
                             class="inline-link"
                             target="_blank"
+                            >{{ content }}</gl-link
                           >
-                            {{ content }}
-                          </gl-link>
                         </template>
                       </gl-sprintf>
                     </p>
                   </li>
                 </ul>
               </div>
-              <div
-                class="gl-w-full gl-text-gray-500 gl-mb-3 gl-md-mb-0 gl-md-pb-5 mr-widget-merge-details"
-              >
+              <div class="gl-w-full gl-text-gray-500 gl-mb-3 mr-widget-merge-details">
                 <template v-if="sourceHasDivergedFromTarget">
                   <gl-sprintf :message="$options.i18n.sourceDivergedFromTargetText">
                     <template #link>
@@ -653,24 +660,34 @@ export default {
                   >
                     {{ __('Merge immediately') }}
                   </gl-dropdown-item>
-                  <merge-immediately-confirmation-dialog
-                    ref="confirmationDialog"
-                    :docs-url="mr.mergeImmediatelyDocsPath"
-                    @mergeImmediately="onMergeImmediatelyConfirmation"
-                  />
                 </gl-dropdown>
-                <merge-train-failed-pipeline-confirmation-dialog
-                  :visible="isPipelineFailedModalVisibleMergeTrain"
-                  @startMergeTrain="onStartMergeTrainConfirmation"
-                  @cancel="isPipelineFailedModalVisibleMergeTrain = false"
-                />
-                <merge-failed-pipeline-confirmation-dialog
-                  :visible="isPipelineFailedModalVisibleNormalMerge"
-                  @mergeWithFailedPipeline="onMergeWithFailedPipelineConfirmation"
-                  @cancel="isPipelineFailedModalVisibleNormalMerge = false"
-                />
               </gl-button-group>
-              <merge-train-helper-icon v-if="shouldRenderMergeTrainHelperIcon" class="gl-mx-3" />
+              <template v-if="showAutoMergeHelperText">
+                <div
+                  class="gl-ml-4 gl-text-gray-500 gl-font-sm"
+                  data-qa-selector="auto_merge_helper_text"
+                  data-testid="auto-merge-helper-text"
+                >
+                  {{ autoMergeHelperText }}
+                </div>
+                <help-popover
+                  class="gl-ml-2"
+                  :options="autoMergeHelpPopoverOptions"
+                  data-testid="auto-merge-helper-text-icon"
+                >
+                  <gl-sprintf :message="autoMergePopoverSettings.bodyText">
+                    <template #link="{ content }">
+                      <gl-link
+                        :href="autoMergePopoverSettings.helpLink"
+                        target="_blank"
+                        class="gl-font-sm"
+                      >
+                        {{ content }}
+                      </gl-link>
+                    </template>
+                  </gl-sprintf>
+                </help-popover>
+              </template>
             </template>
             <div
               v-else
@@ -702,7 +719,7 @@ export default {
                   />
                 </li>
                 <li
-                  v-if="mr.state !== 'closed'"
+                  v-if="isNotClosed"
                   class="gl-line-height-normal"
                   data-testid="source-branch-deleted-text"
                 >
@@ -721,6 +738,21 @@ export default {
           </div>
         </div>
       </div>
+      <merge-immediately-confirmation-dialog
+        ref="confirmationDialog"
+        :docs-url="mr.mergeImmediatelyDocsPath"
+        @mergeImmediately="onMergeImmediatelyConfirmation"
+      />
+      <merge-train-failed-pipeline-confirmation-dialog
+        :visible="isPipelineFailedModalVisibleMergeTrain"
+        @startMergeTrain="onStartMergeTrainConfirmation"
+        @cancel="isPipelineFailedModalVisibleMergeTrain = false"
+      />
+      <merge-failed-pipeline-confirmation-dialog
+        :visible="isPipelineFailedModalVisibleNormalMerge"
+        @mergeWithFailedPipeline="onMergeWithFailedPipelineConfirmation"
+        @cancel="isPipelineFailedModalVisibleNormalMerge = false"
+      />
     </template>
   </div>
 </template>

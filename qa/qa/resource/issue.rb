@@ -14,11 +14,15 @@ module QA
       end
 
       attributes :id,
-                 :iid,
-                 :assignee_ids,
-                 :labels,
-                 :title,
-                 :description
+        :iid,
+        :assignee_ids,
+        :labels,
+        :title,
+        :description
+
+      attribute :confidential do
+        false
+      end
 
       def initialize
         @assignee_ids = []
@@ -30,7 +34,7 @@ module QA
       def fabricate!
         project.visit!
 
-        Page::Project::Show.perform(&:go_to_new_issue)
+        Page::Project::Menu.perform(&:go_to_new_issue)
 
         Page::Project::Issue::New.perform do |new_page|
           new_page.fill_title(@title)
@@ -57,7 +61,8 @@ module QA
         {
           assignee_ids: assignee_ids,
           labels: labels,
-          title: title
+          title: title,
+          confidential: confidential
         }.tap do |hash|
           hash[:milestone_id] = @milestone.id if @milestone
           hash[:weight] = @weight if @weight
@@ -67,6 +72,13 @@ module QA
 
       def api_related_mrs_path
         "#{api_get_path}/related_merge_requests"
+      end
+
+      # Close issue
+      #
+      # @return [void]
+      def close
+        api_put_to(api_put_path, state_event: "close")
       end
 
       def set_issue_assignees(assignee_ids:)

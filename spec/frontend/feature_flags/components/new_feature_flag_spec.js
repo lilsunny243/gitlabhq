@@ -1,6 +1,7 @@
 import { GlAlert } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { TEST_HOST } from 'spec/test_constants';
 import Form from '~/feature_flags/components/form.vue';
@@ -22,10 +23,6 @@ describe('New feature flag form', () => {
   });
 
   const factory = (opts = {}) => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
     wrapper = shallowMount(NewFeatureFlag, {
       store,
       provide: {
@@ -44,10 +41,6 @@ describe('New feature flag form', () => {
 
   beforeEach(() => {
     factory();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   describe('with error', () => {

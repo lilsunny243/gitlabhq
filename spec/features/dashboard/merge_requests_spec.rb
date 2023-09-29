@@ -3,11 +3,11 @@
 require 'spec_helper'
 
 RSpec.describe 'Dashboard Merge Requests', feature_category: :code_review_workflow do
-  include Spec::Support::Helpers::Features::SortingHelpers
+  include Features::SortingHelpers
   include FilteredSearchHelpers
   include ProjectForksHelper
 
-  let(:current_user) { create :user }
+  let(:current_user) { create(:user, :no_super_sidebar) }
   let(:user) { current_user }
   let(:project) { create(:project) }
 
@@ -19,7 +19,7 @@ RSpec.describe 'Dashboard Merge Requests', feature_category: :code_review_workfl
     sign_in(current_user)
   end
 
-  it_behaves_like 'a dashboard page with sidebar', :merge_requests_dashboard_path, :merge_requests
+  it_behaves_like 'a "Your work" page with sidebar and breadcrumbs', :merge_requests_dashboard_path, :merge_requests
 
   it 'disables target branch filter' do
     visit merge_requests_dashboard_path
@@ -79,39 +79,52 @@ RSpec.describe 'Dashboard Merge Requests', feature_category: :code_review_workfl
     end
 
     let!(:assigned_merge_request_from_fork) do
-      create(:merge_request,
-              source_branch: 'markdown', assignees: [current_user],
-              target_project: public_project, source_project: forked_project,
-              author: author_user)
+      create(
+        :merge_request,
+        source_branch: 'markdown',
+        assignees: [current_user],
+        target_project: public_project,
+        source_project: forked_project,
+        author: author_user
+      )
     end
 
     let!(:authored_merge_request) do
-      create(:merge_request,
-              source_branch: 'markdown',
-              source_project: project,
-              author: current_user)
+      create(
+        :merge_request,
+        source_branch: 'markdown',
+        source_project: project,
+        author: current_user
+      )
     end
 
     let!(:authored_merge_request_from_fork) do
-      create(:merge_request,
-              source_branch: 'feature_conflict',
-              author: current_user,
-              target_project: public_project, source_project: forked_project)
+      create(
+        :merge_request,
+        source_branch: 'feature_conflict',
+        author: current_user,
+        target_project: public_project,
+        source_project: forked_project
+      )
     end
 
     let!(:labeled_merge_request) do
-      create(:labeled_merge_request,
-              source_branch: 'labeled',
-              labels: [label],
-              author: current_user,
-              source_project: project)
+      create(
+        :labeled_merge_request,
+        source_branch: 'labeled',
+        labels: [label],
+        author: current_user,
+        source_project: project
+      )
     end
 
     let!(:other_merge_request) do
-      create(:merge_request,
-              source_branch: 'fix',
-              source_project: project,
-              author: author_user)
+      create(
+        :merge_request,
+        source_branch: 'fix',
+        source_project: project,
+        author: author_user
+      )
     end
 
     before do

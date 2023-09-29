@@ -73,10 +73,11 @@ To configure Container Registry replication:
 Make sure that you have Container Registry set up and working on
 the **primary** site before following the next steps.
 
-We need to make Container Registry send notification events to the
-**primary** site.
+To be able to replicate new container images, the Container Registry must send notification events to the
+**primary** site for every push. The token shared between the Container Registry and the web nodes on the
+**primary** is used to make communication more secure.
 
-1. SSH into your GitLab **primary** server and login as root:
+1. SSH into your GitLab **primary** server and login as root (for GitLab HA, you only need a Registry node):
 
    ```shell
    sudo -i
@@ -105,17 +106,17 @@ We need to make Container Registry send notification events to the
    that starts with a letter. You can generate one with `< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 | sed "s/^[0-9]*//"; echo`
 
    NOTE:
-   If you use an external Registry (not the one integrated with GitLab), you must add
-   these settings to its configuration yourself. In this case, you also have to specify
-   notification secret in `registry.notification_secret` section of
+   If you use an external Registry (not the one integrated with GitLab), you only need to specify
+   the notification secret (`registry['notification_secret']`) in the
    `/etc/gitlab/gitlab.rb` file.
 
-   NOTE:
-   If you use GitLab HA, you also have to specify
-   the notification secret in `registry.notification_secret` section of
-   `/etc/gitlab/gitlab.rb` file for every web node.
+1. For GitLab HA only. Edit `/etc/gitlab/gitlab.rb` on every web node:
 
-1. Reconfigure the **primary** node for the change to take effect:
+   ```ruby
+   registry['notification_secret'] = '<replace_with_a_secret_token_generated_above>'
+   ```
+
+1. Reconfigure each node you just updated:
 
    ```shell
    gitlab-ctl reconfigure
@@ -165,7 +166,8 @@ For each application and Sidekiq node on the **secondary** site:
 
 To verify Container Registry replication is working, on the **secondary** site:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Geo > Nodes**.
    The initial replication, or "backfill", is probably still in progress.
 

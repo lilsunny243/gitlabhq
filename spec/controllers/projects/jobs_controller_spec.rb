@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, feature_category: :continuous_integration do
+RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, feature_category: :continuous_integration, factory_default: :keep do
   include ApiHelpers
   include HttpIOHelpers
 
+  let_it_be(:namespace) { create_default(:namespace) }
   let_it_be(:project) { create(:project, :public, :repository) }
+  let_it_be(:merge_request) { create(:merge_request, source_project: project) }
   let_it_be(:owner) { create(:owner) }
   let_it_be(:admin) { create(:admin) }
   let_it_be(:maintainer) { create(:user) }
@@ -19,11 +21,16 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
     project.add_developer(developer)
     project.add_reporter(reporter)
     project.add_guest(guest)
+    create_default(:owner)
+    create_default(:user)
+    create_default(:ci_trigger_request)
+    create_default(:ci_stage)
   end
 
   let(:user) { developer }
 
-  let(:pipeline) { create(:ci_pipeline, project: project) }
+  let_it_be_with_reload(:pipeline) { create(:ci_pipeline, project: project) }
+  let_it_be(:default_pipeline) { create_default(:ci_pipeline) }
 
   before do
     stub_feature_flags(ci_enable_live_trace: true)
@@ -40,7 +47,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
       it 'has only pending builds' do
         expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:builds).first.status).to eq('pending')
       end
     end
 
@@ -53,7 +59,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
       it 'has only running jobs' do
         expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:builds).first.status).to eq('running')
       end
     end
 
@@ -66,7 +71,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
       it 'has only finished jobs' do
         expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:builds).first.status).to eq('success')
       end
     end
 
@@ -82,7 +86,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
         it 'redirects to the page' do
           expect(response).to have_gitlab_http_status(:ok)
-          expect(assigns(:builds).current_page).to eq(last_page)
         end
       end
     end
@@ -149,10 +152,21 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
           expect(response).to have_gitlab_http_status(:not_found)
         end
       end
+
+      context 'when the job is a bridge' do
+        let!(:downstream_pipeline) { create(:ci_pipeline, child_of: pipeline) }
+        let(:job) { downstream_pipeline.source_job }
+
+        it 'redirects to the downstream pipeline page' do
+          get_show(id: job.id)
+
+          expect(response).to have_gitlab_http_status(:found)
+          expect(response).to redirect_to(namespace_project_pipeline_path(id: downstream_pipeline.id))
+        end
+      end
     end
 
     context 'when requesting JSON' do
-      let(:merge_request) { create(:merge_request, source_project: project) }
       let(:user) { developer }
 
       before do
@@ -211,9 +225,9 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
       end
 
       context 'when job has artifacts' do
-        context 'with not expiry date' do
-          let(:job) { create(:ci_build, :success, :artifacts, pipeline: pipeline) }
+        let_it_be(:job) { create(:ci_build, :success, :artifacts, pipeline: pipeline) }
 
+        context 'with not expiry date' do
           context 'when artifacts are unlocked' do
             before do
               job.pipeline.unlocked!
@@ -234,7 +248,7 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
           context 'when artifacts are locked' do
             before do
-              job.pipeline.artifacts_locked!
+              job.pipeline.reload.artifacts_locked!
             end
 
             it 'exposes needed information' do
@@ -252,11 +266,13 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
         end
 
         context 'with expired artifacts' do
-          let(:job) { create(:ci_build, :success, :artifacts, :expired, pipeline: pipeline) }
+          before do
+            job.update!(artifacts_expire_at: 1.minute.ago)
+          end
 
           context 'when artifacts are unlocked' do
             before do
-              job.pipeline.unlocked!
+              job.pipeline.reload.unlocked!
             end
 
             it 'exposes needed information' do
@@ -275,7 +291,7 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
 
           context 'when artifacts are locked' do
             before do
-              job.pipeline.artifacts_locked!
+              job.pipeline.reload.artifacts_locked!
             end
 
             it 'exposes needed information' do
@@ -292,19 +308,17 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
             end
           end
         end
-      end
 
-      context 'when job passed with no trace' do
-        let(:job) { create(:ci_build, :success, :artifacts, pipeline: pipeline) }
+        context 'when job passed with no trace' do
+          it 'exposes empty state illustrations' do
+            get_show_json
 
-        it 'exposes empty state illustrations' do
-          get_show_json
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(response).to match_response_schema('job/job_details')
-          expect(json_response['status']['illustration']).to have_key('image')
-          expect(json_response['status']['illustration']).to have_key('size')
-          expect(json_response['status']['illustration']).to have_key('title')
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to match_response_schema('job/job_details')
+            expect(json_response['status']['illustration']).to have_key('image')
+            expect(json_response['status']['illustration']).to have_key('size')
+            expect(json_response['status']['illustration']).to have_key('title')
+          end
         end
       end
 
@@ -320,7 +334,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
       end
 
       context 'with deployment' do
-        let(:merge_request) { create(:merge_request, source_project: project) }
         let(:environment) { create(:environment, project: project, name: 'staging', state: :available) }
         let(:job) { create(:ci_build, :running, environment: environment.name, pipeline: pipeline) }
 
@@ -512,7 +525,6 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
     end
 
     context 'when requesting triggered job JSON' do
-      let!(:merge_request) { create(:merge_request, source_project: project) }
       let(:trigger) { create(:ci_trigger, project: project) }
       let(:trigger_request) { create(:ci_trigger_request, pipeline: pipeline, trigger: trigger) }
       let(:job) { create(:ci_build, pipeline: pipeline, trigger_request: trigger_request) }
@@ -630,40 +642,12 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
         expect(json_response['lines'].count).to be_positive
       end
 
-      context 'when CI_DEBUG_TRACE enabled' do
-        let!(:variable) { create(:ci_instance_variable, key: 'CI_DEBUG_TRACE', value: 'true') }
-
-        context 'with proper permissions on a project' do
-          let(:user) { developer }
-
-          before do
-            sign_in(user)
-          end
-
-          it 'returns response ok' do
-            get_trace
-
-            expect(response).to have_gitlab_http_status(:ok)
+      context 'when debug_mode? is enabled' do
+        before do
+          allow_next_found_instance_of(Ci::Build) do |build|
+            allow(build).to receive(:debug_mode?).and_return(true)
           end
         end
-
-        context 'without proper permissions for debug logging' do
-          let(:user) { guest }
-
-          before do
-            sign_in(user)
-          end
-
-          it 'returns response forbidden' do
-            get_trace
-
-            expect(response).to have_gitlab_http_status(:forbidden)
-          end
-        end
-      end
-
-      context 'when CI_DEBUG_SERVICES enabled' do
-        let!(:variable) { create(:ci_instance_variable, key: 'CI_DEBUG_SERVICES', value: 'true') }
 
         context 'with proper permissions on a project' do
           let(:user) { developer }
@@ -1242,10 +1226,10 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
       context 'when CI_DEBUG_TRACE and/or CI_DEBUG_SERVICES are enabled' do
         using RSpec::Parameterized::TableSyntax
         where(:ci_debug_trace, :ci_debug_services) do
-          'true'  | 'true'
-          'true'  | 'false'
-          'false' | 'true'
-          'false' | 'false'
+          true  | true
+          true  | false
+          false | true
+          false | false
         end
 
         with_them do
@@ -1278,7 +1262,7 @@ RSpec.describe Projects::JobsController, :clean_gitlab_redis_shared_state, featu
             it 'returns response forbidden if dev mode enabled' do
               response = subject
 
-              if ci_debug_trace == 'true' || ci_debug_services == 'true'
+              if ci_debug_trace || ci_debug_services
                 expect(response).to have_gitlab_http_status(:forbidden)
               else
                 expect(response).to have_gitlab_http_status(:ok)

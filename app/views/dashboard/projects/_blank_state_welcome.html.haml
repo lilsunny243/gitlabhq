@@ -2,24 +2,24 @@
 
 .gl-display-flex.gl-flex-wrap.gl-justify-content-space-between
   - if current_user.can_create_project?
-    = link_to new_project_path, class: link_classes do
+    = link_to new_project_path, class: link_classes, data: { qa_selector: 'new_project_button' } do
       .blank-state-icon
         = custom_icon("add_new_project", size: 50)
-      .blank-state-body.gl-sm-pl-0.gl-pl-6
+      .blank-state-body.gl-sm-pl-6
         %h3.gl-font-size-h2.gl-mt-0
           = _('Create a project')
         %p
           = _('Projects are where you store your code, access issues, wiki and other features of GitLab.')
   - else
     = render Pajamas::AlertComponent.new(variant: :info, alert_options: { class: 'gl-mb-5 gl-w-full' }) do |c|
-      = c.body do
+      - c.with_body do
         = _("You see projects here when you're added to a group or project.").html_safe
 
   - if current_user.can_create_group?
     = link_to new_group_path, class: link_classes do
       .blank-state-icon
         = custom_icon("add_new_group", size: 50)
-      .blank-state-body.gl-sm-pl-0.gl-pl-6
+      .blank-state-body.gl-sm-pl-6
         %h3.gl-font-size-h2.gl-mt-0
           = _('Create a group')
         %p
@@ -28,7 +28,7 @@
   = link_to trending_explore_projects_path, class: link_classes do
     .blank-state-icon
       = custom_icon("globe", size: 50)
-    .blank-state-body.gl-sm-pl-0.gl-pl-6
+    .blank-state-body.gl-sm-pl-6
       %h3.gl-font-size-h2.gl-mt-0
         = _('Explore public projects')
       %p
@@ -37,7 +37,7 @@
   = link_to Gitlab::Saas::doc_url, class: link_classes do
     .blank-state-icon
       = custom_icon("lightbulb", size: 50)
-    .blank-state-body.gl-sm-pl-0.gl-pl-6
+    .blank-state-body.gl-sm-pl-6
       %h3.gl-font-size-h2.gl-mt-0
         = _('Learn more about GitLab')
       %p

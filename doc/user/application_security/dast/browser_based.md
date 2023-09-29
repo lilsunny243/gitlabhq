@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, howto
 ---
 
-# DAST browser-based analyzer **(ULTIMATE)**
+# DAST browser-based analyzer **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/323423) in GitLab 13.12 as a Beta feature.
 > - [Generally available](https://gitlab.com/groups/gitlab-org/-/epics/9023) in GitLab 15.7 (GitLab DAST v3.0.50).
@@ -42,10 +42,10 @@ To crawl a navigation path, DAST opens a browser window and instructs it to perf
 When the browser has finished loading the result of the final action, DAST inspects the page for actions a user might take,
 creates a new navigation for each found, and adds them to the navigation path to form new navigation paths. For example:
 
-- DAST processes navigation path `LoadURL[https://example.com]`.
-- DAST finds two user actions, `LeftClick[class=menu]` and `LeftClick[id=users]`.
-- DAST creates two new navigation paths, `LoadURL[https://example.com] -> LeftClick[class=menu]` and `LoadURL[https://example.com] -> LeftClick[id=users]`.
-- Crawling begins on the two new navigation paths.
+1. DAST processes navigation path `LoadURL[https://example.com]`.
+1. DAST finds two user actions, `LeftClick[class=menu]` and `LeftClick[id=users]`.
+1. DAST creates two new navigation paths, `LoadURL[https://example.com] -> LeftClick[class=menu]` and `LoadURL[https://example.com] -> LeftClick[id=users]`.
+1. Crawling begins on the two new navigation paths.
 
 It's common for an HTML element to exist in multiple places in an application, such as a menu visible on every page.
 Duplicate elements can cause crawlers to crawl the same pages again or become stuck in a loop.
@@ -170,13 +170,15 @@ For authentication CI/CD variables, see [Authentication](authentication.md).
 | `DAST_ADVERTISE_SCAN`                       | boolean                                                  | `true`                                 | Set to `true` to add a `Via` header to every request sent, advertising that the request was sent as part of a GitLab DAST scan. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/334947) in GitLab 14.1.                                                            |
 | `DAST_BROWSER_ACTION_STABILITY_TIMEOUT`     | [Duration string](https://pkg.go.dev/time#ParseDuration) | `800ms`                                | The maximum amount of time to wait for a browser to consider a page loaded and ready for analysis after completing an action.                                                                                                                                                 |
 | `DAST_BROWSER_ACTION_TIMEOUT`               | [Duration string](https://pkg.go.dev/time#ParseDuration) | `7s`                                   | The maximum amount of time to wait for a browser to complete an action.                                                                                                                                                                                                       |
-| `DAST_BROWSER_ALLOWED_HOSTS`                | List of strings                                          | `site.com,another.com`                 | Hostnames included in this variable are considered in scope when crawled. By default the `DAST_WEBSITE` hostname is included in the allowed hosts list. Headers set using `DAST_REQUEST_HEADERS` are added to every request made to these hostnames. |
+| `DAST_BROWSER_ALLOWED_HOSTS`                | List of strings                                          | `site.com,another.com`                 | Hostnames included in this variable are considered in scope when crawled. By default the `DAST_WEBSITE` hostname is included in the allowed hosts list. Headers set using `DAST_REQUEST_HEADERS` are added to every request made to these hostnames.                          |
 | `DAST_BROWSER_COOKIES`                      | dictionary                                               | `abtesting_group:3,region:locked`      | A cookie name and value to be added to every request.                                                                                                                                                                                                                         |
-| `DAST_BROWSER_CRAWL_GRAPH`                  | boolean                                                  | `true`                                 | Set to `true` to generate an SVG graph of navigation paths visited during crawl phase of the scan.                                                                                                                                                                            |
-| `DAST_BROWSER_DEVTOOLS_LOG`                 | string                                                   | `Default:messageAndBody,truncate:2000` | Set to log protocol messages between DAST and the Chromium browser.                                                                                                                                                                                                           |                                                                                                                                                                                                                                                                               |
+| `DAST_BROWSER_CRAWL_GRAPH`                  | boolean                                                  | `true`                                 | Set to `true` to generate an SVG graph of navigation paths visited during crawl phase of the scan. You must also define `gl-dast-crawl-graph.svg` as a CI job artifact to be able to access the generated graph.                                                              |
+| `DAST_BROWSER_CRAWL_TIMEOUT`                | [Duration string](https://pkg.go.dev/time#ParseDuration) | `5m`                                   | The maximum amount of time to wait for the crawl phase of the scan to complete. Defaults to `24h`.                                                                                                                                                                            |
+| `DAST_BROWSER_DEVTOOLS_LOG`                 | string                                                   | `Default:messageAndBody,truncate:2000` | Set to log protocol messages between DAST and the Chromium browser.                                                                                                                                                                                                           |
+| `DAST_BROWSER_DOM_READY_AFTER_TIMEOUT`      | [Duration string](https://pkg.go.dev/time#ParseDuration) | `200ms`                                | Define how long to wait for updates to the DOM before checking a page is stable. Defaults to `500ms`.                                                                                                                                                                         |
 | `DAST_BROWSER_ELEMENT_TIMEOUT`              | [Duration string](https://pkg.go.dev/time#ParseDuration) | `600ms`                                | The maximum amount of time to wait for an element before determining it is ready for analysis.                                                                                                                                                                                |
 | `DAST_BROWSER_EXCLUDED_ELEMENTS`            | selector                                                 | `a[href='2.html'],css:.no-follow`      | Comma-separated list of selectors that are ignored when scanning.                                                                                                                                                                                                             |
-| `DAST_BROWSER_EXCLUDED_HOSTS` | List of strings | `site.com,another.com` | Hostnames included in this variable are considered excluded and connections are forcibly dropped. |
+| `DAST_BROWSER_EXCLUDED_HOSTS`               | List of strings                                          | `site.com,another.com`                 | Hostnames included in this variable are considered excluded and connections are forcibly dropped.                                                                                                                                                                             |
 | `DAST_BROWSER_EXTRACT_ELEMENT_TIMEOUT`      | [Duration string](https://pkg.go.dev/time#ParseDuration) | `5s`                                   | The maximum amount of time to allow the browser to extract newly found elements or navigations.                                                                                                                                                                               |
 | `DAST_BROWSER_FILE_LOG`                     | List of strings                                          | `brows:debug,auth:debug`               | A list of modules and their intended logging level for use in the file log.                                                                                                                                                                                                   |
 | `DAST_BROWSER_FILE_LOG_PATH`                | string                                                   | `/output/browserker.log`               | Set to the path of the file log.                                                                                                                                                                                                                                              |
@@ -187,26 +189,97 @@ For authentication CI/CD variables, see [Authentication](authentication.md).
 | `DAST_BROWSER_MAX_ACTIONS`                  | number                                                   | `10000`                                | The maximum number of actions that the crawler performs. For example, selecting a link, or filling a form.                                                                                                                                                                    |
 | `DAST_BROWSER_MAX_DEPTH`                    | number                                                   | `10`                                   | The maximum number of chained actions that the crawler takes. For example, `Click -> Form Fill -> Click` is a depth of three.                                                                                                                                                 |
 | `DAST_BROWSER_MAX_RESPONSE_SIZE_MB`         | number                                                   | `15`                                   | The maximum size of a HTTP response body. Responses with bodies larger than this are blocked by the browser. Defaults to 10 MB.                                                                                                                                               |
-| `DAST_BROWSER_NAVIGATION_STABILITY_TIMEOUT` | [Duration string](https://pkg.go.dev/time#ParseDuration) | `7s`                                   | The maximum amount of time to wait for a browser to consider a page loaded and ready for analysis after a navigation completes.                                                                                                                                               |
+| `DAST_BROWSER_NAVIGATION_STABILITY_TIMEOUT` | [Duration string](https://pkg.go.dev/time#ParseDuration) | `7s`                                   | The maximum amount of time to wait for a browser to consider a page loaded and ready for analysis after a navigation completes. Defaults to `800ms`.|
 | `DAST_BROWSER_NAVIGATION_TIMEOUT`           | [Duration string](https://pkg.go.dev/time#ParseDuration) | `15s`                                  | The maximum amount of time to wait for a browser to navigate from one page to another.                                                                                                                                                                                        |
 | `DAST_BROWSER_NUMBER_OF_BROWSERS`           | number                                                   | `3`                                    | The maximum number of concurrent browser instances to use. For shared runners on GitLab.com, we recommended a maximum of three. Private runners with more resources may benefit from a higher number, but are likely to produce little benefit after five to seven instances. |
-| `DAST_BROWSER_PAGE_LOADING_SELECTOR`          | selector                                                 | `css:#page-is-loading`                   | Selector that when is no longer visible on the page, indicates to the analyzer that the page has finished loading and the scan can continue. Cannot be used with `DAST_BROWSER_PAGE_READY_SELECTOR`                                                                                                                            |
-| `DAST_BROWSER_PAGE_READY_SELECTOR`          | selector                                                 | `css:#page-is-ready`                   | Selector that when detected as visible on the page, indicates to the analyzer that the page has finished loading and the scan can continue. Cannot be used with `DAST_BROWSER_PAGE_LOADING_SELECTOR`                                                                                                                                   |
+| `DAST_BROWSER_PAGE_LOADING_SELECTOR`        | selector                                                 | `css:#page-is-loading`                 | Selector that when is no longer visible on the page, indicates to the analyzer that the page has finished loading and the scan can continue. Cannot be used with `DAST_BROWSER_PAGE_READY_SELECTOR`.                                                                          |
+| `DAST_BROWSER_PAGE_READY_SELECTOR`          | selector                                                 | `css:#page-is-ready`                   | Selector that when detected as visible on the page, indicates to the analyzer that the page has finished loading and the scan can continue. Cannot be used with `DAST_BROWSER_PAGE_LOADING_SELECTOR`.                                                                         |
+| `DAST_BROWSER_PASSIVE_CHECK_WORKERS`        | int                                                      | `5`                                    | Number of workers that passive scan in parallel. Recommend setting to the number of available CPUs.                                                                                                                                                                           |
 | `DAST_BROWSER_SCAN`                         | boolean                                                  | `true`                                 | Required to be `true` to run a browser-based scan.                                                                                                                                                                                                                            |
 | `DAST_BROWSER_SEARCH_ELEMENT_TIMEOUT`       | [Duration string](https://pkg.go.dev/time#ParseDuration) | `3s`                                   | The maximum amount of time to allow the browser to search for new elements or user actions.                                                                                                                                                                                   |
 | `DAST_BROWSER_STABILITY_TIMEOUT`            | [Duration string](https://pkg.go.dev/time#ParseDuration) | `7s`                                   | The maximum amount of time to wait for a browser to consider a page loaded and ready for analysis.                                                                                                                                                                            |
 | `DAST_EXCLUDE_RULES`                        | string                                                   | `10020,10026`                          | Set to a comma-separated list of ZAP Vulnerability Rule IDs to exclude them from running during the scan. Rule IDs are numbers and can be found from the DAST log or on the [ZAP project](https://www.zaproxy.org/docs/alerts/).                                              |
 | `DAST_EXCLUDE_URLS`                         | URLs                                                     | `https://example.com/.*/sign-out`      | The URLs to skip during the authenticated scan; comma-separated. Regular expression syntax can be used to match multiple URLs. For example, `.*` matches an arbitrary character sequence.                                                                                     |
+| `DAST_FF_ENABLE_BAS`                        | boolean                                                  | `true`                                 | Set to `true` to [enable Breach and Attack Simulation](../breach_and_attack_simulation/index.md#extend-dynamic-application-security-testing-dast) during this DAST scan. |
 | `DAST_FULL_SCAN_ENABLED`                    | boolean                                                  | `true`                                 | Set to `true` to run both passive and active checks. Default: `false`                                                                                                                                                                                                         |
 | `DAST_PATHS`                                | string                                                   | `/page1.html,/category1/page3.html`    | Set to a comma-separated list of URL paths relative to `DAST_WEBSITE` for DAST to scan.                                                                                                                                                                                       |
 | `DAST_PATHS_FILE`                           | string                                                   | `/builds/project/urls.txt`             | Set to a file path containing a list of URL paths relative to `DAST_WEBSITE` for DAST to scan. The file must be plain text with one path per line.                                                                                                                            |
 | `DAST_PKCS12_CERTIFICATE_BASE64`            | string                                                   | `ZGZkZ2p5NGd...`                       | The PKCS12 certificate used for sites that require Mutual TLS. Must be encoded as base64 text.                                                                                                                                                                                |
-| `DAST_PKCS12_PASSWORD`                      | string                                                   | `password`                             | The password of the certificate used in `DAST_PKCS12_CERTIFICATE_BASE64`. Create sensitive [custom CI/CI variables](../../../ci/variables/index.md#define-a-cicd-variable-in-the-ui) using the GitLab UI.                                                                                |
-| `DAST_REQUEST_HEADERS`                      | string                                                   | `Cache-control:no-cache`               | Set to a comma-separated list of request header names and values. |
+| `DAST_PKCS12_PASSWORD`                      | string                                                   | `password`                             | The password of the certificate used in `DAST_PKCS12_CERTIFICATE_BASE64`. Create sensitive [custom CI/CI variables](../../../ci/variables/index.md#define-a-cicd-variable-in-the-ui) using the GitLab UI.                                                                     |
+| `DAST_REQUEST_HEADERS`                      | string                                                   | `Cache-control:no-cache`               | Set to a comma-separated list of request header names and values.                                                                                                                                                                                                             |
 | `DAST_SKIP_TARGET_CHECK`                    | boolean                                                  | `true`                                 | Set to `true` to prevent DAST from checking that the target is available before scanning. Default: `false`.                                                                                                                                                                   |
 | `DAST_TARGET_AVAILABILITY_TIMEOUT`          | number                                                   | `60`                                   | Time limit in seconds to wait for target availability.                                                                                                                                                                                                                        |
 | `DAST_WEBSITE`                              | URL                                                      | `https://example.com`                  | The URL of the website to scan.                                                                                                                                                                                                                                               |
 | `SECURE_ANALYZERS_PREFIX`                   | URL                                                      | `registry.organization.com`            | Set the Docker registry base address from which to download the analyzer.                                                                                                                                                                                                     |
+
+## Managing scope
+
+Scope controls what URLs DAST follows when crawling the target application. Properly managed scope minimizes scan run time while ensuring only the target application is checked for vulnerabilities.
+
+### Types of scope
+
+There are three types of scope:
+
+- in scope
+- out of scope
+- excluded from scope
+
+#### In scope
+
+DAST follows in-scope URLs and searches the DOM for subsequent actions to perform to continue the crawl.
+Recorded in-scope HTTP messages are passively checked for vulnerabilities and used to build attacks when running a full scan.
+
+#### Out of scope
+
+DAST follows out-of-scope URLs for non-document content types such as image, stylesheet, font, script, or AJAX request.
+[Authentication](#scope-works-differently-during-authentication) aside, DAST does not follow out-of-scope URLs for full page loads, such as when clicking a link to an external website.
+Except for passive checks that search for information leaks, recorded HTTP messages for out-of-scope URLs are not checked for vulnerabilities.
+
+#### Excluded from scope
+
+DAST does not follow excluded-from-scope URLs. Except for passive checks that search for information leaks, recorded HTTP messages for excluded-from-scope URLs are not checked for vulnerabilities.
+
+### Scope works differently during authentication
+
+Many target applications have an authentication process that depends on external websites, such as when using an identity access management provider for single sign on (SSO).
+To ensure that DAST can authenticate with these providers, DAST follows out-of-scope URLs for full page loads during authentication. DAST does not follow excluded-from-scope URLs.
+
+### How DAST blocks HTTP requests
+
+DAST instructs the browser to make the HTTP request as usual when blocking a request due to scope rules. The request is subsequently intercepted and rejected with the reason `BlockedByClient`.
+This approach allows DAST to record the HTTP request while ensuring it never reaches the target server. Passive checks such as [200.1](checks/200.1.md) use these recorded requests to verify information sent to external hosts.
+
+### How to configure scope
+
+By default, URLs matching the host of the target application are considered in-scope. All other hosts are considered out-of-scope.
+
+Scope is configured using the following variables:
+
+- Use `DAST_BROWSER_ALLOWED_HOSTS` to add in-scope hosts.
+- Use `DAST_BROWSER_IGNORED_HOSTS` to add to out-of-scope hosts.
+- Use `DAST_BROWSER_EXCLUDED_HOSTS` to add to excluded-from-scope hosts.
+- Use `DAST_EXCLUDE_URLS` to set specific URLs to be excluded-from-scope.
+
+Rules:
+
+- Excluding a host is given priority over ignoring a host, which is given priority over allowing a host.
+- Configuring scope for a host does not configure scope for the subdomains of that host.
+- Configuring scope for a host does not configure scope for all ports on that host.
+
+The following could be a typical configuration:
+
+```yaml
+include:
+  - template: DAST.gitlab-ci.yml
+
+dast:
+  variables:
+    DAST_WEBSITE: "https://my.site.com"                   # my.site.com URLs are considered in-scope by default
+    DAST_BROWSER_ALLOWED_HOSTS: "api.site.com:8443"       # include the API as part of the scan
+    DAST_BROWSER_IGNORED_HOSTS: "analytics.site.com"      # explicitly disregard analytics from the scan
+    DAST_BROWSER_EXCLUDED_HOSTS: "ads.site.com"           # don't visit any URLs on the ads subdomain
+    DAST_EXCLUDE_URLS: "https://my.site.com/user/logout"  # don't visit this URL
+```
 
 ## Vulnerability detection
 
@@ -232,9 +305,14 @@ This can come at a cost of increased scan time.
 
 You can manage the trade-off between coverage and scan time with the following measures:
 
+- Vertically scale the runner and use a higher number of browsers with the [variable](#available-cicd-variables) `DAST_BROWSER_NUMBER_OF_BROWSERS`. The default is `3`.
 - Limit the number of actions executed by the browser with the [variable](#available-cicd-variables) `DAST_BROWSER_MAX_ACTIONS`. The default is `10,000`.
 - Limit the page depth that the browser-based crawler checks coverage on with the [variable](#available-cicd-variables) `DAST_BROWSER_MAX_DEPTH`. The crawler uses a breadth-first search strategy, so pages with smaller depth are crawled first. The default is `10`.
-- Vertically scale the runner and use a higher number of browsers with [variable](#available-cicd-variables) `DAST_BROWSER_NUMBER_OF_BROWSERS`. The default is `3`.
+- Limit the time taken to crawl the target application with the [variable](#available-cicd-variables) `DAST_BROWSER_CRAWL_TIMEOUT`. The default is `24h`. Scans continue with passive and active checks when the crawler times out.
+- Build the crawl graph with the [variable](#available-cicd-variables) `DAST_BROWSER_CRAWL_GRAPH` to see what pages are being crawled.
+- Prevent pages from being crawled using the [variable](#available-cicd-variables) `DAST_EXCLUDE_URLS`.
+- Prevent elements being selected using the [variable](#available-cicd-variables) `DAST_BROWSER_EXCLUDED_ELEMENTS`. Use with caution, as defining this variable causes an extra lookup for each page crawled.
+- If the target application has minimal or fast rendering, consider reducing the [variable](#available-cicd-variables) `DAST_BROWSER_DOM_READY_AFTER_TIMEOUT` to a smaller value. The default is `500ms`.
 
 ## Timeouts
 
@@ -274,16 +352,6 @@ dast:
 
 NOTE:
 Adjusting these values may impact scan time because they adjust how long each browser waits for various activities to complete.
-
-## Artifacts
-
-Using the latest version of the DAST [template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Security/DAST.latest.gitlab-ci.yml) these artifacts are exposed for download by default.
-
-The list of artifacts includes the following files:
-
-- `gl-dast-debug-auth-report.html`
-- `gl-dast-debug-crawl-report.html`
-- `gl-dast-crawl-graph.svg`
 
 ## Troubleshooting
 

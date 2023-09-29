@@ -10,8 +10,6 @@ describe('vue_shared/components/chronic_duration_input', () => {
   let hiddenElement;
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     textElement = null;
     hiddenElement = null;
   });
@@ -22,10 +20,6 @@ describe('vue_shared/components/chronic_duration_input', () => {
   };
 
   const createComponent = (props = {}) => {
-    if (wrapper) {
-      throw new Error('There should only be one wrapper created per test');
-    }
-
     wrapper = mount(ChronicDurationInput, { propsData: props });
     findComponents();
   };
@@ -316,12 +310,11 @@ describe('vue_shared/components/chronic_duration_input', () => {
       });
 
       it('passes updated prop via v-model', async () => {
-        // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-        // eslint-disable-next-line no-restricted-syntax
-        wrapper.setData({ value: MOCK_VALUE });
+        textElement.value = '2hr20min';
+        textElement.dispatchEvent(new Event('input'));
         await nextTick();
 
-        expect(textElement.value).toBe('2 hrs 20 mins');
+        expect(textElement.value).toBe('2hr20min');
         expect(hiddenElement.value).toBe(MOCK_VALUE.toString());
       });
     });

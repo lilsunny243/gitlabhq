@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Packages::Generic::FindOrCreatePackageService do
+RSpec.describe Packages::Generic::FindOrCreatePackageService, feature_category: :package_registry do
   let_it_be(:project) { create(:project) }
   let_it_be(:user) { create(:user) }
   let_it_be(:ci_build) { create(:ci_build, :running, user: user) }
@@ -27,7 +27,7 @@ RSpec.describe Packages::Generic::FindOrCreatePackageService do
           expect(package.creator).to eq(user)
           expect(package.name).to eq('mypackage')
           expect(package.version).to eq('0.0.1')
-          expect(package.original_build_info).to be_nil
+          expect(package.last_build_info).to be_nil
         end
       end
 
@@ -42,7 +42,7 @@ RSpec.describe Packages::Generic::FindOrCreatePackageService do
           expect(package.creator).to eq(user)
           expect(package.name).to eq('mypackage')
           expect(package.version).to eq('0.0.1')
-          expect(package.original_build_info.pipeline).to eq(ci_build.pipeline)
+          expect(package.last_build_info.pipeline).to eq(ci_build.pipeline)
         end
       end
     end
@@ -60,7 +60,7 @@ RSpec.describe Packages::Generic::FindOrCreatePackageService do
             expect(found_package).to eq(package)
           end.not_to change { project.packages.generic.count }
 
-          expect(package.reload.original_build_info).to be_nil
+          expect(package.reload.last_build_info).to be_nil
         end
       end
 
@@ -80,7 +80,7 @@ RSpec.describe Packages::Generic::FindOrCreatePackageService do
             expect(found_package).to eq(package)
           end.not_to change { project.packages.generic.count }
 
-          expect(package.reload.original_build_info.pipeline).to eq(pipeline)
+          expect(package.reload.last_build_info.pipeline).to eq(pipeline)
         end
       end
 
@@ -97,7 +97,7 @@ RSpec.describe Packages::Generic::FindOrCreatePackageService do
           expect(package.creator).to eq(user)
           expect(package.name).to eq('mypackage')
           expect(package.version).to eq('0.0.1')
-          expect(package.original_build_info).to be_nil
+          expect(package.last_build_info).to be_nil
         end
       end
     end

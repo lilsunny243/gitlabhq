@@ -1,4 +1,4 @@
-import { GlDropdownDivider } from '@gitlab/ui';
+import { GlDisclosureDropdownGroup } from '@gitlab/ui';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import Actions from '~/admin/users/components/actions';
@@ -18,8 +18,8 @@ describe('AdminUserActions component', () => {
   const findUserActions = (id) => wrapper.findByTestId(`user-actions-${id}`);
   const findEditButton = (id = user.id) => findUserActions(id).find('[data-testid="edit"]');
   const findActionsDropdown = (id = user.id) =>
-    findUserActions(id).find('[data-testid="dropdown-toggle"]');
-  const findDropdownDivider = () => wrapper.findComponent(GlDropdownDivider);
+    findUserActions(id).find('[data-testid="user-actions-dropdown-toggle"]');
+  const findDisclosureGroup = () => wrapper.findComponent(GlDisclosureDropdownGroup);
 
   const initComponent = ({ actions = [], showButtonLabels } = {}) => {
     wrapper = shallowMountExtended(AdminUserActions, {
@@ -36,11 +36,6 @@ describe('AdminUserActions component', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('edit button', () => {
     describe('when the user has an edit action attached', () => {
@@ -96,7 +91,7 @@ describe('AdminUserActions component', () => {
           initComponent({ actions: [LDAP] });
         });
 
-        it('renders the LDAP dropdown item without a link', () => {
+        it('renders the LDAP dropdown footer without a link', () => {
           const dropdownAction = wrapper.find(`[data-testid="${LDAP}"]`);
           expect(dropdownAction.exists()).toBe(true);
           expect(dropdownAction.attributes('href')).toBe(undefined);
@@ -109,8 +104,8 @@ describe('AdminUserActions component', () => {
           initComponent({ actions: [LDAP, ...DELETE_ACTIONS] });
         });
 
-        it('renders a dropdown divider', () => {
-          expect(findDropdownDivider().exists()).toBe(true);
+        it('renders a disclosure group', () => {
+          expect(findDisclosureGroup().exists()).toBe(true);
         });
 
         it('only renders delete dropdown items for actions containing the word "delete"', () => {
@@ -131,8 +126,8 @@ describe('AdminUserActions component', () => {
       });
 
       describe('when there are no delete actions', () => {
-        it('does not render a dropdown divider', () => {
-          expect(findDropdownDivider().exists()).toBe(false);
+        it('does not render a disclosure group', () => {
+          expect(findDisclosureGroup().exists()).toBe(false);
         });
 
         it('does not render a delete dropdown item', () => {

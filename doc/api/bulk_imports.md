@@ -1,19 +1,35 @@
 ---
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Group migration by direct transfer API **(FREE)**
+# Group and project migration by direct transfer API **(FREE ALL)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/64335) in GitLab 14.1.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/64335) in GitLab 14.1.
+> - Project migration [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/390515) in GitLab 15.11.
 
 With the group migration by direct transfer API, you can start and view the progress of migrations initiated with
 [group migration by direct transfer](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended).
 
-## Start a new group migration
+WARNING:
+Migrating projects with this API is in [Beta](../policy/experiment-beta-support.md#beta). This feature is not
+ready for production use.
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66353) in GitLab 14.2.
+## Prerequisites
+
+For information on prerequisites for group migration by direct transfer API, see
+prerequisites for [migrating groups by direct transfer](../user/group/import/index.md#prerequisites).
+
+## Start a new group or project migration
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66353) in GitLab 14.2.
+> - `project_entity` source type [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/390515) in GitLab 15.11.
+
+Use this endpoint to start a new group or project migration. Specify:
+
+- `entities[group_entity]` to migrate a group.
+- `entities[project_entity]` to migrate a project (Beta).
 
 ```plaintext
 POST /bulk_imports
@@ -25,19 +41,20 @@ POST /bulk_imports
 | `configuration[url]`              | String | yes      | Source GitLab instance URL. |
 | `configuration[access_token]`     | String | yes      | Access token to the source GitLab instance. |
 | `entities`                        | Array  | yes      | List of entities to import. |
-| `entities[source_type]`           | String | yes      | Source entity type (only `group_entity` is supported). |
-| `entities[source_full_path]`      | String | yes      | Source full path of the entity to import. |
-| `entities[destination_name]`      | String | yes      | Deprecated: Use :destination_slug instead. Destination slug for the entity. |
-| `entities[destination_slug]`      | String | yes      | Destination slug for the entity. |
-| `entities[destination_namespace]` | String | yes      | Destination namespace for the entity. |
+| `entities[source_type]`           | String | yes      | Source entity type. Valid values are `group_entity` (GitLab 14.2 and later) and `project_entity` (GitLab 15.11 and later). |
+| `entities[source_full_path]`      | String | yes      | Source full path of the entity to import. For example, `gitlab-org/gitlab`. |
+| `entities[destination_slug]`      | String | yes      | Destination slug for the entity. GitLab uses the slug as the URL path to the entity. The name of the imported entity is copied from the name of the source entity and not the slug. |
+| `entities[destination_name]`      | String | no       | Deprecated: Use `destination_slug` instead. Destination slug for the entity. |
+| `entities[destination_namespace]` | String | yes      | Full path of the destination group [namespace](../user/namespace/index.md) for the entity. Must be an existing group in the destination instance. |
+| `entities[migrate_projects]`      | Boolean | no      | Also import all nested projects of the group (if `source_type` is `group_entity`). Defaults to `true`. |
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/bulk_imports" \
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token_for_destination_gitlab_instance>" "https://destination-gitlab-instance.example.com/api/v4/bulk_imports" \
   --header "Content-Type: application/json" \
   --data '{
     "configuration": {
-      "url": "http://gitlab.example/",
-      "access_token": "access_token"
+      "url": "https://source-gitlab-instance.example.com",
+      "access_token": "<your_access_token_for_source_gitlab_instance>"
     },
     "entities": [
       {
@@ -54,18 +71,18 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitla
 { "id": 1, "status": "created", "source_type": "gitlab", "created_at": "2021-06-18T09:45:55.358Z", "updated_at": "2021-06-18T09:46:27.003Z" }
 ```
 
-## List all group migrations
+## List all group or project migrations
 
 ```plaintext
 GET /bulk_imports
 ```
 
-| Attribute  | Type    | Required | Description                                                                                 |
-|:-----------|:--------|:---------|:--------------------------------------------------------------------------------------------|
-| `per_page` | integer | no       | Number of records to return per page.                                                       |
-| `page`     | integer | no       | Page to retrieve.                                                                           |
-| `sort`     | string  | no       | Return GitLab migration sorted in `asc` or `desc` order by creation date. Default is `desc` |
-| `status`   | string  | no       | Import status.                                                                              |
+| Attribute  | Type    | Required | Description                                                                        |
+|:-----------|:--------|:---------|:-----------------------------------------------------------------------------------|
+| `per_page` | integer | no       | Number of records to return per page.                                              |
+| `page`     | integer | no       | Page to retrieve.                                                                  |
+| `sort`     | string  | no       | Return records sorted in `asc` or `desc` order by creation date. Default is `desc` |
+| `status`   | string  | no       | Import status.                                                                     |
 
 The status can be one of the following:
 
@@ -97,18 +114,18 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 ]
 ```
 
-## List all group migrations' entities
+## List all group or project migrations' entities
 
 ```plaintext
 GET /bulk_imports/entities
 ```
 
-| Attribute  | Type    | Required | Description                                                                                          |
-|:-----------|:--------|:---------|:-----------------------------------------------------------------------------------------------------|
-| `per_page` | integer | no       | Number of records to return per page.                                                                |
-| `page`     | integer | no       | Page to retrieve.                                                                                    |
-| `sort`     | string  | no       | Return GitLab migration entities sorted in `asc` or `desc` order by creation date. Default is `desc` |
-| `status`   | string  | no       | Import status.                                                                                       |
+| Attribute  | Type    | Required | Description                                                                        |
+|:-----------|:--------|:---------|:-----------------------------------------------------------------------------------|
+| `per_page` | integer | no       | Number of records to return per page.                                              |
+| `page`     | integer | no       | Page to retrieve.                                                                  |
+| `sort`     | string  | no       | Return records sorted in `asc` or `desc` order by creation date. Default is `desc` |
+| `status`   | string  | no       | Import status.                                                                     |
 
 The status can be one of the following:
 
@@ -165,7 +182,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 ]
 ```
 
-## Get group migration details
+## Get group or project migration details
 
 ```plaintext
 GET /bulk_imports/:id
@@ -185,18 +202,18 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 }
 ```
 
-## List group migration entities
+## List group or project migration entities
 
 ```plaintext
 GET /bulk_imports/:id/entities
 ```
 
-| Attribute  | Type    | Required | Description                                                                                 |
-|:-----------|:--------|:---------|:--------------------------------------------------------------------------------------------|
-| `per_page` | integer | no       | Number of records to return per page.                                                       |
-| `page`     | integer | no       | Page to retrieve.                                                                           |
-| `sort`     | string  | no       | Return GitLab migration sorted in `asc` or `desc` order by creation date. Default is `desc` |
-| `status`   | string  | no       | Import status.                                                                              |
+| Attribute  | Type    | Required | Description                                                                        |
+|:-----------|:--------|:---------|:-----------------------------------------------------------------------------------|
+| `per_page` | integer | no       | Number of records to return per page.                                              |
+| `page`     | integer | no       | Page to retrieve.                                                                  |
+| `sort`     | string  | no       | Return records sorted in `asc` or `desc` order by creation date. Default is `desc` |
+| `status`   | string  | no       | Import status.                                                                     |
 
 The status can be one of the following:
 
@@ -221,7 +238,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 ]
 ```
 
-## Get group migration entity details
+## Get group or project migration entity details
 
 ```plaintext
 GET /bulk_imports/:id/entities/:entity_id
@@ -233,7 +250,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 
 ```json
 {
-  "id": 1,
+  "id": 2,
   "status": "finished",
   "source_type": "gitlab",
   "created_at": "2021-06-18T09:45:55.358Z",

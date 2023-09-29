@@ -45,6 +45,33 @@ RSpec.describe UsersFinder do
         expect(users).to be_empty
       end
 
+      describe 'minimum character limit for search' do
+        it 'passes use_minimum_char_limit from params' do
+          search_term = normal_user.username[..1]
+          expect(User).to receive(:search)
+            .with(search_term, use_minimum_char_limit: false, with_private_emails: anything)
+            .once.and_call_original
+
+          described_class.new(user, { search: search_term, use_minimum_char_limit: false }).execute
+        end
+
+        it 'allows searching with 2 characters when use_minimum_char_limit is false' do
+          users = described_class
+                    .new(user, { search: normal_user.username[..1], use_minimum_char_limit: false })
+                    .execute
+
+          expect(users).to include(normal_user)
+        end
+
+        it 'does not allow searching with 2 characters when use_minimum_char_limit is not set' do
+          users = described_class
+                    .new(user, search: normal_user.username[..1])
+                    .execute
+
+          expect(users).to be_empty
+        end
+      end
+
       it 'filters by external users' do
         users = described_class.new(user, external: true).execute
 
@@ -61,9 +88,11 @@ RSpec.describe UsersFinder do
         filtered_user_before = create(:user, created_at: 3.days.ago)
         filtered_user_after = create(:user, created_at: Time.now + 3.days)
 
-        users = described_class.new(user,
-                                    created_after: 2.days.ago,
-                                    created_before: Time.now + 2.days).execute
+        users = described_class.new(
+          user,
+          created_after: 2.days.ago,
+          created_before: Time.now + 2.days
+        ).execute
 
         expect(users.map(&:username)).not_to include([filtered_user_before.username, filtered_user_after.username])
       end

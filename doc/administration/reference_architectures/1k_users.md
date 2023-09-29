@@ -33,7 +33,7 @@ many organizations.
 
 ```plantuml
 @startuml 1k
-card "**Prometheus + Grafana**" as monitor #7FFFD4
+card "**Prometheus**" as monitor #7FFFD4
 package "GitLab Single Server" as gitlab-single-server {
 together {
   card "**GitLab Rails**" as gitlab #32CD32
@@ -78,9 +78,9 @@ You can also optionally configure GitLab to use an [external PostgreSQL service]
 or an [external object storage service](../object_storage.md) for added
 performance and reliability at an increased complexity cost.
 
-## Configure Advanced Search **(PREMIUM SELF)**
+## Configure advanced search **(PREMIUM SELF)**
 
-You can leverage Elasticsearch and [enable Advanced Search](../../integration/advanced_search/elasticsearch.md)
+You can leverage Elasticsearch and [enable advanced search](../../integration/advanced_search/elasticsearch.md)
 for faster, more advanced code search across your entire GitLab instance.
 
 Elasticsearch cluster design and requirements are dependent on your specific
@@ -92,7 +92,7 @@ cluster alongside your instance, read how to
 
 Cloud Native Hybrid Reference Architecture is an alternative approach where select _stateless_
 components are deployed in Kubernetes via our official [Helm Charts](https://docs.gitlab.com/charts/),
-and _stateful_ components are deployed in compute VMs with Omnibus.
+and _stateful_ components are deployed in compute VMs with the Linux package.
 
 The [2k GitLab Cloud Native Hybrid](2k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative) (non HA) and [3k GitLab Cloud Native Hybrid](3k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative) (HA) reference architectures are the smallest we recommend in Kubernetes.
 For environments that serve fewer users, you can lower the node specs. Depending on your user count, you can lower all suggested node specs as desired. However, it's recommended that you don't go lower than the [general requirements](../../install/requirements.md).

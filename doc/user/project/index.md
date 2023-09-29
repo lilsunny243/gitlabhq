@@ -1,10 +1,10 @@
 ---
-stage: Manage
-group: Organization
+stage: Data Stores
+group: Tenant Scale
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 ---
 
-# Create a project **(FREE)**
+# Create a project **(FREE ALL)**
 
 You can create a project in many ways in GitLab.
 
@@ -12,8 +12,7 @@ You can create a project in many ways in GitLab.
 
 To create a blank project:
 
-1. On the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create blank project**.
 1. Enter the project details:
    - In the **Project name** field, enter the name of your project. The name must start with a lowercase or uppercase letter (`a-zA-Z`), digit (`0-9`), emoji, or underscore (`_`). It can also contain dots (`.`), pluses (`+`), dashes (`-`), or spaces.
@@ -42,8 +41,7 @@ Anyone can [contribute a built-in template](../../development/project_templates.
 
 To create a project from a built-in template:
 
-1. On the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create from template**.
 1. Select the **Built-in** tab.
 1. From the list of templates:
@@ -64,17 +62,16 @@ A user who creates a project [from a template](#create-a-project-from-a-built-in
 Imported objects are labeled as `By <username> on <timestamp> (imported from GitLab)`.
 For this reason, the creation date of imported objects can be older than the creation date of the user's account. This can lead to objects appearing to have been created by a user before they even had an account.
 
-## Create a project from a custom template **(PREMIUM)**
+## Create a project from a custom template **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/6860) in GitLab 11.2.
 
 Custom project templates are available at:
 
-- The [instance-level](../../user/admin_area/custom_project_templates.md)
+- The [instance-level](../../administration/custom_project_templates.md)
 - The [group-level](../../user/group/custom_project_templates.md)
 
-1. On the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create from template**.
 1. Select the **Instance** or **Group** tab.
 1. From the list of templates:
@@ -90,7 +87,7 @@ Custom project templates are available at:
      change the **Visibility Level**.
 1. Select **Create project**.
 
-## Create a project from the HIPAA Audit Protocol template **(ULTIMATE)**
+## Create a project from the HIPAA Audit Protocol template **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13756) in GitLab 12.10
 
@@ -99,8 +96,7 @@ HIPAA Audit Protocol published by the U.S Department of Health and Human Service
 
 To create a project from the HIPAA Audit Protocol template:
 
-1. On the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create from template**.
 1. Select the **Built-in** tab.
 1. Locate the **HIPAA Audit Protocol** template:
@@ -130,7 +126,7 @@ You cannot use `git push` to create projects with project paths that:
 
 Previously used project paths have a redirect. The redirect causes push attempts to redirect requests
 to the renamed project location, instead of creating a new project. To create a new project for a previously
-used or renamed project, use the [UI](#create-a-project) or the [Projects API](../../api/projects.md#create-project).
+used or renamed project, use the UI or the [Projects API](../../api/projects.md#create-project).
 
 Prerequisites:
 
@@ -138,7 +134,7 @@ Prerequisites:
   [added to your GitLab account](../ssh.md#add-an-ssh-key-to-your-gitlab-account).
 - You must have permission to add new projects to a namespace. To check if you have permission:
 
-  1. On the top bar, select **Main menu > Groups** and find your group.
+  1. On the left sidebar, select **Search or go to** and find your group.
   1. In the upper-right corner, confirm that **New project** is visible.
      Contact your GitLab administrator if you require permission.
 
@@ -179,8 +175,6 @@ Your project's visibility is set to **Private** by default. To change project vi
 
 ## Related topics
 
-- For a list of words that you cannot use as project names, see
-  [reserved project and group names](../../user/reserved_names.md).
-- For a list of characters that you cannot use in project and group names, see
-  [limitations on project and group names](../../user/reserved_names.md#limitations-on-project-and-group-names).
-- [Manage projects](working_with_projects.md).
+- [Reserved project and group names](../../user/reserved_names.md)
+- [Limitations on project and group names](../../user/reserved_names.md#limitations-on-project-and-group-names)
+- [Manage projects](working_with_projects.md)

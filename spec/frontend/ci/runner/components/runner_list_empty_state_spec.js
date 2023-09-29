@@ -1,33 +1,45 @@
+import EMPTY_STATE_SVG_URL from '@gitlab/svgs/dist/illustrations/empty-state/empty-pipeline-md.svg?url';
+import FILTERED_SVG_URL from '@gitlab/svgs/dist/illustrations/empty-state/empty-search-md.svg?url';
 import { GlEmptyState, GlLink, GlSprintf } from '@gitlab/ui';
-import { s__ } from '~/locale';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import RunnerInstructionsModal from '~/vue_shared/components/runner_instructions/runner_instructions_modal.vue';
+import {
+  I18N_GET_STARTED,
+  I18N_RUNNERS_ARE_AGENTS,
+  I18N_CREATE_RUNNER_LINK,
+  I18N_STILL_USING_REGISTRATION_TOKENS,
+  I18N_CONTACT_ADMIN_TO_REGISTER,
+  I18N_NO_RESULTS,
+  I18N_EDIT_YOUR_SEARCH,
+} from '~/ci/runner/constants';
 
 import {
-  newRunnerPath,
-  emptyStateSvgPath,
-  emptyStateFilteredSvgPath,
+  mockRegistrationToken,
+  newRunnerPath as mockNewRunnerPath,
 } from 'jest/ci/runner/mock_data';
 
 import RunnerListEmptyState from '~/ci/runner/components/runner_list_empty_state.vue';
 
-const mockRegistrationToken = 'REGISTRATION_TOKEN';
-
 describe('RunnerListEmptyState', () => {
   let wrapper;
+  let glFeatures;
 
   const findEmptyState = () => wrapper.findComponent(GlEmptyState);
+  const findLinks = () => wrapper.findAllComponents(GlLink);
   const findLink = () => wrapper.findComponent(GlLink);
   const findRunnerInstructionsModal = () => wrapper.findComponent(RunnerInstructionsModal);
 
-  const createComponent = ({ props, mountFn = shallowMountExtended, ...options } = {}) => {
+  const expectTitleToBe = (title) => {
+    expect(findEmptyState().find('h1').text()).toBe(title);
+  };
+  const expectDescriptionToBe = (sentences) => {
+    expect(findEmptyState().find('p').text()).toMatchInterpolatedText(sentences.join(' '));
+  };
+
+  const createComponent = ({ props, mountFn = shallowMountExtended } = {}) => {
     wrapper = mountFn(RunnerListEmptyState, {
       propsData: {
-        svgPath: emptyStateSvgPath,
-        filteredSvgPath: emptyStateFilteredSvgPath,
-        registrationToken: mockRegistrationToken,
-        newRunnerPath,
         ...props,
       },
       directives: {
@@ -36,100 +48,93 @@ describe('RunnerListEmptyState', () => {
       stubs: {
         GlEmptyState,
         GlSprintf,
-        GlLink,
       },
-      ...options,
+      provide: { glFeatures },
     });
   };
 
+  beforeEach(() => {
+    glFeatures = null;
+  });
+
   describe('when search is not filtered', () => {
-    const title = s__('Runners|Get started with runners');
-
-    describe('when there is a registration token', () => {
-      beforeEach(() => {
-        createComponent();
-      });
-
-      it('renders an illustration', () => {
-        expect(findEmptyState().props('svgPath')).toBe(emptyStateSvgPath);
-      });
-
-      it('displays "no results" text with instructions', () => {
-        const desc = s__(
-          'Runners|Runners are the agents that run your CI/CD jobs. Follow the %{linkStart}installation and registration instructions%{linkEnd} to set up a runner.',
-        );
-
-        expect(findEmptyState().text()).toMatchInterpolatedText(`${title} ${desc}`);
-      });
-
-      describe('when create_runner_workflow is enabled', () => {
-        beforeEach(() => {
-          createComponent({
-            provide: {
-              glFeatures: { createRunnerWorkflow: true },
-            },
-          });
-        });
-
-        it('shows a link to the new runner page', () => {
-          expect(findLink().attributes('href')).toBe(newRunnerPath);
-        });
-      });
-
-      describe('when create_runner_workflow is enabled and newRunnerPath not defined', () => {
+    describe.each`
+      newRunnerPath        | registrationToken        | expectedMessages
+      ${mockNewRunnerPath} | ${mockRegistrationToken} | ${[I18N_CREATE_RUNNER_LINK, I18N_STILL_USING_REGISTRATION_TOKENS]}
+      ${mockNewRunnerPath} | ${null}                  | ${[I18N_CREATE_RUNNER_LINK]}
+      ${null}              | ${mockRegistrationToken} | ${[I18N_STILL_USING_REGISTRATION_TOKENS]}
+      ${null}              | ${null}                  | ${[I18N_CONTACT_ADMIN_TO_REGISTER]}
+    `(
+      'when newRunnerPath is $newRunnerPath and registrationToken is $registrationToken',
+      ({ newRunnerPath, registrationToken, expectedMessages }) => {
         beforeEach(() => {
           createComponent({
             props: {
-              newRunnerPath: null,
-            },
-            provide: {
-              glFeatures: { createRunnerWorkflow: true },
+              newRunnerPath,
+              registrationToken,
             },
           });
         });
 
-        it('opens a runner registration instructions modal with a link', () => {
-          const { value } = getBinding(findLink().element, 'gl-modal');
+        it('shows title', () => {
+          expectTitleToBe(I18N_GET_STARTED);
+        });
 
-          expect(findRunnerInstructionsModal().props('modalId')).toEqual(value);
+        it('renders an illustration', () => {
+          expect(findEmptyState().props('svgPath')).toBe(EMPTY_STATE_SVG_URL);
+        });
+
+        it(`shows description: "${expectedMessages.join(' ')}"`, () => {
+          expectDescriptionToBe([I18N_RUNNERS_ARE_AGENTS, ...expectedMessages]);
+        });
+      },
+    );
+
+    describe('with newRunnerPath and registration token', () => {
+      beforeEach(() => {
+        createComponent({
+          props: {
+            registrationToken: mockRegistrationToken,
+            newRunnerPath: mockNewRunnerPath,
+          },
         });
       });
 
-      describe('when create_runner_workflow is disabled', () => {
-        beforeEach(() => {
-          createComponent({
-            provide: {
-              glFeatures: { createRunnerWorkflow: false },
-            },
-          });
-        });
+      it('shows links to the new runner page and registration instructions', () => {
+        expect(findLinks().at(0).attributes('href')).toBe(mockNewRunnerPath);
 
-        it('opens a runner registration instructions modal with a link', () => {
-          const { value } = getBinding(findLink().element, 'gl-modal');
-
-          expect(findRunnerInstructionsModal().props('modalId')).toEqual(value);
-        });
+        const { value } = getBinding(findLinks().at(1).element, 'gl-modal');
+        expect(findRunnerInstructionsModal().props('modalId')).toEqual(value);
       });
     });
 
-    describe('when there is no registration token', () => {
+    describe('with newRunnerPath and no registration token', () => {
       beforeEach(() => {
-        createComponent({ props: { registrationToken: null } });
+        createComponent({
+          props: {
+            registrationToken: mockRegistrationToken,
+            newRunnerPath: null,
+          },
+        });
       });
 
-      it('renders an illustration', () => {
-        expect(findEmptyState().props('svgPath')).toBe(emptyStateSvgPath);
+      it('opens a runner registration instructions modal with a link', () => {
+        const { value } = getBinding(findLink().element, 'gl-modal');
+        expect(findRunnerInstructionsModal().props('modalId')).toEqual(value);
+      });
+    });
+
+    describe('with no newRunnerPath nor registration token', () => {
+      beforeEach(() => {
+        createComponent({
+          props: {
+            registrationToken: null,
+            newRunnerPath: null,
+          },
+        });
       });
 
-      it('displays "no results" text', () => {
-        const desc = s__(
-          'Runners|Runners are the agents that run your CI/CD jobs. To register new runners, please contact your administrator.',
-        );
-
-        expect(findEmptyState().text()).toMatchInterpolatedText(`${title} ${desc}`);
-      });
-
-      it('has no registration instructions link', () => {
+      it('has no link', () => {
         expect(findLink().exists()).toBe(false);
       });
     });
@@ -141,12 +146,13 @@ describe('RunnerListEmptyState', () => {
     });
 
     it('renders a "filtered search" illustration', () => {
-      expect(findEmptyState().props('svgPath')).toBe(emptyStateFilteredSvgPath);
+      expect(findEmptyState().props('svgPath')).toBe(FILTERED_SVG_URL);
     });
 
     it('displays "no filtered results" text', () => {
-      expect(findEmptyState().text()).toContain(s__('Runners|No results found'));
-      expect(findEmptyState().text()).toContain(s__('Runners|Edit your search and try again'));
+      expectTitleToBe(I18N_NO_RESULTS);
+
+      expectDescriptionToBe([I18N_EDIT_YOUR_SEARCH]);
     });
   });
 });

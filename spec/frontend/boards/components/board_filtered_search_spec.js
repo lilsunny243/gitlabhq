@@ -1,8 +1,9 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import BoardFilteredSearch from '~/boards/components/board_filtered_search.vue';
-import * as urlUtility from '~/lib/utils/url_utility';
+import { updateHistory } from '~/lib/utils/url_utility';
 import {
   TOKEN_TITLE_AUTHOR,
   TOKEN_TITLE_LABEL,
@@ -22,6 +23,12 @@ import LabelToken from '~/vue_shared/components/filtered_search_bar/tokens/label
 import { createStore } from '~/boards/stores';
 
 Vue.use(Vuex);
+
+jest.mock('~/lib/utils/url_utility', () => ({
+  updateHistory: jest.fn(),
+  setUrlParams: jest.requireActual('~/lib/utils/url_utility').setUrlParams,
+  queryToObject: jest.requireActual('~/lib/utils/url_utility').queryToObject,
+}));
 
 describe('BoardFilteredSearch', () => {
   let wrapper;
@@ -69,10 +76,6 @@ describe('BoardFilteredSearch', () => {
 
   const findFilteredSearch = () => wrapper.findComponent(FilteredSearchBarRoot);
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('default', () => {
     beforeEach(() => {
       createComponent();
@@ -92,10 +95,9 @@ describe('BoardFilteredSearch', () => {
       });
 
       it('calls historyPushState', () => {
-        jest.spyOn(urlUtility, 'updateHistory');
         findFilteredSearch().vm.$emit('onFilter', [{ value: { data: 'searchQuery' } }]);
 
-        expect(urlUtility.updateHistory).toHaveBeenCalledWith({
+        expect(updateHistory).toHaveBeenCalledWith({
           replace: true,
           title: '',
           url: 'http://test.host/',
@@ -124,10 +126,10 @@ describe('BoardFilteredSearch', () => {
     beforeEach(() => {
       createComponent();
 
-      jest.spyOn(wrapper.vm, 'performSearch').mockImplementation();
+      jest.spyOn(store, 'dispatch').mockImplementation();
     });
 
-    it('sets the url params to the correct results', async () => {
+    it('sets the url params to the correct results', () => {
       const mockFilters = [
         { type: TOKEN_TYPE_AUTHOR, value: { data: 'root', operator: '=' } },
         { type: TOKEN_TYPE_ASSIGNEE, value: { data: 'root', operator: '=' } },
@@ -141,10 +143,11 @@ describe('BoardFilteredSearch', () => {
         { type: TOKEN_TYPE_HEALTH, value: { data: 'onTrack', operator: '=' } },
         { type: TOKEN_TYPE_HEALTH, value: { data: 'atRisk', operator: '!=' } },
       ];
-      jest.spyOn(urlUtility, 'updateHistory');
+
       findFilteredSearch().vm.$emit('onFilter', mockFilters);
 
-      expect(urlUtility.updateHistory).toHaveBeenCalledWith({
+      expect(store.dispatch).toHaveBeenCalledWith('performSearch');
+      expect(updateHistory).toHaveBeenCalledWith({
         title: '',
         replace: true,
         url:
@@ -162,10 +165,10 @@ describe('BoardFilteredSearch', () => {
         const mockFilters = [
           { type: TOKEN_TYPE_ASSIGNEE, value: { data: assigneeParam, operator: '=' } },
         ];
-        jest.spyOn(urlUtility, 'updateHistory');
+
         findFilteredSearch().vm.$emit('onFilter', mockFilters);
 
-        expect(urlUtility.updateHistory).toHaveBeenCalledWith({
+        expect(updateHistory).toHaveBeenCalledWith({
           title: '',
           replace: true,
           url: expected,
@@ -179,8 +182,6 @@ describe('BoardFilteredSearch', () => {
       createComponent({
         initialFilterParams: { authorUsername: 'root', labelName: ['label'], healthStatus: 'Any' },
       });
-
-      jest.spyOn(store, 'dispatch');
     });
 
     it('passes the correct props to FilterSearchBar', () => {
@@ -198,11 +199,9 @@ describe('BoardFilteredSearch', () => {
     });
 
     it('emits setFilters and updates URL when onFilter is emitted', () => {
-      jest.spyOn(urlUtility, 'updateHistory');
-
       findFilteredSearch().vm.$emit('onFilter', [{ value: { data: '' } }]);
 
-      expect(urlUtility.updateHistory).toHaveBeenCalledWith({
+      expect(updateHistory).toHaveBeenCalledWith({
         title: '',
         replace: true,
         url: 'http://test.host/',

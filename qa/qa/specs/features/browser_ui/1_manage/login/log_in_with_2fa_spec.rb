@@ -1,19 +1,15 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Manage', :requires_admin, :skip_live_env, product_group: :authentication_and_authorization do
+  RSpec.describe 'Manage', :requires_admin, product_group: :authentication_and_authorization do
     describe '2FA' do
       let(:admin_api_client) { Runtime::API::Client.as_admin }
       let(:owner_api_client) { Runtime::API::Client.new(:gitlab, user: owner_user) }
 
-      let!(:owner_user) do
-        Resource::User.fabricate_via_api! do |usr|
-          usr.username = "owner_user_#{SecureRandom.hex(4)}"
-          usr.api_client = admin_api_client
-        end
-      end
+      let!(:owner_user) { create(:user, username: "owner_user_#{SecureRandom.hex(4)}", api_client: admin_api_client) }
 
       let(:sandbox_group) do
+        Flow::Login.sign_in(as: owner_user)
         Resource::Sandbox.fabricate! do |sandbox_group|
           sandbox_group.path = "gitlab-qa-2fa-sandbox-group-#{SecureRandom.hex(8)}"
           sandbox_group.api_client = owner_api_client
@@ -21,24 +17,26 @@ module QA
       end
 
       let(:group) do
-        QA::Resource::Group.fabricate_via_api! do |group|
-          group.sandbox = sandbox_group
-          group.api_client = owner_api_client
-          group.path = "group-with-2fa-#{SecureRandom.hex(8)}"
-        end
+        create(:group, sandbox: sandbox_group, api_client: owner_api_client,
+          path: "group-with-2fa-#{SecureRandom.hex(8)}")
       end
 
-      let(:developer_user) do
-        Resource::User.fabricate_via_api! do |resource|
-          resource.username = "developer_user_#{SecureRandom.hex(4)}"
-          resource.api_client = admin_api_client
-        end
-      end
+      let(:developer_user) { create(:user, username: "developer_user_#{SecureRandom.hex(4)}", api_client: admin_api_client) }
 
-      let(:two_fa_expected_text) { /The group settings for.*require you to enable Two-Factor Authentication for your account.*You need to do this before/ }
+      let(:two_fa_expected_text) do
+        /The group settings for.*require you to enable Two-Factor Authentication for your account.*You need to do this before/
+      end
 
       before do
         group.add_member(developer_user, Resource::Members::AccessLevel::DEVELOPER)
+      end
+
+      after do
+        group.set_require_two_factor_authentication(value: 'false')
+        group.remove_via_api! do |resource|
+          resource.api_client = admin_api_client
+        end
+        developer_user.remove_via_api!
       end
 
       it(
@@ -66,21 +64,13 @@ module QA
         expect(Page::Main::Menu.perform(&:signed_in?)).to be_truthy
       end
 
-      after do
-        group.set_require_two_factor_authentication(value: 'false')
-        group.remove_via_api! do |resource|
-          resource.api_client = admin_api_client
-        end
-        developer_user.remove_via_api!
-      end
-
       # We are intentionally using the UI to enforce 2FA to exercise the flow with UI.
       # Any future tests should use the API for this purpose.
       def enforce_two_factor_authentication_on_group(group)
         Flow::Login.while_signed_in(as: owner_user) do
           group.visit!
 
-          Page::Group::Menu.perform(&:click_group_general_settings_item)
+          Page::Group::Menu.perform(&:go_to_general_settings)
           Page::Group::Settings::General.perform(&:set_require_2fa_enabled)
 
           QA::Support::Retrier.retry_on_exception(reload_page: page) do

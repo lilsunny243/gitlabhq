@@ -9,22 +9,21 @@ class PersonalAccessToken < ApplicationRecord
   include Gitlab::SQL::Pattern
   extend ::Gitlab::Utils::Override
 
-  add_authentication_token_field :token, digest: true
+  add_authentication_token_field :token,
+    digest: true,
+    format_with_prefix: :prefix_from_application_current_settings
 
   # PATs are 20 characters + optional configurable settings prefix (0..20)
-  TOKEN_LENGTH_RANGE = (20..40).freeze
+  TOKEN_LENGTH_RANGE = (20..40)
+  MAX_PERSONAL_ACCESS_TOKEN_LIFETIME_IN_DAYS = 365
 
   serialize :scopes, Array # rubocop:disable Cop/ActiveRecordSerialize
 
   belongs_to :user
+  belongs_to :previous_personal_access_token, class_name: 'PersonalAccessToken'
 
   after_initialize :set_default_scopes, if: :persisted?
   before_save :ensure_token
-
-  # During the implementation of Admin Mode for API, tokens of
-  # administrators should automatically get the `admin_mode` scope as well
-  # See https://gitlab.com/gitlab-org/gitlab/-/issues/42692
-  before_create :add_admin_mode_scope, if: -> { Feature.disabled?(:admin_mode_for_api) && user_admin? }
 
   scope :active, -> { not_revoked.not_expired }
   scope :expiring_and_not_notified, ->(date) { where(["revoked = false AND expire_notification_delivered = false AND expires_at >= CURRENT_DATE AND expires_at <= ?", date]) }
@@ -39,13 +38,15 @@ class PersonalAccessToken < ApplicationRecord
   scope :for_users, -> (users) { where(user: users) }
   scope :preload_users, -> { preload(:user) }
   scope :order_expires_at_asc_id_desc, -> { reorder(expires_at: :asc, id: :desc) }
-  scope :project_access_token, -> { includes(:user).where(user: { user_type: :project_bot }) }
-  scope :owner_is_human, -> { includes(:user).where(user: { user_type: :human }) }
+  scope :project_access_token, -> { includes(:user).references(:user).merge(User.project_bot) }
+  scope :owner_is_human, -> { includes(:user).references(:user).merge(User.human) }
   scope :last_used_before, -> (date) { where("last_used_at <= ?", date) }
   scope :last_used_after, -> (date) { where("last_used_at >= ?", date) }
 
   validates :scopes, presence: true
   validate :validate_scopes
+  validates :expires_at, presence: true, on: :create
+  validate :expires_at_before_instance_max_expiry_date, on: :create
 
   def revoke!
     update!(revoked: true)
@@ -72,22 +73,10 @@ class PersonalAccessToken < ApplicationRecord
     fuzzy_search(query, [:name])
   end
 
-  override :format_token
-  def format_token(token)
-    "#{self.class.token_prefix}#{token}"
-  end
-
-  def project_access_token?
-    user&.project_bot?
-  end
-
   protected
 
   def validate_scopes
-    valid_scopes = Gitlab::Auth.all_available_scopes
-    valid_scopes += [Gitlab::Auth::ADMIN_MODE_SCOPE] if Feature.disabled?(:admin_mode_for_api)
-
-    unless revoked || scopes.all? { |scope| valid_scopes.include?(scope.to_sym) }
+    unless revoked || scopes.all? { |scope| Gitlab::Auth.all_available_scopes.include?(scope.to_sym) }
       errors.add :scopes, "can only contain available scopes"
     end
   end
@@ -104,8 +93,20 @@ class PersonalAccessToken < ApplicationRecord
     user.admin? # rubocop: disable Cop/UserAdmin
   end
 
-  def add_admin_mode_scope
-    self.scopes += [Gitlab::Auth::ADMIN_MODE_SCOPE.to_s]
+  def prefix_from_application_current_settings
+    self.class.token_prefix
+  end
+
+  def expires_at_before_instance_max_expiry_date
+    return unless expires_at
+
+    max_expiry_date = Date.current.advance(days: MAX_PERSONAL_ACCESS_TOKEN_LIFETIME_IN_DAYS)
+    return unless expires_at > max_expiry_date
+
+    errors.add(
+      :expires_at,
+      format(_("must be before %{expiry_date}"), expiry_date: max_expiry_date)
+    )
   end
 end
 

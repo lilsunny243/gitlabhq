@@ -1,16 +1,22 @@
 <script>
-import { GlDisclosureDropdownGroup, GlDisclosureDropdownItem, GlTooltip } from '@gitlab/ui';
+import {
+  GlBadge,
+  GlDisclosureDropdownGroup,
+  GlDisclosureDropdownItem,
+  GlTooltip,
+} from '@gitlab/ui';
 import SafeHtml from '~/vue_shared/directives/safe_html';
-
 import { s__ } from '~/locale';
+import { USER_MENU_TRACKING_DEFAULTS } from '../constants';
 
 export default {
   i18n: {
     user: {
-      busy: s__('UserProfile|(Busy)'),
+      busy: s__('UserProfile|Busy'),
     },
   },
   components: {
+    GlBadge,
     GlDisclosureDropdownGroup,
     GlDisclosureDropdownItem,
     GlTooltip,
@@ -31,7 +37,14 @@ export default {
       };
       if (this.user.has_link_to_profile) {
         item.href = this.user.link_to_profile;
+
+        item.extraAttrs = {
+          ...USER_MENU_TRACKING_DEFAULTS,
+          'data-track-label': 'user_profile',
+          'data-testid': 'user_profile_link',
+        };
       }
+
       return item;
     },
   },
@@ -47,9 +60,9 @@ export default {
             <span class="gl-font-weight-bold">
               {{ user.name }}
             </span>
-            <span v-if="user.status.busy" class="gl-text-gray-500">{{
-              $options.i18n.user.busy
-            }}</span>
+            <gl-badge v-if="user.status.busy" size="sm" variant="warning">
+              {{ $options.i18n.user.busy }}
+            </gl-badge>
           </span>
 
           <span class="gl-text-gray-400">@{{ user.username }}</span>
@@ -58,16 +71,17 @@ export default {
             v-if="user.status.customized"
             ref="statusTooltipTarget"
             data-testid="user-menu-status"
-            class="gl-display-flex gl-align-items-center gl-mt-2 gl-font-sm"
+            class="gl-display-flex gl-align-items-baseline gl-mt-2 gl-font-sm"
           >
             <gl-emoji :data-name="user.status.emoji" class="gl-mr-1" />
-            <span v-safe-html="user.status.message" class="gl-text-truncate"></span>
+            <span v-safe-html="user.status.message_html" class="gl-text-truncate"></span>
             <gl-tooltip
+              v-if="user.status.message_html"
               :target="() => $refs.statusTooltipTarget"
               boundary="viewport"
               placement="bottom"
             >
-              <span v-safe-html="user.status.message"></span>
+              <span v-safe-html="user.status.message_html"></span>
             </gl-tooltip>
           </span>
         </span>

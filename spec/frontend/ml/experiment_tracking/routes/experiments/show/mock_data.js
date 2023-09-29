@@ -7,12 +7,18 @@ export const MOCK_PAGE_INFO = {
   hasPreviousPage: true,
 };
 
+export const MOCK_EXPERIMENT = { name: 'experiment', path: '/path/to/experiment' };
+
 export const MOCK_CANDIDATES = [
   {
     rmse: 1,
     l1_ratio: 0.4,
     details: 'link_to_candidate1',
     artifact: 'link_to_artifact',
+    ci_job: {
+      path: 'link_to_job',
+      name: 'a job',
+    },
     name: 'aCandidate',
     created_at: '2023-01-05T14:07:02.975Z',
     user: { username: 'root', path: '/root' },

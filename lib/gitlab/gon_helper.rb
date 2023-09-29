@@ -17,6 +17,8 @@ module Gitlab
       gon.markdown_surround_selection = current_user&.markdown_surround_selection
       gon.markdown_automatic_lists = current_user&.markdown_automatic_lists
 
+      add_browsersdk_tracking
+
       if Gitlab.config.sentry.enabled
         gon.sentry_dsn         = Gitlab.config.sentry.clientside_dsn
         gon.sentry_environment = Gitlab.config.sentry.environment
@@ -28,6 +30,7 @@ module Gitlab
                           current_user) && Gitlab::CurrentSettings.sentry_enabled
         gon.sentry_dsn           = Gitlab::CurrentSettings.sentry_clientside_dsn
         gon.sentry_environment   = Gitlab::CurrentSettings.sentry_environment
+        gon.sentry_clientside_traces_sample_rate = Gitlab::CurrentSettings.sentry_clientside_traces_sample_rate
       end
 
       gon.recaptcha_api_server_url = ::Recaptcha.configuration.api_server_url
@@ -49,24 +52,33 @@ module Gitlab
       gon.ee                     = Gitlab.ee?
       gon.jh                     = Gitlab.jh?
       gon.dot_com                = Gitlab.com?
+      gon.uf_error_prefix        = ::Gitlab::Utils::ErrorMessage::UF_ERROR_PREFIX
+      gon.pat_prefix             = Gitlab::CurrentSettings.current_application_settings.personal_access_token_prefix
+      gon.use_new_navigation     = NavHelper.show_super_sidebar?(current_user)
+      gon.keyboard_shortcuts_enabled = current_user ? current_user.keyboard_shortcuts_enabled : true
+
+      gon.diagramsnet_url = Gitlab::CurrentSettings.diagramsnet_url if Gitlab::CurrentSettings.diagramsnet_enabled
 
       if current_user
+        gon.version = Gitlab::VERSION # publish version only for logged in users
         gon.current_user_id = current_user.id
         gon.current_username = current_user.username
         gon.current_user_fullname = current_user.name
         gon.current_user_avatar_url = current_user.avatar_url
         gon.time_display_relative = current_user.time_display_relative
-        gon.use_new_navigation = Feature.enabled?(:super_sidebar_nav, current_user) && current_user&.use_new_navigation
       end
 
       # Initialize gon.features with any flags that should be
       # made globally available to the frontend
       push_frontend_feature_flag(:usage_data_api, type: :ops)
       push_frontend_feature_flag(:security_auto_fix)
-      push_frontend_feature_flag(:new_header_search)
       push_frontend_feature_flag(:source_editor_toolbar)
       push_frontend_feature_flag(:vscode_web_ide, current_user)
-      push_frontend_feature_flag(:full_path_project_search, current_user)
+      push_frontend_feature_flag(:unbatch_graphql_queries, current_user)
+      push_frontend_feature_flag(:server_side_frecent_namespaces, current_user)
+      # To be removed with https://gitlab.com/gitlab-org/gitlab/-/issues/399248
+      push_frontend_feature_flag(:remove_monitor_metrics)
+      push_frontend_feature_flag(:custom_emoji)
     end
 
     # Exposes the state of a feature flag to the frontend code.
@@ -105,6 +117,14 @@ module Gitlab
       # may be an absolute URL.
       URI.join(Gitlab.config.gitlab.url,
                ActionController::Base.helpers.image_path('no_avatar.png')).to_s
+    end
+
+    def add_browsersdk_tracking
+      return unless Gitlab.com? && Feature.enabled?(:browsersdk_tracking)
+      return if ENV['GITLAB_ANALYTICS_URL'].blank? || ENV['GITLAB_ANALYTICS_ID'].blank?
+
+      gon.analytics_url = ENV['GITLAB_ANALYTICS_URL']
+      gon.analytics_id = ENV['GITLAB_ANALYTICS_ID']
     end
   end
 end

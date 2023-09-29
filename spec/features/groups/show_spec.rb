@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group show page', feature_category: :subgroups do
-  include Spec::Support::Helpers::Features::InviteMembersModalHelper
+RSpec.describe 'Group show page', feature_category: :groups_and_projects do
+  include Features::InviteMembersModalHelpers
 
   let_it_be(:user) { create(:user) }
   let_it_be(:group) { create(:group) }

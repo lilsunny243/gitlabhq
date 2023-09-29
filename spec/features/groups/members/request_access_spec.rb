@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Groups > Members > Request access', feature_category: :subgroups do
-  let(:user) { create(:user) }
-  let(:owner) { create(:user) }
+RSpec.describe 'Groups > Members > Request access', feature_category: :groups_and_projects do
+  let(:user) { create(:user, :no_super_sidebar) }
+  let(:owner) { create(:user, :no_super_sidebar) }
   let(:group) { create(:group, :public) }
   let!(:project) { create(:project, :private, namespace: group) }
 

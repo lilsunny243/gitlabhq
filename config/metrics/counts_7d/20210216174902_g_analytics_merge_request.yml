@@ -5,7 +5,6 @@ description: Unique visitors to /groups/:group/-/analytics/merge_request_analyti
 product_section: dev
 product_stage: manage
 product_group: optimize
-product_category:
 value_type: number
 status: removed
 time_frame: 7d
@@ -22,3 +21,5 @@ tier:
 - premium
 - ultimate
 milestone: "<13.9"
+removed_by_url:
+milestone_removed: "<16.4"

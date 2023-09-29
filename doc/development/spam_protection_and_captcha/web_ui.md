@@ -48,11 +48,11 @@ However, even though the actual handling of the request interception and
 modal is transparent, without any mandatory changes to the involved JavaScript or Vue components
 for the form or page, changes in request or error handling may be required. Changes are needed
 because the existing behavior may not work correctly: for example, if a failed or cancelled
-CAPTCHA display interrupts the normal request flow or UI updates.
+CAPTCHA display interrupts the standard request flow or UI updates.
 Careful exploratory testing of all scenarios is important to uncover any potential
 problems.
 
-This sequence diagram illustrates the normal CAPTCHA flow for JavaScript XHR/Fetch requests
+This sequence diagram illustrates the standard CAPTCHA flow for JavaScript XHR/Fetch requests
 on the frontend:
 
 ```mermaid
@@ -73,13 +73,11 @@ sequenceDiagram
 ```
 
 The backend is also cleanly abstracted via mixin modules and helper methods. The three main
-changes required to the relevant backend controller actions (normally just `create`/`update`) are:
+changes required to the relevant backend controller actions (typically just `create`/`update`) are:
 
-1. Create a `SpamParams` parameter object instance based on the request, using the static
-   `#new_from_request` factory method. This method takes a request, and returns a `SpamParams` instance.
-1. Pass the created `SpamParams` instance as the `spam_params` named argument to the
-   Service class constructor, which you should have already added. If the spam check indicates
-   the changes to the model are possibly spam, then:
+1. Pass `perform_spam_check: true` to the Update Service class constructor.
+   It is set to `true` by default in the Create Service.
+1. If the spam check indicates the changes to the model are possibly spam, then:
    - An error is added to the model.
    - The `needs_recaptcha` property on the model is set to true.
 1. Wrap the existing controller action return value (rendering or redirecting) in a block passed to
@@ -88,7 +86,7 @@ changes required to the relevant backend controller actions (normally just `crea
     1. Checking if there the model contains an error, and the `needs_recaptcha` flag is true.
        - If yes: Add the appropriate spam or CAPTCHA fields to the JSON response, and return
          a `409 - Conflict` HTTP status code.
-       - If no (if CAPTCHA is disabled or if no spam was detected): The normal request return
+       - If no (if CAPTCHA is disabled or if no spam was detected): The standard request return
          logic passed in the block is run.
 
 Thanks to the abstractions, it's more straightforward to implement than it is to explain it.
@@ -116,12 +114,10 @@ module WidgetsActions
   include SpammableActions::CaptchaCheck::JsonFormatActionsSupport
 
   def create
-    spam_params = ::Spam::SpamParams.new_from_request(request: request)
     widget = ::Widgets::CreateService.new(
       project: project,
       current_user: current_user,
-      params: params,
-      spam_params: spam_params
+      params: params
     ).execute
 
     respond_to do |format|
@@ -166,13 +162,11 @@ class WidgetsController < ApplicationController
 
   def update
     # Existing logic to find the `widget` model instance...
-
-    spam_params = ::Spam::SpamParams.new_from_request(request: request)
     ::Widgets::UpdateService.new(
       project: project,
       current_user: current_user,
       params: params,
-      spam_params: spam_params
+      perform_spam_check: true
     ).execute(widget)
 
     respond_to do |format|

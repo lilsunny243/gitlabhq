@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::PipelineSuccessUnlockArtifactsWorker do
+RSpec.describe Ci::PipelineSuccessUnlockArtifactsWorker, feature_category: :build_artifacts do
   describe '#perform' do
     subject(:perform) { described_class.new.perform(pipeline_id) }
 
@@ -67,6 +67,45 @@ RSpec.describe Ci::PipelineSuccessUnlockArtifactsWorker do
 
         perform
       end
+    end
+  end
+
+  describe '.database_health_check_attrs' do
+    it 'defines expected db health check attrs' do
+      expect(described_class.database_health_check_attrs).to eq(
+        gitlab_schema: :gitlab_ci,
+        delay_by: described_class::DEFAULT_DEFER_DELAY,
+        tables: [:ci_job_artifacts]
+      )
+    end
+  end
+
+  context 'with stop signal from database health check' do
+    let(:pipeline_id) { non_existing_record_id }
+    let(:health_signal_attrs) { described_class.database_health_check_attrs }
+
+    around do |example|
+      with_sidekiq_server_middleware do |chain|
+        chain.add Gitlab::SidekiqMiddleware::SkipJobs
+        Sidekiq::Testing.inline! { example.run }
+      end
+    end
+
+    before do
+      stub_feature_flags("drop_sidekiq_jobs_#{described_class.name}": false)
+
+      stop_signal = instance_double("Gitlab::Database::HealthStatus::Signals::Stop", stop?: true)
+      allow(Gitlab::Database::HealthStatus).to receive(:evaluate).and_return([stop_signal])
+    end
+
+    it 'defers the job by set time' do
+      expect_next_instance_of(described_class) do |worker|
+        expect(worker).not_to receive(:perform).with(pipeline_id)
+      end
+
+      expect(described_class).to receive(:perform_in).with(health_signal_attrs[:delay_by], pipeline_id)
+
+      described_class.perform_async(pipeline_id)
     end
   end
 end

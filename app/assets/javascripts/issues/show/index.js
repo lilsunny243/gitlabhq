@@ -1,17 +1,20 @@
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters } from 'vuex';
 import errorTrackingStore from '~/error_tracking/store';
 import { apolloProvider } from '~/graphql_shared/issuable_client';
-import { TYPE_INCIDENT } from '~/issues/constants';
-import { parseBoolean } from '~/lib/utils/common_utils';
+import { TYPE_INCIDENT, TYPE_ISSUE } from '~/issues/constants';
+import { convertObjectPropsToCamelCase, parseBoolean } from '~/lib/utils/common_utils';
 import { scrollToTargetOnResize } from '~/lib/utils/resize_observer';
+import initLinkedResources from '~/linked_resources';
 import IssueApp from './components/app.vue';
-import HeaderActions from './components/header_actions.vue';
+import DescriptionComponent from './components/description.vue';
 import IncidentTabs from './components/incidents/incident_tabs.vue';
 import SentryErrorStackTrace from './components/sentry_error_stack_trace.vue';
 import { issueState } from './constants';
 import getIssueStateQuery from './queries/get_issue_state.query.graphql';
 import createRouter from './components/incidents/router';
+import { parseIssuableData } from './utils/parse_data';
 
 const bootstrapApollo = (state = {}) => {
   return apolloProvider.clients.defaultClient.cache.writeQuery({
@@ -22,105 +25,93 @@ const bootstrapApollo = (state = {}) => {
   });
 };
 
-export function initIncidentApp(issueData = {}, store) {
+export function initIssuableApp(store) {
   const el = document.getElementById('js-issuable-app');
 
   if (!el) {
     return undefined;
   }
 
-  bootstrapApollo({ ...issueState, issueType: el.dataset.issueType });
+  const issuableData = parseIssuableData(el);
+  const headerActionsData = convertObjectPropsToCamelCase(JSON.parse(el.dataset.headerActionsData));
 
   const {
+    authorId,
+    authorName,
+    authorUsername,
+    authorWebUrl,
     canCreateIncident,
-    canUpdate,
-    canUpdateTimelineEvent,
+    fullPath,
     iid,
     issuableId,
+    issueType,
+    hasIterationsFeature,
+    // for issue
+    registerPath,
+    signInPath,
+    // for incident
+    canUpdate,
+    canUpdateTimelineEvent,
     currentPath,
     currentTab,
-    projectNamespace,
-    projectPath,
-    projectId,
     hasLinkedAlerts,
+    projectId,
     slaFeatureAvailable,
     uploadMetricsFeatureAvailable,
-    state,
-  } = issueData;
+  } = issuableData;
 
-  const fullPath = `${projectNamespace}/${projectPath}`;
-  const router = createRouter(currentPath, currentTab);
+  const issueProvideData = { registerPath, signInPath };
+  const incidentProvideData = {
+    canUpdate,
+    canUpdateTimelineEvent,
+    hasLinkedAlerts: parseBoolean(hasLinkedAlerts),
+    projectId,
+    slaFeatureAvailable: parseBoolean(slaFeatureAvailable),
+    uploadMetricsFeatureAvailable: parseBoolean(uploadMetricsFeatureAvailable),
+  };
 
-  return new Vue({
-    el,
-    name: 'DescriptionRoot',
-    apolloProvider,
-    store,
-    router,
-    provide: {
-      issueType: TYPE_INCIDENT,
-      canCreateIncident,
-      canUpdateTimelineEvent,
-      canUpdate,
-      fullPath,
-      iid,
-      issuableId,
-      projectId,
-      hasLinkedAlerts: parseBoolean(hasLinkedAlerts),
-      slaFeatureAvailable: parseBoolean(slaFeatureAvailable),
-      uploadMetricsFeatureAvailable: parseBoolean(uploadMetricsFeatureAvailable),
-      contentEditorOnIssues: gon.features.contentEditorOnIssues,
-    },
-    computed: {
-      ...mapGetters(['getNoteableData']),
-    },
-    render(createElement) {
-      return createElement(IssueApp, {
-        props: {
-          ...issueData,
-          issueId: Number(issuableId),
-          issuableStatus: state,
-          descriptionComponent: IncidentTabs,
-          showTitleBorder: false,
-          isConfidential: this.getNoteableData?.confidential,
-        },
-      });
-    },
-  });
-}
-
-export function initIssueApp(issueData, store) {
-  const el = document.getElementById('js-issuable-app');
-
-  if (!el) {
-    return undefined;
-  }
-
-  const { fullPath, registerPath, signInPath } = el.dataset;
+  bootstrapApollo({ ...issueState, issueType });
 
   scrollToTargetOnResize();
 
-  bootstrapApollo({ ...issueState, issueType: el.dataset.issueType });
-
-  const {
-    canCreateIncident,
-    hasIssueWeightsFeature,
-    hasIterationsFeature,
-    ...issueProps
-  } = issueData;
+  if (issueType === TYPE_INCIDENT) {
+    initLinkedResources();
+  }
 
   return new Vue({
     el,
     name: 'DescriptionRoot',
     apolloProvider,
     store,
+    router: issueType === TYPE_INCIDENT ? createRouter(currentPath, currentTab) : undefined,
     provide: {
       canCreateIncident,
       fullPath,
-      registerPath,
-      signInPath,
-      hasIssueWeightsFeature,
+      iid,
+      issuableId,
+      issueType,
       hasIterationsFeature,
+      ...(issueType === TYPE_ISSUE && issueProvideData),
+      ...(issueType === TYPE_INCIDENT && incidentProvideData),
+      // for HeaderActions component
+      canCreateIssue:
+        issueType === TYPE_INCIDENT
+          ? parseBoolean(headerActionsData.canCreateIncident)
+          : parseBoolean(headerActionsData.canCreateIssue),
+      canDestroyIssue: parseBoolean(headerActionsData.canDestroyIssue),
+      canPromoteToEpic: parseBoolean(headerActionsData.canPromoteToEpic),
+      canReopenIssue: parseBoolean(headerActionsData.canReopenIssue),
+      canReportSpam: parseBoolean(headerActionsData.canReportSpam),
+      canUpdateIssue: parseBoolean(headerActionsData.canUpdateIssue),
+      isIssueAuthor: parseBoolean(headerActionsData.isIssueAuthor),
+      issuePath: headerActionsData.issuePath,
+      newIssuePath: headerActionsData.newIssuePath,
+      projectPath: headerActionsData.projectPath,
+      reportAbusePath: headerActionsData.reportAbusePath,
+      reportedUserId: headerActionsData.reportedUserId,
+      reportedFromUrl: headerActionsData.reportedFromUrl,
+      submitAsSpamPath: headerActionsData.submitAsSpamPath,
+      issuableEmailAddress: headerActionsData.issuableEmailAddress,
     },
     computed: {
       ...mapGetters(['getNoteableData']),
@@ -128,54 +119,24 @@ export function initIssueApp(issueData, store) {
     render(createElement) {
       return createElement(IssueApp, {
         props: {
-          ...issueProps,
+          ...issuableData,
+          author: {
+            id: authorId,
+            name: authorName,
+            username: authorUsername,
+            webUrl: authorWebUrl,
+          },
+          descriptionComponent: issueType === TYPE_INCIDENT ? IncidentTabs : DescriptionComponent,
           isConfidential: this.getNoteableData?.confidential,
           isLocked: this.getNoteableData?.discussion_locked,
           issuableStatus: this.getNoteableData?.state,
+          issuableType: issueType,
           issueId: this.getNoteableData?.id,
+          issueIid: this.getNoteableData?.iid,
+          showTitleBorder: issueType !== TYPE_INCIDENT,
         },
       });
     },
-  });
-}
-
-export function initHeaderActions(store, type = '') {
-  const el = document.querySelector('.js-issue-header-actions');
-
-  if (!el) {
-    return undefined;
-  }
-
-  bootstrapApollo({ ...issueState, issueType: el.dataset.issueType });
-
-  const canCreate =
-    type === TYPE_INCIDENT ? el.dataset.canCreateIncident : el.dataset.canCreateIssue;
-
-  return new Vue({
-    el,
-    name: 'HeaderActionsRoot',
-    apolloProvider,
-    store,
-    provide: {
-      canCreateIssue: parseBoolean(canCreate),
-      canDestroyIssue: parseBoolean(el.dataset.canDestroyIssue),
-      canPromoteToEpic: parseBoolean(el.dataset.canPromoteToEpic),
-      canReopenIssue: parseBoolean(el.dataset.canReopenIssue),
-      canReportSpam: parseBoolean(el.dataset.canReportSpam),
-      canUpdateIssue: parseBoolean(el.dataset.canUpdateIssue),
-      iid: el.dataset.iid,
-      isIssueAuthor: parseBoolean(el.dataset.isIssueAuthor),
-      issuePath: el.dataset.issuePath,
-      issueType: el.dataset.issueType,
-      newIssuePath: el.dataset.newIssuePath,
-      projectPath: el.dataset.projectPath,
-      projectId: el.dataset.projectId,
-      reportAbusePath: el.dataset.reportAbusePath,
-      reportedUserId: parseInt(el.dataset.reportedUserId, 10),
-      reportedFromUrl: el.dataset.reportedFromUrl,
-      submitAsSpamPath: el.dataset.submitAsSpamPath,
-    },
-    render: (createElement) => createElement(HeaderActions),
   });
 }
 

@@ -4,7 +4,7 @@ import { parseBoolean } from '~/lib/utils/common_utils';
 import PerformancePlugin from '~/performance/vue_performance_plugin';
 import Translate from '~/vue_shared/translate';
 import RegistryBreadcrumb from '~/packages_and_registries/shared/components/registry_breadcrumb.vue';
-import { renderBreadcrumb } from '~/packages_and_registries/shared/utils';
+import { injectVueAppBreadcrumbs } from '~/lib/utils/breadcrumbs';
 import { apolloProvider } from './graphql/index';
 import RegistryExplorer from './pages/index.vue';
 import createRouter from './router';
@@ -36,6 +36,7 @@ export default () => {
     isGroupPage,
     isAdmin,
     showCleanupPolicyLink,
+    showContainerRegistrySettings,
     showUnfinishedTagCleanupCallout,
     connectionError,
     invalidPathError,
@@ -69,6 +70,7 @@ export default () => {
             isGroupPage: parseBoolean(isGroupPage),
             isAdmin: parseBoolean(isAdmin),
             showCleanupPolicyLink: parseBoolean(showCleanupPolicyLink),
+            showContainerRegistrySettings: parseBoolean(showContainerRegistrySettings),
             showUnfinishedTagCleanupCallout: parseBoolean(showUnfinishedTagCleanupCallout),
             connectionError: parseBoolean(connectionError),
             invalidPathError: parseBoolean(invalidPathError),
@@ -86,7 +88,7 @@ export default () => {
     });
 
   return {
-    attachBreadcrumb: renderBreadcrumb(router, apolloProvider, RegistryBreadcrumb),
+    attachBreadcrumb: () => injectVueAppBreadcrumbs(router, RegistryBreadcrumb, apolloProvider),
     attachMainComponent,
   };
 };

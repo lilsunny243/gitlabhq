@@ -60,7 +60,13 @@ export default {
   methods: {
     generateQueryData({ sorting = {}, filter = [] } = {}) {
       // Ensure that we clean up the query when we remove a token from the search
-      const result = { ...this.baselineQueryStringFilters, ...sorting, search: [] };
+      const result = {
+        ...this.baselineQueryStringFilters,
+        ...sorting,
+        search: [],
+        after: null,
+        before: null,
+      };
 
       filter.forEach((f) => {
         if (f.type === FILTERED_SEARCH_TERM) {
@@ -110,10 +116,14 @@ export default {
 </script>
 
 <template>
-  <div class="gl-display-flex gl-p-5 gl-bg-gray-10 gl-border-solid gl-border-1 gl-border-gray-100">
+  <div
+    class="gl-md-display-flex gl-p-5 gl-bg-gray-10 gl-border-solid gl-border-1 gl-border-gray-100"
+  >
+    <!-- `gl-w-full gl-md-w-15` forces fixed width needed to prevent
+    filtered component to grow beyond available width -->
     <gl-filtered-search
       v-model="internalFilter"
-      class="gl-mr-4 gl-flex-grow-1"
+      class="gl-w-full gl-md-w-15 gl-mr-4 gl-flex-grow-1"
       :placeholder="__('Filter results')"
       :available-tokens="tokens"
       @submit="submitSearch"
@@ -121,6 +131,10 @@ export default {
     />
     <gl-sorting
       data-testid="registry-sort-dropdown"
+      class="gl-mt-3 gl-md-mt-0 gl-w-full gl-md-w-auto"
+      dropdown-class="gl-w-full"
+      dropdown-toggle-class="gl-inset-border-1-gray-400!"
+      sort-direction-toggle-class="gl-inset-border-1-gray-400!"
       :text="sortText"
       :is-ascending="isSortAscending"
       :sort-direction-tool-tip="sortDirectionData.tooltip"

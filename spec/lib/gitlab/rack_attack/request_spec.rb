@@ -249,6 +249,39 @@ RSpec.describe Gitlab::RackAttack::Request do
     end
   end
 
+  describe '#get_request_protected_path?' do
+    subject { request.get_request_protected_path? }
+
+    before do
+      stub_application_setting(
+        protected_paths_for_get_request: %w[/protected /secure])
+    end
+
+    where(:path, :expected) do
+      '/'              | false
+      '/groups'        | false
+      '/foo/protected' | false
+      '/foo/secure'    | false
+
+      '/protected'  | true
+      '/secure'     | true
+      '/secure/'    | true
+      '/secure/foo' | true
+    end
+
+    with_them do
+      it { is_expected.to eq(expected) }
+
+      context 'when the application is mounted at a relative URL' do
+        before do
+          stub_config_setting(relative_url_root: '/gitlab/root')
+        end
+
+        it { is_expected.to eq(expected) }
+      end
+    end
+  end
+
   describe '#frontend_request?', :allow_forgery_protection do
     subject { request.send(:frontend_request?) }
 
@@ -258,8 +291,13 @@ RSpec.describe Gitlab::RackAttack::Request do
     valid_token = SecureRandom.base64(ActionController::RequestForgeryProtection::AUTHENTICITY_TOKEN_LENGTH)
     other_token = SecureRandom.base64(ActionController::RequestForgeryProtection::AUTHENTICITY_TOKEN_LENGTH)
 
+    before do
+      allow(session).to receive(:enabled?).and_return(true)
+      allow(session).to receive(:loaded?).and_return(true)
+    end
+
     where(:session, :env, :expected) do
-      {}                           | {}                                     | false # rubocop:disable Lint/BinaryOperatorWithIdenticalOperands
+      {}                           | {}                                     | false
       {}                           | { 'HTTP_X_CSRF_TOKEN' => valid_token } | false
       { _csrf_token: valid_token } | { 'HTTP_X_CSRF_TOKEN' => other_token } | false
       { _csrf_token: valid_token } | { 'HTTP_X_CSRF_TOKEN' => valid_token } | true

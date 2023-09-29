@@ -1,16 +1,31 @@
 <script>
 import { GlModal } from '@gitlab/ui';
 import { __ } from '~/locale';
+import { DRAWER_Z_INDEX } from '~/lib/utils/constants';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import JobAssistantDrawer from 'jh_else_ce/ci/pipeline_editor/components/job_assistant_drawer/job_assistant_drawer.vue';
 import CommitSection from './components/commit/commit_section.vue';
 import PipelineEditorDrawer from './components/drawer/pipeline_editor_drawer.vue';
-import JobAssistantDrawer from './components/job_assistant_drawer/job_assistant_drawer.vue';
 import PipelineEditorFileNav from './components/file_nav/pipeline_editor_file_nav.vue';
 import PipelineEditorFileTree from './components/file_tree/container.vue';
 import PipelineEditorHeader from './components/header/pipeline_editor_header.vue';
 import PipelineEditorTabs from './components/pipeline_editor_tabs.vue';
-import { CREATE_TAB, FILE_TREE_DISPLAY_KEY } from './constants';
+import {
+  CREATE_TAB,
+  FILE_TREE_DISPLAY_KEY,
+  EDITOR_APP_DRAWER_HELP,
+  EDITOR_APP_DRAWER_JOB_ASSISTANT,
+  EDITOR_APP_DRAWER_AI_ASSISTANT,
+  EDITOR_APP_DRAWER_NONE,
+} from './constants';
+
+const AiAssistantDrawer = () =>
+  import('ee_component/ci/pipeline_editor/components/ai_assistant_drawer.vue');
 
 export default {
+  EDITOR_APP_DRAWER_HELP,
+  EDITOR_APP_DRAWER_JOB_ASSISTANT,
+  EDITOR_APP_DRAWER_AI_ASSISTANT,
   commitSectionRef: 'commitSectionRef',
   modal: {
     switchBranch: {
@@ -30,11 +45,13 @@ export default {
     GlModal,
     PipelineEditorDrawer,
     JobAssistantDrawer,
+    AiAssistantDrawer,
     PipelineEditorFileNav,
     PipelineEditorFileTree,
     PipelineEditorHeader,
     PipelineEditorTabs,
   },
+  mixins: [glFeatureFlagMixin()],
   props: {
     ciConfigData: {
       type: Object,
@@ -61,13 +78,16 @@ export default {
   },
   data() {
     return {
+      currentDrawer: EDITOR_APP_DRAWER_NONE,
       currentTab: CREATE_TAB,
       scrollToCommitForm: false,
       shouldLoadNewBranch: false,
-      showDrawer: false,
-      showJobAssistantDrawer: false,
-      drawerIndex: 200,
-      jobAssistantIndex: 200,
+      currentDrawerIndex: DRAWER_Z_INDEX,
+      drawerIndex: {
+        [EDITOR_APP_DRAWER_HELP]: DRAWER_Z_INDEX,
+        [EDITOR_APP_DRAWER_JOB_ASSISTANT]: DRAWER_Z_INDEX,
+        [EDITOR_APP_DRAWER_AI_ASSISTANT]: DRAWER_Z_INDEX,
+      },
       showFileTree: false,
       showSwitchBranchModal: false,
     };
@@ -79,6 +99,15 @@ export default {
     includesFiles() {
       return this.ciConfigData?.includes || [];
     },
+    showHelpDrawer() {
+      return this.currentDrawer === EDITOR_APP_DRAWER_HELP;
+    },
+    showJobAssistantDrawer() {
+      return this.currentDrawer === EDITOR_APP_DRAWER_JOB_ASSISTANT;
+    },
+    showAiAssistantDrawer() {
+      return this.currentDrawer === EDITOR_APP_DRAWER_AI_ASSISTANT;
+    },
   },
   mounted() {
     this.showFileTree = JSON.parse(localStorage.getItem(FILE_TREE_DISPLAY_KEY)) || false;
@@ -87,22 +116,15 @@ export default {
     closeBranchModal() {
       this.showSwitchBranchModal = false;
     },
-    closeDrawer() {
-      this.showDrawer = false;
-    },
-    closeJobAssistantDrawer() {
-      this.showJobAssistantDrawer = false;
-    },
     handleConfirmSwitchBranch() {
       this.showSwitchBranchModal = true;
     },
-    openDrawer() {
-      this.showDrawer = true;
-      this.drawerIndex = this.jobAssistantIndex + 1;
-    },
-    openJobAssistantDrawer() {
-      this.showJobAssistantDrawer = true;
-      this.jobAssistantIndex = this.drawerIndex + 1;
+    switchDrawer(drawerName) {
+      this.currentDrawer = drawerName;
+      if (this.drawerIndex[drawerName]) {
+        this.currentDrawerIndex += 1;
+        this.drawerIndex[drawerName] = this.currentDrawerIndex;
+      }
     },
     toggleFileTree() {
       this.showFileTree = !this.showFileTree;
@@ -165,13 +187,11 @@ export default {
           :commit-sha="commitSha"
           :current-tab="currentTab"
           :is-new-ci-config-file="isNewCiConfigFile"
-          :show-drawer="showDrawer"
+          :show-help-drawer="showHelpDrawer"
           :show-job-assistant-drawer="showJobAssistantDrawer"
+          :show-ai-assistant-drawer="showAiAssistantDrawer"
           v-on="$listeners"
-          @open-drawer="openDrawer"
-          @close-drawer="closeDrawer"
-          @open-job-assistant-drawer="openJobAssistantDrawer"
-          @close-job-assistant-drawer="closeJobAssistantDrawer"
+          @switch-drawer="switchDrawer"
           @set-current-tab="setCurrentTab"
           @walkthrough-popover-cta-clicked="setScrollToCommitForm"
         />
@@ -189,16 +209,24 @@ export default {
       v-on="$listeners"
     />
     <pipeline-editor-drawer
-      :is-visible="showDrawer"
-      :z-index="drawerIndex"
+      :is-visible="showHelpDrawer"
+      :z-index="drawerIndex[$options.EDITOR_APP_DRAWER_HELP]"
       v-on="$listeners"
-      @close-drawer="closeDrawer"
+      @switch-drawer="switchDrawer"
     />
     <job-assistant-drawer
+      :ci-config-data="ciConfigData"
+      :ci-file-content="ciFileContent"
       :is-visible="showJobAssistantDrawer"
-      :z-index="jobAssistantIndex"
+      :z-index="drawerIndex[$options.EDITOR_APP_DRAWER_JOB_ASSISTANT]"
       v-on="$listeners"
-      @close-job-assistant-drawer="closeJobAssistantDrawer"
+      @switch-drawer="switchDrawer"
+    />
+    <ai-assistant-drawer
+      v-if="glFeatures.aiCiConfigGenerator"
+      :is-visible="showAiAssistantDrawer"
+      :z-index="drawerIndex[$options.EDITOR_APP_DRAWER_AI_ASSISTANT]"
+      @switch-drawer="switchDrawer"
     />
   </div>
 </template>

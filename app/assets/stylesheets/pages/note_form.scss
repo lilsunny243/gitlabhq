@@ -31,7 +31,7 @@
 
 .note-textarea {
   display: block;
-  padding: 10px 1px;
+  padding: 10px 16px;
   color: $gl-text-color;
   font-family: $regular-font;
   border: 0;
@@ -48,9 +48,8 @@
 
 .common-note-form {
   .md-area {
-    padding: 0 $gl-padding;
-    border: 1px solid $border-color;
-    border-radius: $border-radius-base;
+    border: 1px solid $gray-400;
+    border-radius: $border-radius-large;
     transition: border-color ease-in-out 0.15s,
       box-shadow ease-in-out 0.15s;
     background-color: $white;
@@ -66,19 +65,45 @@
       }
     }
 
-    // Disable inner focus
-    textarea:focus {
-      @include gl-shadow-none;
+    &:hover,
+    &:focus-within {
+      @include gl-shadow-md;
     }
-  }
 
-  .comment-warning-wrapper:focus-within {
-    @include gl-focus;
+    &:hover {
+      border: 1px solid $gray-500;
+    }
+
+    &:focus-within {
+      border: 1px solid $gray-900;
+    }
+
+    // Add focus
+    .zen-backdrop:not(.fullscreen) textarea {
+      width: calc(100% - 4px);
+      margin: 2px;
+      padding-left: calc(#{$gl-spacing-scale-5} - 2px);
+
+      .gl-dark & {
+        width: calc(100% - 6px);
+        margin: 2px 3px;
+        padding-left: calc(#{$gl-spacing-scale-5} - 3px);
+      }
+
+      &:focus {
+        @include gl-focus;
+      }
+    }
+
+    .note-textarea-rounded-bottom {
+      border-bottom-left-radius: calc(#{$border-radius-large} - 1px);
+      border-bottom-right-radius: calc(#{$border-radius-large} - 1px);
+    }
   }
 }
 
-.md-area:focus-within {
-  @include gl-focus;
+.md-header {
+  min-height: 32px;
 }
 
 .md-header .nav-links {
@@ -90,6 +115,11 @@
     // Flexbox quirk to make sure right-aligned items stay right-aligned.
     margin-left: auto;
   }
+}
+
+
+.md-header .gl-tabs-nav {
+  border-bottom: 0;
 }
 
 .issuable-note-warning {
@@ -106,7 +136,7 @@
   }
 
   .icon {
-    margin-right: $issuable-warning-icon-margin;
+    margin-right: $gl-padding-4;
     vertical-align: text-bottom;
     fill: $orange-600;
   }
@@ -209,6 +239,7 @@ table {
 
   .md-area {
     background-color: $white;
+    @include gl-rounded-base;
   }
 }
 
@@ -237,18 +268,21 @@ table {
 .diff-file,
 .commit-diff {
   .discussion-reply-holder {
-    background-color: $gray-light;
-    border-radius: 0 0 3px 3px;
-    padding: $gl-padding;
+    border-radius: 0 0 $gl-border-radius-base $gl-border-radius-base;
+    padding: 0 $gl-padding $gl-padding-12 $gl-padding;
     border-top: 1px solid $gray-50;
 
     + .new-note {
-      background-color: $gray-light;
       border-top: 1px solid $gray-50;
     }
 
     &.is-replying {
-      padding-bottom: $gl-padding;
+      padding-top: $gl-padding-12;
+    }
+
+    &.internal-note,
+    &.internal-note.is-replying {
+      padding-top: $gl-padding-12 !important;
     }
 
     .user-avatar-link {
@@ -257,6 +291,11 @@ table {
       }
     }
   }
+}
+
+.diff-td > .content > .discussion-reply-holder {
+  padding-top: $gl-padding-12;
+  @include gl-bg-gray-10;
 }
 
 .discussion-with-resolve-btn {
@@ -293,19 +332,24 @@ table {
     resize: none;
     padding: $gl-padding-8 $gl-padding-12;
     line-height: 1;
-    border: 1px solid $border-color;
+    border: 1px solid $gray-200;
     background-color: $white;
     overflow: hidden;
+    transition: border-color ease-in-out 0.15s,
+      box-shadow ease-in-out 0.15s;
 
     @include media-breakpoint-down(xs) {
       margin-bottom: $gl-padding-8;
+    }
+
+    &:hover {
+      border: 1px solid $gray-500;
     }
   }
 }
 
 .comment-toolbar {
   color: $gl-text-color-secondary;
-  border-top: 1px solid $border-color;
 }
 
 .toolbar-button {
@@ -335,10 +379,6 @@ table {
 .toolbar-text {
   font-size: 14px;
   line-height: $gl-spacing-scale-7;
-
-  @include media-breakpoint-up(md) {
-    float: left;
-  }
 }
 
 .note-form-actions {
@@ -394,6 +434,10 @@ table {
     float: left;
     margin-top: 5px;
   }
+
+  button {
+    font-size: $gl-font-size-sm !important;
+  }
 }
 
 .uploading-error-icon,
@@ -421,9 +465,4 @@ table {
 .comment-warning-wrapper {
   transition: border-color ease-in-out 0.15s,
     box-shadow ease-in-out 0.15s;
-
-  .md-area {
-    border: 0;
-    box-shadow: none;
-  }
 }

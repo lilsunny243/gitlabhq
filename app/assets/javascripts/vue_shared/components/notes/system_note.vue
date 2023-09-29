@@ -18,6 +18,7 @@
  */
 import { GlButton, GlSkeletonLoader, GlTooltipDirective, GlIcon } from '@gitlab/ui';
 import $ from 'jquery';
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions, mapState } from 'vuex';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import descriptionVersionHistoryMixin from 'ee_else_ce/notes/mixins/description_version_history';
@@ -25,11 +26,18 @@ import axios from '~/lib/utils/axios_utils';
 import { __ } from '~/locale';
 import NoteHeader from '~/notes/components/note_header.vue';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { spriteIcon } from '~/lib/utils/common_utils';
 import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import TimelineEntryItem from './timeline_entry_item.vue';
 
 const MAX_VISIBLE_COMMIT_LIST_COUNT = 3;
+const MR_ICON_COLORS = {
+  check: 'gl-bg-green-100 gl-text-green-700',
+  'merge-request-close': 'gl-bg-red-100 gl-text-red-700',
+  merge: 'gl-bg-blue-100 gl-text-blue-700',
+};
+const ICON_COLORS = {
+  'issue-close': 'gl-bg-blue-100 gl-text-blue-700',
+};
 
 export default {
   i18n: {
@@ -63,16 +71,13 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['targetNoteHash', 'descriptionVersions']),
+    ...mapGetters(['targetNoteHash', 'descriptionVersions', 'getNoteableData']),
     ...mapState(['isLoadingDescriptionVersion']),
     noteAnchorId() {
       return `note_${this.note.id}`;
     },
     isTargetNote() {
       return this.targetNoteHash === this.noteAnchorId;
-    },
-    iconHtml() {
-      return spriteIcon(this.note.system_note_icon_name);
     },
     toggleIcon() {
       return this.expanded ? 'chevron-up' : 'chevron-down';
@@ -86,6 +91,19 @@ export default {
     },
     descriptionVersion() {
       return this.descriptionVersions[this.note.description_version_id];
+    },
+    isMergeRequest() {
+      return this.getNoteableData.noteableType === 'MergeRequest';
+    },
+    hasIconColors() {
+      if (!this.isMergeRequest) return true;
+
+      return this.isMergeRequest && MR_ICON_COLORS[this.note.system_note_icon_name];
+    },
+    iconBgClass() {
+      const colors = this.isMergeRequest ? MR_ICON_COLORS : ICON_COLORS;
+
+      return colors[this.note.system_note_icon_name] || 'gl-bg-gray-50 gl-text-gray-600';
     },
   },
   mounted() {
@@ -108,9 +126,6 @@ export default {
       }
     },
   },
-  safeHtmlConfig: {
-    ADD_TAGS: ['use'], // to support icon SVGs
-  },
   userColorSchemeClass: window.gon.user_color_scheme,
 };
 </script>
@@ -121,7 +136,24 @@ export default {
     :class="{ target: isTargetNote, 'pr-0': shouldShowDescriptionVersion }"
     class="note system-note note-wrapper"
   >
-    <div v-safe-html:[$options.safeHtmlConfig]="iconHtml" class="timeline-icon"></div>
+    <div
+      :class="[
+        iconBgClass,
+        {
+          'mr-system-note-empty gl-bg-gray-900!': !hasIconColors,
+          'gl-w-6 gl-h-6 gl-mt-n1 gl-ml-2': !isMergeRequest,
+          'mr-system-note-icon': isMergeRequest,
+        },
+      ]"
+      class="gl-float-left gl--flex-center gl-rounded-full gl-relative timeline-icon"
+    >
+      <gl-icon
+        v-if="note.system_note_icon_name && hasIconColors"
+        :name="note.system_note_icon_name"
+        :size="isMergeRequest ? 12 : 16"
+        data-testid="timeline-icon"
+      />
+    </div>
     <div class="timeline-content">
       <div class="note-header">
         <note-header

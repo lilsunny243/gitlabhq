@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Web terminals (DEPRECATED) **(FREE)**
+# Web terminals (deprecated) **(FREE SELF)**
 
 > - [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 > - [Disabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/353410) in GitLab 15.0.
@@ -13,7 +13,7 @@ WARNING:
 This feature was [deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 
 FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `certificate_based_clusters`.
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../../administration/feature_flags.md) named `certificate_based_clusters`.
 
 - Read more about the non-deprecated [Web Terminals accessible through the Web IDE](../../user/project/web_ide/index.md).
 - Read more about the non-deprecated [Web Terminals accessible from a running CI job](../../ci/interactive_web_terminal/index.md).
@@ -79,7 +79,7 @@ guides document the necessary steps for a selection of popular reverse proxies:
 
 - [Apache](https://httpd.apache.org/docs/2.4/mod/mod_proxy_wstunnel.html)
 - [NGINX](https://www.nginx.com/blog/websocket-nginx/)
-- [HAProxy](https://www.haproxy.com/blog/websockets-load-balancing-with-haproxy/)
+- [HAProxy](https://www.haproxy.com/blog/websockets-load-balancing-with-haproxy)
 - [Varnish](https://varnish-cache.org/docs/4.1/users-guide/vcl-example-websockets.html)
 
 Workhorse doesn't let WebSocket requests through to non-WebSocket endpoints, so
@@ -87,16 +87,14 @@ it's safe to enable support for these headers globally. If you prefer a
 narrower set of rules, you can restrict it to URLs ending with `/terminal.ws`.
 This approach may still result in a few false positives.
 
-If you installed from source, or have made any configuration changes to your
-Omnibus installation before upgrading to 8.15, you may need to make some changes
-to your configuration. Read
+If you self-compiled your installation, you may need to make some changes to your configuration. Read
 [Upgrading Community Edition and Enterprise Edition from source](../../update/upgrading_from_source.md#nginx-configuration)
 for more details.
 
 To disable web terminal support in GitLab, stop passing
 the `Connection` and `Upgrade` hop-by-hop headers in the *first* HTTP reverse
 proxy in the chain. For most users, this is the NGINX server bundled with
-Omnibus GitLab, in which case, you need to:
+Linux package installations. In this case, you need to:
 
 - Find the `nginx['proxy_set_headers']` section of your `gitlab.rb` file
 - Ensure the whole block is uncommented, and then comment out or remove the
@@ -114,7 +112,7 @@ they receive a `Connection failed` message.
 By default, terminal sessions do not expire. To limit the terminal session
 lifetime in your GitLab instance:
 
-1. On the top bar, select **Main menu > Admin**.
-1. Select
-   [**Settings > Web terminal**](../../user/admin_area/settings/index.md#general).
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Settings > Web terminal**.
 1. Set a `max session time`.

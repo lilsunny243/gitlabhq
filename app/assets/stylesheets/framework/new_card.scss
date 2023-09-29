@@ -1,0 +1,155 @@
+.gl-new-card {
+  @include gl-mt-5;
+  @include gl-bg-gray-10;
+  @include gl-border-1;
+  @include gl-border-solid;
+  @include gl-border-gray-100;
+  @include gl-rounded-base;
+
+  &-header {
+    @include gl-px-5;
+    @include gl-py-4;
+    @include gl-display-flex;
+    @include gl-justify-content-space-between;
+    @include gl-bg-white;
+    @include gl-border-b-1;
+    @include gl-border-b-solid;
+    @include gl-border-b-gray-100;
+    @include gl-rounded-top-base;
+  }
+
+  &[aria-expanded=false] &-header {
+    @include gl-border-bottom-0;
+    @include gl-rounded-base;
+  }
+
+  &-title-wrapper {
+    @include gl-display-flex;
+    @include gl-flex-grow-1;
+  }
+
+  &-title {
+    @include gl-display-flex;
+    @include gl-font-base;
+    @include gl-font-weight-bold;
+    @include gl-relative;
+    @include gl-m-0;
+    @include gl-line-height-24;
+  }
+
+  &-count {
+    @include gl-mx-3;
+    @include gl-font-base;
+    @include gl-font-weight-bold;
+    @include gl-text-gray-500;
+    @include gl-display-inline-flex;
+    @include gl-align-items-center;
+  }
+
+  &-description {
+    @include gl-font-sm;
+    @include gl-text-gray-500;
+    @include gl-m-0;
+  }
+
+  &-toggle {
+    @include gl-pl-3;
+    @include gl-ml-3;
+    @include gl-mr-n2;
+    @include gl-border-l-1;
+    @include gl-border-l-solid;
+    @include gl-border-l-gray-100;
+  }
+
+  &-body {
+    @include gl-rounded-bottom-base;
+    @include gl-px-3;
+    @include gl-py-0;
+  }
+
+  &-content {
+    @include gl-px-2;
+    @include gl-py-3;
+  }
+
+  &-empty {
+    @include gl-p-2;
+    @include gl-mb-0;
+    @include gl-text-gray-500;
+  }
+
+  &-footer {
+    @include gl-bg-white;
+  }
+
+  &-add-form {
+    @include gl-p-4;
+    @include gl-my-2;
+    @include gl-bg-white;
+    @include gl-border-1;
+    @include gl-border-solid;
+    @include gl-border-gray-100;
+    @include gl-rounded-base;
+  }
+}
+
+.gl-new-card-body {
+  // Table adjustments
+  @mixin new-card-table-adjustments {
+    tbody > tr {
+      &:first-of-type > td[data-label],
+      &:first-of-type > td:first-of-type:last-of-type {
+        @include gl-border-t-0;
+      }
+
+      &:last-of-type td:not(:last-of-type) {
+        @include gl-border-b-1;
+      }
+
+      > td[data-label] {
+        @include gl-border-left-0;
+        @include gl-border-l-none;
+        @include gl-border-right-0;
+        @include gl-border-r-none;
+      }
+
+      > th {
+        @include gl-border-t-1;
+        @include gl-border-b-0;
+      }
+
+      &::after {
+        @include gl-bg-white;
+      }
+
+      &:last-child::after {
+        @include gl-display-none;
+      }
+    }
+  }
+
+  table.b-table-stacked-sm,
+  table.b-table-stacked-md {
+    @include gl-mb-0;
+
+    tr:first-of-type th {
+      @include gl-border-t-0;
+    }
+
+    tr:last-of-type td {
+      @include gl-border-b-0;
+    }
+  }
+
+  table.gl-table.b-table.b-table-stacked-sm {
+    @include gl-media-breakpoint-down(sm) {
+      @include new-card-table-adjustments;
+    }
+  }
+
+  table.gl-table.b-table.b-table-stacked-md {
+    @include gl-media-breakpoint-down(md) {
+      @include new-card-table-adjustments;
+    }
+  }
+}

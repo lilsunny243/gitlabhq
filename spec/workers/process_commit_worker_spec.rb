@@ -2,12 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe ProcessCommitWorker do
+RSpec.describe ProcessCommitWorker, feature_category: :source_code_management do
   let(:worker) { described_class.new }
   let(:user) { create(:user) }
   let(:project) { create(:project, :public, :repository) }
   let(:issue) { create(:issue, project: project, author: user) }
   let(:commit) { project.commit }
+
+  it "is deduplicated" do
+    expect(described_class.get_deduplicate_strategy).to eq(:until_executed)
+    expect(described_class.get_deduplication_options).to include(feature_flag: :deduplicate_process_commit_worker)
+  end
 
   describe '#perform' do
     it 'does not process the commit when the project does not exist' do
@@ -82,11 +87,13 @@ RSpec.describe ProcessCommitWorker do
 
     context 'when commit is a merge request merge commit to the default branch' do
       let(:merge_request) do
-        create(:merge_request,
-               description: "Closes #{issue.to_reference}",
-               source_branch: 'feature-merged',
-               target_branch: 'master',
-               source_project: project)
+        create(
+          :merge_request,
+          description: "Closes #{issue.to_reference}",
+          source_branch: 'feature-merged',
+          target_branch: 'master',
+          source_project: project
+        )
       end
 
       let(:commit) do

@@ -26,6 +26,7 @@ class ProjectFeature < ApplicationRecord
     feature_flags
     releases
     infrastructure
+    model_experiments
   ].freeze
 
   EXPORTABLE_FEATURES = (FEATURES - [:security_and_compliance, :pages]).freeze
@@ -36,7 +37,8 @@ class ProjectFeature < ApplicationRecord
     merge_requests: Gitlab::Access::REPORTER,
     metrics_dashboard: Gitlab::Access::REPORTER,
     container_registry: Gitlab::Access::REPORTER,
-    package_registry: Gitlab::Access::REPORTER
+    package_registry: Gitlab::Access::REPORTER,
+    environments: Gitlab::Access::REPORTER
   }.freeze
   PRIVATE_FEATURES_MIN_ACCESS_LEVEL_FOR_PRIVATE_PROJECT = { repository: Gitlab::Access::REPORTER }.freeze
 
@@ -78,6 +80,7 @@ class ProjectFeature < ApplicationRecord
   attribute :infrastructure_access_level, default: ENABLED
   attribute :feature_flags_access_level, default: ENABLED
   attribute :environments_access_level, default: ENABLED
+  attribute :model_experiments_access_level, default: ENABLED
 
   attribute :package_registry_access_level, default: -> do
     if ::Gitlab.config.packages.enabled
@@ -131,12 +134,14 @@ class ProjectFeature < ApplicationRecord
       min_access_level = required_minimum_access_level(feature)
       column = quoted_access_level_column(feature)
 
-      where("#{column} IS NULL OR #{column} IN (:public_visible) OR (#{column} = :private_visible AND EXISTS (:authorizations))",
-           {
-             public_visible: visible,
-             private_visible: PRIVATE,
-             authorizations: user.authorizations_for_projects(min_access_level: min_access_level, related_project_column: 'project_features.project_id')
-           })
+      where(
+        "#{column} IS NULL OR #{column} IN (:public_visible) OR (#{column} = :private_visible AND EXISTS (:authorizations))",
+        {
+          public_visible: visible,
+          private_visible: PRIVATE,
+          authorizations: user.authorizations_for_projects(min_access_level: min_access_level, related_project_column: 'project_features.project_id')
+        }
+      )
     else
       # This has to be added to include features whose value is nil in the db
       visible << nil
@@ -160,6 +165,16 @@ class ProjectFeature < ApplicationRecord
     super(value).tap do
       project.packages_enabled = self.package_registry_access_level != DISABLED if project
     end
+  end
+
+  def public_packages?
+    return false unless Gitlab.config.packages.enabled
+
+    package_registry_access_level == PUBLIC || project.public?
+  end
+
+  def private?(feature)
+    access_level(feature) == PRIVATE
   end
 
   private
@@ -190,16 +205,16 @@ class ProjectFeature < ApplicationRecord
       self.errors.add(field, "cannot have higher visibility level than repository access level") if not_allowed
     end
 
-    %i(merge_requests_access_level builds_access_level).each(&validator)
+    %i[merge_requests_access_level builds_access_level].each(&validator)
   end
 
   def feature_validation_exclusion
-    %i(pages package_registry)
+    %i[pages package_registry]
   end
 
   override :resource_member?
   def resource_member?(user, feature)
-    project.team.member?(user, ProjectFeature.required_minimum_access_level(feature))
+    project.member?(user, ProjectFeature.required_minimum_access_level(feature))
   end
 end
 

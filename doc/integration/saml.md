@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
@@ -19,7 +19,7 @@ To set up SAML on GitLab.com, see [SAML SSO for GitLab.com groups](../user/group
 For more information on:
 
 - OmniAuth provider settings, see the [OmniAuth documentation](omniauth.md).
-- Commonly-used terms, see the [glossary of common terms](#glossary-of-common-terms).
+- Commonly-used terms, see the [glossary](#glossary).
 
 ## Configure SAML support in GitLab
 
@@ -28,7 +28,7 @@ For more information on:
 :::TabTitle Linux package (Omnibus)
 
 1. Make sure GitLab is [configured with HTTPS](https://docs.gitlab.com/omnibus/settings/ssl/).
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `saml` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. To allow your users to use SAML to sign up without having to manually create
@@ -51,7 +51,7 @@ For more information on:
 
 1. Configure the following attributes so your SAML users cannot change them:
 
-   - [`NameID`](../user/group/saml_sso/index.md#nameid).
+   - [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
    - `Email` when used with `omniauth_auto_link_saml_user`.
 
    If users can change these attributes, they can sign in as other authorized users.
@@ -98,7 +98,7 @@ For more information on:
 :::TabTitle Helm chart (Kubernetes)
 
 1. Make sure GitLab is [configured with HTTPS](https://docs.gitlab.com/charts/installation/tls.html).
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `saml` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. Export the Helm values:
@@ -116,7 +116,7 @@ For more information on:
        omniauth:
          enabled: true
          allowSingleSignOn: ['saml']
-         blockAutoCreatedUsers: true
+         blockAutoCreatedUsers: false
    ```
 
 1. Optional. You can automatically link SAML users with existing GitLab users if their
@@ -134,7 +134,7 @@ For more information on:
 
 1. Configure the following attributes so your SAML users cannot change them:
 
-   - [`NameID`](../user/group/saml_sso/index.md#nameid).
+   - [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
    - `Email` when used with `omniauth_auto_link_saml_user`.
 
    If users can change these attributes, they can sign in as other authorized users.
@@ -193,7 +193,7 @@ For more information on:
 :::TabTitle Docker
 
 1. Make sure GitLab is [configured with HTTPS](https://docs.gitlab.com/omnibus/settings/ssl/).
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `saml` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. To allow your users to use SAML to sign up without having to manually create
@@ -226,7 +226,7 @@ For more information on:
 
 1. Configure the following attributes so your SAML users cannot change them:
 
-   - [`NameID`](../user/group/saml_sso/index.md#nameid).
+   - [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
    - `Email` when used with `omniauth_auto_link_saml_user`.
 
    If users can change these attributes, they can sign in as other authorized users.
@@ -278,7 +278,7 @@ For more information on:
 :::TabTitle Self-compiled (source)
 
 1. Make sure GitLab is [configured with HTTPS](../install/installation.md#using-https).
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `saml` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. To allow your users to use SAML to sign up without having to manually create
@@ -306,7 +306,7 @@ For more information on:
 
 1. Configure the following attributes so your SAML users cannot change them:
 
-   - [`NameID`](../user/group/saml_sso/index.md#nameid).
+   - [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
    - `Email` when used with `omniauth_auto_link_saml_user`.
 
    If users can change these attributes, they can sign in as other authorized users.
@@ -382,7 +382,7 @@ To configure a SAML application on your IdP, you need at least the following inf
 
 - Assertion consumer service URL.
 - Issuer.
-- [`NameID`](../user/group/saml_sso/index.md#nameid).
+- [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
 - [Email address claim](#configure-assertions).
 
 For an example configuration, see [set up identity providers](#set-up-identity-providers).
@@ -408,7 +408,8 @@ You can configure GitLab to use multiple SAML IdPs if:
 - The `strategy_class` is explicitly set because it cannot be inferred from provider
   name.
 
-[SAML group memberships](#configure-users-based-on-saml-group-membership) and [Group Sync](../user/group/saml_sso/group_sync.md) do not support multiple IdPs. For more information, see [issue 386605](https://gitlab.com/gitlab-org/gitlab/-/issues/386605).
+NOTE:
+[SAML group memberships](#configure-users-based-on-saml-group-membership) and [Group Sync](../user/group/saml_sso/group_sync.md) do not support multiple IdPs. For more information, see [issue 386605](https://gitlab.com/gitlab-org/gitlab/-/issues/386605). This also includes `required_groups`, as mentioned in [issue 391926](https://gitlab.com/gitlab-org/gitlab/-/issues/391926).
 
 To set up multiple SAML IdPs:
 
@@ -509,9 +510,9 @@ To set up multiple SAML IdPs:
        omniauth:
          providers:
            - secret: gitlab-saml
-           - key: saml
+             key: saml
            - secret: gitlab-saml
-           - key: saml_2
+             key: saml_2
    ```
 
    To allow your users to use SAML to sign up without having to manually create an
@@ -653,7 +654,7 @@ IdPs, contact your provider's support.
 1. Complete the SAML general configuration. Enter:
    - `"Single sign-on URL"`: Use the assertion consumer service URL.
    - `"Audience URI"`: Use the issuer.
-   - [`NameID`](../user/group/saml_sso/index.md#nameid).
+   - [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
    - [Assertions](#configure-assertions).
 1. In the feedback section, enter that you're a customer and creating an
    app for internal use.
@@ -672,16 +673,16 @@ Prerequisites:
 1. Use the following information, and follow the instructions in
 [Set up your own custom SAML application in Google Workspace](https://support.google.com/a/answer/6087519?hl=en).
 
-   |                  | Typical value                                    | Description                                              |
-   |------------------|--------------------------------------------------|----------------------------------------------------------|
-   | Name of SAML App | GitLab                                           | Other names OK.                                          |
-   | ACS URL          | `https://<GITLAB_DOMAIN>/users/auth/saml/callback` | Assertion Consumer Service URL.             |
-   | GITLAB_DOMAIN    | `gitlab.example.com`                             | Your GitLab instance domain.               |
-   | Entity ID        | `https://gitlab.example.com`                     | A value unique to your SAML application. Set it to the `issuer` in your GitLab configuration.                         |
-   | Name ID format   | EMAIL                                            | Required value. Also known as `name_identifier_format`.                    |
-   | Name ID          | Primary email address                            | Your email address. Make sure someone receives content sent to that address.                |
-   | First name       | `first_name`                                     | First name. Required value to communicate with GitLab.               |
-   | Last name        | `last_name`                                      | Last name. Required value to communicate with GitLab.               |
+   |                  | Typical value                                      | Description                                                                                   |
+   |:-----------------|:---------------------------------------------------|:----------------------------------------------------------------------------------------------|
+   | Name of SAML App | GitLab                                             | Other names OK.                                                                               |
+   | ACS URL          | `https://<GITLAB_DOMAIN>/users/auth/saml/callback` | Assertion Consumer Service URL.                                                               |
+   | `GITLAB_DOMAIN`  | `gitlab.example.com`                               | Your GitLab instance domain.                                                                  |
+   | Entity ID        | `https://gitlab.example.com`                       | A value unique to your SAML application. Set it to the `issuer` in your GitLab configuration. |
+   | Name ID format   | `EMAIL`                                            | Required value. Also known as `name_identifier_format`.                                       |
+   | Name ID          | Primary email address                              | Your email address. Make sure someone receives content sent to that address.                  |
+   | First name       | `first_name`                                       | First name. Required value to communicate with GitLab.                                        |
+   | Last name        | `last_name`                                        | Last name. Required value to communicate with GitLab.                                         |
 
 1. Set up the following SAML attribute mappings:
 
@@ -699,7 +700,7 @@ When configuring the Google Workspace SAML application, record the following inf
 |             | Value        | Description                                                                       |
 |-------------|--------------|-----------------------------------------------------------------------------------|
 | SSO URL     | Depends      | Google Identity Provider details. Set to the GitLab `idp_sso_target_url` setting. |
-| Certificate | Downloadable | Run `openssl x509 -in <your_certificate.crt> -noout -fingerprint` to generate the SHA1 fingerprint that can be used in the `idp_cert_fingerprint` setting.                         |
+| Certificate | Downloadable | Run `openssl x509 -in <your_certificate.crt> -noout -fingerprint -sha1` to generate the SHA1 fingerprint that can be used in the `idp_cert_fingerprint` setting.                         |
 
 Google Workspace Administrator also provides the IdP metadata, Entity ID, and SHA-256
 fingerprint. However, GitLab does not need this information to connect to the
@@ -737,7 +738,7 @@ For a full list of supported assertions, see the [OmniAuth SAML gem](https://git
 You can:
 
 - Require users to be members of a certain group.
-- Assign users [external](../user/admin_area/external_users.md), administrator or [auditor](../administration/auditor_users.md) roles based on group membership.
+- Assign users [external](../administration/external_users.md), administrator or [auditor](../administration/auditor_users.md) roles based on group membership.
 
 GitLab checks these groups on each SAML sign in and updates user attributes as necessary.
 This feature **does not** allow you to automatically add users to GitLab
@@ -749,7 +750,7 @@ Support for these groups depends on:
 - Whether you've installed [GitLab Enterprise Edition (EE)](https://about.gitlab.com/install/).
 - The [name of the SAML provider](#configure-saml-support-in-gitlab). Group
   memberships are only supported by a single SAML provider named
-  `saml`. For more information, see [issue 386605](https://gitlab.com/gitlab-org/gitlab/-/issues/386605).
+  `saml`.
 
 | Group                        | Tier               | GitLab Enterprise Edition (EE) Only? |
 |------------------------------|--------------------|--------------------------------------|
@@ -943,7 +944,7 @@ response, configure GitLab to identify:
 - Information about a group or user, using a group setting.
 
 SAML can automatically identify a user as an
-[external user](../user/admin_area/external_users.md), based on the `external_groups`
+[external user](../administration/external_users.md), based on the `external_groups`
 setting.
 
 Example configuration:
@@ -2135,7 +2136,7 @@ instead of `email`, let GitLab know by setting it on your configuration:
 By default, the local part of the email address in the SAML response is used to
 generate the user's GitLab username.
 
-Configure `nickname` in `attribute_statements` to specify one or more attributes that contain a user's desired username:
+Configure [`username` or `nickname`](omniauth.md#per-provider-configuration) in `attribute_statements` to specify one or more attributes that contain a user's desired username:
 
 ::Tabs
 
@@ -2438,7 +2439,7 @@ The value given is added to the current time at which the response is validated.
 Before setting the `uid` to a unique attribute, make sure that you have configured
 the following attributes so your SAML users cannot change them:
 
-- [`NameID`](../user/group/saml_sso/index.md#nameid).
+- [`NameID`](../user/group/saml_sso/index.md#manage-user-saml-identity).
 - `Email` when used with `omniauth_auto_link_saml_user`.
 
 If users can change these attributes, they can sign in as other authorized users.
@@ -2970,13 +2971,15 @@ Users authenticated with SSO or SAML must not use a password for Git operations
 over HTTPS. These users can instead:
 
 - Set up a [personal access token](../user/profile/personal_access_tokens.md).
-- Use the [Git Credential Manager](../user/profile/account/two_factor_authentication.md#git-credential-manager)
-  which securely authenticates using OAuth.
+- Use an [OAuth credential helper](../user/profile/account/two_factor_authentication.md#oauth-credential-helpers).
 
 ## Link SAML identity for an existing user
 
-A user can manually link their SAML identity to an existing GitLab account by following the steps in
-[Enable OmniAuth for an existing user](omniauth.md#enable-omniauth-for-an-existing-user).
+An administrator can configure GitLab to automatically link SAML users with existing GitLab users.
+For more information, see [Configure SAML support in GitLab](#configure-saml-support-in-gitlab).
+
+A user can manually link their SAML identity to an existing GitLab account. For more information,
+see [Enable OmniAuth for an existing user](omniauth.md#enable-omniauth-for-an-existing-user).
 
 ## Configure group SAML SSO on a self-managed instance **(PREMIUM SELF)**
 
@@ -3115,13 +3118,13 @@ such as the following:
 | Encrypt SAML assertion | Optional | Uses TLS between your identity provider, the user's browser, and GitLab. |
 | Sign SAML assertion | Optional | Validates the integrity of a SAML assertion. When active, signs the whole response. |
 | Check SAML request signature | Optional | Checks the signature on the SAML response. |
-| Default RelayState | Optional | Specifies the URL users should end up on after successfully signing in through SAML at your IdP. |
-| NameID format | Persistent | See [NameID format details](../user/group/saml_sso/index.md#nameid-format). |
+| Default RelayState | Optional | Specifies the sub-paths of the base URL that users should end up on after successfully signing in through SAML at your IdP. |
+| NameID format | Persistent | See [NameID format details](../user/group/saml_sso/index.md#manage-user-saml-identity). |
 | Additional URLs | Optional | May include the issuer, identifier, or assertion consumer service URL in other fields on some providers. |
 
 For example configurations, see the [notes on specific providers](#set-up-identity-providers).
 
-## Glossary of common terms
+## Glossary
 
 | Term                           | Description |
 |--------------------------------|-------------|

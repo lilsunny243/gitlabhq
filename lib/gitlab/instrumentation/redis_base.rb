@@ -94,9 +94,9 @@ module Gitlab
             raise RedisClusterValidator::CrossSlotError, "Redis command #{result[:command_name]} arguments hash to different slots. See https://docs.gitlab.com/ee/development/redis.html#multi-key-commands"
           end
 
-          increment_allowed_cross_slot_request_count if result[:allowed]
+          increment_allowed_cross_slot_request_count if result[:allowed] && !result[:valid]
 
-          result[:valid]
+          result[:valid] || result[:allowed]
         end
 
         def enable_redis_cluster_validation
@@ -108,6 +108,16 @@ module Gitlab
         def instance_count_request(amount = 1)
           @request_counter ||= Gitlab::Metrics.counter(:gitlab_redis_client_requests_total, 'Client side Redis request count, per Redis server')
           @request_counter.increment({ storage: storage_key }, amount)
+        end
+
+        def instance_count_pipelined_request(size)
+          @pipeline_size_histogram ||= Gitlab::Metrics.histogram(
+            :gitlab_redis_client_requests_pipelined_commands,
+            'Client side Redis request pipeline size, per Redis server',
+            {},
+            [10, 100, 1000, 10_000]
+          )
+          @pipeline_size_histogram.observe({ storage: storage_key }, size)
         end
 
         def instance_count_exception(ex)

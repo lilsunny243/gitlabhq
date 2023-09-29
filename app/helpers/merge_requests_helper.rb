@@ -2,6 +2,7 @@
 
 module MergeRequestsHelper
   include Gitlab::Utils::StrongMemoize
+  include CompareHelper
 
   def create_mr_button_from_event?(event)
     create_mr_button?(from: event.branch_name, source_project: event.project)
@@ -77,10 +78,6 @@ module MergeRequestsHelper
       .execute(include_routes: true)
   end
 
-  def merge_request_button_visibility(merge_request, closed)
-    return 'hidden' if merge_request_button_hidden?(merge_request, closed)
-  end
-
   def merge_request_button_hidden?(merge_request, closed)
     merge_request.closed? == closed || (merge_request.merged? == closed && !merge_request.closed?) || merge_request.closed_or_merged_without_fork?
   end
@@ -132,6 +129,8 @@ module MergeRequestsHelper
       _('Not available for private projects')
     elsif ProtectedBranch.protected?(merge_request.source_project, merge_request.source_branch)
       _('Not available for protected branches')
+    elsif !merge_request.author.can?(:push_code, merge_request.source_project)
+      _('Merge request author cannot push to target project')
     end
   end
 
@@ -145,12 +144,6 @@ module MergeRequestsHelper
     else
       current_user.fork_of(project)
     end
-  end
-
-  def toggle_draft_merge_request_path(issuable)
-    wip_event = issuable.draft? ? 'ready' : 'draft'
-
-    issuable_path(issuable, { merge_request: { wip_event: wip_event } })
   end
 
   def user_merge_requests_counts
@@ -178,6 +171,10 @@ module MergeRequestsHelper
     end
   end
 
+  def moved_mr_sidebar_enabled?
+    Feature.enabled?(:moved_mr_sidebar, @project)
+  end
+
   def diffs_tab_pane_data(project, merge_request, params)
     {
       "is-locked": merge_request.discussion_locked?,
@@ -185,6 +182,7 @@ module MergeRequestsHelper
       endpoint_metadata: @endpoint_metadata_url,
       endpoint_batch: diffs_batch_project_json_merge_request_path(project, merge_request, 'json', params),
       endpoint_coverage: @coverage_path,
+      endpoint_diff_for_path: diff_for_path_namespace_project_merge_request_path(format: 'json', id: merge_request.iid, namespace_id: project.namespace.to_param, project_id: project.path),
       help_page_path: help_page_path('user/project/merge_requests/reviews/suggestions.md'),
       current_user_data: @current_user_data,
       update_current_user_path: @update_current_user_path,
@@ -195,10 +193,11 @@ module MergeRequestsHelper
       show_suggest_popover: show_suggest_popover?.to_s,
       show_whitespace_default: @show_whitespace_default.to_s,
       file_by_file_default: @file_by_file_default.to_s,
-      default_suggestion_commit_message: default_suggestion_commit_message,
-      source_project_default_url: @merge_request.source_project && default_url_to_repo(@merge_request.source_project),
-      source_project_full_path: @merge_request.source_project&.full_path,
-      is_forked: @project.forked?.to_s
+      default_suggestion_commit_message: default_suggestion_commit_message(project),
+      source_project_default_url: merge_request.source_project && default_url_to_repo(merge_request.source_project),
+      source_project_full_path: merge_request.source_project&.full_path,
+      is_forked: project.forked?.to_s,
+      new_comment_template_path: profile_comment_templates_path
     }
   end
 
@@ -219,22 +218,44 @@ module MergeRequestsHelper
     }
   end
 
+  def mr_compare_form_data(_, merge_request)
+    {
+      source_branch_url: project_new_merge_request_branch_from_path(merge_request.source_project),
+      target_branch_url: project_new_merge_request_branch_to_path(merge_request.source_project)
+    }
+  end
+
   private
 
   def review_requested_merge_requests_count
     current_user.review_requested_open_merge_requests_count
   end
 
-  def default_suggestion_commit_message
-    @project.suggestion_commit_message.presence || Gitlab::Suggestions::CommitMessage::DEFAULT_SUGGESTION_COMMIT_MESSAGE
+  def default_suggestion_commit_message(project)
+    project.suggestion_commit_message.presence || Gitlab::Suggestions::CommitMessage::DEFAULT_SUGGESTION_COMMIT_MESSAGE
   end
 
   def merge_request_source_branch(merge_request)
+    fork_icon = if merge_request.for_fork?
+                  title = _('The source project is a fork')
+                  content_tag(:span, class: 'gl-vertical-align-middle gl-mr-n2 has-tooltip', title: title) do
+                    sprite_icon('fork', size: 12, css_class: 'gl-ml-1 has-tooltip')
+                  end
+                else
+                  ''
+                end
+
     branch = if merge_request.for_fork?
-               "#{merge_request.source_project_path}:#{merge_request.source_branch}"
+               html_escape(_('%{fork_icon} %{source_project_path}:%{source_branch}')) % { fork_icon: fork_icon.html_safe, source_project_path: merge_request.source_project_path, source_branch: merge_request.source_branch }
              else
                merge_request.source_branch
              end
+
+    branch_title = if merge_request.for_fork?
+                     html_escape(_('%{source_project_path}:%{source_branch}')) % { source_project_path: merge_request.source_project_path, source_branch: merge_request.source_branch }
+                   else
+                     merge_request.source_branch
+                   end
 
     branch_path = if merge_request.source_project
                     project_tree_path(merge_request.source_project, merge_request.source_branch)
@@ -242,19 +263,20 @@ module MergeRequestsHelper
                     ''
                   end
 
-    link_to branch, branch_path, title: branch, class: 'gl-text-blue-500! gl-font-monospace gl-bg-blue-50 gl-rounded-base gl-font-sm gl-px-2 gl-display-inline-block gl-text-truncate gl-max-w-26 gl-mx-2'
+    link_to branch, branch_path, title: branch_title, class: 'gl-text-blue-500! gl-font-monospace gl-bg-blue-50 gl-rounded-base gl-font-sm gl-px-2 gl-display-inline-block gl-text-truncate gl-max-w-26 gl-mx-2'
   end
 
   def merge_request_header(project, merge_request)
     link_to_author = link_to_member(project, merge_request.author, size: 24, extra_class: 'gl-font-weight-bold gl-mr-2', avatar: false)
-    copy_button = clipboard_button(text: merge_request.source_branch, title: _('Copy branch name'), class: 'btn btn-default btn-sm gl-button btn-default-tertiary btn-icon gl-display-none! gl-md-display-inline-block! js-source-branch-copy')
+    copy_button = clipboard_button(text: merge_request.source_branch, title: _('Copy branch name'), class: 'gl-display-none! gl-md-display-inline-block! js-source-branch-copy')
+
     target_branch = link_to merge_request.target_branch, project_tree_path(merge_request.target_project, merge_request.target_branch), title: merge_request.target_branch, class: 'gl-text-blue-500! gl-font-monospace gl-bg-blue-50 gl-rounded-base gl-font-sm gl-px-2 gl-display-inline-block gl-text-truncate gl-max-w-26 gl-mx-2'
 
     _('%{author} requested to merge %{source_branch} %{copy_button} into %{target_branch} %{created_at}').html_safe % { author: link_to_author.html_safe, source_branch: merge_request_source_branch(merge_request).html_safe, copy_button: copy_button.html_safe, target_branch: target_branch.html_safe, created_at: time_ago_with_tooltip(merge_request.created_at, html_class: 'gl-display-inline-block').html_safe }
   end
 
-  def moved_mr_sidebar_enabled?
-    Feature.enabled?(:moved_mr_sidebar, @project) && defined?(@merge_request)
+  def single_file_file_by_file?
+    Feature.enabled?(:single_file_file_by_file, @project)
   end
 
   def sticky_header_data
@@ -280,7 +302,15 @@ module MergeRequestsHelper
   def hidden_merge_request_icon(merge_request)
     return unless merge_request.hidden?
 
-    hidden_issuable_icon(merge_request)
+    hidden_resource_icon(merge_request)
+  end
+
+  def tab_count_display(merge_request, count)
+    merge_request.preparing? ? "-" : count
+  end
+
+  def review_bar_data(_merge_request, _user)
+    { new_comment_template_path: profile_comment_templates_path }
   end
 end
 

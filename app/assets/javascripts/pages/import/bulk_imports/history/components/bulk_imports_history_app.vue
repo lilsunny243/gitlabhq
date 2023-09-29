@@ -10,25 +10,26 @@ import {
 } from '@gitlab/ui';
 
 import { s__, __ } from '~/locale';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { parseIntPagination, normalizeHeaders } from '~/lib/utils/common_utils';
 import { joinPaths } from '~/lib/utils/url_utility';
 import { getBulkImportsHistory } from '~/rest_api';
 import ImportStatus from '~/import_entities/components/import_status.vue';
+import { StatusPoller } from '~/import_entities/import_groups/services/status_poller';
+
+import { WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import PaginationBar from '~/vue_shared/components/pagination_bar/pagination_bar.vue';
 import TimeAgo from '~/vue_shared/components/time_ago_tooltip.vue';
 import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
 
+import { isImporting } from '../utils';
 import { DEFAULT_ERROR } from '../utils/error_messages';
 
 const DEFAULT_PER_PAGE = 20;
-const DEFAULT_TH_CLASSES =
-  'gl-bg-transparent! gl-border-b-solid! gl-border-b-gray-200! gl-border-b-1! gl-p-5!';
 
 const HISTORY_PAGINATION_SIZE_PERSIST_KEY = 'gl-bulk-imports-history-per-page';
 
 const tableCell = (config) => ({
-  thClass: `${DEFAULT_TH_CLASSES}`,
   tdClass: (value, key, item) => {
     return {
       // eslint-disable-next-line no-underscore-dangle
@@ -56,6 +57,8 @@ export default {
     GlTooltip,
   },
 
+  inject: ['realtimeChangesPath'],
+
   data() {
     return {
       loading: true,
@@ -72,12 +75,12 @@ export default {
     tableCell({
       key: 'source_full_path',
       label: s__('BulkImport|Source'),
-      thClass: `${DEFAULT_TH_CLASSES} gl-w-30p`,
+      thClass: `gl-w-30p`,
     }),
     tableCell({
       key: 'destination_name',
       label: s__('BulkImport|Destination'),
-      thClass: `${DEFAULT_TH_CLASSES} gl-w-40p`,
+      thClass: `gl-w-40p`,
     }),
     tableCell({
       key: 'created_at',
@@ -94,6 +97,12 @@ export default {
     hasHistoryItems() {
       return this.historyItems.length > 0;
     },
+
+    importingHistoryItemIds() {
+      return this.historyItems
+        .filter((item) => isImporting(item.status))
+        .map((item) => item.bulk_import_id);
+    },
   },
 
   watch: {
@@ -103,10 +112,43 @@ export default {
       },
       deep: true,
     },
+
+    importingHistoryItemIds(value) {
+      if (value.length > 0) {
+        this.statusPoller.startPolling();
+      } else {
+        this.statusPoller.stopPolling();
+      }
+    },
   },
 
   mounted() {
     this.loadHistoryItems();
+
+    this.statusPoller = new StatusPoller({
+      pollPath: this.realtimeChangesPath,
+      updateImportStatus: (update) => {
+        if (!this.importingHistoryItemIds.includes(update.id)) {
+          return;
+        }
+
+        const updateItemIndex = this.historyItems.findIndex(
+          (item) => item.bulk_import_id === update.id,
+        );
+        const updateItem = this.historyItems[updateItemIndex];
+
+        if (updateItem.status !== update.status_name) {
+          this.$set(this.historyItems, updateItemIndex, {
+            ...updateItem,
+            status: update.status_name,
+          });
+        }
+      },
+    });
+  },
+
+  beforeDestroy() {
+    this.statusPoller.stopPolling();
   },
 
   methods: {
@@ -126,24 +168,38 @@ export default {
       }
     },
 
-    getFullDestinationUrl(params) {
+    destinationLinkHref(params) {
       return joinPaths(gon.relative_url_root || '', '/', params.destination_full_path);
     },
 
-    getPresentationUrl(item) {
-      const suffix = item.entity_type === 'group' ? '/' : '';
-      return `${item.destination_full_path}${suffix}`;
+    pathWithSuffix(path, item) {
+      const suffix = item.entity_type === WORKSPACE_GROUP ? '/' : '';
+      return `${path}${suffix}`;
+    },
+
+    destinationLinkText(item) {
+      return this.pathWithSuffix(item.destination_full_path, item);
+    },
+
+    destinationText(item) {
+      const fullPath = joinPaths(item.destination_namespace, item.destination_slug);
+      return this.pathWithSuffix(fullPath, item);
     },
 
     getEntityTooltip(item) {
       switch (item.entity_type) {
-        case 'project':
+        case WORKSPACE_PROJECT:
           return __('Project');
-        case 'group':
+        case WORKSPACE_GROUP:
           return __('Group');
         default:
           return '';
       }
+    },
+
+    setPageSize(size) {
+      this.paginationConfig.perPage = size;
+      this.paginationConfig.page = 1;
     },
   },
 
@@ -176,19 +232,21 @@ export default {
         class="gl-w-full"
       >
         <template #cell(destination_name)="{ item }">
-          <template v-if="item.destination_full_path">
-            <gl-icon
-              v-gl-tooltip
-              :name="item.entity_type"
-              :title="getEntityTooltip(item)"
-              :aria-label="getEntityTooltip(item)"
-              class="gl-text-gray-500"
-            />
-            <gl-link :href="getFullDestinationUrl(item)" target="_blank">
-              {{ getPresentationUrl(item) }}
-            </gl-link>
-          </template>
-          <gl-loading-icon v-else inline />
+          <gl-icon
+            v-gl-tooltip
+            :name="item.entity_type"
+            :title="getEntityTooltip(item)"
+            :aria-label="getEntityTooltip(item)"
+            class="gl-text-gray-500"
+          />
+          <gl-link
+            v-if="item.destination_full_path"
+            :href="destinationLinkHref(item)"
+            target="_blank"
+          >
+            {{ destinationLinkText(item) }}
+          </gl-link>
+          <span v-else>{{ destinationText(item) }}</span>
         </template>
         <template #cell(created_at)="{ value }">
           <time-ago :time="value" />
@@ -211,7 +269,7 @@ export default {
         :page-info="pageInfo"
         class="gl-m-0 gl-mt-3"
         @set-page="paginationConfig.page = $event"
-        @set-page-size="paginationConfig.perPage = $event"
+        @set-page-size="setPageSize"
       />
     </template>
     <local-storage-sync

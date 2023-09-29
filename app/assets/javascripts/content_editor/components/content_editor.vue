@@ -1,35 +1,46 @@
 <script>
+import { GlButton, GlTooltipDirective } from '@gitlab/ui';
 import { EditorContent as TiptapEditorContent } from '@tiptap/vue-2';
 import { __ } from '~/locale';
-import { VARIANT_DANGER } from '~/flash';
+import { VARIANT_DANGER } from '~/alert';
+import EditorModeSwitcher from '~/vue_shared/components/markdown/editor_mode_switcher.vue';
 import { createContentEditor } from '../services/create_content_editor';
 import { ALERT_EVENT, TIPTAP_AUTOFOCUS_OPTIONS } from '../constants';
 import ContentEditorAlert from './content_editor_alert.vue';
 import ContentEditorProvider from './content_editor_provider.vue';
 import EditorStateObserver from './editor_state_observer.vue';
-import FormattingBubbleMenu from './bubble_menus/formatting_bubble_menu.vue';
 import CodeBlockBubbleMenu from './bubble_menus/code_block_bubble_menu.vue';
 import LinkBubbleMenu from './bubble_menus/link_bubble_menu.vue';
 import MediaBubbleMenu from './bubble_menus/media_bubble_menu.vue';
+import ReferenceBubbleMenu from './bubble_menus/reference_bubble_menu.vue';
 import FormattingToolbar from './formatting_toolbar.vue';
 import LoadingIndicator from './loading_indicator.vue';
 
 export default {
   components: {
+    GlButton,
     LoadingIndicator,
     ContentEditorAlert,
     ContentEditorProvider,
     TiptapEditorContent,
     FormattingToolbar,
-    FormattingBubbleMenu,
     CodeBlockBubbleMenu,
     LinkBubbleMenu,
     MediaBubbleMenu,
     EditorStateObserver,
+    ReferenceBubbleMenu,
+    EditorModeSwitcher,
+  },
+  directives: {
+    GlTooltip: GlTooltipDirective,
   },
   props: {
     renderMarkdown: {
       type: Function,
+      required: true,
+    },
+    markdownDocsPath: {
+      type: String,
       required: true,
     },
     uploadsPath: {
@@ -51,13 +62,48 @@ export default {
       required: false,
       default: '',
     },
+    placeholder: {
+      type: String,
+      required: false,
+      default: '',
+    },
     autofocus: {
       type: [String, Boolean],
       required: false,
       default: false,
       validator: (autofocus) => TIPTAP_AUTOFOCUS_OPTIONS.includes(autofocus),
     },
-    useBottomToolbar: {
+    supportsQuickActions: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    drawioEnabled: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    codeSuggestionsConfig: {
+      type: Object,
+      required: false,
+      default: () => ({}),
+    },
+    editable: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
+    enableAutocomplete: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
+    autocompleteDataSources: {
+      type: Object,
+      required: false,
+      default: () => ({}),
+    },
+    disableAttachments: {
       type: Boolean,
       required: false,
       default: false,
@@ -70,15 +116,34 @@ export default {
       latestMarkdown: null,
     };
   },
+  computed: {
+    showPlaceholder() {
+      return this.placeholder && !this.markdown && !this.focused;
+    },
+  },
   watch: {
     markdown(markdown) {
       if (markdown !== this.latestMarkdown) {
         this.setSerializedContent(markdown);
       }
     },
+    editable(value) {
+      this.contentEditor.setEditable(value);
+    },
   },
   created() {
-    const { renderMarkdown, uploadsPath, extensions, serializerConfig, autofocus } = this;
+    const {
+      renderMarkdown,
+      uploadsPath,
+      extensions,
+      serializerConfig,
+      autofocus,
+      drawioEnabled,
+      editable,
+      enableAutocomplete,
+      autocompleteDataSources,
+      codeSuggestionsConfig,
+    } = this;
 
     // This is a non-reactive attribute intentionally since this is a complex object.
     this.contentEditor = createContentEditor({
@@ -86,8 +151,13 @@ export default {
       uploadsPath,
       extensions,
       serializerConfig,
+      drawioEnabled,
+      enableAutocomplete,
+      autocompleteDataSources,
+      codeSuggestionsConfig,
       tiptapOptions: {
         autofocus,
+        editable,
       },
     });
   },
@@ -104,10 +174,10 @@ export default {
 
       try {
         await this.contentEditor.setSerializedContent(markdown);
-        this.contentEditor.setEditable(true);
         this.notifyLoadingSuccess();
         this.latestMarkdown = markdown;
       } catch {
+        this.contentEditor.setEditable(false);
         this.contentEditor.eventHub.$emit(ALERT_EVENT, {
           message: __(
             'An error occurred while trying to render the content editor. Please try again.',
@@ -115,17 +185,20 @@ export default {
           variant: VARIANT_DANGER,
           actionLabel: __('Retry'),
           action: () => {
+            this.contentEditor.setEditable(true);
             this.setSerializedContent(markdown);
           },
         });
-        this.contentEditor.setEditable(false);
         this.notifyLoadingError();
       }
     },
     focus() {
+      this.contentEditor.tiptapEditor.commands.focus();
+    },
+    onFocus() {
       this.focused = true;
     },
-    blur() {
+    onBlur() {
       this.focused = false;
     },
     notifyLoading() {
@@ -149,48 +222,61 @@ export default {
         markdown: this.latestMarkdown,
       });
     },
+    handleEditorModeChanged() {
+      this.$emit('enableMarkdownEditor');
+    },
   },
 };
 </script>
 <template>
   <content-editor-provider :content-editor="contentEditor">
-    <div>
+    <div class="md-area gl-overflow-hidden">
       <editor-state-observer
         @docUpdate="notifyChange"
-        @focus="focus"
-        @blur="blur"
+        @focus="onFocus"
+        @blur="onBlur"
         @keydown="$emit('keydown', $event)"
       />
       <content-editor-alert />
       <div
         data-testid="content-editor"
         data-qa-selector="content_editor_container"
-        class="md-area"
         :class="{ 'is-focused': focused }"
       >
         <formatting-toolbar
-          v-if="!useBottomToolbar"
           ref="toolbar"
-          class="gl-border-b"
+          :supports-quick-actions="supportsQuickActions"
+          :hide-attachment-button="disableAttachments"
           @enableMarkdownEditor="$emit('enableMarkdownEditor')"
         />
-        <div class="gl-relative gl-mt-4">
-          <formatting-bubble-menu />
-          <code-block-bubble-menu />
-          <link-bubble-menu />
-          <media-bubble-menu />
-          <tiptap-editor-content
-            class="md"
-            data-testid="content_editor_editablebox"
-            :editor="contentEditor.tiptapEditor"
-          />
-          <loading-indicator v-if="isLoading" />
+        <div v-if="showPlaceholder" class="gl-absolute gl-text-gray-400 gl-px-5 gl-pt-4">
+          {{ placeholder }}
         </div>
-        <formatting-toolbar
-          v-if="useBottomToolbar"
-          ref="toolbar"
-          class="gl-border-t"
-          @enableMarkdownEditor="$emit('enableMarkdownEditor')"
+        <tiptap-editor-content
+          class="md"
+          data-testid="content_editor_editablebox"
+          :editor="contentEditor.tiptapEditor"
+        />
+        <loading-indicator v-if="isLoading" />
+
+        <code-block-bubble-menu />
+        <link-bubble-menu />
+        <media-bubble-menu />
+        <reference-bubble-menu />
+      </div>
+      <div
+        class="gl-display-flex gl-display-flex gl-flex-direction-row gl-justify-content-space-between gl-align-items-center gl-rounded-bottom-left-base gl-rounded-bottom-right-base gl-px-2 gl-border-t gl-border-gray-100 gl-text-secondary"
+      >
+        <editor-mode-switcher size="small" value="richText" @switch="handleEditorModeChanged" />
+        <gl-button
+          v-gl-tooltip
+          icon="markdown-mark"
+          :href="markdownDocsPath"
+          target="_blank"
+          category="tertiary"
+          size="small"
+          title="Markdown is supported"
+          class="gl-px-3!"
         />
       </div>
     </div>

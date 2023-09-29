@@ -33,14 +33,6 @@ describe('/environments/components/canary_ingress.vue', () => {
     createComponent();
   });
 
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-    }
-
-    wrapper = null;
-  });
-
   describe('stable weight', () => {
     let stableWeightDropdown;
 

@@ -1,11 +1,11 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
-# Incremental rollouts with GitLab CI/CD **(FREE)**
+# Incremental rollouts with GitLab CI/CD **(FREE ALL)**
 
 When rolling out changes to your application, it is possible to release production changes
 to only a portion of your Kubernetes pods as a risk mitigation strategy. By releasing
@@ -22,9 +22,9 @@ Manual and Timed rollouts are included automatically in projects controlled by
 [Auto DevOps](../../topics/autodevops/index.md), but they are also configurable through
 GitLab CI/CD in the `.gitlab-ci.yml` configuration file.
 
-Manually triggered rollouts can be implemented with your [Continuous Delivery](../introduction/index.md#continuous-delivery)
-methodology, while timed rollouts do not require intervention and can be part of your
-[Continuous Deployment](../introduction/index.md#continuous-deployment) strategy.
+Manually triggered rollouts can be implemented with Continuous Delivery,
+while timed rollouts do not require intervention and can be part of your
+Continuous Deployment strategy.
 You can also combine both of them in a way that the app is deployed automatically
 unless you eventually intervene manually if necessary.
 

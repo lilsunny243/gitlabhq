@@ -4,7 +4,7 @@ group: Product Planning
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Epics **(PREMIUM)**
+# Epics **(PREMIUM ALL)**
 
 When [issues](../../project/issues/index.md) share a theme across projects and
 milestones, you can manage them by using epics.
@@ -18,6 +18,13 @@ Use epics:
   in different issues in different projects in a [group](../index.md).
 - To track when the work for the group of issues is targeted to begin and end.
 - To discuss and collaborate on feature ideas and scope at a high level.
+
+<div class="video-fallback">
+  See the video: <a href="https://www.youtube.com/watch?v=kdE-yb6Puuo">GitLab Epics - Setting up your Organization with GitLab</a>.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/kdE-yb6Puuo" frameborder="0" allowfullscreen> </iframe>
+</figure>
 
 ## Relationships between epics and issues
 
@@ -45,7 +52,7 @@ You can add issues from a different group hierarchy to an epic.
 To do it, paste the issue URL when
 [adding an existing issue](manage_epics.md#add-an-existing-issue-to-an-epic).
 
-## Roadmap in epics **(ULTIMATE)**
+## Roadmap in epics **(ULTIMATE ALL)**
 
 If your epic contains one or more [child epics](manage_epics.md#multi-level-child-epics) that
 have a start or due date, a visual
@@ -59,7 +66,7 @@ have a start or due date, a visual
 - Link [related epics](linked_epics.md) based on a type of relationship.
 - Create workflows with [epic boards](epic_boards.md).
 - [Turn on notifications](../../profile/notifications.md) for about epic events.
-- [Award an emoji](../../award_emojis.md) to an epic or its comments.
+- [Add an emoji reaction](../../emoji_reactions.md) to an epic or its comments.
 - Collaborate on an epic by posting comments in a [thread](../../discussions/index.md).
 - Use [health status](../../project/issues/managing_issues.md#health-status) to track your progress.
 

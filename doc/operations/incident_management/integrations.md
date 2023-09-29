@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Integrations **(FREE)**
+# Integrations **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13203) in GitLab 12.4.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/42640) from GitLab Ultimate to GitLab Free in 12.8.
@@ -42,7 +42,7 @@ receive alert payloads in JSON format. You can always
    are available in the **View credentials** tab after you save the integration. You must also input
    the URL and Authorization Key in your external service.
 
-### HTTP Endpoints **(PREMIUM)**
+### HTTP Endpoints **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/4442) in GitLab 13.6.
 
@@ -101,7 +101,7 @@ parameters. All fields are optional. If the incoming alert does not contain a va
 | `monitoring_tool`         | String          | The name of the associated monitoring tool. |
 | `hosts`                   | String or Array | One or more hosts, as to where this incident occurred. |
 | `severity`                | String          | The severity of the alert. Case-insensitive. Can be one of: `critical`, `high`, `medium`, `low`, `info`, `unknown`. Defaults to `critical` if missing or value is not in this list. |
-| `fingerprint`             | String or Array | The unique identifier of the alert. This can be used to group occurrences of the same alert. |
+| `fingerprint`             | String or Array | The unique identifier of the alert. This can be used to group occurrences of the same alert. When the `generic_alert_fingerprinting` feature is enabled, the fingerprint is generated automatically based on the payload (excluding the `start_time`, `end_time`, and `hosts` parameters). |
 | `gitlab_environment_name` | String          | The name of the associated GitLab [environment](../../ci/environments/index.md). Required to [display alerts on a dashboard](../../user/operations_dashboard/index.md#adding-a-project-to-the-dashboard). |
 
 You can also add custom fields to the alert's payload. The values of extra
@@ -144,8 +144,8 @@ Prerequisites:
 
 - You must have at least the Maintainer role for the project.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Monitor**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Monitor**.
 1. Expand the **Alerts** section, and select **Add new integration**.
 1. From the **Select integration type** dropdown list, select **Prometheus**.
 1. Turn on the **Active** toggle.
@@ -395,7 +395,7 @@ alert to confirm your integration works properly.
 
 GitLab displays an error or success message, depending on the outcome of your test.
 
-## Automatic grouping of identical alerts **(PREMIUM)**
+## Automatic grouping of identical alerts **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/214557) in GitLab 13.2.
 
@@ -418,9 +418,14 @@ receives a payload with the end time of the alert set. For HTTP Endpoints
 without [custom mappings](#map-fields-in-custom-alerts), the expected
 field is `end_time`. With custom mappings, you can select the expected field.
 
+GitLab determines which alert to resolve based on the `fingerprint` value that can be provided as
+part of the payload.
+For more information on alert properties and mappings, see
+[Customize the alert payload outside of GitLab](#customize-the-alert-payload-outside-of-gitlab).
+
 You can also configure the associated [incident to be closed automatically](../incident_management/manage_incidents.md#automatically-close-incidents-via-recovery-alerts) when the alert resolves.
 
-## Link to your Opsgenie Alerts **(PREMIUM)**
+## Link to your Opsgenie Alerts **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/3066) in GitLab 13.2.
 

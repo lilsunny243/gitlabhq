@@ -2,7 +2,6 @@
 stage: Create
 group: Source Code
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/lfs/lfs_administration.html'
 ---
 
 # GitLab Git Large File Storage (LFS) Administration **(FREE SELF)**
@@ -157,14 +156,14 @@ You can store LFS objects in remote object storage. This allows you
 to reduce reads and writes to the local disk, and free up disk space significantly.
 
 In GitLab 13.2 and later, you should use the
-[consolidated object storage settings](../object_storage.md#consolidated-object-storage-configuration).
+[consolidated object storage settings](../object_storage.md#configure-a-single-storage-connection-for-all-object-types-consolidated-form).
 
 ### Migrating to object storage
 
 You can migrate the LFS objects from local storage to object storage. The
 processing is done in the background and requires **no downtime**.
 
-1. [Configure the object storage](../object_storage.md#consolidated-object-storage-configuration).
+1. [Configure the object storage](../object_storage.md#configure-a-single-storage-connection-for-all-object-types-consolidated-form).
 1. Migrate the LFS objects:
 
    ::Tabs
@@ -272,7 +271,7 @@ To migrate back to local storage:
    ```
 
 1. Edit `/etc/gitlab/gitlab.rb` and
-   [disable object storage](../object_storage.md#selectively-disabling-object-storage)
+   [disable object storage](../object_storage.md#disable-object-storage-for-specific-features)
    for LFS objects:
 
    ```ruby
@@ -392,9 +391,11 @@ To delete these references:
    ls -al /var/opt/gitlab/gitlab-rails/shared/lfs-objects/00/66/22269c61b41bf14a22bbe0e43be3acf86a4a446afb4250c3794ea47541a7
    ```
 
-1. If the file is not present, remove the database record via the rails console:
+1. If the file is not present, remove the database records via the rails console:
 
    ```ruby
+   # First delete the parent records and then destroy the record itself
+   lfs_object.lfs_objects_projects.destroy_all
    lfs_object.destroy
    ```
 
@@ -402,7 +403,7 @@ To delete these references:
 
 If you configure GitLab to [disable TLS v1.2](https://docs.gitlab.com/omnibus/settings/nginx.html)
 and only enable TLS v1.3 connections, LFS operations require a
-[Git LFS client](https://git-lfs.github.com) version 2.11.0 or later. If you use
+[Git LFS client](https://git-lfs.com/) version 2.11.0 or later. If you use
 a Git LFS client earlier than version 2.11.0, GitLab displays an error:
 
 ```plaintext
@@ -452,7 +453,7 @@ settings to allow the GitLab domain. See the following documentation
 for more details:
 
 1. [AWS S3](https://repost.aws/knowledge-center/s3-configure-cors)
-1. [Google Cloud Storage](https://cloud.google.com/storage/docs/configuring-cors)
+1. [Google Cloud Storage](https://cloud.google.com/storage/docs/using-cors)
 1. [Azure Storage](https://learn.microsoft.com/en-us/rest/api/storageservices/cross-origin-resource-sharing--cors--support-for-the-azure-storage-services).
 
 ## Known limitations

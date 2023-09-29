@@ -17,9 +17,7 @@ RSpec.describe BuildDetailsEntity do
     let(:request) { double('request', project: project) }
 
     let(:entity) do
-      described_class.new(build, request: request,
-                                 current_user: user,
-                                 project: project)
+      described_class.new(build, request: request, current_user: user, project: project)
     end
 
     subject { entity.as_json }
@@ -69,9 +67,7 @@ RSpec.describe BuildDetailsEntity do
         end
 
         let(:merge_request) do
-          create(:merge_request, source_project: forked_project,
-                                 target_project: project,
-                                 source_branch: build.ref)
+          create(:merge_request, source_project: forked_project, target_project: project, source_branch: build.ref)
         end
 
         it 'contains the needed key value pairs' do
@@ -285,7 +281,7 @@ RSpec.describe BuildDetailsEntity do
       end
 
       context 'when the build has non public archive type artifacts' do
-        let(:build) { create(:ci_build, :artifacts, :non_public_artifacts, pipeline: pipeline) }
+        let(:build) { create(:ci_build, :artifacts, :with_private_artifacts_config, pipeline: pipeline) }
 
         it 'does not expose non public artifacts' do
           expect(subject.keys).not_to include(:artifact)
@@ -300,6 +296,22 @@ RSpec.describe BuildDetailsEntity do
             expect(subject[:artifact].keys).to include(:download_path, :browse_path, :locked)
           end
         end
+      end
+    end
+
+    context 'when the build has annotations' do
+      let!(:build) { create(:ci_build) }
+      let!(:annotation) { create(:ci_job_annotation, job: build, name: 'external_links', data: [{ external_link: { label: 'URL', url: 'https://example.com/' } }]) }
+
+      it 'exposes job URLs' do
+        expect(subject[:annotations].count).to eq(1)
+        expect(subject[:annotations].first[:name]).to eq('external_links')
+        expect(subject[:annotations].first[:data]).to include(a_hash_including(
+          'external_link' => a_hash_including(
+            'label' => 'URL',
+            'url' => 'https://example.com/'
+          )
+        ))
       end
     end
   end

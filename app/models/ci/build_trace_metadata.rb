@@ -3,6 +3,9 @@
 module Ci
   class BuildTraceMetadata < Ci::ApplicationRecord
     include Ci::Partitionable
+    include SafelyChangeColumnDefault
+
+    columns_changing_default :partition_id
 
     MAX_ATTEMPTS = 5
     self.table_name = 'ci_build_trace_metadata'
@@ -42,9 +45,7 @@ module Ci
     end
 
     def track_archival!(trace_artifact_id, checksum)
-      update!(trace_artifact_id: trace_artifact_id,
-              checksum: checksum,
-              archived_at: Time.current)
+      update!(trace_artifact_id: trace_artifact_id, checksum: checksum, archived_at: Time.current)
     end
 
     def archival_attempts_message

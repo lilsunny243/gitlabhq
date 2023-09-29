@@ -16,10 +16,8 @@ module Resolvers
 
         alias_method :dashboard, :object
 
-        def resolve(**args)
-          return [] unless dashboard
-
-          ::Metrics::Dashboards::AnnotationsFinder.new(dashboard: dashboard, params: args).execute
+        def resolve(**_args)
+          []
         end
       end
     end

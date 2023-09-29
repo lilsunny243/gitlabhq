@@ -12,10 +12,12 @@ RSpec.describe 'profiles/keys/_key.html.haml', feature_category: :system_access 
 
   context 'when the key partial is used' do
     let_it_be(:key) do
-      create(:personal_key,
-             user: user,
-             last_used_at: 7.days.ago,
-             expires_at: 2.days.from_now)
+      create(
+        :personal_key,
+        user: user,
+        last_used_at: 7.days.ago,
+        expires_at: 2.days.from_now
+      )
     end
 
     it 'displays the correct values', :aggregate_failures do
@@ -37,7 +39,7 @@ RSpec.describe 'profiles/keys/_key.html.haml', feature_category: :system_access 
       it 'renders "Unavailable" for last used' do
         render
 
-        expect(rendered).to have_text('Last used: Unavailable')
+        expect(rendered).to have_text('Unavailable')
       end
     end
 
@@ -54,15 +56,13 @@ RSpec.describe 'profiles/keys/_key.html.haml', feature_category: :system_access 
 
       context 'when the key has not been used' do
         let_it_be(:key) do
-          create(:personal_key,
-                 user: user,
-                 last_used_at: nil)
+          create(:personal_key, user: user, last_used_at: nil)
         end
 
         it 'renders "Never" for last used' do
           render
 
-          expect(rendered).to have_text('Last used: Never')
+          expect(rendered).to have_text('Never')
         end
       end
     end
@@ -85,11 +85,11 @@ RSpec.describe 'profiles/keys/_key.html.haml', feature_category: :system_access 
           expect(rendered).to have_text(usage_type_text)
 
           displayed_buttons.each do |button|
-            expect(rendered).to have_text(button)
+            expect(rendered).to have_css("button[aria-label=#{button}]")
           end
 
           hidden_buttons.each do |button|
-            expect(rendered).not_to have_text(button)
+            expect(rendered).not_to have_css("button[aria-label=#{button}]")
           end
         end
       end
@@ -97,25 +97,23 @@ RSpec.describe 'profiles/keys/_key.html.haml', feature_category: :system_access 
 
     context 'when the key does not have an expiration date' do
       let_it_be(:key) do
-        create(:personal_key,
-               user: user,
-               expires_at: nil)
+        create(:personal_key, user: user, expires_at: nil)
       end
 
       it 'renders "Never" for expires' do
         render
 
-        expect(rendered).to have_text('Expires: Never')
+        expect(rendered).to have_text('Never')
       end
     end
 
     context 'when the key has expired' do
       let_it_be(:key) { create(:personal_key, :expired, user: user) }
 
-      it 'renders "Expired:" as the expiration date label' do
+      it 'renders "Expired" as the expiration date label' do
         render
 
-        expect(rendered).to have_text('Expired:')
+        expect(rendered).to have_text('Expired')
       end
     end
 

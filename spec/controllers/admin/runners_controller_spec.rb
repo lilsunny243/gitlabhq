@@ -35,68 +35,30 @@ RSpec.describe Admin::RunnersController, feature_category: :runner_fleet do
   end
 
   describe '#new' do
-    context 'when create_runner_workflow is enabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: true)
-      end
+    it 'renders a :new template' do
+      get :new
 
-      it 'renders a :new template' do
-        get :new
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(response).to render_template(:new)
-      end
-    end
-
-    context 'when create_runner_workflow is disabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: false)
-      end
-
-      it 'returns :not_found' do
-        get :new
-
-        expect(response).to have_gitlab_http_status(:not_found)
-      end
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(response).to render_template(:new)
     end
   end
 
   describe '#register' do
     subject(:register) { get :register, params: { id: new_runner.id } }
 
-    context 'when create_runner_workflow is enabled' do
-      before do
-        stub_feature_flags(create_runner_workflow: true)
-      end
+    context 'when runner can be registered after creation' do
+      let_it_be(:new_runner) { create(:ci_runner, registration_type: :authenticated_user) }
 
-      context 'when runner can be registered after creation' do
-        let_it_be(:new_runner) { create(:ci_runner, registration_type: :authenticated_user) }
+      it 'renders a :register template' do
+        register
 
-        it 'renders a :register template' do
-          register
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(response).to render_template(:register)
-        end
-      end
-
-      context 'when runner cannot be registered after creation' do
-        let_it_be(:new_runner) { runner }
-
-        it 'returns :not_found' do
-          register
-
-          expect(response).to have_gitlab_http_status(:not_found)
-        end
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response).to render_template(:register)
       end
     end
 
-    context 'when create_runner_workflow is disabled' do
-      let_it_be(:new_runner) { create(:ci_runner, registration_type: :authenticated_user) }
-
-      before do
-        stub_feature_flags(create_runner_workflow: false)
-      end
+    context 'when runner cannot be registered after creation' do
+      let_it_be(:new_runner) { runner }
 
       it 'returns :not_found' do
         register
@@ -144,13 +106,11 @@ RSpec.describe Admin::RunnersController, feature_category: :runner_fleet do
     subject(:request) { post :update, params: runner_params }
 
     context 'with update succeeding' do
-      before do
+      it 'updates the runner and ticks the queue' do
         expect_next_instance_of(Ci::Runners::UpdateRunnerService, runner) do |service|
           expect(service).to receive(:execute).with(anything).and_call_original
         end
-      end
 
-      it 'updates the runner and ticks the queue' do
         expect { request }.to change { runner.ensure_runner_queue_value }
 
         runner.reload
@@ -161,13 +121,11 @@ RSpec.describe Admin::RunnersController, feature_category: :runner_fleet do
     end
 
     context 'with update failing' do
-      before do
+      it 'does not update runner or tick the queue' do
         expect_next_instance_of(Ci::Runners::UpdateRunnerService, runner) do |service|
           expect(service).to receive(:execute).with(anything).and_return(ServiceResponse.error(message: 'failure'))
         end
-      end
 
-      it 'does not update runner or tick the queue' do
         expect { request }.not_to change { runner.ensure_runner_queue_value }
         expect { request }.not_to change { runner.reload.description }
 

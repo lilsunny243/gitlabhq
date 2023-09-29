@@ -36,10 +36,6 @@ describe('RemoveAvatar', () => {
     createComponent();
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('the button component', () => {
     it('displays the remove button', () => {
       const button = findButton();
@@ -77,7 +73,7 @@ describe('RemoveAvatar', () => {
         let formSubmitSpy;
 
         beforeEach(() => {
-          formSubmitSpy = jest.spyOn(wrapper.vm.$refs.deleteForm, 'submit');
+          formSubmitSpy = jest.spyOn(findForm().element, 'submit');
           findModal().vm.$emit('primary');
         });
 

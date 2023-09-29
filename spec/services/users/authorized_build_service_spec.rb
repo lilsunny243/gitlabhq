@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Users::AuthorizedBuildService do
+RSpec.describe Users::AuthorizedBuildService, feature_category: :user_management do
   describe '#execute' do
     let_it_be(:current_user) { create(:user) }
 
@@ -12,5 +12,13 @@ RSpec.describe Users::AuthorizedBuildService do
 
     it_behaves_like 'common user build items'
     it_behaves_like 'current user not admin build items'
+
+    context 'for additional authorized build allowed params' do
+      before do
+        params.merge!(external: true)
+      end
+
+      it { expect(user).to be_external }
+    end
   end
 end

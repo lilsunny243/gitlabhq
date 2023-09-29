@@ -44,6 +44,10 @@ class SearchService
     project.blank? && group.blank?
   end
 
+  def search_type
+    'basic'
+  end
+
   def show_snippets?
     strong_memoize(:show_snippets) do
       params[:snippets] == 'true'
@@ -102,17 +106,9 @@ class SearchService
       end
   end
 
-  def show_elasticsearch_tabs?
-    # overridden in EE
-    false
-  end
-
-  def show_epics?
-    # overridden in EE
-    false
-  end
-
   def global_search_enabled_for_scope?
+    return false if show_snippets? && Feature.disabled?(:global_search_snippet_titles_tab, current_user, type: :ops)
+
     case params[:scope]
     when 'blobs'
       Feature.enabled?(:global_search_code_tab, current_user, type: :ops)
@@ -122,6 +118,8 @@ class SearchService
       Feature.enabled?(:global_search_issues_tab, current_user, type: :ops)
     when 'merge_requests'
       Feature.enabled?(:global_search_merge_requests_tab, current_user, type: :ops)
+    when 'snippet_titles'
+      Feature.enabled?(:global_search_snippet_titles_tab, current_user, type: :ops)
     when 'wiki_blobs'
       Feature.enabled?(:global_search_wiki_tab, current_user, type: :ops)
     when 'users'

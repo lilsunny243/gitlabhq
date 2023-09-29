@@ -42,7 +42,7 @@ describe('markdown example snapshots in ContentEditor', () => {
   const expectedProseMirrorJsonExamples = loadExamples(prosemirrorJsonYml);
   const exampleNames = Object.keys(markdownExamples);
 
-  beforeAll(async () => {
+  beforeAll(() => {
     return renderHtmlAndJsonForAllExamples(markdownExamples).then((examples) => {
       actualHtmlAndJsonExamples = examples;
     });
@@ -60,11 +60,10 @@ describe('markdown example snapshots in ContentEditor', () => {
     if (skipRunningSnapshotWysiwygHtmlTests) {
       it.todo(`${exampleNamePrefix} HTML: ${skipRunningSnapshotWysiwygHtmlTests}`);
     } else {
-      it(`${exampleNamePrefix} HTML`, async () => {
+      it(`${exampleNamePrefix} HTML`, () => {
         const expectedHtml = expectedHtmlExamples[name].wysiwyg;
         const { html: actualHtml } = actualHtmlAndJsonExamples[name];
 
-        // noinspection JSUnresolvedFunction (required to avoid RubyMine type inspection warning, because custom matchers auto-imported via Jest test setup are not automatically resolved - see https://youtrack.jetbrains.com/issue/WEB-42350/matcher-for-jest-is-not-recognized-but-it-is-runable)
         expect(actualHtml).toMatchExpectedForMarkdown(
           'HTML',
           name,
@@ -78,11 +77,10 @@ describe('markdown example snapshots in ContentEditor', () => {
     if (skipRunningSnapshotProsemirrorJsonTests) {
       it.todo(`${exampleNamePrefix} ProseMirror JSON: ${skipRunningSnapshotProsemirrorJsonTests}`);
     } else {
-      it(`${exampleNamePrefix} ProseMirror JSON`, async () => {
+      it(`${exampleNamePrefix} ProseMirror JSON`, () => {
         const expectedJson = expectedProseMirrorJsonExamples[name];
         const { json: actualJson } = actualHtmlAndJsonExamples[name];
 
-        // noinspection JSUnresolvedFunction
         expect(actualJson).toMatchExpectedForMarkdown(
           'JSON',
           name,

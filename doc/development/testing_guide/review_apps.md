@@ -6,20 +6,16 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 # Using review apps in the development of GitLab
 
-Review apps are deployed using the `start-review-app-pipeline` job which triggers a child pipeline containing a series of jobs to perform the various tasks needed to deploy a review app.
+Review apps are deployed using the `start-review-app-pipeline` manual job which triggers a child pipeline containing a series of jobs to perform the various tasks needed to deploy a review app.
 
 ![start-review-app-pipeline job](img/review-app-parent-pipeline.png)
 
 For any of the following scenarios, the `start-review-app-pipeline` job would be automatically started:
 
-- for merge requests with CI configuration changes
-- for merge requests with frontend changes
-- for merge requests with changes to `{,ee/,jh/}{app/controllers}/**/*`
-- for merge requests with changes to `{,ee/,jh/}{app/models}/**/*`
-- for merge requests with changes to `{,ee/,jh/}lib/{,ee/,jh/}gitlab/**/*`
-- for merge requests with QA changes
 - for scheduled pipelines
 - the MR has the `pipeline:run-review-app` label set
+
+For all other scenarios, the `start-review-app-pipeline` job can be triggered manually.
 
 ## E2E test runs on review apps
 
@@ -47,8 +43,8 @@ Maintainers can elect to use the [process for merging during broken `master`](ht
 
 ## Performance Metrics
 
-On every [pipeline](https://gitlab.com/gitlab-org/gitlab/pipelines/125315730) in the `qa` stage, the
-`review-performance` job is automatically started: this job does basic
+On every Review App child pipeline in the `qa` stage, the
+`browser_performance` job is automatically started: this job does basic
 browser performance testing using a
 [Sitespeed.io Container](../../ci/testing/browser_performance_testing.md).
 
@@ -204,10 +200,10 @@ subgraph "CNG-mirror pipeline"
 
 - If the `review-deploy` job keeps failing (and a manual retry didn't help),
   please post a message in the `#g_qe_engineering_productivity` channel and/or create a `~"Engineering Productivity"` `~"ep::review apps"` `~"type::bug"`
-  issue with a link to your merge request. Note that the deployment failure can
+  issue with a link to your merge request. The deployment failure can
   reveal an actual problem introduced in your merge request (that is, this isn't
   necessarily a transient failure)!
-- If the `review-qa-smoke` or `review-qa-reliable` job keeps failing (note that we already retry them once),
+- If the `review-qa-smoke` or `review-qa-reliable` job keeps failing (we already retry them once),
   please check the job's logs: you could discover an actual problem introduced in
   your merge request. You can also download the artifacts to see screenshots of
   the page at the time the failures occurred. If you don't find the cause of the
@@ -227,7 +223,7 @@ Review apps are automatically stopped 2 days after the last deployment thanks to
 the [Environment auto-stop](../../ci/environments/index.md#stop-an-environment-after-a-certain-time-period) feature.
 
 If you need your review app to stay up for a longer time, you can
-[pin its environment](../../ci/environments/index.md#override-a-deployments-scheduled-stop-time) or retry the
+[pin its environment](../../ci/environments/index.md#override-a-environments-scheduled-stop-date-and-time) or retry the
 `review-deploy` job to update the "latest deployed at" time.
 
 The `review-cleanup` job that automatically runs in scheduled
@@ -276,9 +272,9 @@ find a way to limit it to only us.**
 ## Other resources
 
 - [Review apps integration for CE/EE (presentation)](https://docs.google.com/presentation/d/1QPLr6FO4LduROU8pQIPkX1yfGvD13GEJIBOenqoKxR8/edit?usp=sharing)
-- [Stability issues](https://gitlab.com/gitlab-org/quality/team-tasks/-/issues/212)
+- [Stability issues](https://gitlab.com/gitlab-org/quality/quality-engineering/team-tasks/-/issues/212)
 
-### Helpful command line tools
+### Helpful command-line tools
 
 - [K9s](https://github.com/derailed/k9s) - enables CLI dashboard across pods and enabling filtering by labels
 - [Stern](https://github.com/wercker/stern) - enables cross pod log tailing based on label/field selectors

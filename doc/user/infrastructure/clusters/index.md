@@ -1,21 +1,21 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Kubernetes clusters **(FREE)**
+# Kubernetes clusters **(FREE ALL)**
 
 To connect clusters to GitLab, use the [GitLab agent](../../clusters/agent/index.md).
 
-## Certificate-based Kubernetes integration (DEPRECATED)
+## Certificate-based Kubernetes integration (deprecated)
 
 WARNING:
 In GitLab 14.5, the certificate-based method to connect Kubernetes clusters
 to GitLab was [deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8),
-as well as its related [features](#deprecated-features). In self-managed GitLab 15.0 and later,
+as well as its related [features](#deprecated-features). In self-managed GitLab 17.0 and later,
 this feature is disabled by default. For GitLab SaaS users, this feature is available until
-GitLab 15.6 for users who have at least one certificate-based cluster enabled in their namespace hierarchy.
+GitLab 15.9 for users who have at least one certificate-based cluster enabled in their namespace hierarchy.
 For GitLab SaaS users that never used this feature previously, it is no longer available.
 
 The certificate-based Kubernetes integration with GitLab is deprecated.
@@ -54,12 +54,9 @@ This feature flag re-enables the certificate-based Kubernetes integration.
 - [GitLab-managed clusters](../../project/clusters/gitlab_managed_clusters.md)
 - [Deploy applications through certificate-based connection](../../project/clusters/deploy_to_cluster.md)
 - [Cluster Management Project](../../clusters/management_project.md)
-- [Cluster integrations](../../clusters/integrations.md)
-- [Cluster cost management](../../clusters/cost_management.md)
 - [Cluster environments](../../clusters/environments.md)
 - [Show Canary Ingress deployments on deploy boards](../../project/canary_deployments.md#show-canary-ingress-deployments-on-deploy-boards-deprecated)
 - [Deploy Boards](../../project/deploy_boards.md)
-- [Clusters health](manage/clusters_health.md)
 - [Web terminals](../../../administration/integration/terminal.md)
 
 ### Cluster levels

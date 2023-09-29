@@ -34,9 +34,7 @@ module Ci
 
     def runner_variables
       variables
-        .sort_and_expand_all(keep_undefined: true,
-                             expand_file_refs: false,
-                             expand_raw_refs: false)
+        .sort_and_expand_all(keep_undefined: true, expand_file_refs: false, expand_raw_refs: false)
         .to_runner_variables
     end
 
@@ -62,6 +60,16 @@ module Ci
       dependencies
     end
     # rubocop: enable CodeReuse/ActiveRecord
+
+    def project_jobs_running_on_instance_runners_count
+      # if not instance runner we don't care about that value and present `+Inf` as a placeholder for Prometheus
+      return '+Inf' unless runner.instance_type?
+
+      return project.instance_runner_running_jobs_count.to_s if
+        project.instance_runner_running_jobs_count < Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET
+
+      "#{Project::INSTANCE_RUNNER_RUNNING_JOBS_MAX_BUCKET}+"
+    end
 
     private
 

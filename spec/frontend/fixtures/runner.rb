@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Runner (JavaScript fixtures)' do
+RSpec.describe 'Runner (JavaScript fixtures)', feature_category: :runner_fleet do
   include AdminModeHelper
   include ApiHelpers
   include JavaScriptFixturesHelpers
@@ -13,7 +13,10 @@ RSpec.describe 'Runner (JavaScript fixtures)' do
   let_it_be(:project) { create(:project, :repository, :public) }
   let_it_be(:project_2) { create(:project, :repository, :public) }
 
-  let_it_be(:runner) { create(:ci_runner, :instance, description: 'My Runner', version: '1.0.0') }
+  let_it_be(:runner) { create(:ci_runner, :instance, description: 'My Runner', creator: admin, version: '1.0.0') }
+  let_it_be(:runner_manager_1) { create(:ci_runner_machine, runner: runner, contacted_at: Time.current) }
+  let_it_be(:runner_manager_2) { create(:ci_runner_machine, runner: runner, contacted_at: Time.current) }
+
   let_it_be(:group_runner) { create(:ci_runner, :group, groups: [group], version: '2.0.0') }
   let_it_be(:group_runner_2) { create(:ci_runner, :group, groups: [group], version: '2.0.0') }
   let_it_be(:project_runner) { create(:ci_runner, :project, projects: [project, project_2], version: '2.0.0') }
@@ -55,6 +58,13 @@ RSpec.describe 'Runner (JavaScript fixtures)' do
 
       it "#{fixtures_path}#{all_runners_query}.paginated.json" do
         post_graphql(query, current_user: admin, variables: { first: 2 })
+
+        expect_graphql_errors_to_be_empty
+      end
+
+      it "#{fixtures_path}#{all_runners_query}.with_creator.json" do
+        # "last: 1" fetches the first runner created, with admin as "creator"
+        post_graphql(query, current_user: admin, variables: { last: 1 })
 
         expect_graphql_errors_to_be_empty
       end
@@ -130,6 +140,22 @@ RSpec.describe 'Runner (JavaScript fixtures)' do
       end
     end
 
+    describe 'runner_managers.query.graphql', type: :request do
+      runner_managers_query = 'show/runner_managers.query.graphql'
+
+      let_it_be(:query) do
+        get_graphql_query_as_string("#{query_path}#{runner_managers_query}")
+      end
+
+      it "#{fixtures_path}#{runner_managers_query}.json" do
+        post_graphql(query, current_user: admin, variables: {
+          runner_id: runner.to_global_id.to_s
+        })
+
+        expect_graphql_errors_to_be_empty
+      end
+    end
+
     describe 'runner_form.query.graphql', type: :request do
       runner_jobs_query = 'edit/runner_form.query.graphql'
 
@@ -169,14 +195,17 @@ RSpec.describe 'Runner (JavaScript fixtures)' do
         get_graphql_query_as_string("#{query_path}#{runner_create_mutation}")
       end
 
-      it "#{fixtures_path}#{runner_create_mutation}.json" do
-        post_graphql(query, current_user: admin, variables: {
-          input: {
-            description: 'My dummy runner'
-          }
-        })
+      context 'with runnerType set to INSTANCE_TYPE' do
+        it "#{fixtures_path}#{runner_create_mutation}.json" do
+          post_graphql(query, current_user: admin, variables: {
+            input: {
+              runnerType: 'INSTANCE_TYPE',
+              description: 'My dummy runner'
+            }
+          })
 
-        expect_graphql_errors_to_be_empty
+          expect_graphql_errors_to_be_empty
+        end
       end
     end
   end

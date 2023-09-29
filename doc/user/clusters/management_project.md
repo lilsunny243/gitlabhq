@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Cluster management project (DEPRECATED) **(FREE)**
+# Cluster management project (deprecated) **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/32810) in GitLab 12.5.
 > - [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
@@ -16,7 +16,7 @@ To manage cluster applications, use the [GitLab agent](agent/index.md)
 with the [Cluster Management Project Template](management_project_template.md).
 
 FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `certificate_based_clusters`.
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../../administration/feature_flags.md) named `certificate_based_clusters`.
 
 A project can be designated as the management project for a cluster.
 A management project can be used to run deployment jobs with
@@ -58,10 +58,13 @@ To associate a cluster management project with your cluster:
 
 1. Navigate to the appropriate configuration page. For a:
    - [Project-level cluster](../project/clusters/index.md), go to your project's
-     **Infrastructure > Kubernetes clusters** page.
+     **Operate > Kubernetes clusters** page.
    - [Group-level cluster](../group/clusters/index.md), go to your group's **Kubernetes**
      page.
-   - [Instance-level cluster](../instance/clusters/index.md), on the top bar, select **Main menu > Admin > Kubernetes**.
+   - [Instance-level cluster](../instance/clusters/index.md):
+     1. On the left sidebar, select **Search or go to**.
+     1. Select **Admin Area**.
+     1. Select **Kubernetes**.
 1. Expand **Advanced settings**.
 1. From the **Cluster management project** dropdown list, select the cluster management project
 you created in the previous step.

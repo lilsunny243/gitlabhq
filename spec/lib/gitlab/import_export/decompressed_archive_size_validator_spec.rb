@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
+RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator, feature_category: :importers do
   let_it_be(:filepath) { File.join(Dir.tmpdir, 'decompressed_archive_size_validator_spec.gz') }
 
-  before(:all) do
+  before_all do
     create_compressed_file
   end
 
@@ -13,13 +13,13 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
     FileUtils.rm(filepath)
   end
 
-  subject { described_class.new(archive_path: filepath, max_bytes: max_bytes) }
+  subject { described_class.new(archive_path: filepath) }
 
   describe '#valid?' do
-    let(:max_bytes) { 1 }
-
     context 'when file does not exceed allowed decompressed size' do
-      let(:max_bytes) { 20 }
+      before do
+        stub_application_setting(max_decompressed_archive_size: 20)
+      end
 
       it 'returns true' do
         expect(subject.valid?).to eq(true)
@@ -35,6 +35,10 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
     end
 
     context 'when file exceeds allowed decompressed size' do
+      before do
+        stub_application_setting(max_decompressed_archive_size: 0.000001)
+      end
+
       it 'logs error message returns false' do
         expect(Gitlab::Import::Logger)
           .to receive(:info)
@@ -44,6 +48,25 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
             message: 'Decompressed archive size limit reached'
           )
         expect(subject.valid?).to eq(false)
+      end
+    end
+
+    context 'when max_decompressed_archive_size is set to 0' do
+      subject { described_class.new(archive_path: filepath) }
+
+      before do
+        stub_application_setting(max_decompressed_archive_size: 0)
+      end
+
+      it 'is valid and does not log error message' do
+        expect(Gitlab::Import::Logger)
+          .not_to receive(:info)
+          .with(
+            import_upload_archive_path: filepath,
+            import_upload_archive_size: File.size(filepath),
+            message: 'Decompressed archive size limit reached'
+          )
+        expect(subject.valid?).to eq(true)
       end
     end
 
@@ -74,7 +97,7 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
       end
 
       context 'when timeout occurs' do
-        let(:error_message) { 'Timeout reached during archive decompression' }
+        let(:error_message) { 'Timeout of 210 seconds reached during archive decompression' }
         let(:exception) { Timeout::Error }
 
         include_examples 'logs raised exception and terminates validator process group'
@@ -121,7 +144,7 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
 
       context 'which archive path is a symlink' do
         let(:filepath) { File.join(Dir.tmpdir, 'symlink') }
-        let(:error_message) { 'Archive path is a symlink' }
+        let(:error_message) { 'Archive path is a symlink or hard link' }
 
         before do
           FileUtils.ln_s(filepath, filepath, force: true)
@@ -129,6 +152,19 @@ RSpec.describe Gitlab::ImportExport::DecompressedArchiveSizeValidator do
 
         it 'returns false' do
           expect(subject.valid?).to eq(false)
+        end
+      end
+
+      context 'when archive path shares multiple hard links' do
+        let(:filesize) { 32 }
+        let(:error_message) { 'Archive path is a symlink or hard link' }
+
+        before do
+          FileUtils.link(filepath, File.join(Dir.mktmpdir, 'hard_link'))
+        end
+
+        it 'returns false' do
+          expect(subject).not_to be_valid
         end
       end
 

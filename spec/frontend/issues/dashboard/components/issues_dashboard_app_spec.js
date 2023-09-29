@@ -1,4 +1,4 @@
-import { GlEmptyState } from '@gitlab/ui';
+import { GlDisclosureDropdown, GlEmptyState } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
 import AxiosMockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
@@ -18,6 +18,7 @@ import {
   setSortPreferenceMutationResponse,
   setSortPreferenceMutationResponseWithErrors,
 } from 'jest/issues/list/mock_data';
+import { STATUS_ALL, STATUS_CLOSED, STATUS_OPEN } from '~/issues/constants';
 import IssuesDashboardApp from '~/issues/dashboard/components/issues_dashboard_app.vue';
 import getIssuesCountsQuery from '~/issues/dashboard/queries/get_issues_counts.query.graphql';
 import { CREATED_DESC, i18n, UPDATED_DESC, urlSortParams } from '~/issues/list/constants';
@@ -34,9 +35,10 @@ import {
   TOKEN_TYPE_MY_REACTION,
   TOKEN_TYPE_SEARCH_WITHIN,
   TOKEN_TYPE_TYPE,
+  TOKEN_TYPE_CREATED,
+  TOKEN_TYPE_CLOSED,
 } from '~/vue_shared/components/filtered_search_bar/constants';
 import IssuableList from '~/vue_shared/issuable/list/components/issuable_list_root.vue';
-import { IssuableStates } from '~/vue_shared/issuable/list/constants';
 import {
   emptyIssuesQueryResponse,
   issuesCountsQueryResponse,
@@ -54,12 +56,14 @@ describe('IssuesDashboardApp component', () => {
 
   const defaultProvide = {
     autocompleteAwardEmojisPath: 'autocomplete/award/emojis/path',
+    autocompleteUsersPath: 'autocomplete/users.json',
     calendarPath: 'calendar/path',
     dashboardLabelsPath: 'dashboard/labels/path',
     dashboardMilestonesPath: 'dashboard/milestones/path',
     emptyStateWithFilterSvgPath: 'empty/state/with/filter/svg/path.svg',
     emptyStateWithoutFilterSvgPath: 'empty/state/with/filter/svg/path.svg',
     hasBlockedIssuesFeature: true,
+    hasIssueDateFilterFeature: true,
     hasIssuableHealthStatusFeature: true,
     hasIssueWeightsFeature: true,
     hasScopedLabelsFeature: true,
@@ -78,6 +82,7 @@ describe('IssuesDashboardApp component', () => {
   }
 
   const findCalendarButton = () => wrapper.findByRole('link', { name: i18n.calendarLabel });
+  const findDisclosureDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
   const findEmptyState = () => wrapper.findComponent(GlEmptyState);
   const findIssuableList = () => wrapper.findComponent(IssuableList);
   const findIssueCardStatistics = () => wrapper.findComponent(IssueCardStatistics);
@@ -113,18 +118,17 @@ describe('IssuesDashboardApp component', () => {
   });
 
   describe('UI components', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       setWindowLocation(locationSearch);
       mountComponent();
-      jest.runOnlyPendingTimers();
-      return waitForPromises();
+      await waitForPromises();
     });
 
-    // https://gitlab.com/gitlab-org/gitlab/-/issues/391722
+    // quarantine: https://gitlab.com/gitlab-org/gitlab/-/issues/391722
     // eslint-disable-next-line jest/no-disabled-tests
     it.skip('renders IssuableList component', () => {
       expect(findIssuableList().props()).toMatchObject({
-        currentTab: IssuableStates.Opened,
+        currentTab: STATUS_OPEN,
         hasNextPage: true,
         hasPreviousPage: false,
         hasScopedLabelsFeature: defaultProvide.hasScopedLabelsFeature,
@@ -133,7 +137,6 @@ describe('IssuesDashboardApp component', () => {
         issuablesLoading: false,
         namespace: 'dashboard',
         recentSearchesStorageKey: 'issues',
-        searchInputPlaceholder: i18n.searchPlaceholder,
         showPaginationControls: true,
         sortOptions: getSortOptions({
           hasBlockedIssuesFeature: defaultProvide.hasBlockedIssuesFeature,
@@ -145,21 +148,33 @@ describe('IssuesDashboardApp component', () => {
           closed: 2,
           all: 3,
         },
-        tabs: IssuesDashboardApp.IssuableListTabs,
+        tabs: IssuesDashboardApp.issuableListTabs,
         urlParams: {
           sort: urlSortParams[CREATED_DESC],
-          state: IssuableStates.Opened,
+          state: STATUS_OPEN,
         },
         useKeysetPagination: true,
       });
     });
 
-    it('renders RSS button link', () => {
-      expect(findRssButton().attributes('href')).toBe(defaultProvide.rssPath);
-    });
+    describe('actions dropdown', () => {
+      it('renders', () => {
+        expect(findDisclosureDropdown().props()).toMatchObject({
+          category: 'tertiary',
+          icon: 'ellipsis_v',
+          noCaret: true,
+          textSrOnly: true,
+          toggleText: 'Actions',
+        });
+      });
 
-    it('renders calendar button link', () => {
-      expect(findCalendarButton().attributes('href')).toBe(defaultProvide.calendarPath);
+      it('renders RSS button link', () => {
+        expect(findRssButton().attributes('href')).toBe(defaultProvide.rssPath);
+      });
+
+      it('renders calendar button link', () => {
+        expect(findCalendarButton().attributes('href')).toBe(defaultProvide.calendarPath);
+      });
     });
 
     it('renders issue time information', () => {
@@ -174,11 +189,10 @@ describe('IssuesDashboardApp component', () => {
   describe('fetching issues', () => {
     describe('with a search query', () => {
       describe('when there are issues returned', () => {
-        beforeEach(() => {
+        beforeEach(async () => {
           setWindowLocation(locationSearch);
           mountComponent();
-          jest.runOnlyPendingTimers();
-          return waitForPromises();
+          await waitForPromises();
         });
 
         it('renders the issues', () => {
@@ -193,12 +207,12 @@ describe('IssuesDashboardApp component', () => {
       });
 
       describe('when there are no issues returned', () => {
-        beforeEach(() => {
+        beforeEach(async () => {
           setWindowLocation(locationSearch);
           mountComponent({
             issuesQueryHandler: jest.fn().mockResolvedValue(emptyIssuesQueryResponse),
           });
-          return waitForPromises();
+          await waitForPromises();
         });
 
         it('renders no issues', () => {
@@ -218,10 +232,10 @@ describe('IssuesDashboardApp component', () => {
     describe('with no search query', () => {
       let issuesQueryHandler;
 
-      beforeEach(() => {
+      beforeEach(async () => {
         issuesQueryHandler = jest.fn().mockResolvedValue(defaultQueryResponse);
         mountComponent({ issuesQueryHandler });
-        return waitForPromises();
+        await waitForPromises();
       });
 
       it('does not call issues query', () => {
@@ -283,7 +297,7 @@ describe('IssuesDashboardApp component', () => {
 
     describe('state', () => {
       it('is set from the url params', () => {
-        const initialState = IssuableStates.All;
+        const initialState = STATUS_ALL;
         setWindowLocation(`?state=${initialState}`);
         mountComponent();
 
@@ -307,11 +321,10 @@ describe('IssuesDashboardApp component', () => {
       ${'fetching issues'}       | ${'issuesQueryHandler'}       | ${i18n.errorFetchingIssues}
       ${'fetching issue counts'} | ${'issuesCountsQueryHandler'} | ${i18n.errorFetchingCounts}
     `('when there is an error $error', ({ mountOption, message }) => {
-      beforeEach(() => {
+      beforeEach(async () => {
         setWindowLocation(locationSearch);
         mountComponent({ [mountOption]: jest.fn().mockRejectedValue(new Error('ERROR')) });
-        jest.runOnlyPendingTimers();
-        return waitForPromises();
+        await waitForPromises();
       });
 
       it('shows an error message', () => {
@@ -337,11 +350,9 @@ describe('IssuesDashboardApp component', () => {
       username: 'root',
       avatar_url: 'avatar/url',
     };
-    const originalGon = window.gon;
 
     beforeEach(() => {
       window.gon = {
-        ...originalGon,
         current_user_id: mockCurrentUser.id,
         current_user_fullname: mockCurrentUser.name,
         current_username: mockCurrentUser.username,
@@ -350,17 +361,15 @@ describe('IssuesDashboardApp component', () => {
       mountComponent();
     });
 
-    afterEach(() => {
-      window.gon = originalGon;
-    });
-
     it('renders all tokens alphabetically', () => {
       const preloadedUsers = [{ ...mockCurrentUser, id: mockCurrentUser.id }];
 
       expect(findIssuableList().props('searchTokens')).toMatchObject([
         { type: TOKEN_TYPE_ASSIGNEE, preloadedUsers },
         { type: TOKEN_TYPE_AUTHOR, preloadedUsers },
+        { type: TOKEN_TYPE_CLOSED },
         { type: TOKEN_TYPE_CONFIDENTIAL },
+        { type: TOKEN_TYPE_CREATED },
         { type: TOKEN_TYPE_LABEL },
         { type: TOKEN_TYPE_MILESTONE },
         { type: TOKEN_TYPE_MY_REACTION },
@@ -375,16 +384,16 @@ describe('IssuesDashboardApp component', () => {
       beforeEach(() => {
         mountComponent();
 
-        findIssuableList().vm.$emit('click-tab', IssuableStates.Closed);
+        findIssuableList().vm.$emit('click-tab', STATUS_CLOSED);
       });
 
       it('updates ui to the new tab', () => {
-        expect(findIssuableList().props('currentTab')).toBe(IssuableStates.Closed);
+        expect(findIssuableList().props('currentTab')).toBe(STATUS_CLOSED);
       });
 
       it('updates url to the new tab', () => {
         expect(findIssuableList().props('urlParams')).toMatchObject({
-          state: IssuableStates.Closed,
+          state: STATUS_CLOSED,
         });
       });
     });

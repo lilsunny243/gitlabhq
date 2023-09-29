@@ -1,6 +1,5 @@
 ---
 Gitlab/DocUrl:
-  Details: grace period
   Exclude:
     - 'app/controllers/jira_connect/app_descriptor_controller.rb'
     - 'app/graphql/types/merge_request_type.rb'
@@ -24,7 +23,6 @@ Gitlab/DocUrl:
     - 'ee/app/mailers/emails/user_cap.rb'
     - 'ee/app/workers/concerns/elastic/migration_obsolete.rb'
     - 'ee/lib/ee/gitlab/ci/pipeline/quota/size.rb'
-    - 'ee/lib/slack/block_kit/app_home_opened.rb'
     - 'ee/lib/system_check/app/advanced_search_migrations_check.rb'
     - 'ee/lib/tasks/gitlab/geo.rake'
     - 'lib/backup/database.rb'
@@ -33,7 +31,7 @@ Gitlab/DocUrl:
     - 'lib/gitlab/ci/config/entry/processable.rb'
     - 'lib/gitlab/config_checker/external_database_checker.rb'
     - 'lib/gitlab/config_checker/puma_rugged_checker.rb'
-    - 'lib/gitlab/database.rb'
+    - 'lib/gitlab/database_warnings.rb'
     - 'lib/gitlab/database/migration_helpers/automatic_lock_writes_on_tables.rb'
     - 'lib/gitlab/database/migration_helpers/v2.rb'
     - 'lib/gitlab/database/migrations/batched_background_migration_helpers.rb'
@@ -45,7 +43,6 @@ Gitlab/DocUrl:
     - 'lib/gitlab/pagination/keyset/unsupported_scope_order.rb'
     - 'lib/gitlab/redis/hll.rb'
     - 'lib/gitlab/slash_commands/presenters/help.rb'
-    - 'lib/gitlab/utils/strong_memoize.rb'
     - 'lib/initializer_connections.rb'
     - 'lib/security/ci_configuration/base_build_action.rb'
     - 'lib/tasks/db_obsolete_ignored_columns.rake'

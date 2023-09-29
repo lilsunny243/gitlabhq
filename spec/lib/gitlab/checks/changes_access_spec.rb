@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Checks::ChangesAccess do
+RSpec.describe Gitlab::Checks::ChangesAccess, feature_category: :source_code_management do
   include_context 'changes access checks context'
 
   subject { changes_access }
@@ -19,6 +19,14 @@ RSpec.describe Gitlab::Checks::ChangesAccess do
 
       it 'calls lfs checks' do
         expect_next_instance_of(Gitlab::Checks::LfsCheck) do |instance|
+          expect(instance).to receive(:validate!)
+        end
+
+        subject.validate!
+      end
+
+      it 'calls file size check' do
+        expect_next_instance_of(Gitlab::Checks::GlobalFileSizeCheck) do |instance|
           expect(instance).to receive(:validate!)
         end
 
@@ -45,6 +53,16 @@ RSpec.describe Gitlab::Checks::ChangesAccess do
       expect(project.repository).to receive(:new_commits).and_call_original
 
       expect(subject.commits).to match_array([])
+    end
+
+    context 'when change is for notes ref' do
+      let(:changes) do
+        [{ oldrev: oldrev, newrev: newrev, ref: 'refs/notes/commit' }]
+      end
+
+      it 'does not return any commits' do
+        expect(subject.commits).to match_array([])
+      end
     end
 
     context 'when changes contain empty revisions' do

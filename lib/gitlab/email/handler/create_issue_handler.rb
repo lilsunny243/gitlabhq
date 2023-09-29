@@ -11,8 +11,8 @@ module Gitlab
       class CreateIssueHandler < BaseHandler
         include ReplyProcessing
 
-        HANDLER_REGEX        = /\A#{HANDLER_ACTION_BASE_REGEX}-(?<incoming_email_token>.+)-issue\z/.freeze
-        HANDLER_REGEX_LEGACY = /\A(?<project_path>[^\+]*)\+(?<incoming_email_token>.*)\z/.freeze
+        HANDLER_REGEX        = /\A#{HANDLER_ACTION_BASE_REGEX}-(?<incoming_email_token>.+)-issue\z/
+        HANDLER_REGEX_LEGACY = /\A(?<project_path>[^\+]*)\+(?<incoming_email_token>.*)\z/
 
         def initialize(mail, mail_key)
           super(mail, mail_key)
@@ -68,7 +68,7 @@ module Gitlab
               title: mail.subject,
               description: message_including_reply_or_only_quotes
             },
-            spam_params: nil
+            perform_spam_check: false
           ).execute
         end
 

@@ -7,6 +7,7 @@ import {
   GlLink,
 } from '@gitlab/ui';
 import fuzzaldrinPlus from 'fuzzaldrin-plus';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapGetters, mapActions } from 'vuex';
 
 import { UP_KEY_CODE, DOWN_KEY_CODE, ENTER_KEY_CODE, ESC_KEY_CODE } from '~/lib/utils/keycodes';
@@ -80,9 +81,6 @@ export default {
       'updateSelectedLabels',
       'toggleDropdownContents',
     ]),
-    isLabelSelected(label) {
-      return this.selectedLabelsList.includes(label.id);
-    },
     /**
      * This method scrolls item from dropdown into
      * the view if it is off the viewable area of the
@@ -160,7 +158,11 @@ export default {
 
 <template>
   <gl-intersection-observer @appear="handleComponentAppear" @disappear="handleComponentDisappear">
-    <div class="labels-select-contents-list js-labels-list" @keydown="handleKeyDown">
+    <div
+      class="labels-select-contents-list js-labels-list"
+      data-testid="labels-list"
+      @keydown="handleKeyDown"
+    >
       <div
         v-if="isDropdownVariantSidebar || isDropdownVariantEmbedded"
         class="dropdown-title gl-display-flex gl-align-items-center gl-pt-0 gl-pb-3!"
@@ -181,7 +183,7 @@ export default {
           ref="searchInput"
           v-model="searchKey"
           :disabled="labelsFetchInProgress"
-          data-qa-selector="dropdown_input_field"
+          data-testid="dropdown-input-field"
         />
       </div>
       <div ref="labelsListContainer" class="dropdown-content" data-testid="dropdown-content">
@@ -200,7 +202,11 @@ export default {
             :highlight="index === currentHighlightItem"
             @clickLabel="handleLabelClick(label)"
           />
-          <li v-show="showNoMatchingResultsMessage" class="gl-p-3 gl-text-center">
+          <li
+            v-show="showNoMatchingResultsMessage"
+            class="gl-p-3 gl-text-center"
+            data-testid="no-matching-results"
+          >
             {{ __('No matching results') }}
           </li>
         </ul>
@@ -210,6 +216,7 @@ export default {
           <li v-if="allowLabelCreate">
             <gl-link
               class="gl-display-flex w-100 flex-row text-break-word label-item"
+              data-testid="create-label-link"
               @click="handleCreateLabelClick"
             >
               {{ footerCreateLabelTitle }}

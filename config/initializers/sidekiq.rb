@@ -29,11 +29,12 @@ end
 
 # Custom Queues configuration
 queues_config_hash = Gitlab::Redis::Queues.params
-queues_config_hash[:namespace] = Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE
 
-enable_json_logs = Gitlab.config.sidekiq.log_format == 'json'
-enable_sidekiq_memory_killer = ENV['SIDEKIQ_MEMORY_KILLER_MAX_RSS'].to_i.nonzero? &&
-  !Gitlab::Utils.to_boolean(ENV['GITLAB_MEMORY_WATCHDOG_ENABLED'], default: true)
+unless Gitlab::Utils.to_boolean(ENV['SIDEKIQ_ENQUEUE_NON_NAMESPACED'])
+  queues_config_hash[:namespace] = Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE
+end
+
+enable_json_logs = Gitlab.config.sidekiq.log_format != 'text'
 
 Sidekiq.configure_server do |config|
   config[:strict] = false
@@ -54,7 +55,8 @@ Sidekiq.configure_server do |config|
 
   config.server_middleware(&Gitlab::SidekiqMiddleware.server_configurator(
     metrics: Settings.monitoring.sidekiq_exporter,
-    arguments_logger: SidekiqLogArguments.enabled? && !enable_json_logs
+    arguments_logger: SidekiqLogArguments.enabled? && !enable_json_logs,
+    skip_jobs: Gitlab::Utils.to_boolean(ENV['SIDEKIQ_SKIP_JOBS'], default: true)
   ))
 
   config.client_middleware(&Gitlab::SidekiqMiddleware.client_configurator)
@@ -69,8 +71,6 @@ Sidekiq.configure_server do |config|
     # Start monitor to track running jobs. By default, cancel job is not enabled
     # To cancel job, it requires `SIDEKIQ_MONITOR_WORKER=1` to enable notification channel
     Gitlab::SidekiqDaemon::Monitor.instance.start
-
-    Gitlab::SidekiqDaemon::MemoryKiller.instance.start if enable_sidekiq_memory_killer
 
     first_sidekiq_worker = !ENV['SIDEKIQ_WORKER_ID'] || ENV['SIDEKIQ_WORKER_ID'] == '0'
     health_checks = Settings.monitoring.sidekiq_health_checks
@@ -89,6 +89,12 @@ Sidekiq.configure_server do |config|
   end
 
   if enable_reliable_fetch?
+    if Gitlab::Utils.to_boolean(ENV['SIDEKIQ_ENABLE_DUAL_NAMESPACE_POLLING'], default: true)
+      # set non-namespaced store for fetcher to poll both namespaced and non-namespaced queues
+      config[:alternative_store] = ::Gitlab::Redis::Queues
+      config[:namespace] = Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE
+    end
+
     config[:semi_reliable_fetch] = enable_semi_reliable_fetch_mode?
     Sidekiq::ReliableFetch.setup_reliable_fetch!(config)
   end
@@ -117,6 +123,7 @@ Sidekiq.configure_client do |config|
   config.client_middleware(&Gitlab::SidekiqMiddleware.client_configurator)
 end
 
+Sidekiq::Scheduled::Enq.prepend Gitlab::Patch::SidekiqScheduledEnq
 Sidekiq::Scheduled::Poller.prepend Gitlab::Patch::SidekiqPoller
 Sidekiq::Cron::Poller.prepend Gitlab::Patch::SidekiqPoller
 Sidekiq::Cron::Poller.prepend Gitlab::Patch::SidekiqCronPoller

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Oauth::ApplicationsController do
+RSpec.describe Oauth::ApplicationsController, feature_category: :system_access do
   let(:user) { create(:user) }
   let(:application) { create(:oauth_application, owner: user) }
 
@@ -86,6 +86,12 @@ RSpec.describe Oauth::ApplicationsController do
       it_behaves_like 'redirects to login page when the user is not signed in'
       it_behaves_like 'redirects to 2fa setup page when the user requires it'
 
+      it 'returns the prefixed secret in json format' do
+        subject
+
+        expect(json_response['secret']).to match(/gloas-\h{64}/)
+      end
+
       context 'when renew fails' do
         before do
           allow_next_found_instance_of(Doorkeeper::Application) do |application|
@@ -94,7 +100,7 @@ RSpec.describe Oauth::ApplicationsController do
         end
 
         it { expect { subject }.not_to change { application.reload.secret } }
-        it { is_expected.to redirect_to(oauth_application_url(application)) }
+        it { is_expected.to have_gitlab_http_status(:unprocessable_entity) }
       end
     end
 
@@ -140,29 +146,19 @@ RSpec.describe Oauth::ApplicationsController do
 
       subject { post :create, params: oauth_params }
 
-      context 'when hash_oauth_tokens flag set' do
-        before do
-          stub_feature_flags(hash_oauth_secrets: true)
-        end
+      it 'creates an application' do
+        subject
 
-        it 'creates an application' do
-          subject
-
-          expect(response).to have_gitlab_http_status(:ok)
-          expect(response).to render_template :show
-        end
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response).to render_template :show
       end
 
-      context 'when hash_oauth_tokens flag not set' do
-        before do
-          stub_feature_flags(hash_oauth_secrets: false)
-        end
+      context 'the secret' do
+        render_views
 
-        it 'creates an application' do
+        it 'is in the response' do
           subject
-
-          expect(response).to have_gitlab_http_status(:found)
-          expect(response).to redirect_to(oauth_application_path(Doorkeeper::Application.last))
+          expect(response.body).to match(/gloas-\h{64}/)
         end
       end
 

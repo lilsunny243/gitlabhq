@@ -9,7 +9,7 @@ class Projects::GraphsController < Projects::ApplicationController
   before_action :assign_ref_vars
   before_action :authorize_read_repository_graphs!
 
-  track_custom_event :charts,
+  track_event :charts,
     name: 'p_analytics_repo',
     action: 'perform_analytics_usage_action',
     label: 'redis_hll_counters.analytics.analytics_total_unique_counts_monthly',
@@ -34,7 +34,7 @@ class Projects::GraphsController < Projects::ApplicationController
           {
             author_name: commit.author_name,
             author_email: commit.author_email,
-            date: commit.committed_date.strftime("%Y-%m-%d")
+            date: commit.committed_date.to_date.iso8601
           }
         end
 

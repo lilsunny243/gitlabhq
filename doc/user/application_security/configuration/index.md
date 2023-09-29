@@ -1,19 +1,14 @@
 ---
-type: reference, howto
 stage: Secure
 group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Security Configuration **(FREE)**
+# Security configuration **(FREE ALL)**
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/20711) in GitLab 12.6.
-> - SAST configuration was [enabled](https://gitlab.com/groups/gitlab-org/-/epics/3659) in 13.3 and [improved](https://gitlab.com/gitlab-org/gitlab/-/issues/232862) in 13.4.
-> - DAST Profiles feature was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/40474) in 13.4.
-> - A simplified version was made [available in all tiers](https://gitlab.com/gitlab-org/gitlab/-/issues/294076) in GitLab 13.10.
-> - [Redesigned](https://gitlab.com/gitlab-org/gitlab/-/issues/326926) in 14.2.
+> Security configuration page was [redesigned](https://gitlab.com/gitlab-org/gitlab/-/issues/326926) in GitLab 14.2.
 
-The Security Configuration page lists the following for the security testing and compliance tools:
+The **Security configuration** page lists the following for the security testing and compliance tools:
 
 - Name, description, and a documentation link.
 - Whether or not it is available.
@@ -40,8 +35,8 @@ all security features are configured by default.
 
 To view a project's security configuration:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Configuration**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Security configuration**.
 
 Select **Configuration history** to see the `.gitlab-ci.yml` file's history.
 
@@ -51,7 +46,7 @@ You can configure the following security controls:
 
 - [Static Application Security Testing](../sast/index.md) (SAST)
   - Select **Enable SAST** to configure SAST for the current project.
-    For more details, read [Configure SAST in the UI](../sast/index.md#configure-sast-in-the-ui).
+    For more details, read [Configure SAST in the UI](../sast/index.md#configure-sast-by-using-the-ui).
 - [Dynamic Application Security Testing](../dast/index.md) (DAST)
   - Select **Enable DAST** to configure DAST for the current project.
   - Select **Manage scans** to manage the saved DAST scans, site profiles, and scanner profiles.
@@ -73,12 +68,9 @@ You can configure the following security controls:
 - [Coverage Fuzzing](../coverage_fuzzing/index.md)
   - Can be configured with `.gitlab-ci.yml`. For more details, read [Coverage Fuzzing](../../../user/application_security/coverage_fuzzing/index.md#enable-coverage-guided-fuzz-testing).
 
-## Compliance **(ULTIMATE)**
+## Compliance **(ULTIMATE ALL)**
 
 You can configure the following security controls:
-
-- [License Compliance](../../../user/compliance/license_compliance/index.md)
-  - Can be configured with `.gitlab-ci.yml`. For more details, read [License Compliance](../../../user/compliance/license_compliance/index.md#enable-license-compliance).
 
 - [Security Training](../../../user/application_security/vulnerabilities/index.md#enable-security-training-for-vulnerabilities)
   - Enable **Security training** for the current project. For more details, read [security training](../../../user/application_security/vulnerabilities/index.md#enable-security-training-for-vulnerabilities).

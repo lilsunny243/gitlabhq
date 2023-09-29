@@ -26,10 +26,16 @@ const $route = {
   },
 };
 
+const mockDesignVariables = {
+  fullPath: 'project-path',
+  iid: '1',
+  filenames: ['gid::/gitlab/Design/1'],
+  atVersion: null,
+};
+
 const mutate = jest.fn().mockResolvedValue();
 
 describe('Design management design sidebar component', () => {
-  const originalGon = window.gon;
   let wrapper;
 
   const findDiscussions = () => wrapper.findAllComponents(DesignDiscussion);
@@ -48,6 +54,7 @@ describe('Design management design sidebar component', () => {
         resolvedDiscussionsExpanded: false,
         markdownPreviewPath: '',
         isLoading: false,
+        designVariables: mockDesignVariables,
         ...props,
       },
       mocks: {
@@ -65,11 +72,6 @@ describe('Design management design sidebar component', () => {
 
   beforeEach(() => {
     window.gon = { current_user_id: 1 };
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    window.gon = originalGon;
   });
 
   it('renders participants', () => {

@@ -58,6 +58,12 @@ RSpec.shared_examples 'with auth_type' do
   let(:current_params) { super().merge(auth_type: :foo) }
 
   it { expect(payload['auth_type']).to eq('foo') }
+
+  it "contains the auth_type as part of the encoded user information in the payload" do
+    user_info = decode_user_info_from_payload(payload)
+
+    expect(user_info["token_type"]).to eq("foo")
+  end
 end
 
 RSpec.shared_examples 'a browsable' do
@@ -79,7 +85,8 @@ RSpec.shared_examples 'an accessible' do
   let(:access) do
     [{ 'type' => 'repository',
        'name' => project.full_path,
-       'actions' => actions }]
+       'actions' => actions,
+       'meta' => { 'project_path' => project.full_path } }]
   end
 
   it_behaves_like 'a valid token'
@@ -244,12 +251,14 @@ RSpec.shared_examples 'a container registry auth service' do
         {
           'type' => 'repository',
           'name' => project.full_path,
-          'actions' => ['pull']
+          'actions' => ['pull'],
+          'meta' => { 'project_path' => project.full_path }
         },
         {
           'type' => 'repository',
           'name' => "#{project.full_path}/*",
-          'actions' => ['pull']
+          'actions' => ['pull'],
+          'meta' => { 'project_path' => project.full_path }
         }
       ]
     end
@@ -822,16 +831,20 @@ RSpec.shared_examples 'a container registry auth service' do
           [
             { 'type' => 'repository',
               'name' => internal_project.full_path,
-              'actions' => ['pull'] },
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => internal_project.full_path } },
             { 'type' => 'repository',
               'name' => private_project.full_path,
-              'actions' => ['pull'] },
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => private_project.full_path } },
             { 'type' => 'repository',
               'name' => public_project.full_path,
-              'actions' => ['pull'] },
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => public_project.full_path } },
             { 'type' => 'repository',
               'name' => public_project_private_container_registry.full_path,
-              'actions' => ['pull'] }
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => public_project_private_container_registry.full_path } }
           ]
         end
       end
@@ -845,10 +858,12 @@ RSpec.shared_examples 'a container registry auth service' do
           [
             { 'type' => 'repository',
               'name' => internal_project.full_path,
-              'actions' => ['pull'] },
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => internal_project.full_path } },
             { 'type' => 'repository',
               'name' => public_project.full_path,
-              'actions' => ['pull'] }
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => public_project.full_path } }
           ]
         end
       end
@@ -862,7 +877,8 @@ RSpec.shared_examples 'a container registry auth service' do
           [
             { 'type' => 'repository',
               'name' => public_project.full_path,
-              'actions' => ['pull'] }
+              'actions' => ['pull'],
+              'meta' => { 'project_path' => public_project.full_path } }
           ]
         end
       end
@@ -961,7 +977,16 @@ RSpec.shared_examples 'a container registry auth service' do
           let(:authentication_abilities) { [:read_container_image] }
 
           it_behaves_like 'an authenticated'
+
           it { expect(payload['auth_type']).to eq('deploy_token') }
+
+          it "has encoded user information in the payload" do
+            user_info = decode_user_info_from_payload(payload)
+
+            expect(user_info["token_type"]).to eq('deploy_token')
+            expect(user_info["username"]).to eq(deploy_token.username)
+            expect(user_info["deploy_token_id"]).to eq(deploy_token.id)
+          end
         end
       end
 
@@ -1188,6 +1213,15 @@ RSpec.shared_examples 'a container registry auth service' do
         it_behaves_like 'a pushable'
         it_behaves_like 'container repository factory'
       end
+
+      it "has encoded user information in the payload" do
+        user_info = decode_user_info_from_payload(payload)
+
+        expect(user_info["username"]).to eq(current_user.username)
+        expect(user_info["user_id"]).to eq(current_user.id)
+      end
+
+      it_behaves_like 'with auth_type'
     end
   end
 
@@ -1257,5 +1291,34 @@ RSpec.shared_examples 'a container registry auth service' do
         it_behaves_like 'containing the import error'
       end
     end
+  end
+
+  context 'with a project with a path containing special characters' do
+    let_it_be(:bad_project) { create(:project) }
+
+    before do
+      bad_project.update_attribute(:path, "#{bad_project.path}_")
+    end
+
+    describe '#access_token' do
+      let(:token) { described_class.access_token(['pull'], [bad_project.full_path]) }
+      let(:access) do
+        [{ 'type' => 'repository',
+           'name' => bad_project.full_path,
+           'actions' => ['pull'] }]
+      end
+
+      subject { { token: token } }
+
+      it_behaves_like 'a valid token'
+
+      it 'has the correct scope' do
+        expect(payload).to include('access' => access)
+      end
+    end
+  end
+
+  def decode_user_info_from_payload(payload)
+    JWT.decode(payload["user"], nil, false)[0]["user_info"]
   end
 end

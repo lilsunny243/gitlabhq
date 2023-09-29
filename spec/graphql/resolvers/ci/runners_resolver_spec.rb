@@ -9,7 +9,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
     let(:obj) { nil }
     let(:args) { {} }
 
-    subject do
+    subject(:resolve_scope) do
       resolve(described_class, obj: obj, ctx: { current_user: user }, args: args,
                                arg_style: :internal)
     end
@@ -20,8 +20,10 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
     context 'when user cannot see runners' do
       let(:user) { build(:user) }
 
-      it 'returns no runners' do
-        expect(subject.items.to_a).to eq([])
+      it 'returns Gitlab::Graphql::Errors::ResourceNotAvailable' do
+        expect_graphql_error_to_be_created(Gitlab::Graphql::Errors::ResourceNotAvailable) do
+          resolve_scope
+        end
       end
     end
 
@@ -30,20 +32,26 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
 
       context 'when admin mode setting is disabled', :do_not_mock_admin_mode_setting do
         it 'returns all the runners' do
-          expect(subject.items.to_a).to contain_exactly(inactive_project_runner, offline_project_runner, group_runner, subgroup_runner, instance_runner)
+          expect(resolve_scope.items.to_a).to contain_exactly(
+            inactive_project_runner, offline_project_runner, group_runner, subgroup_runner, instance_runner
+          )
         end
       end
 
       context 'when admin mode setting is enabled' do
         context 'when in admin mode', :enable_admin_mode do
           it 'returns all the runners' do
-            expect(subject.items.to_a).to contain_exactly(inactive_project_runner, offline_project_runner, group_runner, subgroup_runner, instance_runner)
+            expect(resolve_scope.items.to_a).to contain_exactly(
+              inactive_project_runner, offline_project_runner, group_runner, subgroup_runner, instance_runner
+            )
           end
         end
 
         context 'when not in admin mode' do
-          it 'returns no runners' do
-            expect(subject.items.to_a).to eq([])
+          it 'returns Gitlab::Graphql::Errors::ResourceNotAvailable' do
+            expect_graphql_error_to_be_created(Gitlab::Graphql::Errors::ResourceNotAvailable) do
+              resolve_scope
+            end
           end
         end
       end
@@ -54,7 +62,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
       let(:obj) { build(:project) }
 
       it 'raises an error' do
-        expect { subject }.to raise_error(a_string_including('Unexpected parent type'))
+        expect { resolve_scope }.to raise_error(a_string_including('Unexpected parent type'))
       end
     end
 
@@ -83,7 +91,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
             upgrade_status: 'recommended',
             type_type: :instance_type,
             tag_name: ['active_runner'],
-            preload: { tag_name: false },
+            preload: false,
             search: 'abc',
             sort: 'contacted_asc'
           }
@@ -93,7 +101,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
           expect(::Ci::RunnersFinder).to receive(:new).with(current_user: user, params: expected_params).once.and_return(finder)
           allow(finder).to receive(:execute).once.and_return([:execute_return_value])
 
-          expect(subject.items.to_a).to eq([:execute_return_value])
+          expect(resolve_scope.items.to_a).to contain_exactly :execute_return_value
         end
       end
 
@@ -108,7 +116,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
         let(:expected_params) do
           {
             active: false,
-            preload: { tag_name: false }
+            preload: false
           }
         end
 
@@ -116,7 +124,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
           expect(::Ci::RunnersFinder).to receive(:new).with(current_user: user, params: expected_params).once.and_return(finder)
           allow(finder).to receive(:execute).once.and_return([:execute_return_value])
 
-          expect(subject.items.to_a).to eq([:execute_return_value])
+          expect(resolve_scope.items.to_a).to contain_exactly :execute_return_value
         end
       end
 
@@ -128,7 +136,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
         let(:expected_params) do
           {
             active: false,
-            preload: { tag_name: false }
+            preload: false
           }
         end
 
@@ -136,7 +144,7 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
           expect(::Ci::RunnersFinder).to receive(:new).with(current_user: user, params: expected_params).once.and_return(finder)
           allow(finder).to receive(:execute).once.and_return([:execute_return_value])
 
-          expect(subject.items.to_a).to eq([:execute_return_value])
+          expect(resolve_scope.items.to_a).to contain_exactly :execute_return_value
         end
       end
 
@@ -146,16 +154,14 @@ RSpec.describe Resolvers::Ci::RunnersResolver, feature_category: :runner_fleet d
         end
 
         let(:expected_params) do
-          {
-            preload: { tag_name: false }
-          }
+          { preload: false }
         end
 
         it 'calls RunnersFinder with expected arguments' do
           expect(::Ci::RunnersFinder).to receive(:new).with(current_user: user, params: expected_params).once.and_return(finder)
           allow(finder).to receive(:execute).once.and_return([:execute_return_value])
 
-          expect(subject.items.to_a).to eq([:execute_return_value])
+          expect(resolve_scope.items.to_a).to contain_exactly :execute_return_value
         end
       end
     end

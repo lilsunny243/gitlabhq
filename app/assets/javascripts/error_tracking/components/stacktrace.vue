@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import StackTraceEntry from './stacktrace_entry.vue';
 
@@ -25,7 +26,7 @@ export default {
       v-for="(entry, index) in entries"
       :key="`stacktrace-entry-${index}`"
       :lines="entry.context"
-      :file-path="entry.filename"
+      :file-path="entry.filename || entry.abs_path"
       :error-line="entry.lineNo"
       :error-fn="entry.function"
       :error-column="entry.colNo"

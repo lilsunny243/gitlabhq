@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GraphQL API **(FREE)**
+# GraphQL API **(FREE ALL)**
 
 > Enabled and [made generally available](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/30444) in GitLab 12.1. [Feature flag `graphql`](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/30444) removed.
 
@@ -57,7 +57,7 @@ You can work with sample queries that pull data from public projects on GitLab.c
 - [Create an audit report](audit_report.md)
 - [Identify issue boards](sample_issue_boards.md)
 - [Query users](users_example.md)
-- [Use custom emojis](custom_emoji.md)
+- [Use custom emoji](custom_emoji.md)
 
 The [get started](getting_started.md) page includes different methods to customize GraphQL queries.
 

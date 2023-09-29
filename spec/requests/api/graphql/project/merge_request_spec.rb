@@ -21,8 +21,11 @@ RSpec.describe 'getting merge request information nested in a project', feature_
   end
 
   it_behaves_like 'a working graphql query' do
-    # we exclude Project.pipeline because it needs arguments
-    let(:mr_fields) { all_graphql_fields_for('MergeRequest', excluded: %w[jobs pipeline]) }
+    # we exclude Project.pipeline because it needs arguments,
+    # codequalityReportsComparer because no pipeline exist yet
+    # and runners because the user is not an admin and therefore has no access
+    let(:excluded) { %w[jobs pipeline runners codequalityReportsComparer] }
+    let(:mr_fields) { all_graphql_fields_for('MergeRequest', excluded: excluded) }
 
     before do
       post_graphql(query, current_user: current_user)
@@ -478,6 +481,33 @@ RSpec.describe 'getting merge request information nested in a project', feature_
 
     def assign_user(user)
       merge_request.assignees << user
+    end
+  end
+
+  context 'when selecting `awardEmoji`' do
+    let_it_be(:award_emoji) { create(:award_emoji, awardable: merge_request, user: current_user) }
+
+    let(:mr_fields) do
+      <<~QUERY
+      awardEmoji {
+        nodes {
+          user {
+            username
+          }
+          name
+        }
+      }
+      QUERY
+    end
+
+    it 'includes award emojis' do
+      post_graphql(query, current_user: current_user)
+
+      response = merge_request_graphql_data['awardEmoji']['nodes']
+
+      expect(response.length).to eq(1)
+      expect(response.first['user']['username']).to eq(current_user.username)
+      expect(response.first['name']).to eq(award_emoji.name)
     end
   end
 end

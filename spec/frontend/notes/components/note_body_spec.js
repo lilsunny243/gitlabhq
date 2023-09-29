@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 
@@ -7,10 +8,7 @@ import NoteAwardsList from '~/notes/components/note_awards_list.vue';
 import NoteForm from '~/notes/components/note_form.vue';
 import createStore from '~/notes/stores';
 import notes from '~/notes/stores/modules/index';
-import Autosave from '~/autosave';
-
 import Suggestions from '~/vue_shared/components/markdown/suggestions.vue';
-
 import { noteableDataMock, notesDataMock, note } from '../mock_data';
 
 jest.mock('~/autosave');
@@ -49,10 +47,6 @@ describe('issue_note_body component', () => {
     wrapper = createComponent();
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('should render the note', () => {
     expect(wrapper.find('.note-text').html()).toContain(note.note_html);
   });
@@ -84,11 +78,6 @@ describe('issue_note_body component', () => {
       wrapper = createComponent({ props: { note: { ...note, internal }, isEditing: true } });
 
       expect(wrapper.findComponent(NoteForm).props('saveButtonTitle')).toBe(buttonText);
-    });
-
-    it('adds autosave', () => {
-      // passing undefined instead of an element because of shallowMount
-      expect(Autosave).toHaveBeenCalledWith(undefined, ['Note', note.noteable_type, note.id]);
     });
 
     describe('isInternalNote', () => {

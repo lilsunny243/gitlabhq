@@ -1,15 +1,14 @@
 @mixin active-toggle {
-  @include gl-bg-gray-50;
+  background-color: $gray-50 !important;
   mix-blend-mode: multiply;
 
   .gl-dark & {
     mix-blend-mode: screen;
   }
-
-  .notification {
-    border-color: $gray-50;
-  }
 }
+
+$super-sidebar-transition-duration: $gl-transition-duration-medium;
+$super-sidebar-transition-hint-duration: $super-sidebar-transition-duration / 4;
 
 @mixin notification-dot($color, $size, $top, $left) {
   background-color: $color;
@@ -23,36 +22,40 @@
   transition: background-color 100ms linear, border-color 100ms linear;
 }
 
+.super-sidebar-skip-to {
+  top: $calc-application-bars-height;
+  width: calc(#{$super-sidebar-width} - #{$gl-spacing-scale-5});
+  z-index: $super-sidebar-skip-to-z-index;
+}
+
 .super-sidebar {
-  @include gl-fixed;
-  @include gl-top-0;
-  @include gl-bottom-0;
-  @include gl-left-0;
-  @include gl-bg-gray-10;
-  @include gl-border-r;
-  @include gl-border-gray-a-08;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: $calc-application-bars-height;
+  bottom: $calc-application-footer-height;
+  left: 0;
+  background-color: var(--gray-10, $gray-10);
+  border-right: 1px solid $t-gray-a-08;
   transform: translate3d(0, 0, 0);
   width: $super-sidebar-width;
-  z-index: 600;
+  z-index: $super-sidebar-z-index;
 
   &.super-sidebar-loading {
     transform: translate3d(-100%, 0, 0);
+    transition: none;
 
     @include media-breakpoint-up(xl) {
       transform: translate3d(0, 0, 0);
     }
   }
 
-  &:not(.super-sidebar-loading) {
-    transition: transform $gl-transition-duration-medium;
+  @media (prefers-reduced-motion: no-preference) {
+    transition: transform $super-sidebar-transition-duration;
   }
 
   .user-bar {
     background-color: $t-gray-a-04;
-
-    .tanuki-logo {
-      @include gl-vertical-align-middle;
-    }
 
     .user-bar-item {
       @include gl-rounded-base;
@@ -60,34 +63,29 @@
       @include gl-bg-transparent;
       @include gl-border-none;
 
-
-      &:hover,
-      &:focus,
-      &:active {
-        @include active-toggle;
-      }
-
       &:focus,
       &:active {
         @include gl-focus;
       }
     }
 
-    .gl-new-dropdown-toggle[aria-expanded='true'],
-    .gl-new-dropdown-custom-toggle[aria-expanded='true'] .user-bar-item {
-      @include active-toggle;
+    .user-bar-item {
+      &:hover,
+      &:focus,
+      &:active {
+        @include active-toggle;
+      }
     }
   }
 
-  .counter .gl-icon {
-    color: var(--gray-500, $gray-500);
+  .counter .gl-icon,
+  .item-icon {
+    color: var(--gray-600, $gray-500);
   }
 
   .counter:hover,
   .counter:focus,
-  .gl-new-dropdown-custom-toggle:hover .counter,
-  .gl-new-dropdown-custom-toggle:focus .counter,
-  .gl-new-dropdown-custom-toggle[aria-expanded='true'] .counter {
+  .counter[aria-expanded='true'] {
     background-color: $gray-50;
     border-color: transparent;
     mix-blend-mode: multiply;
@@ -101,10 +99,9 @@
     }
   }
 
-  .context-switcher-toggle {
-    &[aria-expanded='true'] {
-      background-color: $t-gray-a-08;
-    }
+  .counter:hover,
+  .counter[aria-expanded='true'] {
+    box-shadow: none;
   }
 
   .btn-with-notification {
@@ -126,25 +123,85 @@
     }
   }
 
+  .gl-new-dropdown-toggle[aria-expanded='true'] {
+    @include active-toggle;
+  }
+
   .gl-new-dropdown-custom-toggle {
     .btn-with-notification {
       mix-blend-mode: unset; // Our tertiary buttons otherwise use another mix-blend mode, making border-color semi-transparent.
     }
 
-    &[aria-expanded='true'] {
-      .btn-with-notification {
-        @include active-toggle;
-      }
+    [aria-expanded='true'] {
+      @include active-toggle;
     }
+  }
+
+  #trial-status-sidebar-widget:hover {
+    text-decoration: none;
+    @include gl-text-contrast-light;
+  }
+}
+
+.super-sidebar-overlay {
+  display: none;
+}
+
+.super-sidebar-has-peeked {
+  margin-top: calc(#{$header-height} - #{$gl-spacing-scale-2});
+  margin-bottom: #{$gl-spacing-scale-2};
+}
+
+.super-sidebar-peek {
+  margin-left: #{$gl-spacing-scale-2};
+}
+
+.super-sidebar-peek,
+.super-sidebar-peek-hint {
+  @include gl-shadow;
+  border-right: 0;
+}
+
+.super-sidebar-peek-hint {
+  @media (prefers-reduced-motion: no-preference) {
+    transition: transform $super-sidebar-transition-hint-duration ease-out;
+  }
+}
+
+.super-sidebar-peek {
+  border-radius: $border-radius-default;
+
+  .user-bar {
+    border-radius: $border-radius-default $border-radius-default 0 0;
   }
 }
 
 .page-with-super-sidebar {
   padding-left: 0;
-  transition: padding-left $gl-transition-duration-medium;
+
+  @media (prefers-reduced-motion: no-preference) {
+    transition: padding-left $super-sidebar-transition-duration;
+  }
+
+  &:not(.page-with-super-sidebar-collapsed) {
+    .super-sidebar-overlay {
+      display: block;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: $black-transparent;
+      z-index: $super-sidebar-z-index - 1;
+
+      @include media-breakpoint-up(md) {
+        display: none;
+      }
+    }
+  }
 
   @include media-breakpoint-up(xl) {
-    padding-left: $contextual-sidebar-width;
+    padding-left: $super-sidebar-width;
 
     .super-sidebar-toggle {
       display: none;
@@ -155,6 +212,14 @@
 .page-with-super-sidebar-collapsed {
   .super-sidebar {
     transform: translate3d(-100%, 0, 0);
+
+    &.super-sidebar-peek {
+      transform: translate3d(0, 0, 0);
+    }
+
+    &.super-sidebar-peek-hint {
+      transform: translate3d(calc(#{$gl-spacing-scale-3} - 100%), 0, 0);
+    }
   }
 
   @include media-breakpoint-up(xl) {
@@ -166,24 +231,121 @@
   }
 }
 
-.container-limited .super-sidebar-toggle {
-  @media (min-width: $super-sidebar-toggle-position-breakpoint) {
-    position: absolute;
-    left: $gl-spacing-scale-3;
-    top: $gl-spacing-scale-3;
-    margin: 0;
-  }
-}
-
-.with-performance-bar .super-sidebar {
-  top: $performance-bar-height;
-}
-
 .gl-dark {
   .super-sidebar {
     .gl-new-dropdown-custom-toggle {
       .btn-with-notification.btn-with-notification {
         mix-blend-mode: unset;
+      }
+    }
+  }
+}
+
+.global-search-modal {
+  padding: 3rem 0.5rem 0;
+
+  &.gl-modal .modal-dialog {
+    align-items: flex-start;
+  }
+
+  @include gl-media-breakpoint-up(sm) {
+    padding: 5rem 1rem 0;
+  }
+
+  // This is a temporary workaround!
+  // the button in GitLab UI Search components need to be updated to not be the small size
+  // see in Figma: https://www.figma.com/file/qEddyqCrI7kPSBjGmwkZzQ/Component-library?node-id=43905%3A45540
+  .gl-search-box-by-type-clear.btn-sm {
+    padding: 0.5rem !important;
+  }
+
+  .search-scope-help {
+    top: 1rem;
+    right: 3rem;
+  }
+
+  .gl-search-box-by-type-input-borderless {
+    @include gl-rounded-base;
+  }
+
+  .global-search-results {
+    max-height: 30rem;
+
+    .gl-new-dropdown-item {
+      @include gl-px-3;
+    }
+
+    // Target groups
+    [id*='gl-disclosure-dropdown-group'] {
+      @include gl-px-5;
+    }
+  }
+}
+
+.transition-opacity-on-hover--context {
+  .transition-opacity-on-hover--target {
+    transition: opacity $gl-transition-duration-fast linear;
+
+    &:hover {
+      transition-delay: $gl-transition-duration-slow;
+    }
+  }
+
+  &:hover {
+    .transition-opacity-on-hover--target {
+      transition-delay: $gl-transition-duration-slow;
+    }
+  }
+}
+
+.show-on-focus-or-hover--context {
+  .show-on-focus-or-hover--target {
+    opacity: 0;
+
+    &:hover,
+    &:focus {
+      opacity: 1;
+    }
+  }
+
+  &:hover,
+  &:focus-within {
+    .show-on-focus-or-hover--control {
+      @include gl-bg-t-gray-a-08;
+    }
+
+    .show-on-focus-or-hover--target {
+      opacity: 1;
+    }
+  }
+
+  .show-on-focus-or-hover--control {
+    &:hover,
+    &:focus {
+      + .show-on-focus-or-hover--target {
+        opacity: 1;
+      }
+    }
+  }
+}
+
+.hide-on-focus-or-hover--context {
+  .hide-on-focus-or-hover--target {
+    opacity: 1;
+  }
+
+  &:hover,
+  &:focus-within {
+    .hide-on-focus-or-hover--target {
+      opacity: 0;
+    }
+  }
+
+  .hide-on-focus-or-hover--control {
+    &:hover,
+    &:focus {
+      .hide-on-focus-or-hover--target {
+        opacity: 0;
       }
     }
   }

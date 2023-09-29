@@ -1,10 +1,10 @@
 ---
-stage: Create
-group: Editor
+stage: Plan
+group: Knowledge
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Wiki **(FREE)**
+# Wiki **(FREE ALL)**
 
 > - Page loading [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/336792) to asynchronous in GitLab 14.9.
 > - Page slug encoding method [changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/71753) to `ERB::Util.url_encode` in GitLab 14.9.
@@ -31,13 +31,13 @@ with sibling pages listed in alphabetical order. To view a list of all pages, se
 
 To access a project wiki:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. To display the wiki, either:
-   - On the left sidebar, select **Wiki**.
+   - On the left sidebar, select **Plan > Wiki**.
    - On any page in the project, use the <kbd>g</kbd> + <kbd>w</kbd>
      [wiki keyboard shortcut](../../shortcuts.md).
 
-If **Wiki** is not listed in the left sidebar of your project, a project administrator
+If **Plan > Wiki** is not listed in the left sidebar of your project, a project administrator
 has [disabled it](#enable-or-disable-a-project-wiki).
 
 ## Configure a default branch for your wiki
@@ -61,10 +61,8 @@ When a wiki is created, it is empty. On your first visit, you can create the
 home page users see when viewing the wiki. This page requires a specific title
 to be used as your wiki's home page. To create it:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Select **Create your first page**.
 1. GitLab requires this first page be titled `home`. The page with this
    title serves as the front page for your wiki.
@@ -79,10 +77,8 @@ to be used as your wiki's home page. To create it:
 
 Users with at least the Developer role can create new wiki pages:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Select **New page** on this page, or any other wiki page.
 1. Select a content format.
 1. Add a title for your new page. Page titles use
@@ -142,10 +138,8 @@ may not be able to check out the wiki locally afterward.
 
 You need at least the Developer role to edit a wiki page:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Go to the page you want to edit, and either:
    - Use the <kbd>e</kbd> wiki [keyboard shortcut](../../shortcuts.md#wiki-pages).
    - Select the edit icon (**{pencil}**).
@@ -163,10 +157,8 @@ For an example, read [Table of contents](../../markdown.md#table-of-contents).
 
 You need at least the Developer role to delete a wiki page:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Go to the page you want to delete.
 1. Select the edit icon (**{pencil}**).
 1. Select **Delete page**.
@@ -176,10 +168,8 @@ You need at least the Developer role to delete a wiki page:
 
 You need at least the Developer role to move a wiki page:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Go to the page you want to move.
 1. Select the edit icon (**{pencil}**).
 1. Add the new path to the **Title** field. For example, if you have a wiki page
@@ -202,10 +192,8 @@ The history page shows:
 
 To view the changes for a wiki page:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Go to the page you want to view history for.
 1. Select **Page history**.
 
@@ -215,10 +203,8 @@ To view the changes for a wiki page:
 
 You can see the changes made in a version of a wiki page, similar to versioned diff file views:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. Go to the wiki page you're interested in.
 1. Select **Page history** to see all page versions.
 1. Select the commit message in the **Changes** column for the version you're interested in.
@@ -248,10 +234,8 @@ You need at least the Developer role to customize the wiki
 navigation sidebar. This process creates a wiki page named `_sidebar` which fully
 replaces the default sidebar navigation:
 
-1. On the top bar, select **Main menu**.
-   - For project wikis, select **Projects** and find your project.
-   - For group wikis, select **Groups** and find your group.
-1. On the left sidebar, select **Wiki**.
+1. On the left sidebar, select **Search or go to** and find your project or group.
+1. Select **Plan > Wiki**.
 1. In the upper-right corner of the page, select **Edit sidebar**.
 1. When complete, select **Save changes**.
 
@@ -273,7 +257,7 @@ A `_sidebar` example, formatted with Markdown:
 
 Wikis are enabled by default in GitLab. Project [administrators](../../permissions.md)
 can enable or disable a project wiki by following the instructions in
-[Sharing and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
+[Sharing and permissions](../settings/index.md#configure-project-features-and-permissions).
 
 Administrators for self-managed GitLab installs can
 [configure additional wiki settings](../../../administration/wikis/index.md).
@@ -284,11 +268,11 @@ You can disable group wikis from the [group settings](group.md#configure-group-w
 
 To add a link to an external wiki from a project's left sidebar:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **External wiki**.
 1. Add the URL to your external wiki.
-1. Optional. To verify the connection, select **Test settings**.
+1. Optional. Select **Test settings**.
 1. Select **Save changes**.
 
 You can now see the **External wiki** option from your project's
@@ -300,18 +284,18 @@ To hide the internal wiki from the sidebar, [disable the project's wiki](#disabl
 
 To hide the link to an external wiki:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **External wiki**.
-1. In the **Enable integration** section, clear the **Active** checkbox.
+1. Under **Enable integration**, clear the **Active** checkbox.
 1. Select **Save changes**.
 
 ## Disable the project's wiki
 
 To disable a project's internal wiki:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. Go to your project and select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. Scroll down to find **Wiki** and toggle it off (in gray).
 1. Select **Save changes**.
@@ -326,11 +310,12 @@ Previously added wiki pages are preserved in case you
 want to re-enable the wiki. To re-enable it, repeat the process
 to disable the wiki but toggle it on (in blue).
 
-## Content Editor
+## Rich text editor
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5643) in GitLab 14.0.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345398) switching between editing experiences in GitLab 14.7 [with a flag](../../../administration/feature_flags.md) named `wiki_switch_between_content_editor_raw_markdown`. Enabled by default.
 > - Switching between editing experiences generally available in GitLab 14.10. [Feature flag `wiki_switch_between_content_editor_raw_markdown`](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/83760) removed.
+> - [Renamed](https://gitlab.com/gitlab-org/gitlab/-/issues/398152) from content editor to rich text editor in GitLab 16.2.
 
 GitLab provides a WYSIWYG editing experience for GitLab Flavored Markdown in wikis.
 
@@ -343,12 +328,12 @@ Support includes:
 - Previewing Mermaid, PlantUML, and Kroki diagrams ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/86701) in GitLab 15.2).
 - Creating and editing HTML comments ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104084) in GitLab 15.7).
 
-### Use the Content Editor
+### Use the rich text editor
 
 1. [Create](#create-a-new-wiki-page) a new wiki page, or [edit](#edit-a-wiki-page) an existing one.
 1. Select **Markdown** as your format.
 1. Above **Content**, select **Edit rich text**.
-1. Customize your page's content using the various formatting options available in the content editor.
+1. Customize your page's content using the various formatting options available in the rich text editor.
 1. Select **Create page** for a new page, or **Save changes** for an existing page.
 
 The rich text editing mode remains the default until you switch back to
@@ -356,12 +341,12 @@ The rich text editing mode remains the default until you switch back to
 
 ### Switch back to the old editor
 
-1. *If you're editing the page in the content editor,* scroll to **Content**.
+1. *If you're editing the page in the rich text editor,* scroll to **Content**.
 1. Select **Edit source**.
 
 ### GitLab Flavored Markdown support
 
-Supporting all GitLab Flavored Markdown content types in the Content Editor is a work in progress.
+Supporting all GitLab Flavored Markdown content types in the rich text editor is a work in progress.
 For the status of the ongoing development for CommonMark and GitLab Flavored Markdown support, read:
 
 - [Basic Markdown formatting extensions](https://gitlab.com/groups/gitlab-org/-/epics/5404) epic.

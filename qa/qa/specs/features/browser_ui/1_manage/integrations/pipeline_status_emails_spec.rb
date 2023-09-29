@@ -24,16 +24,11 @@ module QA
     end
   end
 
-  RSpec.describe 'Manage', :orchestrated, :runner, :requires_admin, :smtp, product_group: :integrations do
+  RSpec.describe 'Manage', :orchestrated, :runner, :requires_admin, :smtp, product_group: :import_and_integrate do
     describe 'Pipeline status emails' do
       let(:executor) { "qa-runner-#{Time.now.to_i}" }
       let(:emails) { %w[foo@bar.com baz@buzz.com] }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'pipeline-status-project'
-        end
-      end
+      let(:project) { create(:project, name: 'pipeline-status-project') }
 
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
@@ -105,8 +100,8 @@ module QA
 
       def exit_code_meta(exit_code)
         {
-          0 => { status: 'passed', email_subject: /Successful pipeline/ },
-          1 => { status: 'failed', email_subject: /Failed pipeline/ }
+          0 => { status: 'Passed', email_subject: /Successful pipeline/ },
+          1 => { status: 'Failed', email_subject: /Failed pipeline/ }
         }[exit_code]
       end
 

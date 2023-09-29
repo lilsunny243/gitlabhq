@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Project access tokens API **(FREE)**
+# Project access tokens API **(FREE ALL)**
 
 You can read more about [project access tokens](../user/project/settings/project_access_tokens.md).
 
@@ -84,6 +84,7 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/55408) in GitLab 13.10.
 > - The `token` attribute was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/55408) in GitLab 13.10.
+> - The `expires_at` attribute default was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/120213) in GitLab 16.0.
 
 Create a [project access token](../user/project/settings/project_access_tokens.md).
 
@@ -105,7 +106,7 @@ POST projects/:id/access_tokens
 | `name` | String | yes | Name of the project access token                                                                                                               |
 | `scopes` | `Array[String]` | yes | [List of scopes](../user/project/settings/project_access_tokens.md#scopes-for-a-project-access-token)                               |
 | `access_level` | Integer | no | Access level. Valid values are `10` (Guest), `20` (Reporter), `30` (Developer), `40` (Maintainer), and `50` (Owner). Defaults to `40`. |
-| `expires_at` | Date | no | Token expires at midnight UTC on that date                                                                                                  |
+| `expires_at` | Date    | yes | Expiration date of the access token in ISO format (`YYYY-MM-DD`). The date cannot be set later than the [maximum allowable lifetime of an access token](../user/profile/personal_access_tokens.md#when-personal-access-tokens-expire). |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -131,6 +132,57 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
    "access_level": 30
 }
 ```
+
+## Rotate a project access token
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/403042) in GitLab 16.0
+
+Rotate a project access token. Revokes the previous token and creates a new token that expires in one week.
+
+```plaintext
+POST /projects/:id/access_tokens/:token_id/rotate
+```
+
+| Attribute | Type    | required | Description         |
+|-----------|---------|----------|---------------------|
+| `id` | integer or string | yes | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `token_id` | integer or string | yes | ID of the project access token |
+
+```shell
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/<project_id>/access_tokens/<token_id>/rotate"
+```
+
+Example response:
+
+```json
+{
+    "id": 42,
+    "name": "Rotated Token",
+    "revoked": false,
+    "created_at": "2023-08-01T15:00:00.000Z",
+    "scopes": ["api"],
+    "user_id": 1337,
+    "last_used_at": null,
+    "active": true,
+    "expires_at": "2023-08-15",
+    "access_level": 30,
+    "token": "s3cr3t"
+}
+```
+
+### Responses
+
+- `200: OK` if the existing token is successfully revoked and the new token is successfully created.
+- `400: Bad Request` if not rotated successfully.
+- `401: Unauthorized` if either the:
+  - User does not have access to the token with the specified ID.
+  - Token with the specified ID does not exist.
+- `404: Not Found` if the user is an administrator but the token with the specified ID does not exist.
+
+### Automatic reuse detection
+
+Refer to [automatic reuse detection for personal access tokens](personal_access_tokens.md#automatic-reuse-detection)
+for more information.
 
 ## Revoke a project access token
 

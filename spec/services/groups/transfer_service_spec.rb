@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subgroups do
+RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :groups_and_projects do
   shared_examples 'project namespace path is in sync with project path' do
     it 'keeps project and project namespace attributes in sync' do
       projects_with_project_namespace.each do |project|
@@ -35,10 +35,10 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
   end
 
   context 'handling packages' do
-    let_it_be(:group) { create(:group, :public) }
-    let_it_be(:new_group) { create(:group, :public) }
+    let_it_be(:group) { create(:group) }
+    let_it_be(:new_group) { create(:group) }
 
-    let(:project) { create(:project, :public, namespace: group) }
+    let_it_be(:project) { create(:project, namespace: group) }
 
     before do
       group.add_owner(user)
@@ -46,46 +46,63 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
     end
 
     context 'with an npm package' do
-      before do
-        create(:npm_package, project: project)
-      end
+      let_it_be(:npm_package) { create(:npm_package, project: project, name: "@testscope/test") }
 
-      shared_examples 'transfer not allowed' do
-        it 'does not allow transfer when there is a root namespace change' do
+      shared_examples 'transfer allowed' do
+        it 'allows transfer' do
           transfer_service.execute(new_group)
 
-          expect(transfer_service.error).to eq('Transfer failed: Group contains projects with NPM packages.')
-          expect(group.parent).not_to eq(new_group)
+          expect(transfer_service.error).to be nil
+          expect(group.parent).to eq(new_group)
         end
       end
 
-      it_behaves_like 'transfer not allowed'
+      it_behaves_like 'transfer allowed'
 
       context 'with a project within subgroup' do
         let_it_be(:root_group) { create(:group) }
         let_it_be(:group) { create(:group, parent: root_group) }
+        let_it_be(:project) { create(:project, namespace: group) }
 
         before do
           root_group.add_owner(user)
         end
 
-        it_behaves_like 'transfer not allowed'
+        it_behaves_like 'transfer allowed'
 
         context 'without a root namespace change' do
-          let(:new_group) { create(:group, parent: root_group) }
+          let_it_be(:new_group) { create(:group, parent: root_group) }
 
-          it 'allows transfer' do
+          it_behaves_like 'transfer allowed'
+        end
+
+        context 'with namespaced packages present' do
+          let_it_be(:package) { create(:npm_package, project: project, name: "@#{project.root_namespace.path}/test") }
+
+          it 'does not allow transfer' do
             transfer_service.execute(new_group)
 
-            expect(transfer_service.error).to be nil
-            expect(group.parent).to eq(new_group)
+            expect(transfer_service.error).to eq('Transfer failed: Group contains projects with NPM packages scoped to the current root level group.')
+            expect(group.parent).not_to eq(new_group)
+          end
+
+          context 'namespaced package is pending destruction' do
+            let!(:group) { create(:group) }
+
+            before do
+              package.pending_destruction!
+            end
+
+            it_behaves_like 'transfer allowed'
           end
         end
 
         context 'when transferring a group into a root group' do
-          let(:new_group) { nil }
+          let_it_be(:root_group) { create(:group) }
+          let_it_be(:group) { create(:group, parent: root_group) }
+          let_it_be(:new_group) { nil }
 
-          it_behaves_like 'transfer not allowed'
+          it_behaves_like 'transfer allowed'
         end
       end
     end
@@ -458,7 +475,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
         it 'updates projects path' do
           new_parent_path = new_parent_group.path
           group.projects.each do |project|
-            expect(project.full_path).to eq("#{new_parent_path}/#{group.path}/#{project.name}")
+            expect(project.full_path).to eq("#{new_parent_path}/#{group.path}/#{project.path}")
           end
         end
 
@@ -525,7 +542,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
         it 'updates projects path' do
           new_parent_path = new_parent_group.path
           group.projects.each do |project|
-            expect(project.full_path).to eq("#{new_parent_path}/#{group.path}/#{project.name}")
+            expect(project.full_path).to eq("#{new_parent_path}/#{group.path}/#{project.path}")
           end
         end
 
@@ -576,7 +593,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
           it 'updates projects path' do
             new_parent_path = "#{new_parent_group.path}/#{group.path}"
             subgroup1.projects.each do |project|
-              project_full_path = "#{new_parent_path}/#{project.namespace.path}/#{project.name}"
+              project_full_path = "#{new_parent_path}/#{project.namespace.path}/#{project.path}"
               expect(project.full_path).to eq(project_full_path)
             end
           end
@@ -890,7 +907,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
       let(:subsub_project) { create(:project, group: subsubgroup) }
 
       let!(:contacts) { create_list(:contact, 4, group: root_group) }
-      let!(:organizations) { create_list(:organization, 2, group: root_group) }
+      let!(:crm_organizations) { create_list(:crm_organization, 2, group: root_group) }
 
       before do
         create(:issue_customer_relations_contact, contact: contacts[0], issue: create(:issue, project: root_project))
@@ -949,7 +966,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
         it 'moves all crm objects' do
           expect { transfer_service.execute(new_parent_group) }
             .to change { root_group.contacts.count }.by(-4)
-            .and change { root_group.organizations.count }.by(-2)
+            .and change { root_group.crm_organizations.count }.by(-2)
         end
 
         it 'retains issue contacts' do
@@ -974,7 +991,7 @@ RSpec.describe Groups::TransferService, :sidekiq_inline, feature_category: :subg
           it 'moves all crm objects' do
             expect { transfer_service.execute(subgroup_in_new_parent_group) }
               .to change { root_group.contacts.count }.by(-4)
-              .and change { root_group.organizations.count }.by(-2)
+              .and change { root_group.crm_organizations.count }.by(-2)
           end
 
           it 'retains issue contacts' do

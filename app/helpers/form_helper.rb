@@ -37,7 +37,7 @@ module FormHelper
       dismissible: false,
       alert_options: { id: 'error_explanation', class: 'gl-mb-5' }
     ) do |c|
-      c.body do
+      c.with_body do
         tag.ul(class: 'gl-pl-5 gl-mb-0') do
           messages
         end
@@ -72,7 +72,8 @@ module FormHelper
         multi_select: true,
         'input-meta': 'name',
         'always-show-selectbox': true,
-        current_user_info: UserSerializer.new.represent(current_user)
+        current_user_info: UserSerializer.new.represent(current_user),
+        testid: 'assignee-ids-dropdown-toggle'
       }
     }
 
@@ -164,8 +165,8 @@ module FormHelper
   def multiple_assignees_dropdown_options(options)
     new_options = options.dup
 
-    new_options[:title] = _('Select assignee(s)')
-    new_options[:data][:'dropdown-header'] = 'Assignee(s)'
+    new_options[:title] = _('Select assignees')
+    new_options[:data][:'dropdown-header'] = 'Assignees'
     new_options[:data][:'max-select'] = ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
 
     new_options
@@ -174,8 +175,8 @@ module FormHelper
   def multiple_reviewers_dropdown_options(options)
     new_options = options.dup
 
-    new_options[:title] = _('Select reviewer(s)')
-    new_options[:data][:'dropdown-header'] = _('Reviewer(s)')
+    new_options[:title] = _('Select reviewers')
+    new_options[:data][:'dropdown-header'] = _('Reviewers')
 
     new_options[:data][:'max-select'] = ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
 

@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# GitLab CI/CD include examples **(FREE)**
+# Use CI/CD configuration from other files **(FREE ALL)**
 
 You can use [`include`](index.md#include) to include external YAML files in your CI/CD jobs.
 
@@ -129,7 +129,8 @@ Content of `.gitlab-ci.yml`:
 ```yaml
 include: 'https://company.com/autodevops-template.yml'
 
-image: alpine:latest
+default:
+  image: alpine:latest
 
 variables:
   POSTGRES_USER: root
@@ -371,7 +372,7 @@ In `include` sections in your `.gitlab-ci.yml` file, you can use:
 - [Project variables](../variables/index.md#for-a-project).
 - [Group variables](../variables/index.md#for-a-group).
 - [Instance variables](../variables/index.md#for-an-instance).
-- Project [predefined variables](../variables/predefined_variables.md).
+- Project [predefined variables](../variables/predefined_variables.md) (`CI_PROJECT_*`).
 - In GitLab 14.2 and later, the `$CI_COMMIT_REF_NAME` [predefined variable](../variables/predefined_variables.md).
 
   When used in `include`, the `CI_COMMIT_REF_NAME` variable returns the full
@@ -383,15 +384,7 @@ In GitLab 14.5 and later, you can also use:
 - [Trigger variables](../triggers/index.md#pass-cicd-variables-in-the-api-call).
 - [Scheduled pipeline variables](../pipelines/schedules.md#add-a-pipeline-schedule).
 - [Manual pipeline run variables](../pipelines/index.md#run-a-pipeline-manually).
-- Pipeline [predefined variables](../variables/predefined_variables.md).
-
-  YAML files are parsed before the pipeline is created, so the following pipeline predefined variables
-  are **not** available:
-
-  - `CI_PIPELINE_ID`
-  - `CI_PIPELINE_URL`
-  - `CI_PIPELINE_IID`
-  - `CI_PIPELINE_CREATED_AT`
+- The `CI_PIPELINE_SOURCE` and `CI_PIPELINE_TRIGGERED` [predefined variables](../variables/predefined_variables.md).
 
 For example:
 
@@ -413,7 +406,8 @@ see this [CI/CD variable demo](https://youtu.be/4XR8gw3Pkos).
 > - Introduced in GitLab 14.2 [with a flag](../../administration/feature_flags.md) named `ci_include_rules`. Disabled by default.
 > - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.3.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.4. Feature flag `ci_include_rules` removed.
-> - [Support for `exists` keyword added](https://gitlab.com/gitlab-org/gitlab/-/issues/341511) in GitLab 14.5.
+> - Support for `exists` keyword [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/341511) in GitLab 14.5.
+> - Support for `needs` job dependency [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345377) in GitLab 15.11.
 
 You can use [`rules`](index.md#rules) with `include` to conditionally include other configuration files.
 
@@ -423,18 +417,24 @@ these keywords:
 - [`rules:if`](index.md#rulesif).
 - [`rules:exists`](index.md#rulesexists).
 
-You cannot use [`needs:`](index.md#needs) to create a job dependency that points to
-a job added with `include:local:rules`. When the configuration is validated,
-GitLab returns `undefined need: <job-name>`. [Issue 345377](https://gitlab.com/gitlab-org/gitlab/-/issues/345377)
-proposes improving this behavior.
-
 ### `include` with `rules:if`
+
+> - Support for `when: never` and `when:always` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/348146) in GitLab 16.1 [with a flag](../../administration/feature_flags.md) named `ci_support_include_rules_when_never`. Disabled by default.
+> - Support for `when: never` and `when:always` [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/414517) in GitLab 16.2. Feature flag `ci_support_include_rules_when_never` removed.
 
 Use [`rules:if`](index.md#rulesif) to conditionally include other configuration files
 based on the status of CI/CD variables. For example:
 
 ```yaml
 include:
+  - local: builds.yml
+    rules:
+      - if: $DONT_INCLUDE_BUILDS == "true"
+        when: never
+  - local: builds.yml
+    rules:
+      - if: $ALWAYS_INCLUDE_BUILDS == "true"
+        when: always
   - local: builds.yml
     rules:
       - if: $INCLUDE_BUILDS == "true"
@@ -449,11 +449,24 @@ test:
 
 ### `include` with `rules:exists`
 
+> - Support for `when: never` and `when:always` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/348146) in GitLab 16.1 [with a flag](../../administration/feature_flags.md) named `ci_support_include_rules_when_never`. Disabled by default.
+> - Support for `when: never` and `when:always` [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/414517) in GitLab 16.2. Feature flag `ci_support_include_rules_when_never` removed.
+
 Use [`rules:exists`](index.md#rulesexists) to conditionally include other configuration files
 based on the existence of files. For example:
 
 ```yaml
 include:
+  - local: builds.yml
+    rules:
+      - exists:
+          - exception-file.md
+        when: never
+  - local: builds.yml
+    rules:
+      - exists:
+          - important-file.md
+        when: always
   - local: builds.yml
     rules:
       - exists:
@@ -488,6 +501,44 @@ In this example, GitLab checks for the existence of `test-file.yml` in `my-group
 not the current project. Follow [issue 386040](https://gitlab.com/gitlab-org/gitlab/-/issues/386040)
 for information about work to improve this behavior.
 
+### `include` with `rules:changes`
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/342209) in GitLab 16.4.
+
+Use [`rules:changes`](index.md#ruleschanges) to conditionally include other configuration files
+based on changed files. For example:
+
+```yaml
+include:
+  - local: builds1.yml
+    rules:
+      - changes:
+        - Dockerfile
+  - local: builds2.yml
+    rules:
+      - changes:
+          paths:
+            - Dockerfile
+          compare_to: 'refs/heads/branch1'
+        when: always
+  - local: builds3.yml
+    rules:
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+        changes:
+          paths:
+            - Dockerfile
+
+test:
+  stage: test
+  script: exit 0
+```
+
+In this example:
+
+- `builds1.yml` is included when `Dockerfile` has changed.
+- `builds2.yml` is included when `Dockerfile` has changed relative to `refs/heads/branch1`.
+- `builds3.yml` is included when `Dockerfile` has changed and the pipeline source is a merge request event.
+
 ## Use `include:local` with wildcard file paths
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/25921) in GitLab 13.11.
@@ -514,3 +565,23 @@ When the pipeline runs, GitLab:
   # This matches all `.yml` files only in subfolders of `configs`.
   include: 'configs/**/*.yml'
   ```
+
+## Troubleshooting
+
+### `Maximum of 150 nested includes are allowed!` error
+
+The maximum number of [nested included files](#use-nested-includes) for a pipeline is 150.
+If you receive the `Maximum 150 includes are allowed` error message in your pipeline,
+it's likely that either:
+
+- Some of the nested configuration includes an overly large number of additional nested `include` configuration.
+- There is an accidental loop in the nested includes. For example, `include1.yml` includes
+  `include2.yml` which includes `include1.yml`, creating a recursive loop.
+
+To help reduce the risk of this happening, edit the pipeline configuration file
+with the [pipeline editor](../pipeline_editor/index.md), which validates if the
+limit is reached. You can remove one included file at a time to try to narrow down
+which configuration file is the source of the loop or excessive included files.
+
+In [GitLab 16.0 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/207270) self-managed users can
+change the [maximum includes](../../administration/settings/continuous_integration.md#maximum-includes) value.

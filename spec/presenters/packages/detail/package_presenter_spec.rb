@@ -26,7 +26,7 @@ RSpec.describe ::Packages::Detail::PackagePresenter do
   end
 
   let(:pipeline_info) do
-    pipeline = package.original_build_info.pipeline
+    pipeline = package.last_build_info.pipeline
     {
       created_at: pipeline.created_at,
       id: pipeline.id,
@@ -89,8 +89,7 @@ RSpec.describe ::Packages::Detail::PackagePresenter do
       let_it_be(:package) { create(:npm_package, :with_build, project: project) }
 
       let_it_be(:package_file_build_info) do
-        create(:package_file_build_info, package_file: package.package_files.first,
-                                         pipeline: package.pipelines.first)
+        create(:package_file_build_info, package_file: package.package_files.first, pipeline: package.pipelines.first)
       end
 
       it 'returns details with package_file pipeline' do

@@ -4,7 +4,11 @@ group: Pipeline Security
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Configure OpenID Connect in Azure to retrieve temporary credentials **(FREE)**
+# Configure OpenID Connect in Azure to retrieve temporary credentials **(FREE ALL)**
+
+WARNING:
+`CI_JOB_JWT_V2` was [deprecated in GitLab 15.9](../../../update/deprecations.md#old-versions-of-json-web-tokens-are-deprecated)
+and is scheduled to be removed in GitLab 17.0. Use [ID tokens](../../yaml/index.md#id_tokens) instead.
 
 This tutorial demonstrates how to use a JSON web token (JWT) in a GitLab CI/CD job
 to retrieve temporary credentials from Azure without needing to store secrets.
@@ -30,7 +34,7 @@ To complete this tutorial:
 1. [Grant permissions for the service principal](#grant-permissions-for-the-service-principal).
 1. [Retrieve a temporary credential](#retrieve-a-temporary-credential).
 
-For more information, review Azure's documentation on [Workload identity federation](https://learn.microsoft.com/en-us/azure/active-directory/develop/workload-identity-federation).
+For more information, review Azure's documentation on [Workload identity federation](https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identity-federation).
 
 ## Create Azure AD application and service principal
 
@@ -103,6 +107,8 @@ You can find your subscription ID in:
 - The [Azure Portal](https://learn.microsoft.com/en-us/azure/azure-portal/get-subscription-tenant-id#find-your-azure-subscription).
 - The [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/manage-azure-subscriptions-azure-cli#get-the-active-subscription).
 
+The command above grants read-only permissions to the entire subscription. For more information on applying the principle of least privilege in the context of your organization, read [Best practices for Azure AD roles](https://learn.microsoft.com/en-us/azure/active-directory/roles/best-practices).
+
 ## Retrieve a temporary credential
 
 After you configure the Azure AD application and federated identity credentials,
@@ -117,8 +123,11 @@ variables:
   AZURE_TENANT_ID: "<tenant-id>"
 
 auth:
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
   script:
-    - az login --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID --federated-token $CI_JOB_JWT_V2
+    - az login --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID --federated-token $GITLAB_OIDC_TOKEN
     - az account show
 ```
 
@@ -126,8 +135,8 @@ The CI/CD variables are:
 
 - `AZURE_CLIENT_ID`: The [application client ID you saved earlier](#create-azure-ad-application-and-service-principal).
 - `AZURE_TENANT_ID`: Your Azure Active Directory. You can
-  [find it by using the Azure CLI or Azure Portal](https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/active-directory-how-to-find-tenant).
-- `CI_JOB_JWT_V2`: The JSON web token is a [predefined CI/CD variable](../../variables/predefined_variables.md).
+  [find it by using the Azure CLI or Azure Portal](https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/how-to-find-tenant).
+- `GITLAB_OIDC_TOKEN`: An OIDC [ID token](../../yaml/index.md#id_tokens).
 
 ## Troubleshooting
 

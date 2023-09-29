@@ -5,9 +5,9 @@ require 'spec_helper'
 RSpec.describe 'Admin Mode Logout', :js, feature_category: :system_access do
   include TermsHelper
   include UserLoginHelper
-  include Spec::Support::Helpers::Features::TopNavSpecHelpers
+  include Features::TopNavSpecHelpers
 
-  let(:user) { create(:admin) }
+  let(:user) { create(:admin, :no_super_sidebar) }
 
   before do
     # TODO: This used to use gitlab_sign_in, instead of sign_in, but that is buggy.  See

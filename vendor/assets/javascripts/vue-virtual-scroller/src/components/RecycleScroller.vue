@@ -146,7 +146,7 @@ export default {
         const items = this.items
         const field = this.sizeField
         const minItemSize = this.minItemSize
-        let computedMinSize = 10000
+        let computedMinSize = this.buffer
         let accumulator = 0
         let current
         for (let i = 0, l = items.length; i < l; i++) {
@@ -222,6 +222,10 @@ export default {
         position: 0,
       }
       const nonReactive = {
+        // FIXME: replace with markRaw in Vue3
+        // See https://gitlab.com/gitlab-org/gitlab/-/issues/395772
+        __v_skip: true,
+        
         id: uid++,
         index,
         used: true,

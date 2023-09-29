@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Terraform integration in merge requests **(FREE)**
+# Terraform integration in merge requests **(FREE ALL)**
 
 Collaborating around Infrastructure as Code (IaC) changes requires both code changes and expected infrastructure changes to be checked and approved. GitLab provides a solution to help collaboration around Terraform code changes and their expected effects using the merge request pages. This way users don't have to build custom tools or rely on 3rd party solutions to streamline their IaC workflows.
 
@@ -95,18 +95,16 @@ To manually configure a GitLab Terraform Report artifact:
 ```yaml
 default:
   image: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
-
   cache:
     key: example-production
     paths:
       - ${TF_ROOT}/.terraform
+  before_script:
+    - cd ${TF_ROOT}
 
 variables:
   TF_ROOT: ${CI_PROJECT_DIR}/environments/example/production
   TF_ADDRESS: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/example-production
-
-before_script:
-  - cd ${TF_ROOT}
 
 stages:
   - prepare
@@ -161,7 +159,6 @@ default:
     entrypoint:
       - '/usr/bin/env'
       - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-
   cache:
     paths:
       - .terraform

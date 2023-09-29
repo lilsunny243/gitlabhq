@@ -6,6 +6,8 @@ module BulkImports
       class LfsObjectsPipeline
         include Pipeline
 
+        file_extraction_pipeline!
+
         def extract(_context)
           download_service.execute
           decompression_service.execute
@@ -18,13 +20,13 @@ module BulkImports
 
         # rubocop: disable CodeReuse/ActiveRecord
         def load(_context, file_path)
-          Gitlab::Utils.check_path_traversal!(file_path)
-          Gitlab::Utils.check_allowed_absolute_path!(file_path, [Dir.tmpdir])
+          Gitlab::PathTraversal.check_path_traversal!(file_path)
+          Gitlab::PathTraversal.check_allowed_absolute_path!(file_path, [Dir.tmpdir])
 
           return if tar_filepath?(file_path)
           return if lfs_json_filepath?(file_path)
           return if File.directory?(file_path)
-          return if File.lstat(file_path).symlink?
+          return if Gitlab::Utils::FileInfo.linked?(file_path)
 
           size = File.size(file_path)
           oid = LfsObject.calculate_oid(file_path)
@@ -48,7 +50,7 @@ module BulkImports
         def download_service
           BulkImports::FileDownloadService.new(
             configuration: context.configuration,
-            relative_url: context.entity.relation_download_url_path(relation),
+            relative_url: context.entity.relation_download_url_path(relation, context.extra[:batch_number]),
             tmpdir: tmpdir,
             filename: targz_filename
           )

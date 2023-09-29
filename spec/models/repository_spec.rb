@@ -20,10 +20,12 @@ RSpec.describe Repository, feature_category: :source_code_management do
   let(:merge_commit) do
     merge_request = create(:merge_request, source_branch: 'feature', target_branch: 'master', source_project: project)
 
-    merge_commit_id = repository.merge(user,
-                                       merge_request.diff_head_sha,
-                                       merge_request,
-                                       message)
+    merge_commit_id = repository.merge(
+      user,
+      merge_request.diff_head_sha,
+      merge_request,
+      message
+    )
 
     repository.commit(merge_commit_id)
   end
@@ -295,6 +297,8 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     context 'with a commit with invalid UTF-8 path' do
+      let(:project) { create(:project, :empty_repo) }
+
       it 'does not raise an error' do
         response = create_file_in_repo(project, 'master', 'master', "hello\x80world", 'some contents')
 
@@ -317,6 +321,7 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     context 'with filename with pathspec characters' do
+      let(:project) { create(:project, :empty_repo) }
       let(:filename) { ':wq' }
       let(:newrev) { project.repository.commit('master').sha }
 
@@ -356,6 +361,7 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     context 'with filename with pathspec characters' do
+      let(:project) { create(:project, :empty_repo) }
       let(:filename) { ':wq' }
       let(:newrev) { project.repository.commit('master').sha }
 
@@ -597,6 +603,15 @@ RSpec.describe Repository, feature_category: :source_code_management do
   end
 
   describe '#list_commits_by' do
+    it 'returns commits when no filter is applied' do
+      commit_ids = repository.list_commits_by(nil, 'master', limit: 2).map(&:id)
+
+      expect(commit_ids).to include(
+        'b83d6e391c22777fca1ed3012fce84f633d7fed0',
+        '498214de67004b1da3d820901307bed2a68a8ef6'
+      )
+    end
+
     it 'returns commits with messages containing a given string' do
       commit_ids = repository.list_commits_by('test text', 'master').map(&:id)
 
@@ -703,6 +718,14 @@ RSpec.describe Repository, feature_category: :source_code_management do
 
       it { is_expected.to be_nil }
     end
+
+    context 'when root reference is empty' do
+      subject { empty_repo.merged_to_root_ref?('master') }
+
+      let(:empty_repo) { build(:project, :empty_repo).repository }
+
+      it { is_expected.to be_nil }
+    end
   end
 
   describe "#root_ref_sha" do
@@ -711,7 +734,7 @@ RSpec.describe Repository, feature_category: :source_code_management do
     subject { repository.root_ref_sha }
 
     before do
-      allow(repository).to receive(:commit).with(repository.root_ref) { commit }
+      allow(repository).to receive(:head_commit) { commit }
     end
 
     it { is_expected.to eq(commit.sha) }
@@ -946,9 +969,11 @@ RSpec.describe Repository, feature_category: :source_code_management do
   describe "#create_file" do
     it 'commits new file successfully' do
       expect do
-        repository.create_file(user, 'NEWCHANGELOG', 'Changelog!',
-                               message: 'Create changelog',
-                               branch_name: 'master')
+        repository.create_file(
+          user, 'NEWCHANGELOG', 'Changelog!',
+          message: 'Create changelog',
+          branch_name: 'master'
+        )
       end.to change { repository.count_commits(ref: 'master') }.by(1)
 
       blob = repository.blob_at('master', 'NEWCHANGELOG')
@@ -958,9 +983,11 @@ RSpec.describe Repository, feature_category: :source_code_management do
 
     it 'creates new file and dir when file_path has a forward slash' do
       expect do
-        repository.create_file(user, 'new_dir/new_file.txt', 'File!',
-                               message: 'Create new_file with new_dir',
-                               branch_name: 'master')
+        repository.create_file(
+          user, 'new_dir/new_file.txt', 'File!',
+          message: 'Create new_file with new_dir',
+          branch_name: 'master'
+        )
       end.to change { repository.count_commits(ref: 'master') }.by(1)
 
       expect(repository.tree('master', 'new_dir').path).to eq('new_dir')
@@ -968,9 +995,11 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     it 'respects the autocrlf setting' do
-      repository.create_file(user, 'hello.txt', "Hello,\r\nWorld",
-                             message: 'Add hello world',
-                             branch_name: 'master')
+      repository.create_file(
+        user, 'hello.txt', "Hello,\r\nWorld",
+        message: 'Add hello world',
+        branch_name: 'master'
+      )
 
       blob = repository.blob_at('master', 'hello.txt')
 
@@ -980,11 +1009,13 @@ RSpec.describe Repository, feature_category: :source_code_management do
     context "when an author is specified" do
       it "uses the given email/name to set the commit's author" do
         expect do
-          repository.create_file(user, 'NEWREADME', 'README!',
-                                 message: 'Add README',
-                                 branch_name: 'master',
-                                 author_email: author_email,
-                                 author_name: author_name)
+          repository.create_file(
+            user, 'NEWREADME', 'README!',
+            message: 'Add README',
+            branch_name: 'master',
+            author_email: author_email,
+            author_name: author_name
+          )
         end.to change { repository.count_commits(ref: 'master') }.by(1)
 
         last_commit = repository.commit
@@ -998,9 +1029,11 @@ RSpec.describe Repository, feature_category: :source_code_management do
   describe "#update_file" do
     it 'updates file successfully' do
       expect do
-        repository.update_file(user, 'CHANGELOG', 'Changelog!',
-                               message: 'Update changelog',
-                               branch_name: 'master')
+        repository.update_file(
+          user, 'CHANGELOG', 'Changelog!',
+          message: 'Update changelog',
+          branch_name: 'master'
+        )
       end.to change { repository.count_commits(ref: 'master') }.by(1)
 
       blob = repository.blob_at('master', 'CHANGELOG')
@@ -1010,10 +1043,12 @@ RSpec.describe Repository, feature_category: :source_code_management do
 
     it 'updates filename successfully' do
       expect do
-        repository.update_file(user, 'NEWLICENSE', 'Copyright!',
-                                     branch_name: 'master',
-                                     previous_path: 'LICENSE',
-                                     message: 'Changes filename')
+        repository.update_file(
+          user, 'NEWLICENSE', 'Copyright!',
+          branch_name: 'master',
+          previous_path: 'LICENSE',
+          message: 'Changes filename'
+        )
       end.to change { repository.count_commits(ref: 'master') }.by(1)
 
       files = repository.ls_files('master')
@@ -1025,12 +1060,14 @@ RSpec.describe Repository, feature_category: :source_code_management do
     context "when an author is specified" do
       it "uses the given email/name to set the commit's author" do
         expect do
-          repository.update_file(user, 'README', 'Updated README!',
-                                 branch_name: 'master',
-                                 previous_path: 'README',
-                                 message: 'Update README',
-                                 author_email: author_email,
-                                 author_name: author_name)
+          repository.update_file(
+            user, 'README', 'Updated README!',
+            branch_name: 'master',
+            previous_path: 'README',
+            message: 'Update README',
+            author_email: author_email,
+            author_name: author_name
+          )
         end.to change { repository.count_commits(ref: 'master') }.by(1)
 
         last_commit = repository.commit
@@ -1041,13 +1078,45 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
   end
 
+  describe "#move_dir_files" do
+    it 'move directory files successfully' do
+      expect do
+        repository.move_dir_files(
+          user, 'files/new_js', 'files/js',
+          branch_name: 'master',
+          message: 'move directory images to new_images',
+          author_email: author_email,
+          author_name: author_name
+        )
+      end.to change { repository.count_commits(ref: 'master') }.by(1)
+      files = repository.ls_files('master')
+
+      expect(files).not_to include('files/js/application.js')
+      expect(files).to include('files/new_js/application.js')
+    end
+
+    it 'skips commit with same path' do
+      expect do
+        repository.move_dir_files(
+          user, 'files/js', 'files/js',
+          branch_name: 'master',
+          message: 'no commit',
+          author_email: author_email,
+          author_name: author_name
+        )
+      end.to change { repository.count_commits(ref: 'master') }.by(0)
+    end
+  end
+
   describe "#delete_file" do
     let(:project) { create(:project, :repository) }
 
     it 'removes file successfully' do
       expect do
-        repository.delete_file(user, 'README',
-          message: 'Remove README', branch_name: 'master')
+        repository.delete_file(
+          user, 'README',
+          message: 'Remove README', branch_name: 'master'
+        )
       end.to change { repository.count_commits(ref: 'master') }.by(1)
 
       expect(repository.blob_at('master', 'README')).to be_nil
@@ -1056,9 +1125,11 @@ RSpec.describe Repository, feature_category: :source_code_management do
     context "when an author is specified" do
       it "uses the given email/name to set the commit's author" do
         expect do
-          repository.delete_file(user, 'README',
+          repository.delete_file(
+            user, 'README',
             message: 'Remove README', branch_name: 'master',
-            author_email: author_email, author_name: author_name)
+            author_email: author_email, author_name: author_name
+          )
         end.to change { repository.count_commits(ref: 'master') }.by(1)
 
         last_commit = repository.commit
@@ -1176,10 +1247,12 @@ RSpec.describe Repository, feature_category: :source_code_management do
       let(:path) { '*.md' }
 
       it 'returns files matching the path in the root folder' do
-        expect(result).to contain_exactly('CONTRIBUTING.md',
-                                          'MAINTENANCE.md',
-                                          'PROCESS.md',
-                                          'README.md')
+        expect(result).to contain_exactly(
+          'CONTRIBUTING.md',
+          'MAINTENANCE.md',
+          'PROCESS.md',
+          'README.md'
+        )
       end
     end
 
@@ -1187,12 +1260,14 @@ RSpec.describe Repository, feature_category: :source_code_management do
       let(:path) { '**.md' }
 
       it 'returns all matching files in all folders' do
-        expect(result).to contain_exactly('CONTRIBUTING.md',
-                                          'MAINTENANCE.md',
-                                          'PROCESS.md',
-                                          'README.md',
-                                          'files/markdown/ruby-style-guide.md',
-                                          'with space/README.md')
+        expect(result).to contain_exactly(
+          'CONTRIBUTING.md',
+          'MAINTENANCE.md',
+          'PROCESS.md',
+          'README.md',
+          'files/markdown/ruby-style-guide.md',
+          'with space/README.md'
+        )
       end
     end
 
@@ -1224,10 +1299,12 @@ RSpec.describe Repository, feature_category: :source_code_management do
       let(:path) { '**/*.rb' }
 
       it 'returns all matched files in all subfolders' do
-        expect(result).to contain_exactly('encoding/russian.rb',
-                                          'files/ruby/popen.rb',
-                                          'files/ruby/regex.rb',
-                                          'files/ruby/version_info.rb')
+        expect(result).to contain_exactly(
+          'encoding/russian.rb',
+          'files/ruby/popen.rb',
+          'files/ruby/regex.rb',
+          'files/ruby/version_info.rb'
+        )
       end
     end
 
@@ -1443,46 +1520,47 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
   end
 
-  [true, false].each do |ff|
-    context "with feature flag license_from_gitaly=#{ff}" do
-      before do
-        stub_feature_flags(license_from_gitaly: ff)
-      end
+  describe '#license', :use_clean_rails_memory_store_caching, :clean_gitlab_redis_cache do
+    let(:project) { create(:project, :repository) }
 
-      describe '#license', :use_clean_rails_memory_store_caching, :clean_gitlab_redis_cache do
-        let(:project) { create(:project, :repository) }
+    before do
+      repository.delete_file(
+        user, 'LICENSE',
+        message: 'Remove LICENSE',
+        branch_name: 'master'
+      )
+    end
 
-        before do
-          repository.delete_file(user, 'LICENSE',
-                                 message: 'Remove LICENSE', branch_name: 'master')
-        end
+    it 'returns nil when no license is detected' do
+      expect(repository.license).to be_nil
+    end
 
-        it 'returns nil when no license is detected' do
-          expect(repository.license).to be_nil
-        end
+    it 'returns nil when the repository does not exist' do
+      expect(repository).to receive(:exists?).and_return(false)
 
-        it 'returns nil when the repository does not exist' do
-          expect(repository).to receive(:exists?).and_return(false)
+      expect(repository.license).to be_nil
+    end
 
-          expect(repository.license).to be_nil
-        end
+    it 'returns other when the content is not recognizable' do
+      repository.create_file(
+        user, 'LICENSE', 'Gitlab B.V.',
+        message: 'Add LICENSE',
+        branch_name: 'master'
+      )
 
-        it 'returns other when the content is not recognizable' do
-          repository.create_file(user, 'LICENSE', 'Gitlab B.V.',
-                                 message: 'Add LICENSE', branch_name: 'master')
+      expect(repository.license_key).to eq('other')
+    end
 
-          expect(repository.license_key).to eq('other')
-        end
+    it 'returns the license' do
+      license = Licensee::License.new('mit')
+      repository.create_file(
+        user, 'LICENSE',
+        license.content,
+        message: 'Add LICENSE',
+        branch_name: 'master'
+      )
 
-        it 'returns the license' do
-          license = Licensee::License.new('mit')
-          repository.create_file(user, 'LICENSE',
-                                 license.content,
-                                 message: 'Add LICENSE', branch_name: 'master')
-
-          expect(repository.license_key).to eq(license.key)
-        end
-      end
+      expect(repository.license_key).to eq(license.key)
     end
   end
 
@@ -2008,19 +2086,23 @@ RSpec.describe Repository, feature_category: :source_code_management do
 
   describe '#merge_to_ref' do
     let(:merge_request) do
-      create(:merge_request, source_branch: 'feature',
-                             target_branch: 'master',
-                             source_project: project)
+      create(
+        :merge_request,
+        source_branch: 'feature',
+        target_branch: 'master',
+        source_project: project
+      )
     end
 
     it 'writes merge of source SHA and first parent ref to MR merge_ref_path' do
-      merge_commit_id =
-        repository.merge_to_ref(user,
-          source_sha: merge_request.diff_head_sha,
-          branch: merge_request.target_branch,
-          target_ref: merge_request.merge_ref_path,
-          message: 'Custom message',
-          first_parent_ref: merge_request.target_branch_ref)
+      merge_commit_id = repository.merge_to_ref(
+        user,
+        source_sha: merge_request.diff_head_sha,
+        branch: merge_request.target_branch,
+        target_ref: merge_request.merge_ref_path,
+        message: 'Custom message',
+        first_parent_ref: merge_request.target_branch_ref
+      )
 
       merge_commit = repository.commit(merge_commit_id)
 
@@ -2028,6 +2110,17 @@ RSpec.describe Repository, feature_category: :source_code_management do
       expect(merge_commit.author_name).to eq(user.name)
       expect(merge_commit.author_email).to eq(user.commit_email_or_default)
       expect(repository.blob_at(merge_commit.id, 'files/ruby/feature.rb')).to be_present
+    end
+  end
+
+  describe '#update_refs' do
+    let(:expected_return) { 'updated' }
+    let(:params) { double }
+
+    it 'calls the update_refs method on the raw repo with the same params' do
+      expect(repository.raw_repository).to receive(:update_refs).with(params).and_return('updated')
+
+      expect(repository.update_refs(params)).to eq(expected_return)
     end
   end
 
@@ -2042,11 +2135,13 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     it 'merges the code and return the commit id' do
-      merge_commit_id = repository.ff_merge(user,
-                                            merge_request.diff_head_sha,
-                                            merge_request.target_branch,
-                                            target_sha: repository.commit(merge_request.target_branch).sha,
-                                            merge_request: merge_request)
+      merge_commit_id = repository.ff_merge(
+        user,
+        merge_request.diff_head_sha,
+        merge_request.target_branch,
+        target_sha: repository.commit(merge_request.target_branch).sha,
+        merge_request: merge_request
+      )
       merge_commit = repository.commit(merge_commit_id)
 
       expect(merge_commit).to be_present
@@ -2054,11 +2149,13 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
 
     it 'sets the `in_progress_merge_commit_sha` flag for the given merge request' do
-      merge_commit_id = repository.ff_merge(user,
-                                            merge_request.diff_head_sha,
-                                            merge_request.target_branch,
-                                            target_sha: repository.commit(merge_request.target_branch).sha,
-                                            merge_request: merge_request)
+      merge_commit_id = repository.ff_merge(
+        user,
+        merge_request.diff_head_sha,
+        merge_request.target_branch,
+        target_sha: repository.commit(merge_request.target_branch).sha,
+        merge_request: merge_request
+      )
 
       expect(merge_request.in_progress_merge_commit_sha).to eq(merge_commit_id)
     end
@@ -2318,12 +2415,12 @@ RSpec.describe Repository, feature_category: :source_code_management do
       expect(repository).to receive(:expire_method_caches).with(
         [
           :size,
+          :recent_objects_size,
           :commit_count,
           :readme_path,
           :contribution_guide,
           :changelog,
           :license_blob,
-          :license_licensee,
           :license_gitaly,
           :gitignore,
           :gitlab_ci_yml,
@@ -2338,7 +2435,6 @@ RSpec.describe Repository, feature_category: :source_code_management do
           :has_visible_content?,
           :issue_template_names_hash,
           :merge_request_template_names_hash,
-          :user_defined_metrics_dashboard_paths,
           :xcode_project?,
           :has_ambiguous_refs?
         ]
@@ -2793,7 +2889,7 @@ RSpec.describe Repository, feature_category: :source_code_management do
   describe '#expire_statistics_caches' do
     it 'expires the caches' do
       expect(repository).to receive(:expire_method_caches)
-        .with(%i(size commit_count))
+        .with(%i(size recent_objects_size commit_count))
 
       repository.expire_statistics_caches
     end
@@ -2925,6 +3021,22 @@ RSpec.describe Repository, feature_category: :source_code_management do
     end
   end
 
+  describe '#recent_objects_size' do
+    context 'with a non-existing repository' do
+      it 'returns 0' do
+        expect(repository).to receive(:exists?).and_return(false)
+
+        expect(repository.recent_objects_size).to eq(0.0)
+      end
+    end
+
+    context 'with an existing repository' do
+      it 'returns the repository recent_objects_size as a Float' do
+        expect(repository.recent_objects_size).to be_an_instance_of(Float)
+      end
+    end
+  end
+
   describe '#local_branches' do
     it 'returns the local branches' do
       masterrev = repository.find_branch('master').dereferenced_target
@@ -2978,11 +3090,10 @@ RSpec.describe Repository, feature_category: :source_code_management do
   describe '#refresh_method_caches' do
     it 'refreshes the caches of the given types' do
       expect(repository).to receive(:expire_method_caches)
-        .with(%i(readme_path license_blob license_licensee license_gitaly))
+        .with(%i(readme_path license_blob license_gitaly))
 
       expect(repository).to receive(:readme_path)
       expect(repository).to receive(:license_blob)
-      expect(repository).to receive(:license_licensee)
       expect(repository).to receive(:license_gitaly)
 
       repository.refresh_method_caches(%i(readme license))
@@ -3094,6 +3205,18 @@ RSpec.describe Repository, feature_category: :source_code_management do
 
     context 'caching', :request_store, :clean_gitlab_redis_cache do
       it 'only calls out to Gitaly once' do
+        expect(repository.raw_repository).to receive(:ancestor?).once
+
+        2.times { repository.ancestor?(commit.id, ancestor.id) }
+      end
+
+      it 'calls out to Gitaly again after expiration' do
+        expect(repository.raw_repository).to receive(:ancestor?).once
+
+        repository.ancestor?(commit.id, ancestor.id)
+
+        repository.expire_ancestor_cache(commit.id, ancestor.id)
+
         expect(repository.raw_repository).to receive(:ancestor?).once
 
         2.times { repository.ancestor?(commit.id, ancestor.id) }
@@ -3693,6 +3816,169 @@ RSpec.describe Repository, feature_category: :source_code_management do
       end
 
       include_examples 'does not delete branch'
+    end
+  end
+
+  describe '#get_patch_id' do
+    let(:project) { create(:project, :repository) }
+
+    it 'returns patch_id of given revisions' do
+      expect(repository.get_patch_id('HEAD~', 'HEAD')).to eq('45435e5d7b339dd76d939508c7687701d0c17fff')
+    end
+
+    context 'when one of the param is invalid' do
+      it 'raises an ArgumentError error' do
+        expect { repository.get_patch_id('HEAD', nil) }.to raise_error(ArgumentError)
+      end
+    end
+
+    context 'when one of the param is nonexistant' do
+      it 'returns nil' do
+        expect(repository.get_patch_id('HEAD', "f" * 40)).to be_nil
+      end
+    end
+
+    context 'when two revisions are the same' do
+      it 'returns nil' do
+        expect(repository.get_patch_id('HEAD', 'HEAD')).to be_nil
+      end
+    end
+
+    context 'when a Gitlab::Git::CommandError is raised' do
+      before do
+        expect(repository.raw_repository)
+          .to receive(:get_patch_id).and_raise(Gitlab::Git::CommandError)
+      end
+
+      it 'returns nil' do
+        expect(repository.get_patch_id('HEAD', 'HEAD')).to be_nil
+      end
+
+      it 'reports the exception' do
+        expect(Gitlab::ErrorTracking)
+          .to receive(:track_exception)
+          .with(
+            instance_of(Gitlab::Git::CommandError),
+            project_id: repository.project.id,
+            old_revision: 'HEAD',
+            new_revision: 'HEAD'
+          )
+
+        repository.get_patch_id('HEAD', 'HEAD')
+      end
+    end
+
+    context 'when a Gitlab::Git::Repository::NoRepository is raised' do
+      before do
+        expect(repository.raw_repository)
+          .to receive(:get_patch_id).and_raise(Gitlab::Git::Repository::NoRepository)
+      end
+
+      it 'returns nil' do
+        expect(repository.get_patch_id('HEAD', 'f' * 40)).to be_nil
+      end
+
+      it 'reports the exception' do
+        expect(Gitlab::ErrorTracking)
+          .to receive(:track_exception)
+          .with(
+            instance_of(Gitlab::Git::Repository::NoRepository),
+            project_id: repository.project.id,
+            old_revision: 'HEAD',
+            new_revision: 'HEAD'
+          )
+
+        repository.get_patch_id('HEAD', 'HEAD')
+      end
+    end
+  end
+
+  describe '#object_pool' do
+    let_it_be(:primary_project) { create(:project, :empty_repo) }
+    let_it_be(:forked_project) { create(:project, :empty_repo) }
+
+    let(:repository) { primary_project.repository }
+
+    subject { repository.object_pool }
+
+    context 'without object pool' do
+      it { is_expected.to be_nil }
+    end
+
+    context 'when pool repository exists' do
+      let!(:pool) { create(:pool_repository, :ready, source_project: primary_project) }
+
+      context 'when the current repository is a primary repository' do
+        it { is_expected.to be_nil }
+
+        context 'when repository is linked to the pool repository' do
+          before do
+            pool.link_repository(repository)
+          end
+
+          after do
+            pool.unlink_repository(repository)
+          end
+
+          it 'returns a object pool for the repository' do
+            is_expected.to be_kind_of(Gitlab::Git::ObjectPool)
+
+            expect(subject).to have_attributes(
+              relative_path: "#{pool.disk_path}.git",
+              source_repository: repository,
+              storage: repository.shard
+            )
+          end
+        end
+      end
+
+      context 'when the current repository is not a primary repository' do
+        let(:repository) { forked_project.repository }
+
+        it { is_expected.to be_nil }
+
+        context 'when repository is linked to the pool repository' do
+          before do
+            pool.link_repository(repository)
+            forked_project.update!(pool_repository: pool)
+          end
+
+          after do
+            pool.unlink_repository(repository)
+            forked_project.update!(pool_repository: nil)
+          end
+
+          it 'returns a object pool with correct links to primary repository' do
+            is_expected.to be_kind_of(Gitlab::Git::ObjectPool)
+
+            expect(subject).to have_attributes(
+              relative_path: "#{pool.disk_path}.git",
+              source_repository: primary_project.repository,
+              storage: primary_project.repository.shard
+            )
+          end
+        end
+
+        context 'when repository is linked to the pool repository in Gitaly only' do
+          before do
+            pool.link_repository(repository)
+          end
+
+          after do
+            pool.unlink_repository(repository)
+          end
+
+          it 'returns an object pool without a link to the primary repository' do
+            is_expected.to be_kind_of(Gitlab::Git::ObjectPool)
+
+            expect(subject).to have_attributes(
+              relative_path: "#{pool.disk_path}.git",
+              source_repository: nil,
+              storage: primary_project.repository.shard
+            )
+          end
+        end
+      end
     end
   end
 end

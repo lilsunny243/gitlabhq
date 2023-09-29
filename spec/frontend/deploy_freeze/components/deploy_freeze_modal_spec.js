@@ -1,6 +1,7 @@
 import { GlButton, GlModal } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Api from '~/api';
 import DeployFreezeModal from '~/deploy_freeze/components/deploy_freeze_modal.vue';
@@ -46,14 +47,9 @@ describe('Deploy freeze modal', () => {
     wrapper.findComponent(TimezoneDropdown).trigger('input');
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   describe('Basic interactions', () => {
     it('button is disabled when freeze period is invalid', () => {
-      expect(submitDeployFreezeButton().attributes('disabled')).toBe('true');
+      expect(submitDeployFreezeButton().attributes('disabled')).toBeDefined();
     });
   });
 
@@ -93,7 +89,7 @@ describe('Deploy freeze modal', () => {
       });
 
       it('disables the add deploy freeze button', () => {
-        expect(submitDeployFreezeButton().attributes('disabled')).toBe('true');
+        expect(submitDeployFreezeButton().attributes('disabled')).toBeDefined();
       });
     });
 

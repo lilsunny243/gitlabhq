@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Checks::BranchCheck do
+RSpec.describe Gitlab::Checks::BranchCheck, feature_category: :source_code_management do
   include_context 'change access checks context'
 
   describe '#validate!' do
@@ -26,8 +26,32 @@ RSpec.describe Gitlab::Checks::BranchCheck do
         expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, "You cannot create a branch with a 40-character hexadecimal branch name.")
       end
 
+      it "prohibits 40-character hexadecimal branch names as the start of a path" do
+        allow(subject).to receive(:branch_name).and_return("267208abfe40e546f5e847444276f7d43a39503e/test")
+
+        expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, "You cannot create a branch with a 40-character hexadecimal branch name.")
+      end
+
+      it "prohibits 40-character hexadecimal branch names followed by a dash as the start of a path" do
+        allow(subject).to receive(:branch_name).and_return("267208abfe40e546f5e847444276f7d43a39503e-/test")
+
+        expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, "You cannot create a branch with a 40-character hexadecimal branch name.")
+      end
+
+      it "prohibits 64-character hexadecimal branch names" do
+        allow(subject).to receive(:branch_name).and_return("09b9fd3ea68e9b95a51b693a29568c898e27d1476bbd83c825664f18467fc175")
+
+        expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, "You cannot create a branch with a 40-character hexadecimal branch name.")
+      end
+
+      it "prohibits 64-character hexadecimal branch names as the start of a path" do
+        allow(subject).to receive(:branch_name).and_return("09b9fd3ea68e9b95a51b693a29568c898e27d1476bbd83c825664f18467fc175/test")
+
+        expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, "You cannot create a branch with a 40-character hexadecimal branch name.")
+      end
+
       it "doesn't prohibit a nested hexadecimal in a branch name" do
-        allow(subject).to receive(:branch_name).and_return("fix-267208abfe40e546f5e847444276f7d43a39503e")
+        allow(subject).to receive(:branch_name).and_return("267208abfe40e546f5e847444276f7d43a39503e-fix")
 
         expect { subject.validate! }.not_to raise_error
       end
@@ -38,6 +62,23 @@ RSpec.describe Gitlab::Checks::BranchCheck do
 
         it "doesn't prohibit the deletion of a hexadecimal branch name" do
           expect { subject.validate! }.not_to raise_error
+        end
+      end
+
+      context 'when branch name is invalid' do
+        let(:ref) { 'refs/heads/-wrong' }
+
+        it 'prohibits branches with an invalid name' do
+          expect { subject.validate! }.to raise_error(Gitlab::GitAccess::ForbiddenError, 'You cannot create a branch with an invalid name.')
+        end
+
+        context 'deleting an invalid branch' do
+          let(:ref) { 'refs/heads/-wrong' }
+          let(:newrev) { '0000000000000000000000000000000000000000' }
+
+          it "doesn't prohibit the deletion of an invalid branch name" do
+            expect { subject.validate! }.not_to raise_error
+          end
         end
       end
     end

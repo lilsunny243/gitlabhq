@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 description: "Set and configure Git protocol v2"
 ---
 
-# Configuring Git Protocol v2 **(FREE)**
+# Configuring Git Protocol v2 **(FREE SELF)**
 
 > [Re-enabled](https://gitlab.com/gitlab-org/gitlab/-/issues/27828) in GitLab 12.8.
 
@@ -17,7 +17,7 @@ More details about the new features and improvements are available in
 the [Google Open Source Blog](https://opensource.googleblog.com/2018/05/introducing-git-protocol-version-2.html)
 and the [protocol documentation](https://github.com/git/git/blob/master/Documentation/gitprotocol-v2.txt).
 
-## Requirements
+## Prerequisites
 
 From the client side, `git` `v2.18.0` or newer must be installed.
 
@@ -29,7 +29,7 @@ and [All-in-one Docker image](../install/docker.md), the SSH
 service is already configured to accept the `GIT_PROTOCOL` environment. Users
 need not do anything more.
 
-For Omnibus GitLab and installations from source, update
+For installations from the Linux package or self-compiled installations, update
 the SSH configuration of your server manually by adding this line to the `/etc/ssh/sshd_config` file:
 
 ```plaintext
@@ -111,4 +111,4 @@ URL to use SSH.
 ### Observe Git protocol version of connections
 
 For information on observing the Git protocol versions are being used in a production environment,
-see the [relevant documentation](gitaly/monitoring.md#useful-queries).
+see the [relevant documentation](gitaly/monitoring.md#queries).

@@ -41,32 +41,15 @@ class BulkImports::Entity < ApplicationRecord
   validates :project, absence: true, if: :group
   validates :group, absence: true, if: :project
   validates :source_type, presence: true
-  validates :source_full_path,
-            presence: true,
-            format: { with: Gitlab::Regex.bulk_import_source_full_path_regex,
-                      message: Gitlab::Regex.bulk_import_destination_namespace_path_regex_message }
-
-  validates :destination_name,
-            presence: true,
-            format: { with: Gitlab::Regex.group_path_regex,
-                      message: Gitlab::Regex.group_path_regex_message }
-
-  validates :destination_namespace,
-            exclusion: [nil],
-            format: { with: Gitlab::Regex.bulk_import_destination_namespace_path_regex,
-                      message: Gitlab::Regex.bulk_import_destination_namespace_path_regex_message },
-            if: :group
-
-  validates :destination_namespace,
-            presence: true,
-            format: { with: Gitlab::Regex.bulk_import_destination_namespace_path_regex,
-                      message: Gitlab::Regex.bulk_import_destination_namespace_path_regex_message },
-            if: :project
+  validates :source_full_path, presence: true
+  validates :destination_name, presence: true, if: -> { group || project }
+  validates :destination_namespace, exclusion: [nil], if: :group
+  validates :destination_namespace, presence: true, if: :project?
 
   validate :validate_parent_is_a_group, if: :parent
   validate :validate_imported_entity_type
-
   validate :validate_destination_namespace_ascendency, if: :group_entity?
+  validate :validate_source_full_path_format
 
   enum source_type: { group_entity: 0, project_entity: 1 }
 
@@ -77,9 +60,8 @@ class BulkImports::Entity < ApplicationRecord
 
   alias_attribute :destination_slug, :destination_name
 
-  delegate  :default_project_visibility,
-            :default_group_visibility,
-            to: :'Gitlab::CurrentSettings.current_application_settings'
+  delegate :default_project_visibility, :default_group_visibility,
+    to: :'Gitlab::CurrentSettings.current_application_settings'
 
   state_machine :status, initial: :created do
     state :created, value: 0
@@ -158,12 +140,27 @@ class BulkImports::Entity < ApplicationRecord
     end
   end
 
-  def export_relations_url_path
-    "#{base_resource_path}/export_relations"
+  def export_relations_url_path_base
+    File.join(base_resource_path, 'export_relations')
   end
 
-  def relation_download_url_path(relation)
-    "#{export_relations_url_path}/download?relation=#{relation}"
+  def export_relations_url_path(batched: false)
+    if batched && bulk_import.supports_batched_export?
+      Gitlab::Utils.add_url_parameters(export_relations_url_path_base, batched: batched)
+    else
+      export_relations_url_path_base
+    end
+  end
+
+  def relation_download_url_path(relation, batch_number = nil)
+    url = File.join(export_relations_url_path_base, 'download')
+    params = { relation: relation }
+
+    if batch_number && bulk_import.supports_batched_export?
+      params.merge!(batched: true, batch_number: batch_number)
+    end
+
+    Gitlab::Utils.add_url_parameters(url, params)
   end
 
   def wikis_url_path
@@ -199,6 +196,10 @@ class BulkImports::Entity < ApplicationRecord
     update!(has_failures: true)
   end
 
+  def source_version
+    @source_version ||= bulk_import.source_version_info
+  end
+
   private
 
   def validate_parent_is_a_group
@@ -208,13 +209,6 @@ class BulkImports::Entity < ApplicationRecord
   end
 
   def validate_imported_entity_type
-    if project_entity? && !BulkImports::Features.project_migration_enabled?(destination_namespace)
-      errors.add(
-        :base,
-        s_('BulkImport|invalid entity source type')
-      )
-    end
-
     if group.present? && project_entity?
       errors.add(
         :group,
@@ -241,5 +235,18 @@ class BulkImports::Entity < ApplicationRecord
         s_('BulkImport|Import failed: Destination cannot be a subgroup of the source group. Change the destination and try again.')
       )
     end
+  end
+
+  def validate_source_full_path_format
+    validator = group? ? NamespacePathValidator : ProjectPathValidator
+
+    return if validator.valid_path?(source_full_path)
+
+    errors.add(
+      :source_full_path,
+      s_('BulkImport|must have a relative path structure with no HTTP ' \
+         'protocol characters, or leading or trailing forward slashes. Path segments must not start or ' \
+         'end with a special character, and must not contain consecutive special characters')
+    )
   end
 end

@@ -6,6 +6,7 @@ https://gitlab.com/gitlab-org/gitlab/-/merge_requests/57842
 * */
 import { memoize } from 'lodash';
 import { isLoggedIn } from '~/lib/utils/common_utils';
+import { compatFunctionalMixin } from '~/lib/utils/vue3compat/compat_functional_mixin';
 import {
   PARALLEL_DIFF_VIEW_TYPE,
   CONFLICT_MARKER_THEIR,
@@ -23,7 +24,12 @@ import * as utils from './diff_row_utils';
 
 export default {
   DiffGutterAvatars,
-  CodeQualityGutterIcon: () => import('ee_component/diffs/components/code_quality_gutter_icon.vue'),
+  InlineFindingsFlagSwitcher: () =>
+    import('ee_component/diffs/components/inline_findings_flag_switcher.vue'),
+
+  // Temporary mixin for migration from Vue.js 2 to @vue/compat
+  mixins: [compatFunctionalMixin],
+
   props: {
     fileHash: {
       type: String,
@@ -74,7 +80,7 @@ export default {
       type: Function,
       required: true,
     },
-    codeQualityExpanded: {
+    inlineFindingsExpanded: {
       type: Boolean,
       required: false,
       default: false,
@@ -136,6 +142,18 @@ export default {
     },
     (props) => [props.inline, props.line.right?.codequality?.length].join(':'),
   ),
+  showSecurityLeft: memoize(
+    (props) => {
+      return props.inline && props.line.left?.sast?.length > 0;
+    },
+    (props) => [props.inline, props.line.left?.sast?.length].join(':'),
+  ),
+  showSecurityRight: memoize(
+    (props) => {
+      return !props.inline && props.line.right?.sast?.length > 0;
+    },
+    (props) => [props.inline, props.line.right?.sast?.length].join(':'),
+  ),
   classNameMapCellLeft: memoize(
     (props) => {
       return utils.classNameMapCell({
@@ -175,10 +193,13 @@ export default {
       ].join(':'),
   ),
   shouldRenderCommentButton: memoize(
-    (props) => {
-      return isLoggedIn() && !props.line.isContextLineLeft && !props.line.isMetaLineLeft;
+    (props, side) => {
+      return (
+        isLoggedIn() && !props.line[`isContextLine${side}`] && !props.line[`isMetaLine${side}`]
+      );
     },
-    (props) => [props.line.isContextLineLeft, props.line.isMetaLineLeft].join(':'),
+    (props, side) =>
+      [props.line[`isContextLine${side}`], props.line[`isMetaLine${side}`]].join(':'),
   ),
   interopLeftAttributes(props) {
     if (props.inline) {
@@ -232,7 +253,7 @@ export default {
           <span
             v-if="
               !props.line.left.isConflictMarker &&
-              $options.shouldRenderCommentButton(props) &&
+              $options.shouldRenderCommentButton(props, 'Left') &&
               !props.line.hasDiscussionsLeft
             "
             class="add-diff-note tooltip-wrapper has-tooltip"
@@ -305,6 +326,7 @@ export default {
         </div>
         <div
           :title="$options.coverageStateLeft(props).text"
+          :data-tooltip-custom-class="$options.coverageStateLeft(props).class"
           :class="[
             $options.parallelViewLeftLineType(props),
             $options.coverageStateLeft(props).class,
@@ -312,17 +334,22 @@ export default {
           class="diff-td line-coverage left-side has-tooltip"
         ></div>
         <div
-          class="diff-td line-codequality left-side"
+          class="diff-td line-inline-findings left-side"
           :class="$options.parallelViewLeftLineType(props)"
         >
           <component
-            :is="$options.CodeQualityGutterIcon"
-            v-if="$options.showCodequalityLeft(props)"
-            :code-quality-expanded="props.codeQualityExpanded"
-            :codequality="props.line.left.codequality"
+            :is="$options.InlineFindingsFlagSwitcher"
+            v-if="$options.showCodequalityLeft(props) || $options.showSecurityLeft(props)"
+            :inline-findings-expanded="props.inlineFindingsExpanded"
+            :code-quality="props.line.left.codequality"
+            :sast="props.line.left.sast"
             :file-path="props.filePath"
-            @showCodeQualityFindings="
-              listeners.toggleCodeQualityFindings(props.line.left.codequality[0].line)
+            @showInlineFindings="
+              listeners.toggleCodeQualityFindings(
+                props.line.left.codequality[0]
+                  ? props.line.left.codequality[0].line
+                  : props.line.left.sast[0].line,
+              )
             "
           />
         </div>
@@ -356,7 +383,7 @@ export default {
           :class="$options.classNameMapCellLeft(props)"
         ></div>
         <div
-          class="diff-td line-codequality left-side empty-cell"
+          class="diff-td line-inline-findings left-side empty-cell"
           :class="$options.classNameMapCellLeft(props)"
         ></div>
         <div
@@ -379,7 +406,10 @@ export default {
         <div :class="$options.classNameMapCellRight(props)" class="diff-td diff-line-num new_line">
           <template v-if="props.line.right.type !== $options.CONFLICT_MARKER_THEIR">
             <span
-              v-if="$options.shouldRenderCommentButton(props) && !props.line.hasDiscussionsRight"
+              v-if="
+                $options.shouldRenderCommentButton(props, 'Right') &&
+                !props.line.hasDiscussionsRight
+              "
               class="add-diff-note tooltip-wrapper has-tooltip"
               :title="props.line.right.addCommentTooltip"
             >
@@ -437,6 +467,7 @@ export default {
         </div>
         <div
           :title="$options.coverageStateRight(props).text"
+          :data-tooltip-custom-class="$options.coverageStateRight(props).class"
           :class="[
             props.line.right.type,
             $options.coverageStateRight(props).class,
@@ -445,17 +476,22 @@ export default {
           class="diff-td line-coverage right-side has-tooltip"
         ></div>
         <div
-          class="diff-td line-codequality right-side"
+          class="diff-td line-inline-findings right-side"
           :class="$options.classNameMapCellRight(props)"
         >
           <component
-            :is="$options.CodeQualityGutterIcon"
-            v-if="$options.showCodequalityRight(props)"
-            :codequality="props.line.right.codequality"
+            :is="$options.InlineFindingsFlagSwitcher"
+            v-if="$options.showCodequalityRight(props) || $options.showSecurityRight(props)"
+            :code-quality="props.line.right.codequality"
+            :sast="props.line.right.sast"
             :file-path="props.filePath"
-            data-testid="codeQualityIcon"
-            @showCodeQualityFindings="
-              listeners.toggleCodeQualityFindings(props.line.right.codequality[0].line)
+            data-testid="inlineFindingsIcon"
+            @showInlineFindings="
+              listeners.toggleCodeQualityFindings(
+                props.line.right.codequality[0]
+                  ? props.line.right.codequality[0].line
+                  : props.line.right.sast[0].line,
+              )
             "
           />
         </div>
@@ -485,7 +521,7 @@ export default {
           :class="$options.classNameMapCellRight(props)"
         ></div>
         <div
-          class="diff-td line-codequality right-side empty-cell"
+          class="diff-td line-inline-findings right-side empty-cell"
           :class="$options.classNameMapCellRight(props)"
         ></div>
         <div

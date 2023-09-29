@@ -1,11 +1,11 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
-# Password and OAuth token storage **(FREE)**
+# Password and OAuth token storage **(FREE ALL)**
 
 GitLab administrators can configure how passwords and OAuth tokens are stored.
 

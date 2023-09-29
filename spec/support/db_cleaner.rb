@@ -73,7 +73,10 @@ module DbCleaner
       end
     end
 
+    disable_ddl_was = Feature.enabled?(:disallow_database_ddl_feature_flags, type: :ops)
+    stub_feature_flags(disallow_database_ddl_feature_flags: false)
     Gitlab::Database::Partitioning.sync_partitions_ignore_db_error
+    stub_feature_flags(disallow_database_ddl_feature_flags: disable_ddl_was)
 
     puts "Databases re-creation done in #{Gitlab::Metrics::System.monotonic_time - start}"
   end
@@ -99,7 +102,7 @@ module DbCleaner
         AND pid <> pg_backend_pid();
     SQL
 
-    Gitlab::Database::EachDatabase.each_database_connection(include_shared: false) do |connection|
+    Gitlab::Database::EachDatabase.each_connection(include_shared: false) do |connection|
       connection.execute(cmd)
     end
 

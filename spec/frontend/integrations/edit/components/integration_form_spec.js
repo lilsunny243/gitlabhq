@@ -84,7 +84,6 @@ describe('IntegrationForm', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     mockAxios.restore();
   });
 
@@ -496,7 +495,7 @@ describe('IntegrationForm', () => {
         expect(refreshCurrentPage).toHaveBeenCalledTimes(1);
       });
 
-      it('resets `isResetting`', async () => {
+      it('resets `isResetting`', () => {
         expect(findFormActions().props('isResetting')).toBe(false);
       });
     });

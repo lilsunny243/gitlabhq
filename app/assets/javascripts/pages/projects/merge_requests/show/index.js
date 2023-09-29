@@ -1,7 +1,5 @@
-import initNotesApp from '~/mr_notes/init_notes';
-import { initReportAbuse } from '~/projects/report_abuse';
-import { initMrPage } from '../page';
+import mountNotesApp from '~/mr_notes/mount_app';
+import { initMrPage } from 'ee_else_ce/pages/projects/merge_requests/page';
 
 initMrPage();
-initNotesApp();
-initReportAbuse();
+mountNotesApp();

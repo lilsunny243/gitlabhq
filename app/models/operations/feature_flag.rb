@@ -30,7 +30,9 @@ module Operations
       length: 2..63,
       format: {
         with: Gitlab::Regex.feature_flag_regex,
-        message: Gitlab::Regex.feature_flag_regex_message
+        message: ->(_object, _data) {
+          s_("Validation|can contain only lowercase letters, digits, '_' and '-'. Must start with a letter, and cannot end with '-' or '_'")
+        }
       }
     validates :name, uniqueness: { scope: :project_id }
     validates :description, allow_blank: true, length: 0..255
@@ -50,7 +52,7 @@ module Operations
 
     class << self
       def preload_relations
-        preload(strategies: :scopes)
+        preload(strategies: [:scopes, :user_list])
       end
 
       def for_unleash_client(project, environment)
@@ -72,7 +74,7 @@ module Operations
       end
 
       def link_reference_pattern
-        @link_reference_pattern ||= super("feature_flags", %r{(?<feature_flag>\d+)/edit})
+        @link_reference_pattern ||= compose_link_reference_pattern('feature_flags', %r{(?<feature_flag>\d+)/edit})
       end
 
       def reference_postfix

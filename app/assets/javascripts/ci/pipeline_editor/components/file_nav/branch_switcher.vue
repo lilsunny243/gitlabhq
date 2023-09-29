@@ -218,7 +218,6 @@ export default {
     :text="currentBranch"
     :disabled="!enableBranchSwitcher"
     icon="branch"
-    data-qa-selector="branch_selector_button"
     data-testid="branch-selector"
   >
     <gl-search-box-by-type :debounce="$options.inputDebounce" @input="setSearchTerm" />
@@ -229,7 +228,6 @@ export default {
     <gl-infinite-scroll
       :fetched-items="availableBranches.length"
       :max-list-height="250"
-      data-qa-selector="branch_menu_container"
       @bottomReached="fetchNextBranches"
     >
       <template #items>
@@ -238,7 +236,6 @@ export default {
           :key="branch"
           :is-checked="currentBranch === branch"
           is-check-item
-          data-qa-selector="branch_menu_item_button"
           @click="selectBranch(branch)"
         >
           {{ branch }}

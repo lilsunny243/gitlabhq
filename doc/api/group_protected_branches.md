@@ -9,7 +9,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/110603) in GitLab 15.9 [with a flag](../administration/feature_flags.md) named `group_protected_branches`. Disabled by default.
 
 FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../administration/feature_flags.md) named `group_protected_branches`.
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../administration/feature_flags.md) named `group_protected_branches`.
 On GitLab.com, this feature is not available.
 
 ## Valid access levels
@@ -49,7 +49,7 @@ Example response:
 [
   {
     "id": 1,
-    "name": "master",
+    "name": "main",
     "push_access_levels": [
       {
         "id":  1,
@@ -114,7 +114,7 @@ GET /groups/:id/protected_branches/:name
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" \
-     "https://gitlab.example.com/api/v4/groups/5/protected_branches/master"
+     "https://gitlab.example.com/api/v4/groups/5/protected_branches/main"
 ```
 
 Example response:
@@ -122,7 +122,7 @@ Example response:
 ```json
 {
   "id": 1,
-  "name": "master",
+  "name": "main",
   "push_access_levels": [
     {
       "id":  1,
@@ -167,7 +167,7 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
 | `allowed_to_merge`                           | array          | no  | Array of access levels allowed to merge, with each described by a hash of the form `{user_id: integer}`, `{group_id: integer}`, or `{access_level: integer}`. |
 | `allowed_to_push`                            | array          | no  | Array of access levels allowed to push, with each described by a hash of the form `{user_id: integer}`, `{group_id: integer}`, or `{access_level: integer}`. |
 | `allowed_to_unprotect`                       | array          | no  | Array of access levels allowed to unprotect, with each described by a hash of the form `{user_id: integer}`, `{group_id: integer}`, or `{access_level: integer}`. |
-| `code_owner_approval_required`               | boolean        | no  | Prevent pushes to this branch if it matches an item in the [`CODEOWNERS` file](../user/project/code_owners.md). Default: `false`. |
+| `code_owner_approval_required`               | boolean        | no  | Prevent pushes to this branch if it matches an item in the [`CODEOWNERS` file](../user/project/codeowners/index.md). Default: `false`. |
 | `merge_access_level`                         | integer        | no  | Access levels allowed to merge. Defaults: `40`, Maintainer role. |
 | `push_access_level`                          | integer        | no  | Access levels allowed to push. Defaults: `40`, Maintainer role. |
 | `unprotect_access_level`                     | integer        | no  | Access levels allowed to unprotect. Defaults: `40`, Maintainer role. |
@@ -270,7 +270,7 @@ curl --request POST \
      --header "PRIVATE-TOKEN: <your_access_token>" \
      --header "Content-Type: application/json" \
      --data '{
-      "name": "master",
+      "name": "main",
       "allowed_to_push": [{"access_level": 30}],
       "allowed_to_merge": [{
           "access_level": 30
@@ -286,7 +286,7 @@ Example response:
 ```json
 {
     "id": 5,
-    "name": "master",
+    "name": "main",
     "push_access_levels": [
         {
             "id": 1,
@@ -348,7 +348,7 @@ Example response:
 
 ```json
 {
-   "name": "master",
+   "name": "main",
    "push_access_levels": [
       {
          "id": 12,
@@ -382,7 +382,7 @@ curl --request PATCH --header "PRIVATE-TOKEN: <your_access_token>" \
 | `allowed_to_push`                            | array          | no       | Array of push access levels, with each described by a hash.                                                                          |
 | `allowed_to_merge`                           | array          | no       | Array of merge access levels, with each described by a hash.                                                                         |
 | `allowed_to_unprotect`                       | array          | no       | Array of unprotect access levels, with each described by a hash.                                                                     |
-| `code_owner_approval_required`               | boolean        | no       | Prevent pushes to this branch if it matches an item in the [`CODEOWNERS` file](../user/project/code_owners.md). Default: `false`. |
+| `code_owner_approval_required`               | boolean        | no       | Prevent pushes to this branch if it matches an item in the [`CODEOWNERS` file](../user/project/codeowners/index.md). Default: `false`. |
 
 Elements in the `allowed_to_push`, `allowed_to_merge` and `allowed_to_unprotect` arrays should:
 
@@ -406,14 +406,14 @@ To delete:
 curl --header 'Content-Type: application/json' --request PATCH \
      --data '{"allowed_to_push": [{access_level: 40}]}' \
      --header "PRIVATE-TOKEN: <your_access_token>" \
-     "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/master"
+     "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/main"
 ```
 
 Example response:
 
 ```json
 {
-   "name": "master",
+   "name": "main",
    "push_access_levels": [
       {
          "id": 12,
@@ -431,14 +431,14 @@ Example response:
 ```shell
 curl --header 'Content-Type: application/json' --request PATCH \
      --data '{"allowed_to_push": [{"id": 12, "access_level": 0}]' \
-     --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/master"
+     --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/main"
 ```
 
 Example response:
 
 ```json
 {
-   "name": "master",
+   "name": "main",
    "push_access_levels": [
       {
          "id": 12,
@@ -456,14 +456,14 @@ Example response:
 ```shell
 curl --header 'Content-Type: application/json' --request PATCH \
      --data '{"allowed_to_push": [{"id": 12, "_destroy": true}]}' \
-     --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/master"
+     --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/22034114/protected_branches/main"
 ```
 
 Example response:
 
 ```json
 {
-   "name": "master",
+   "name": "main",
    "push_access_levels": []
 }
 ```

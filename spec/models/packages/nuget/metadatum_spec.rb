@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Packages::Nuget::Metadatum, type: :model do
+RSpec.describe Packages::Nuget::Metadatum, type: :model, feature_category: :package_registry do
+  it { is_expected.to be_a Packages::Nuget::VersionNormalizable }
+
   describe 'relationships' do
     it { is_expected.to belong_to(:package).inverse_of(:nuget_metadatum) }
   end
@@ -10,23 +12,19 @@ RSpec.describe Packages::Nuget::Metadatum, type: :model do
   describe 'validations' do
     it { is_expected.to validate_presence_of(:package) }
 
+    it { is_expected.to validate_presence_of(:authors) }
+    it { is_expected.to validate_length_of(:authors).is_at_most(described_class::MAX_AUTHORS_LENGTH) }
+    it { is_expected.to validate_presence_of(:description) }
+    it { is_expected.to validate_length_of(:description).is_at_most(described_class::MAX_DESCRIPTION_LENGTH) }
+    it { is_expected.to validate_presence_of(:normalized_version) }
+
     %i[license_url project_url icon_url].each do |url|
       describe "##{url}" do
         it { is_expected.to allow_value('http://sandbox.com').for(url) }
         it { is_expected.to allow_value('https://sandbox.com').for(url) }
         it { is_expected.not_to allow_value('123').for(url) }
         it { is_expected.not_to allow_value('sandbox.com').for(url) }
-      end
-
-      describe '#ensure_at_least_one_field_supplied' do
-        subject { build(:nuget_metadatum) }
-
-        it 'rejects unfilled metadatum' do
-          subject.attributes = { license_url: nil, project_url: nil, icon_url: nil }
-
-          expect(subject).not_to be_valid
-          expect(subject.errors).to contain_exactly('Nuget metadatum must have at least license_url, project_url or icon_url set')
-        end
+        it { is_expected.to validate_length_of(url).is_at_most(described_class::MAX_URL_LENGTH) }
       end
 
       describe '#ensure_nuget_package_type' do
@@ -37,6 +35,46 @@ RSpec.describe Packages::Nuget::Metadatum, type: :model do
 
           expect(subject).not_to be_valid
           expect(subject.errors).to contain_exactly('Package type must be NuGet')
+        end
+      end
+    end
+  end
+
+  it { is_expected.to delegate_method(:version).to(:package).with_prefix }
+
+  describe '.normalized_version_in' do
+    let_it_be(:nuget_metadatums) { create_list(:nuget_metadatum, 2) }
+
+    subject { described_class.normalized_version_in(nuget_metadatums.first.normalized_version) }
+
+    it { is_expected.to contain_exactly(nuget_metadatums.first) }
+  end
+
+  describe 'callbacks' do
+    describe '#set_normalized_version' do
+      using RSpec::Parameterized::TableSyntax
+
+      let_it_be_with_reload(:nuget_metadatum) { create(:nuget_metadatum) }
+
+      where(:version, :normalized_version) do
+        '1.0'                     | '1.0.0'
+        '1.0.0.0'                 | '1.0.0'
+        '0.1'                     | '0.1.0'
+        '1.0.7+r3456'             | '1.0.7'
+        '8.0.0.00+RC.54'          | '8.0.0'
+        '1.0.0-Alpha'             | '1.0.0-alpha'
+        '1.0.00-RC-02'            | '1.0.0-rc-02'
+        '8.0.000-preview.0.546.0' | '8.0.0-preview.0.546.0'
+        '0.1.0-dev.37+0999370'    | '0.1.0-dev.37'
+        '1.2.3'                   | '1.2.3'
+      end
+
+      with_them do
+        it 'saves the normalized version' do
+          nuget_metadatum.package.update_column(:version, version)
+          nuget_metadatum.save!
+
+          expect(nuget_metadatum.normalized_version).to eq(normalized_version)
         end
       end
     end

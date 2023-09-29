@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Protected tags API **(FREE)**
+# Protected tags API **(FREE ALL)**
 
 **Valid access levels**
 
@@ -15,6 +15,8 @@ These access levels are recognized:
 - `40`: Maintainer role
 
 ## List protected tags
+
+> Deploy key information [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/116846) in GitLab 16.0.
 
 Gets a list of [protected tags](../user/project/protected_tags.md) from a project.
 This function takes pagination parameters `page` and `per_page` to restrict the list of protected tags.
@@ -43,6 +45,12 @@ Example response:
         "id":1,
         "access_level": 40,
         "access_level_description": "Maintainers"
+      },
+      {
+        "id": 2,
+        "access_level": 40,
+        "access_level_description": "Deploy key",
+        "deploy_key_id": 1
       }
     ]
   },
@@ -53,7 +61,6 @@ Example response:
 ## Get a single protected tag or wildcard protected tag
 
 Gets a single protected tag or wildcard protected tag.
-The pagination parameters `page` and `per_page` can be used to restrict the list of protected tags.
 
 ```plaintext
 GET /projects/:id/protected_tags/:name

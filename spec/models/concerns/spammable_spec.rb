@@ -2,7 +2,23 @@
 
 require 'spec_helper'
 
-RSpec.describe Spammable do
+RSpec.describe Spammable, feature_category: :instance_resiliency do
+  before do
+    stub_const('SpammableModel', Class.new(ActiveRecord::Base))
+
+    SpammableModel.class_eval do
+      self.table_name = 'issues'
+
+      include Spammable
+
+      attr_accessor :other_attr
+
+      attr_spammable :title, spam_title: true
+      attr_spammable :description, spam_description: true
+    end
+  end
+
+  let(:spammable_model) { SpammableModel.new }
   let(:issue) { create(:issue, description: 'Test Desc.') }
 
   describe 'Associations' do
@@ -25,29 +41,61 @@ RSpec.describe Spammable do
     end
 
     describe '#check_for_spam?' do
+      context 'when not overriden' do
+        subject { spammable_model.check_for_spam? }
+
+        context 'when spammable attributes have changed' do
+          where(attr: [:title, :description])
+
+          with_them do
+            before do
+              spammable_model.assign_attributes(attr => 'x')
+            end
+
+            it { is_expected.to eq(true) }
+          end
+        end
+
+        context 'when other attributes have changed' do
+          before do
+            spammable_model.other_attr = true
+          end
+
+          it { is_expected.to eq(false) }
+        end
+      end
+
       it 'returns true for public project' do
         issue.project.update_attribute(:visibility_level, Gitlab::VisibilityLevel::PUBLIC)
 
         expect(issue.check_for_spam?(user: issue.author)).to eq(true)
       end
 
-      it 'returns false for other visibility levels' do
-        expect(issue.check_for_spam?(user: issue.author)).to eq(false)
+      it 'returns true for other visibility levels' do
+        expect(issue.check_for_spam?(user: issue.author)).to eq(true)
       end
     end
 
     describe '#invalidate_if_spam' do
-      using RSpec::Parameterized::TableSyntax
-
       before do
         stub_application_setting(recaptcha_enabled: true)
       end
 
       context 'when the model is spam' do
-        subject { invalidate_if_spam(is_spam: true) }
+        where(model: [:issue, :merge_request, :note, :snippet, :spammable_model])
 
-        it 'has an error related to spam on the model' do
-          expect(subject.errors.messages[:base]).to match_array /has been discarded/
+        with_them do
+          subject do
+            model.to_s.classify.constantize.new.tap do |m|
+              m.spam!
+              m.invalidate_if_spam
+            end
+          end
+
+          it 'has an error related to spam on the model' do
+            expect(subject.errors.messages[:base])
+              .to match_array /Your #{subject.spammable_entity_type} has been recognized as spam./
+          end
         end
       end
 
@@ -56,6 +104,18 @@ RSpec.describe Spammable do
 
         it 'has an error related to spam on the model' do
           expect(subject.errors.messages[:base]).to match_array /content or solve the/
+        end
+      end
+
+      context 'when the model needs recaptcha but does not support it' do
+        subject { invalidate_if_spam(needs_recaptcha: true) }
+
+        before do
+          allow(issue).to receive(:supports_recaptcha?).and_return(false)
+        end
+
+        it 'has an error that discards the spammable' do
+          expect(subject.errors.messages[:base]).to match_array /has been recognized as spam/
         end
       end
 
@@ -83,7 +143,7 @@ RSpec.describe Spammable do
         subject { invalidate_if_spam(needs_recaptcha: true) }
 
         it 'has no errors' do
-          expect(subject.errors.messages[:base]).to match_array /has been discarded/
+          expect(subject.errors.messages[:base]).to match_array /has been recognized as spam/
         end
       end
 
@@ -112,11 +172,26 @@ RSpec.describe Spammable do
       end
 
       describe '#needs_recaptcha!' do
-        it 'adds `needs_recaptcha` flag' do
-          issue.needs_recaptcha!
+        context 'when recaptcha is supported' do
+          it 'adds `needs_recaptcha` flag' do
+            issue.needs_recaptcha!
 
-          expect(issue.spam).to be_falsey
-          expect(issue.needs_recaptcha).to be_truthy
+            expect(issue.spam).to be_falsey
+            expect(issue.needs_recaptcha).to be_truthy
+          end
+        end
+
+        context 'when recaptcha is not supported' do
+          before do
+            allow(issue).to receive(:supports_recaptcha?).and_return(false)
+          end
+
+          it 'marks the object as spam' do
+            issue.needs_recaptcha!
+
+            expect(issue.spam).to be_truthy
+            expect(issue.needs_recaptcha).to be_falsey
+          end
         end
       end
 
@@ -204,7 +279,9 @@ RSpec.describe Spammable do
     end
 
     describe '#allow_possible_spam?' do
-      subject { issue.allow_possible_spam? }
+      let_it_be(:user) { build(:user) }
+
+      subject { spammable_model.allow_possible_spam?(user) }
 
       context 'when the `allow_possible_spam` application setting is turned off' do
         it { is_expected.to eq(false) }

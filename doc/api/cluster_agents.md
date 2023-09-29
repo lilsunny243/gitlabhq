@@ -1,10 +1,10 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Agents API **(FREE)**
+# Agents API **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/83270) in GitLab 14.10.
 > - Agent Tokens API [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/347046) in GitLab 15.0.
@@ -242,7 +242,7 @@ curl --request DELETE --header "Private-Token: <your_access_token>" "https://git
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/347046) in GitLab 15.0.
 
-Returns a list of tokens for an agent.
+Returns a list of active tokens for an agent.
 
 You must have at least the Developer role to use this endpoint.
 
@@ -313,6 +313,8 @@ Gets a single agent token.
 
 You must have at least the Developer role to use this endpoint.
 
+Returns a `404` if the agent token has been revoked.
+
 ```plaintext
 GET /projects/:id/cluster_agents/:agent_id/tokens/:token_id
 ```
@@ -363,11 +365,15 @@ Example response:
 
 ## Create an agent token
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/347046) in GitLab 15.0.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/347046) in GitLab 15.0.
+> - Two-token limit [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/361030/) in GitLab 16.1 with a [flag](../administration/feature_flags.md) named `cluster_agents_limit_tokens_created`.
+> - Two-token limit [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/412399) in GitLab 16.2. Feature flag `cluster_agents_limit_tokens_created` removed.
 
 Creates a new token for an agent.
 
 You must have at least the Maintainer role to use this endpoint.
+
+An agent can have only two active tokens at one time.
 
 ```plaintext
 POST /projects/:id/cluster_agents/:agent_id/tokens

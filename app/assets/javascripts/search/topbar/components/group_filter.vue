@@ -1,5 +1,6 @@
 <script>
 import { isEmpty } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapActions, mapGetters } from 'vuex';
 import { visitUrl, setUrlParams } from '~/lib/utils/url_utility';
 import { ANY_OPTION, GROUP_DATA, PROJECT_DATA } from '../constants';
@@ -19,7 +20,7 @@ export default {
   },
   computed: {
     ...mapState(['query', 'groups', 'fetchingGroups']),
-    ...mapGetters(['frequentGroups']),
+    ...mapGetters(['frequentGroups', 'currentScope']),
     selectedGroup() {
       return isEmpty(this.initialData) ? ANY_OPTION : this.initialData;
     },
@@ -43,6 +44,7 @@ export default {
           [GROUP_DATA.queryParam]: group.id,
           [PROJECT_DATA.queryParam]: null,
           nav_source: null,
+          scope: this.currentScope,
         }),
       );
     },

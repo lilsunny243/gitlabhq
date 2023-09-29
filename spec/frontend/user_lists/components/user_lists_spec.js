@@ -2,6 +2,7 @@ import { GlEmptyState, GlLoadingIcon } from '@gitlab/ui';
 import { within } from '@testing-library/dom';
 import { mount, createWrapper } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import waitForPromises from 'helpers/wait_for_promises';
 import Api from '~/api';
@@ -19,7 +20,7 @@ describe('~/user_lists/components/user_lists.vue', () => {
   const mockProvide = {
     newUserListPath: '/user-lists/new',
     featureFlagsHelpPagePath: '/help/feature-flags',
-    errorStateSvgPath: '/assets/illustrations/feature_flag.svg',
+    errorStateSvgPath: '/assets/illustrations/empty-state/empty-feature-flag-md.svg',
   };
 
   const mockState = {
@@ -38,11 +39,6 @@ describe('~/user_lists/components/user_lists.vue', () => {
   };
 
   const newButton = () => within(wrapper.element).queryAllByText('New user list');
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('without permissions', () => {
     const provideData = {
@@ -87,7 +83,7 @@ describe('~/user_lists/components/user_lists.vue', () => {
         emptyState = wrapper.findComponent(GlEmptyState);
       });
 
-      it('should render the empty state', async () => {
+      it('should render the empty state', () => {
         expect(emptyState.exists()).toBe(true);
       });
 

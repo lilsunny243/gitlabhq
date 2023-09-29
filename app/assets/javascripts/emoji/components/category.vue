@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlIntersectionObserver } from '@gitlab/ui';
 import { humanize } from '~/lib/utils/text_utility';
@@ -33,6 +34,9 @@ export default {
       this.renderGroup = true;
       this.$emit('appear', this.category);
     },
+    onClick(emoji) {
+      this.$emit('click', { category: this.category, emoji });
+    },
   },
 };
 </script>
@@ -48,11 +52,11 @@ export default {
         :key="index"
         :emojis="emojiGroup"
         :render-group="renderGroup"
-        :click-emoji="(emoji) => $emit('click', emoji)"
+        :click-emoji="(emoji) => onClick(emoji)"
       />
     </template>
     <p v-else>
-      {{ s__('AwardEmoji|No emojis found.') }}
+      {{ s__('AwardEmoji|No emoji found.') }}
     </p>
   </gl-intersection-observer>
 </template>

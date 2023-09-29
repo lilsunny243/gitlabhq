@@ -59,15 +59,13 @@ listed here that also do not work properly in FIPS mode:
 - [Container Scanning](../user/application_security/container_scanning/index.md) support for scanning images in repositories that require authentication.
 - [Code Quality](../ci/testing/code_quality.md) does not support operating in FIPS-compliant mode.
 - [Dependency scanning](../user/application_security/dependency_scanning/index.md) support for Gradle.
-- [Dynamic Application Security Testing (DAST)](../user/application_security/dast/index.md)
-  does not support operating in FIPS-compliant mode.
-- [License compliance](../user/compliance/license_compliance/index.md).
+- [Dynamic Application Security Testing (DAST)](../user/application_security/dast/proxy-based.md) supports a reduced set of analyzers. The proxy-based analyzer and on-demand scanning is not available in FIPS mode today, however browser-based DAST, DAST API, and DAST API Fuzzing images are available.
 - [Solutions for vulnerabilities](../user/application_security/vulnerabilities/index.md#resolve-a-vulnerability)
   for yarn projects.
 - [Static Application Security Testing (SAST)](../user/application_security/sast/index.md)
   supports a reduced set of [analyzers](../user/application_security/sast/index.md#fips-enabled-images)
   when operating in FIPS-compliant mode.
-- Advanced Search is currently not included in FIPS mode. It must not be enabled to be FIPS-compliant.
+- Advanced search is currently not included in FIPS mode. It must not be enabled to be FIPS-compliant.
 - [Gravatar or Libravatar-based profile images](../administration/libravatar.md) are not FIPS-compliant.
 
 Additionally, these package repositories are disabled in FIPS mode:
@@ -119,48 +117,8 @@ for more details. The following instructions build on the Quick Start and are al
 
 ##### Terraform: Use a FIPS AMI
 
-1. Follow the guide to set up Terraform and Ansible.
-1. After [step 2b](https://gitlab.com/gitlab-org/gitlab-environment-toolkit/-/blob/main/docs/environment_quick_start_guide.md#2b-setup-config),
-   create a `data.tf` in your environment (for example, `gitlab-environment-toolkit/terraform/environments/gitlab-10k/inventory/data.tf`):
-
-   ```tf
-   data "aws_ami" "ubuntu_20_04_fips" {
-     count = 1
-
-     most_recent = true
-
-     filter {
-       name   = "name"
-       values = ["ubuntu-pro-fips-server/images/hvm-ssd/ubuntu-focal-20.04-amd64-pro-fips-server-*"]
-     }
-
-     filter {
-       name   = "virtualization-type"
-       values = ["hvm"]
-     }
-
-     owners = ["aws-marketplace"]
-   }
-   ```
-
-1. Add the custom `ami_id` to use this AMI in `environment.tf`. For
-   example, in `gitlab-environment-toolkit/terraform/environments/gitlab-10k/inventory/environment.tf`:
-
-   ```tf
-   module "gitlab_ref_arch_aws" {
-     source = "../../modules/gitlab_ref_arch_aws"
-
-     prefix = var.prefix
-     ami_id = data.aws_ami.ubuntu_20_04_fips[0].id
-     ...
-   ```
-
-NOTE:
-GET does not allow the AMI to change on EC2 instances after it has
-been deployed via `terraform apply`. Since an AMI change would tear down
-an instance, this would result in data loss: not only would disks be
-destroyed, but also GitLab secrets would be lost. There is a [Terraform lifecycle rule](https://gitlab.com/gitlab-org/gitlab-environment-toolkit/blob/2aaeaff8ac8067f23cd7b6bb5bf131061649089d/terraform/modules/gitlab_aws_instance/main.tf#L40)
-to ignore AMI changes.
+GitLab team members can view more information in this internal handbook page on how to use FIPS AMI:
+`https://internal.gitlab.com/handbook/engineering/fedramp-compliance/get-configure/#terraform---use-fips-ami`
 
 ##### Ansible: Specify the FIPS Omnibus builds
 
@@ -168,17 +126,10 @@ The standard Omnibus GitLab releases build their own OpenSSL library, which is
 not FIPS-validated. However, we have nightly builds that create Omnibus packages
 that link against the operating system's OpenSSL library. To use this package,
 update the `gitlab_edition` and `gitlab_repo_script_url` fields in the Ansible
-`vars.yml`. For example, you might modify
-`gitlab-environment-toolkit/ansible/environments/gitlab-10k/inventory/vars.yml`
-in this way:
+`vars.yml`.
 
-```yaml
-all:
-  vars:
-    ...
-    gitlab_repo_script_url: "https://packages.gitlab.com/install/repositories/gitlab/gitlab-fips/script.deb.sh"
-    gitlab_edition: "gitlab-fips"
-```
+GitLab team members can view more information in this internal handbook page on Ansible (AWS):
+`https://internal.gitlab.com/handbook/engineering/fedramp-compliance/get-configure/#ansible-aws`
 
 #### Cloud Native Hybrid
 
@@ -232,39 +183,16 @@ be different.
 Building a RHEL-based system with FIPS enabled should be possible, but
 there is [an outstanding issue preventing the Packer build from completing](https://github.com/aws-samples/amazon-eks-custom-amis/issues/51).
 
+Because this builds a custom AMI based on a specific version of an image, you must periodically rebuild the custom AMI to keep current with the latest security patches and upgrades.
+
 ##### Terraform: Use a custom EKS AMI
 
-Now you can set the custom EKS AMI.
-
-1. In `environment.tf`, add `eks_ami_id = var.eks_ami_id` so you can pass this variable to the
-   AWS reference architecture module. For example, in
-   `gitlab-environment-toolkit/terraform/environments/gitlab-10k/inventory/environment.tf`:
-
-   ```tf
-   module "gitlab_ref_arch_aws" {
-     source = "../../modules/gitlab_ref_arch_aws"
-
-     prefix = var.prefix
-     ami_id = data.aws_ami.ubuntu_20_04_fips[0].id
-     eks_ami_id = var.eks_ami_id
-     ....
-   ```
-
-1. In `variables.tf`, define a `eks_ami_id` with the AMI ID in the
-   previous step:
-
-   ```tf
-   variable "eks_ami_id" {
-     default = "ami-0a25e760cd00b027e"
-   }
-   ```
+GitLab team members can view more information in this internal handbook page on how to use a custom EKS AMI:
+`https://internal.gitlab.com/handbook/engineering/fedramp-compliance/get-configure/#terraform---use-a-custom-eks-ami`
 
 ##### Ansible: Use UBI images
 
-CNG uses a Helm Chart to manage which container images to deploy. By default, GET
-deploys the latest released versions that use Debian-based containers.
-
-To switch to UBI-based containers, edit the Ansible `vars.yml` to use custom
+CNG uses a Helm Chart to manage which container images to deploy. To use UBI-based containers, edit the Ansible `vars.yml` to use custom
 Charts variables:
 
 ```yaml
@@ -274,104 +202,55 @@ all:
     gitlab_charts_custom_config_file: '/path/to/gitlab-environment-toolkit/ansible/environments/gitlab-10k/inventory/charts.yml'
 ```
 
-Now create `charts.yml` in the location specified above and specify tags with a `-fips` suffix. For example:
+Now create `charts.yml` in the location specified above and specify tags with a `-fips` suffix.
 
-```yaml
-global:
-  image:
-    pullPolicy: Always
-  certificates:
-    image:
-      tag: master-fips
-  kubectl:
-    image:
-      tag: master-fips
-
-gitlab:
-  gitaly:
-    image:
-      tag: master-fips
-  gitlab-exporter:
-    image:
-      tag: master-fips
-  gitlab-shell:
-    image:
-      tag: main-fips # The default branch is main, not master
-  gitlab-mailroom:
-    image:
-      tag: master-fips
-  gitlab-pages:
-    image:
-      tag: master-fips
-  migrations:
-    image:
-      tag: master-fips
-  sidekiq:
-    image:
-      tag: master-fips
-  toolbox:
-    image:
-      tag: master-fips
-  webservice:
-    image:
-      tag: master-fips
-    workhorse:
-      tag: master-fips
-
-nginx-ingress:
-  controller:
-    image:
-      repository: registry.gitlab.com/gitlab-org/cloud-native/charts/gitlab-ingress-nginx/controller
-      tag: v1.2.1-fips
-      pullPolicy: Always
-      digest: sha256:c4222b7ab3836b9be2a7649cff4b2e6ead34286dfdf3a7b04eb34fdd3abb0334
-```
-
-The above example shows a FIPS-enabled [`nginx-ingress`](https://github.com/kubernetes/ingress-nginx) image.
-See our [Charts documentation on FIPS](https://docs.gitlab.com/charts/advanced/fips/index.html) for more details.
+See our [Charts documentation on FIPS](https://docs.gitlab.com/charts/advanced/fips/index.html) for more details, including
+an [example values file](https://gitlab.com/gitlab-org/charts/gitlab/blob/master/examples/fips/values.yaml) as a reference.
 
 You can also use release tags, but the versioning is tricky because each
 component may use its own versioning scheme. For example, for GitLab v15.2:
 
 ```yaml
 global:
+  image:
+    tagSuffix: -fips
   certificates:
     image:
-      tag: 20211220-r0-fips
+      tag: 20211220-r0
   kubectl:
     image:
-      tag: 1.18.20-fips
+      tag: 1.18.20
 
 gitlab:
   gitaly:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
   gitlab-exporter:
     image:
-      tag: 11.17.1-fips
+      tag: 11.17.1
   gitlab-shell:
     image:
-      tag: v14.9.0-fips
+      tag: v14.9.0
   gitlab-mailroom:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
   gitlab-pages:
     image:
-      tag: v1.61.0-fips
+      tag: v1.61.0
   migrations:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
   sidekiq:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
   toolbox:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
   webservice:
     image:
-      tag: v15.2.0-fips
+      tag: v15.2.0
     workhorse:
-      tag: v15.2.0-fips
+      tag: v15.2.0
 ```
 
 ## FIPS Performance Benchmarking
@@ -495,7 +374,7 @@ irb(main):001:0> require 'openssl'; OpenSSL.fips_mode
 
 ### Go
 
-Google maintains a [`dev.boringcrypto` branch](https://github.com/golang/go/tree/dev.boringcrypto) in the Golang compiler
+Google maintains a [`dev.boringcrypto` branch](https://github.com/golang/go/tree/dev.boringcrypto) in the Go compiler
 that makes it possible to statically link BoringSSL, a FIPS-validated module forked from OpenSSL.
 However, BoringSSL is not intended for public use.
 

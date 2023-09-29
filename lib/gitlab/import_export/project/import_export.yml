@@ -44,6 +44,7 @@ tree:
       - :zoom_meetings
       - :sentry_issue
       - :award_emoji
+      - :work_item_type
     - snippets:
       - :award_emoji
       - notes:
@@ -115,7 +116,6 @@ tree:
     - :project_badges
     - :ci_cd_settings
     - :error_tracking_setting
-    - :metrics_setting
     - boards:
       - lists:
         - label:
@@ -155,10 +155,6 @@ included_attributes:
     - :group_runners_enabled
     - :runner_token_expiration_interval
     - :default_git_depth
-  metrics_setting:
-    - :dashboard_timezone
-    - :external_dashboard_url
-    - :project_id
   project_badges:
     - :created_at
     - :image_url
@@ -173,7 +169,6 @@ included_attributes:
     - :cron_timezone
     - :description
     - :next_run_at
-    - :owner_id
     - :project_id
     - :ref
     - :updated_at
@@ -321,6 +316,7 @@ included_attributes:
     - :feature_flags_access_level
     - :releases_access_level
     - :infrastructure_access_level
+    - :model_experiments_access_level
   prometheus_metrics:
     - :created_at
     - :updated_at
@@ -376,7 +372,6 @@ included_attributes:
     - :updated_by_id
     - :merge_error
     - :merge_params
-    - :merge_when_pipeline_succeeds
     - :merge_user_id
     - :merge_commit_sha
     - :squash_commit_sha
@@ -741,6 +736,7 @@ included_attributes:
     - :feature_flags_access_level
     - :releases_access_level
     - :infrastructure_access_level
+    - :model_experiments_access_level
     - :auto_devops_deploy_strategy
     - :auto_devops_enabled
     - :container_registry_enabled
@@ -769,6 +765,8 @@ included_attributes:
     - :source_commit
     - :close_after_error_tracking_resolve
     - :close_auto_resolve_prometheus_alert
+  work_item_type:
+    - :base_type
 
 # Do not include the following attributes for the models specified.
 excluded_attributes:
@@ -979,9 +977,11 @@ excluded_attributes:
   notes:
     - :noteable_id
     - :review_id
+    - :namespace_id
   commit_notes:
     - :noteable_id
     - :review_id
+    - :namespace_id
   label_links:
     - :label_id
     - :target_id
@@ -1099,6 +1099,15 @@ excluded_attributes:
     - :roll_over
     - :description
     - :sequence
+  work_item_type:
+    - :id
+    - :cached_markdown_version
+    - :name
+    - :description
+    - :description_html
+    - :icon_name
+    - :namespace_id
+    - :updated_at
 
 methods:
   project:
@@ -1195,6 +1204,9 @@ ee:
         - :milestone
         - lists:
           - :milestone
+      - approval_rules:
+        - :approval_project_rules_protected_branches
+        - :approval_project_rules_users
 
   included_attributes:
     issuable_sla:
@@ -1260,9 +1272,30 @@ ee:
       - :description
     iterations_cadence:
       - :title
+    approval_rules:
+      - :approvals_required
+      - :name
+      - :rule_type
+      - :scanners
+      - :vulnerabilities_allowed
+      - :severity_levels
+      - :report_type
+      - :vulnerability_states
+      - :orchestration_policy_idx
+      - :applies_to_all_protected_branches
+    approval_project_rules_protected_branches:
+      - :protected_branch
+    approval_project_rules_users:
+      - :user_id
   excluded_attributes:
     project:
       - :vulnerability_hooks_integrations
+    approval_rules:
+      - :created_at
+      - :updated_at
+  methods:
+    approval_project_rules_protected_branches:
+      - :branch_name
   preloads:
     issues:
       epic:

@@ -7,7 +7,6 @@ import {
   GlTokenSelector,
   GlFormCombobox,
 } from '@gitlab/ui';
-import { mapState } from 'vuex';
 import { i18n } from '../constants';
 
 export default {
@@ -37,9 +36,11 @@ export default {
       type: Boolean,
       required: true,
     },
-  },
-  computed: {
-    ...mapState(['availableStages']),
+    availableStages: {
+      type: Array,
+      required: true,
+      default: () => [],
+    },
   },
 };
 </script>

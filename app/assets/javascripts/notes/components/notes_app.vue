@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapGetters, mapActions } from 'vuex';
 import highlightCurrentUser from '~/behaviors/markdown/highlight_current_user';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
@@ -35,6 +36,7 @@ export default {
     SidebarSubscription,
     DraftNote,
     TimelineEntryItem,
+    AiSummary: () => import('ee_component/notes/components/ai_summary.vue'),
   },
   mixins: [glFeatureFlagsMixin()],
   props: {
@@ -70,6 +72,8 @@ export default {
     return {
       currentFilter: null,
       renderSkeleton: !this.shouldShow,
+      aiLoading: null,
+      isInitialEventTriggered: false,
     };
   },
   computed: {
@@ -165,7 +169,6 @@ export default {
     });
   },
   beforeDestroy() {
-    this.stopPolling();
     window.removeEventListener('hashchange', this.handleHashChanged);
     eventHub.$off('notesApp.updateIssuableConfidentiality', this.setConfidentiality);
   },
@@ -178,7 +181,6 @@ export default {
       'expandDiscussion',
       'startTaskList',
       'convertToDiscussion',
-      'stopPolling',
       'setConfidentiality',
       'fetchNotes',
     ]),
@@ -211,6 +213,9 @@ export default {
         .then(this.$nextTick)
         .then(() => eventHub.$emit('startReplying', discussionId));
     },
+    setAiLoading(loading) {
+      this.aiLoading = loading;
+    },
   },
   systemNote: constants.SYSTEM_NOTE,
 };
@@ -219,7 +224,13 @@ export default {
 <template>
   <div v-show="shouldShow" id="notes">
     <sidebar-subscription :iid="noteableData.iid" :noteable-data="noteableData" />
-    <notes-activity-header :notes-filters="notesFilters" :notes-filter-value="notesFilterValue" />
+    <notes-activity-header
+      :notes-filters="notesFilters"
+      :notes-filter-value="notesFilterValue"
+      :ai-loading="aiLoading"
+      @set-ai-loading="setAiLoading"
+    />
+    <ai-summary v-if="aiLoading !== null" :ai-loading="aiLoading" @set-ai-loading="setAiLoading" />
     <ordered-layout :slot-keys="slotKeys">
       <template #form>
         <comment-form

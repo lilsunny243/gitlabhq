@@ -4,16 +4,16 @@ module Gitlab
   module Metrics
     class RequestsRackMiddleware
       HTTP_METHODS = {
-        "delete" => %w(200 202 204 303 400 401 403 404 500 503),
-        "get" => %w(200 204 301 302 303 304 307 400 401 403 404 410 422 429 500 503),
-        "head" => %w(200 204 301 302 303 401 403 404 410 500),
-        "options" => %w(200 404),
-        "patch" => %w(200 202 204 400 403 404 409 416 500),
-        "post" => %w(200 201 202 204 301 302 303 304 400 401 403 404 406 409 410 412 422 429 500 503),
-        "put" => %w(200 202 204 400 401 403 404 405 406 409 410 422 500)
+        "delete" => %w[200 202 204 303 400 401 403 404 500 503],
+        "get" => %w[200 204 301 302 303 304 307 400 401 403 404 410 422 429 500 503],
+        "head" => %w[200 204 301 302 303 401 403 404 410 500],
+        "options" => %w[200 404],
+        "patch" => %w[200 202 204 400 403 404 409 416 500],
+        "post" => %w[200 201 202 204 301 302 303 304 400 401 403 404 406 409 410 412 422 429 500 503],
+        "put" => %w[200 202 204 400 401 403 404 405 406 409 410 422 500]
       }.freeze
 
-      HEALTH_ENDPOINT = %r{^/-/(liveness|readiness|health|metrics)/?$}.freeze
+      HEALTH_ENDPOINT = %r{^/-/(liveness|readiness|health|metrics)/?$}
 
       FEATURE_CATEGORY_DEFAULT = ::Gitlab::FeatureCategories::FEATURE_CATEGORY_DEFAULT
       ENDPOINT_MISSING = 'unknown'
@@ -22,7 +22,7 @@ module Gitlab
       # reasonable default. If we initialize every category we'll end up
       # with an explosion in unused metric combinations, but we want the
       # most common ones to be always present.
-      FEATURE_CATEGORIES_TO_INITIALIZE = ['authentication_and_authorization',
+      FEATURE_CATEGORIES_TO_INITIALIZE = ['system_access',
                                           'code_review_workflow', 'continuous_integration',
                                           'not_owned', 'source_code_management',
                                           FEATURE_CATEGORY_DEFAULT].freeze

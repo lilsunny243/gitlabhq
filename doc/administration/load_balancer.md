@@ -31,18 +31,18 @@ Configure your load balancers to pass connections on port 443 as 'TCP' rather
 than 'HTTP(S)' protocol. This passes the connection to the application nodes
 NGINX service untouched. NGINX has the SSL certificate and listen on port 443.
 
-See the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+See the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html)
 for details on managing SSL certificates and configuring NGINX.
 
 ### Load Balancers terminate SSL without backend SSL
 
 Configure your load balancers to use the `HTTP(S)` protocol rather than `TCP`.
-The load balancers is be responsible for managing SSL certificates and
+The load balancers are responsible for managing SSL certificates and
 terminating SSL.
 
 Because communication between the load balancers and GitLab isn't secure,
 there is some additional configuration needed. See the
-[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination)
+[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination)
 for details.
 
 ### Load Balancers terminate SSL with backend SSL
@@ -55,7 +55,7 @@ Traffic is secure between the load balancers and NGINX in this
 scenario. There is no need to add configuration for proxied SSL because the
 connection is secure all the way. However, configuration must be
 added to GitLab to configure SSL certificates. See
-the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html)
 for details on managing SSL certificates and configuring NGINX.
 
 ## Ports
@@ -113,7 +113,7 @@ Configure DNS for an alternate SSH hostname such as `altssh.gitlab.example.com`.
 
 ## Readiness check
 
-It is strongly recommend that multi-node deployments configure load balancers to use the [readiness check](../user/admin_area/monitoring/health_check.md#readiness) to ensure a node is ready to accept traffic, before routing traffic to it. This is especially important when utilizing Puma, as there is a brief period during a restart where Puma doesn't accept requests.
+It is strongly recommend that multi-node deployments configure load balancers to use the [readiness check](../administration/monitoring/health_check.md#readiness) to ensure a node is ready to accept traffic, before routing traffic to it. This is especially important when using Puma, because there is a brief period during a restart where Puma doesn't accept requests.
 
 WARNING:
 Using the `all=1` parameter with the readiness check in GitLab versions 15.4 to 15.8 may cause [increased Praefect memory usage](https://gitlab.com/gitlab-org/gitaly/-/issues/4751) and lead to memory errors.
@@ -131,5 +131,5 @@ The default ciphers for a GitLab version can be
 viewed in the [`files/gitlab-cookbooks/gitlab/attributes/default.rb`](https://gitlab.com/gitlab-org/omnibus-gitlab/-/blob/master/files/gitlab-cookbooks/gitlab/attributes/default.rb)
 file and selecting the Git tag that correlates with your target GitLab version
 (for example `15.0.5+ee.0`). If required by your load balancer, you can then define
-[custom SSL ciphers](https://docs.gitlab.com/omnibus/settings/ssl.html#use-custom-ssl-ciphers)
+[custom SSL ciphers](https://docs.gitlab.com/omnibus/settings/ssl/index.html#use-custom-ssl-ciphers)
 for NGINX.

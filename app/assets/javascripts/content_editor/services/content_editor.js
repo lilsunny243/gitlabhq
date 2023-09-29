@@ -1,14 +1,28 @@
 /* eslint-disable no-underscore-dangle */
 export class ContentEditor {
-  constructor({ tiptapEditor, serializer, deserializer, assetResolver, eventHub }) {
+  constructor({
+    tiptapEditor,
+    serializer,
+    deserializer,
+    assetResolver,
+    eventHub,
+    drawioEnabled,
+    codeSuggestionsConfig,
+  }) {
     this._tiptapEditor = tiptapEditor;
     this._serializer = serializer;
     this._deserializer = deserializer;
     this._eventHub = eventHub;
     this._assetResolver = assetResolver;
     this._pristineDoc = null;
+
+    this.codeSuggestionsConfig = codeSuggestionsConfig;
+    this.drawioEnabled = drawioEnabled;
   }
 
+  /**
+   * @type {import('@tiptap/core').Editor}
+   */
   get tiptapEditor() {
     return this._tiptapEditor;
   }
@@ -52,6 +66,10 @@ export class ContentEditor {
 
   resolveUrl(canonicalSrc) {
     return this._assetResolver.resolveUrl(canonicalSrc);
+  }
+
+  resolveReference(originalText) {
+    return this._assetResolver.resolveReference(originalText);
   }
 
   renderDiagram(code, language) {

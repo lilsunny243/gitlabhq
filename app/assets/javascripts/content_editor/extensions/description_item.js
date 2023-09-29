@@ -5,6 +5,14 @@ export default Node.create({
   content: 'block+',
   defining: true,
 
+  addOptions() {
+    return {
+      HTMLAttributes: {
+        dir: 'auto',
+      },
+    };
+  },
+
   addAttributes() {
     return {
       isTerm: {
@@ -21,7 +29,9 @@ export default Node.create({
   renderHTML({ HTMLAttributes: { isTerm, ...HTMLAttributes } }) {
     return [
       'li',
-      mergeAttributes(HTMLAttributes, { class: isTerm ? 'dl-term' : 'dl-description' }),
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        class: isTerm ? 'dl-term' : 'dl-description',
+      }),
       0,
     ];
   },
@@ -29,9 +39,13 @@ export default Node.create({
   addKeyboardShortcuts() {
     return {
       Enter: () => {
+        if (!this.editor.isActive('descriptionItem')) return false;
+
         return this.editor.commands.splitListItem('descriptionItem');
       },
       Tab: () => {
+        if (!this.editor.isActive('descriptionItem')) return false;
+
         const { isTerm } = this.editor.getAttributes('descriptionItem');
         if (isTerm)
           return this.editor.commands.updateAttributes('descriptionItem', { isTerm: !isTerm });
@@ -39,6 +53,8 @@ export default Node.create({
         return false;
       },
       'Shift-Tab': () => {
+        if (!this.editor.isActive('descriptionItem')) return false;
+
         const { isTerm } = this.editor.getAttributes('descriptionItem');
         if (isTerm) return this.editor.commands.liftListItem('descriptionItem');
 

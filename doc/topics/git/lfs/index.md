@@ -3,34 +3,45 @@ stage: Create
 group: Source Code
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
-disqus_identifier: 'https://docs.gitlab.com/ee/workflow/lfs/lfs/index.html'
 ---
 
-# Git Large File Storage (LFS) **(FREE)**
+# Git Large File Storage (LFS) **(FREE ALL)**
 
 Managing large files such as audio, video and graphics files has always been one
 of the shortcomings of Git. The general recommendation is to not have Git repositories
 larger than 1 GB to preserve performance.
 
-![Git LFS tracking status](img/lfs-icon.png)
-
-Files tracked by Git LFS display an icon to indicate if the file is stored as a
-blob or an LFS pointer.
-
-## How it works
-
-Git LFS client communicates with the GitLab server over HTTPS. It uses HTTP Basic Authentication
+Your Git LFS client communicates with the GitLab server over HTTPS. It uses HTTP Basic authentication
 to authorize client requests. After the request is authorized, Git LFS client receives
-instructions from where to fetch or where to push the large file.
+instructions on where to fetch or where to push the large file.
 
-## GitLab server configuration
+In the repository view, files tracked by Git LFS display an **LFS** badge next to the filename:
 
-Documentation for GitLab instance administrators is under [LFS administration doc](../../../administration/lfs/index.md).
+![Git LFS tracking status](img/lfs_badge_v16_0.png)
 
-## Requirements
+## Configure your GitLab server for Git LFS **(FREE SELF)**
 
-- Git LFS must be [enabled in project settings](../../../user/project/settings/index.md#configure-project-visibility-features-and-permissions).
-- [Git LFS client](https://git-lfs.com/) version 1.0.1 or higher must be installed.
+To install Git LFS on your self-managed GitLab server, see
+[GitLab Git Large File Storage (LFS) Administration](../../../administration/lfs/index.md).
+
+## Enable Git LFS for a project
+
+Prerequisites:
+
+- You must have at least the Developer role in the project.
+
+To do this:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
+1. Expand the **Visibility, project features, permissions** section.
+1. Turn on the **Git Large File Storage (LFS)** toggle.
+1. Select **Save changes**.
+
+## Install the Git LFS client locally
+
+Install the [Git LFS client](https://github.com/git-lfs/git-lfs) appropriate for
+your operating system. GitLab requires version 1.0.1 or later of the Git LFS client.
 
 ## Known limitations
 
@@ -288,3 +299,23 @@ You might choose to do this if you are using an appliance like a Nexus Repositor
 GitLab can't verify LFS objects. Pushes then fail if you have GitLab LFS support enabled.
 
 To stop push failure, LFS support can be disabled in the [Project settings](../../../user/project/settings/index.md), which also disables GitLab LFS value-adds (Verifying LFS objects, UI integration for LFS).
+
+### I/O timeout when pushing LFS objects
+
+You might get an error that states:
+
+```shell
+LFS: Put "http://your-instance.com/root/project.git/gitlab-lfs/objects/cc29e205d04a4062d0fb131700e8bfc8e54c44d0176a8dca22f40b24ef26d325/15": read tcp your-instance-ip:54544->your-instance-ip:443: i/o timeout
+error: failed to push some refs to 'ssh://your-instance.com:2222/root/project.git'
+```
+
+When network conditions are unstable, the Git LFS client might time out when trying to upload files
+if network conditions are unstable.
+
+The workaround is to set the client activity timeout a higher value.
+
+For example, to set the timeout to 60 seconds:
+
+```shell
+git config lfs.activitytimeout 60
+```

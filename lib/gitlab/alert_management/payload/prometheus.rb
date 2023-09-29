@@ -7,32 +7,32 @@ module Gitlab
       class Prometheus < Base
         extend Gitlab::Utils::Override
 
-        attribute :alert_markdown, paths: %w(annotations gitlab_incident_markdown)
+        attribute :alert_markdown, paths: %w[annotations gitlab_incident_markdown]
         attribute :annotations, paths: 'annotations'
-        attribute :description, paths: %w(annotations description)
+        attribute :description, paths: %w[annotations description]
         attribute :ends_at, paths: 'endsAt', type: :time
-        attribute :environment_name, paths: %w(labels gitlab_environment_name)
-        attribute :generator_url, paths: %w(generatorURL)
+        attribute :environment_name, paths: %w[labels gitlab_environment_name]
+        attribute :generator_url, paths: %w[generatorURL]
         attribute :gitlab_y_label,
-                  paths: [%w(annotations gitlab_y_label),
-                          %w(annotations title),
-                          %w(annotations summary),
-                          %w(labels alertname)]
-        attribute :runbook, paths: %w(annotations runbook)
+                  paths: [%w[annotations gitlab_y_label],
+                          %w[annotations title],
+                          %w[annotations summary],
+                          %w[labels alertname]]
+        attribute :runbook, paths: %w[annotations runbook]
         attribute :starts_at,
                   paths: 'startsAt',
                   type: :time,
                   fallback: -> { Time.current.utc }
         attribute :status, paths: 'status'
         attribute :title,
-                  paths: [%w(annotations title),
-                          %w(annotations summary),
-                          %w(labels alertname)]
+                  paths: [%w[annotations title],
+                          %w[annotations summary],
+                          %w[labels alertname]]
         attribute :starts_at_raw,
-                  paths: [%w(startsAt)]
+                  paths: [%w[startsAt]]
         private :starts_at_raw
 
-        attribute :severity_raw, paths: %w(labels severity)
+        attribute :severity_raw, paths: %w[labels severity]
         private :severity_raw
 
         METRIC_TIME_WINDOW = 30.minutes
@@ -78,20 +78,12 @@ module Gitlab
         rescue URI::InvalidURIError, KeyError
         end
 
-        def metrics_dashboard_url
-          return unless environment && full_query && title
-
-          metrics_dashboard_project_environment_url(
-            project,
-            environment,
-            embed_json: dashboard_json,
-            embedded: true,
-            **alert_embed_window_params
-          )
-        end
-
         def has_required_attributes?
           project && title && starts_at_raw
+        end
+
+        def source
+          integration&.name || monitoring_tool
         end
 
         private
@@ -104,30 +96,9 @@ module Gitlab
         def plain_gitlab_fingerprint
           [starts_at_raw, title, full_query].join('/')
         end
-
-        # Formatted for parsing by JS
-        def alert_embed_window_params
-          {
-            start: (starts_at - METRIC_TIME_WINDOW).utc.strftime('%FT%TZ'),
-            end: (starts_at + METRIC_TIME_WINDOW).utc.strftime('%FT%TZ')
-          }
-        end
-
-        def dashboard_json
-          {
-            panel_groups: [{
-              panels: [{
-                type: 'area-chart',
-                title: title,
-                y_label: gitlab_y_label,
-                metrics: [{
-                  query_range: full_query
-                }]
-              }]
-            }]
-          }.to_json
-        end
       end
     end
   end
 end
+
+Gitlab::AlertManagement::Payload::Prometheus.prepend_mod

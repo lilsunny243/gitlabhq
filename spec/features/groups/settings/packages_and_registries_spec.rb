@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe 'Group Package and registry settings', feature_category: :package_registry do
   include WaitForRequests
 
-  let(:user) { create(:user) }
+  let(:user) { create(:user, :no_super_sidebar) }
   let(:group) { create(:group) }
   let(:sub_group) { create(:group, parent: group) }
 
@@ -54,6 +54,15 @@ RSpec.describe 'Group Package and registry settings', feature_category: :package
 
       sidebar = find('.nav-sidebar')
       expect(sidebar).to have_link _('Packages and registries')
+    end
+
+    it 'passes axe automated accessibility testing', :js do
+      visit_settings_page
+
+      wait_for_requests
+
+      expect(page).to be_axe_clean.within('[data-testid="packages-and-registries-group-settings"]')
+                                  .skipping :'link-in-text-block'
     end
 
     it 'has a Duplicate packages section', :js do

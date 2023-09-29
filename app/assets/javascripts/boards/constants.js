@@ -1,16 +1,27 @@
 import boardListsQuery from 'ee_else_ce/boards/graphql/board_lists.query.graphql';
 import { TYPE_EPIC, TYPE_ISSUE, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import { s__, __ } from '~/locale';
+import { TYPENAME_ISSUE } from '~/graphql_shared/constants';
 import updateEpicSubscriptionMutation from '~/sidebar/queries/update_epic_subscription.mutation.graphql';
 import updateEpicTitleMutation from '~/sidebar/queries/update_epic_title.mutation.graphql';
+import createBoardListMutation from './graphql/board_list_create.mutation.graphql';
 import destroyBoardListMutation from './graphql/board_list_destroy.mutation.graphql';
 import updateBoardListMutation from './graphql/board_list_update.mutation.graphql';
 
+import toggleListCollapsedMutation from './graphql/client/board_toggle_collapsed.mutation.graphql';
 import issueSetSubscriptionMutation from './graphql/issue_set_subscription.mutation.graphql';
 import issueSetTitleMutation from './graphql/issue_set_title.mutation.graphql';
+import issueMoveListMutation from './graphql/issue_move_list.mutation.graphql';
+import issueCreateMutation from './graphql/issue_create.mutation.graphql';
 import groupBoardQuery from './graphql/group_board.query.graphql';
 import projectBoardQuery from './graphql/project_board.query.graphql';
 import listIssuesQuery from './graphql/lists_issues.query.graphql';
+import listDeferredQuery from './graphql/board_lists_deferred.query.graphql';
+
+export const BoardType = {
+  project: 'project',
+  group: 'group',
+};
 
 export const ListType = {
   assignee: 'assignee',
@@ -65,9 +76,27 @@ export const listsQuery = {
   },
 };
 
+export const listsDeferredQuery = {
+  [TYPE_ISSUE]: {
+    query: listDeferredQuery,
+  },
+};
+
+export const createListMutations = {
+  [TYPE_ISSUE]: {
+    mutation: createBoardListMutation,
+  },
+};
+
 export const updateListQueries = {
   [TYPE_ISSUE]: {
     mutation: updateBoardListMutation,
+  },
+};
+
+export const toggleCollapsedMutations = {
+  [TYPE_ISSUE]: {
+    mutation: toggleListCollapsedMutation,
   },
 };
 
@@ -98,6 +127,31 @@ export const subscriptionQueries = {
 export const listIssuablesQueries = {
   [TYPE_ISSUE]: {
     query: listIssuesQuery,
+    moveMutation: issueMoveListMutation,
+    createMutation: issueCreateMutation,
+    optimisticResponse: {
+      assignees: { nodes: [], __typename: 'UserCoreConnection' },
+      confidential: false,
+      dueDate: null,
+      emailsDisabled: false,
+      hidden: false,
+      humanTimeEstimate: null,
+      humanTotalTimeSpent: null,
+      id: 'gid://gitlab/Issue/-1',
+      iid: '-1',
+      labels: { nodes: [], __typename: 'LabelConnection' },
+      milestone: null,
+      referencePath: '',
+      relativePosition: null,
+      severity: 'UNKNOWN',
+      timeEstimate: 0,
+      title: '',
+      totalTimeSpent: 0,
+      type: 'ISSUE',
+      webUrl: '',
+      weight: null,
+      __typename: TYPENAME_ISSUE,
+    },
   },
 };
 
@@ -130,6 +184,7 @@ export const MilestoneFilterType = {
   started: 'Started',
   upcoming: 'Upcoming',
 };
+/* eslint-enable @gitlab/require-i18n-strings */
 
 export const DraggableItemTypes = {
   card: 'card',
@@ -164,3 +219,5 @@ export const BOARD_CARD_MOVE_TO_POSITIONS_OPTIONS = [
     action: () => {},
   },
 ];
+
+export const GroupByParamType = {};

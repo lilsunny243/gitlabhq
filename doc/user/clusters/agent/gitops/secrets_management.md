@@ -1,10 +1,14 @@
 ---
-stage: Configure
-group: Configure
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Managing Kubernetes secrets in a GitOps workflow
+# Managing Kubernetes secrets in a GitOps workflow (deprecated)
+
+WARNING:
+This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/406545) in GitLab 16.2.
+To manage cluster resources with GitOps, you should use the [Flux integration](../../../clusters/agent/gitops.md).
 
 You should never store Kubernetes secrets in unencrypted form in a `git` repository. If you use a GitOps workflow, you can follow these steps to securely manage your secrets.
 
@@ -50,9 +54,9 @@ To deploy containers from the GitLab Container Registry, you must configure the 
 1. Generate a GitLab token with at least `read-registry` rights. The token can be either a Personal or a Project Access Token.
 1. Create a Kubernetes secret manifest YAML file. Update the values as needed:
 
-    ```shell
-    kubectl create secret docker-registry gitlab-credentials --docker-server=registry.gitlab.example.com --docker-username=<gitlab-username> --docker-password=<gitlab-token> --docker-email=<gitlab-user-email> -n <namespace> --dry-run=client -o yaml > gitlab-credentials.yaml
-    ```
+   ```shell
+   kubectl create secret docker-registry gitlab-credentials --docker-server=registry.gitlab.example.com --docker-username=<gitlab-username> --docker-password=<gitlab-token> --docker-email=<gitlab-user-email> -n <namespace> --dry-run=client -o yaml > gitlab-credentials.yaml
+   ```
 
 1. Encrypt the secret into a `SealedSecret` manifest:
 

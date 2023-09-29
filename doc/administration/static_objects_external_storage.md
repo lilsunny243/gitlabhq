@@ -1,11 +1,11 @@
 ---
 stage: Create
-group: Editor
+group: IDE
 info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference
 ---
 
-# External storage for static objects **(FREE)**
+# External storage for static objects **(FREE SELF)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/31025) in GitLab 12.3.
 
@@ -16,7 +16,8 @@ storage such as a content delivery network (CDN).
 
 To configure external storage for static objects:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand the **External storage for repository static objects** section.
 1. Enter the base URL and an arbitrary token. When you [set up external storage](#set-up-external-storage),

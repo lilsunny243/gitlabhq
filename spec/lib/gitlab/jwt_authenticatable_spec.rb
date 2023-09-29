@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::JwtAuthenticatable do
+RSpec.describe Gitlab::JwtAuthenticatable, feature_category: :system_access do
   let(:test_class) do
     Class.new do
       include Gitlab::JwtAuthenticatable
@@ -148,9 +148,9 @@ RSpec.describe Gitlab::JwtAuthenticatable do
 
       it 'returns decoded payload if issuer is correct' do
         encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
-        payload = test_class.decode_jwt(encoded_message, issuer: 'test_issuer')
+        decoded_payload = test_class.decode_jwt(encoded_message, issuer: 'test_issuer')
 
-        expect(payload[0]).to match a_hash_including('iss' => 'test_issuer')
+        expect(decoded_payload[0]).to match a_hash_including('iss' => 'test_issuer')
       end
 
       it 'raises an error when the issuer is incorrect' do
@@ -158,6 +158,38 @@ RSpec.describe Gitlab::JwtAuthenticatable do
         encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
 
         expect { test_class.decode_jwt(encoded_message, issuer: 'test_issuer') }.to raise_error(JWT::DecodeError)
+      end
+
+      it 'raises an error when the issuer is nil' do
+        payload['iss'] = nil
+        encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+        expect { test_class.decode_jwt(encoded_message, issuer: 'test_issuer') }.to raise_error(JWT::DecodeError)
+      end
+    end
+
+    context 'audience option' do
+      let(:payload) { { 'aud' => 'test_audience' } }
+
+      it 'returns decoded payload if audience is correct' do
+        encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+        decoded_payload = test_class.decode_jwt(encoded_message, audience: 'test_audience')
+
+        expect(decoded_payload[0]).to match a_hash_including('aud' => 'test_audience')
+      end
+
+      it 'raises an error when the audience is incorrect' do
+        payload['aud'] = 'somebody else'
+        encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+        expect { test_class.decode_jwt(encoded_message, audience: 'test_audience') }.to raise_error(JWT::DecodeError)
+      end
+
+      it 'raises an error when the audience is nil' do
+        payload['aud'] = nil
+        encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+        expect { test_class.decode_jwt(encoded_message, audience: 'test_audience') }.to raise_error(JWT::DecodeError)
       end
     end
 
@@ -172,9 +204,15 @@ RSpec.describe Gitlab::JwtAuthenticatable do
       end
 
       it 'raises an error if iat is invalid' do
-        encoded_message = JWT.encode(payload.merge(iat: 'wrong'), test_class.secret, 'HS256')
+        encoded_message = JWT.encode(payload.merge(iat: Time.current.to_i + 1), test_class.secret, 'HS256')
 
         expect { test_class.decode_jwt(encoded_message, iat_after: true) }.to raise_error(JWT::DecodeError)
+      end
+
+      it 'raises InvalidPayload exception if iat is a string' do
+        expect do
+          JWT.encode(payload.merge(iat: 'wrong'), test_class.secret, 'HS256')
+        end.to raise_error(JWT::InvalidPayload)
       end
 
       it 'raises an error if iat is absent' do
@@ -189,6 +227,30 @@ RSpec.describe Gitlab::JwtAuthenticatable do
           expect do
             test_class.decode_jwt(encoded_message, iat_after: Time.current - 20.seconds)
           end.to raise_error(JWT::ExpiredSignature, 'Token has expired')
+        end
+      end
+    end
+
+    context 'algorithm' do
+      context 'with default algorithm' do
+        it 'accepts a correct header' do
+          encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+          expect { test_class.decode_jwt(encoded_message) }.not_to raise_error
+        end
+      end
+
+      context 'with provided algorithm' do
+        it 'accepts a correct header' do
+          encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+          expect { test_class.decode_jwt(encoded_message, algorithm: 'HS256') }.not_to raise_error
+        end
+
+        it 'raises an error when the header is signed with the wrong algorithm' do
+          encoded_message = JWT.encode(payload, test_class.secret, 'HS256')
+
+          expect { test_class.decode_jwt(encoded_message, algorithm: 'RS256') }.to raise_error(JWT::DecodeError)
         end
       end
     end

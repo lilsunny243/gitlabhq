@@ -17,7 +17,6 @@ import UserAvatarList from '~/vue_shared/components/user_avatar/user_avatar_list
 Vue.use(VueApollo);
 
 describe('MRWidget approvals summary', () => {
-  const originalUserId = gon.current_user_id;
   let wrapper;
 
   const createComponent = (data = approvedByCurrentUser) => {
@@ -29,12 +28,6 @@ describe('MRWidget approvals summary', () => {
   };
 
   const findAvatars = () => wrapper.findComponent(UserAvatarList);
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-    gon.current_user_id = originalUserId;
-  });
 
   describe('when approved', () => {
     beforeEach(async () => {
@@ -110,6 +103,33 @@ describe('MRWidget approvals summary', () => {
 
     it('does not render avatar list', () => {
       expect(wrapper.findComponent(UserAvatarList).exists()).toBe(false);
+    });
+  });
+
+  describe('user avatars list layout', () => {
+    beforeEach(() => {
+      createComponent();
+    });
+
+    it('does not add top padding initially', () => {
+      const avatarsList = findAvatars();
+
+      expect(avatarsList.classes()).not.toContain('gl-pt-1');
+    });
+
+    it('adds some top padding when the list is expanded', async () => {
+      const avatarsList = findAvatars();
+      await avatarsList.vm.$emit('expanded');
+
+      expect(avatarsList.classes()).toContain('gl-pt-1');
+    });
+
+    it('removes the top padding when the list collapsed', async () => {
+      const avatarsList = findAvatars();
+      await avatarsList.vm.$emit('expanded');
+      await avatarsList.vm.$emit('collapsed');
+
+      expect(avatarsList.classes()).not.toContain('gl-pt-1');
     });
   });
 });

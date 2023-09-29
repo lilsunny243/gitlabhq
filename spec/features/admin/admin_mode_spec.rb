@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin mode', :js, feature_category: :not_owned do
+RSpec.describe 'Admin mode', :js, feature_category: :shared do
   include MobileHelpers
-  include Spec::Support::Helpers::Features::TopNavSpecHelpers
+  include Features::TopNavSpecHelpers
   include StubENV
 
-  let(:admin) { create(:admin) }
+  let(:admin) { create(:admin, :no_super_sidebar) }
 
   before do
     stub_env('IN_MEMORY_APPLICATION_SETTINGS', 'false')
@@ -50,7 +50,7 @@ RSpec.describe 'Admin mode', :js, feature_category: :not_owned do
 
         fill_in 'user_password', with: admin.password
 
-        click_button 'Enter Admin Mode'
+        click_button 'Enter admin mode'
 
         expect(page).to have_current_path(admin_root_path)
       end
@@ -65,7 +65,7 @@ RSpec.describe 'Admin mode', :js, feature_category: :not_owned do
 
           fill_in 'user_password', with: admin.password
 
-          click_button 'Enter Admin Mode'
+          click_button 'Enter admin mode'
 
           expect(page).to have_current_path(admin_root_path)
         end
@@ -111,7 +111,7 @@ RSpec.describe 'Admin mode', :js, feature_category: :not_owned do
           open_top_nav
 
           expect(page).to have_link(text: 'Admin', href: admin_root_path, visible: true)
-          expect(page).to have_link(text: 'Leave Admin Mode', href: destroy_admin_session_path, visible: true)
+          expect(page).to have_link(text: 'Leave admin mode', href: destroy_admin_session_path, visible: true)
         end
       end
 

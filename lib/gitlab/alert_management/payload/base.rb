@@ -33,7 +33,6 @@ module Gitlab
           :has_required_attributes?,
           :hosts,
           :metric_id,
-          :metrics_dashboard_url,
           :monitoring_tool,
           :resolved?,
           :runbook,
@@ -181,7 +180,6 @@ module Gitlab
           end
         end
 
-        # Overriden in EE::Gitlab::AlertManagement::Payload::Generic
         def value_for_paths(paths)
           target_path = paths.find { |path| payload&.dig(*path) }
 

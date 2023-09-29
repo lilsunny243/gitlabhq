@@ -5,9 +5,12 @@ require 'rake_helper'
 RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: :backup_restore do
   let(:enable_registry) { true }
   let(:backup_restore_pid_path) { "#{Rails.application.root}/tmp/backup_restore.pid" }
-  let(:backup_tasks) { %w[db repo uploads builds artifacts pages lfs terraform_state registry packages] }
+  let(:backup_tasks) do
+    %w[db repo uploads builds artifacts pages lfs terraform_state registry packages ci_secure_files]
+  end
+
   let(:backup_types) do
-    %w[db repositories uploads builds artifacts pages lfs terraform_state registry packages]
+    %w[db repositories uploads builds artifacts pages lfs terraform_state registry packages ci_secure_files]
   end
 
   def tars_glob
@@ -27,6 +30,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
       terraform_state.tar.gz
       pages.tar.gz
       packages.tar.gz
+      ci_secure_files.tar.gz
     ]
   end
 
@@ -55,6 +59,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
   after do
     FileUtils.rm(tars_glob, force: true)
     FileUtils.rm(backup_files, force: true)
+    FileUtils.rm(backup_restore_pid_path, force: true)
     FileUtils.rm_rf(backup_directories, secure: true)
     FileUtils.rm_rf('tmp/tests/public/uploads', secure: true)
   end
@@ -66,32 +71,80 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
   end
 
   describe 'lock parallel backups' do
-    using RSpec::Parameterized::TableSyntax
+    let(:progress) { $stdout }
+    let(:delete_message) { /-- Deleting backup and restore PID file/ }
+    let(:pid_file) do
+      File.open(backup_restore_pid_path, File::RDWR | File::CREAT)
+    end
 
-    context 'when a process is running' do
-      let(:pid_file) { instance_double(File) }
+    before do
+      allow(Kernel).to receive(:system).and_return(true)
+      allow(YAML).to receive(:safe_load_file).and_return({ gitlab_version: Gitlab::VERSION })
+    end
+
+    context 'when a process is running in parallel' do
+      before do
+        File.open(backup_restore_pid_path, 'wb') do |file|
+          file.write('123456')
+          file.close
+        end
+      end
 
       it 'exits the new process' do
         allow(File).to receive(:open).and_call_original
         allow(File).to receive(:open).with(backup_restore_pid_path, any_args).and_yield(pid_file)
-        allow(pid_file).to receive(:read).and_return('123456')
-        allow(pid_file).to receive(:flock).with(any_args)
+        allow(Process).to receive(:getpgid).with(123456).and_return(123456)
 
         expect { run_rake_task('gitlab:backup:create') }.to raise_error(SystemExit).and output(
-          <<~HEREDOC
+          <<~MESSAGE
             Backup and restore in progress:
-              There is a backup and restore task in progress. Please, try to run the current task once the previous one ends.
-              If there is no other process running, please remove the PID file manually: rm #{backup_restore_pid_path}
-          HEREDOC
+              There is a backup and restore task in progress (PID 123456).
+              Try to run the current task once the previous one ends.
+          MESSAGE
         ).to_stdout
       end
     end
 
-    context 'when no processes are running' do
-      let(:progress) { $stdout }
-      let(:pid_file) { instance_double(File, write: 12345) }
+    context 'when no process is running in parallel but a PID file exists' do
+      let(:rewritten_message) do
+        <<~MESSAGE
+          The PID file #{backup_restore_pid_path} exists and contains 123456, but the process is not running.
+          The PID file will be rewritten with the current process ID #{Process.pid}.
+        MESSAGE
+      end
 
-      where(:tasks_name, :rake_task) do
+      before do
+        File.open(backup_restore_pid_path, 'wb') do |file|
+          file.write('123456')
+          file.close
+        end
+      end
+
+      it 'rewrites, locks and deletes the PID file while logging a message' do
+        allow(File).to receive(:open).and_call_original
+        allow(File).to receive(:open).with(backup_restore_pid_path, any_args).and_yield(pid_file)
+        allow(Process).to receive(:getpgid).with(123456).and_raise(Errno::ESRCH)
+        allow(progress).to receive(:puts).with(delete_message).once
+        allow(progress).to receive(:puts).with(rewritten_message).once
+
+        allow_next_instance_of(::Backup::Manager) do |instance|
+          allow(instance).to receive(:run_restore_task).with('db')
+        end
+
+        expect(pid_file).to receive(:flock).with(File::LOCK_EX)
+        expect(pid_file).to receive(:flock).with(File::LOCK_UN)
+        expect(File).to receive(:delete).with(backup_restore_pid_path)
+        expect(progress).to receive(:puts).with(rewritten_message).once
+        expect(progress).to receive(:puts).with(delete_message).once
+
+        run_rake_task('gitlab:backup:db:restore')
+      end
+    end
+
+    context 'when no process is running in parallel' do
+      using RSpec::Parameterized::TableSyntax
+
+      where(:task_name, :rake_task) do
         'db'              | 'gitlab:backup:db:restore'
         'repositories'    | 'gitlab:backup:repo:restore'
         'builds'          | 'gitlab:backup:builds:restore'
@@ -106,34 +159,23 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
 
       with_them do
         before do
-          allow(Kernel).to receive(:system).and_return(true)
-          allow(YAML).to receive(:load_file).and_return({ gitlab_version: Gitlab::VERSION })
-          allow(File).to receive(:delete).with(backup_restore_pid_path).and_return(1)
           allow(File).to receive(:open).and_call_original
           allow(File).to receive(:open).with(backup_restore_pid_path, any_args).and_yield(pid_file)
-          allow(pid_file).to receive(:read).and_return('')
-          allow(pid_file).to receive(:flock).with(any_args)
-          allow(pid_file).to receive(:write).with(12345).and_return(true)
-          allow(pid_file).to receive(:flush)
+          allow(File).to receive(:delete).with(backup_restore_pid_path)
           allow(progress).to receive(:puts).at_least(:once)
 
           allow_next_instance_of(::Backup::Manager) do |instance|
-            Array(tasks_name).each do |task|
+            Array(task_name).each do |task|
               allow(instance).to receive(:run_restore_task).with(task)
             end
           end
         end
 
-        it 'locks the PID file' do
+        it 'locks and deletes the PID file while logging a message' do
           expect(pid_file).to receive(:flock).with(File::LOCK_EX)
           expect(pid_file).to receive(:flock).with(File::LOCK_UN)
-
-          run_rake_task(rake_task)
-        end
-
-        it 'deletes the PID file and logs a message' do
           expect(File).to receive(:delete).with(backup_restore_pid_path)
-          expect(progress).to receive(:puts).with(/-- Deleting backup and restore lock file/)
+          expect(progress).to receive(:puts).with(delete_message)
 
           run_rake_task(rake_task)
         end
@@ -158,7 +200,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
 
       context 'when restore matches gitlab version' do
         before do
-          allow(YAML).to receive(:load_file)
+          allow(YAML).to receive(:safe_load_file)
             .and_return({ gitlab_version: gitlab_version })
           expect_next_instance_of(::Backup::Manager) do |instance|
             backup_types.each do |subtask|
@@ -180,7 +222,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         # We only need a backup of the repositories for this test
         stub_env('SKIP', 'db,uploads,builds,artifacts,lfs,terraform_state,registry')
 
-        create(:project, :repository)
+        create(:project_with_design, :repository)
       end
 
       it 'removes stale data' do
@@ -199,7 +241,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
     end
 
     context 'when the backup is restored' do
-      let!(:included_project) { create(:project, :repository) }
+      let!(:included_project) { create(:project_with_design, :repository) }
       let!(:original_checksum) { included_project.repository.checksum }
 
       before do
@@ -212,7 +254,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         allow(Kernel).to receive(:system).and_return(true)
         allow(FileUtils).to receive(:cp_r).and_return(true)
         allow(FileUtils).to receive(:mv).and_return(true)
-        allow(YAML).to receive(:load_file)
+        allow(YAML).to receive(:safe_load_file)
           .and_return({ gitlab_version: Gitlab::VERSION })
 
         expect_next_instance_of(::Backup::Manager) do |instance|
@@ -244,7 +286,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
       allow(Ci::ApplicationRecord.connection).to receive(:reconnect!)
     end
 
-    let!(:project) { create(:project, :repository) }
+    let!(:project) { create(:project_with_design, :repository) }
 
     context 'with specific backup tasks' do
       before do
@@ -277,6 +319,8 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         expect(Gitlab::BackupLogger).to receive(:info).with(message: "Dumping container registry images ... done")
         expect(Gitlab::BackupLogger).to receive(:info).with(message: "Dumping packages ... ")
         expect(Gitlab::BackupLogger).to receive(:info).with(message: "Dumping packages ... done")
+        expect(Gitlab::BackupLogger).to receive(:info).with(message: "Dumping ci secure files ... ")
+        expect(Gitlab::BackupLogger).to receive(:info).with(message: "Dumping ci secure files ... done")
 
         backup_tasks.each do |task|
           run_rake_task("gitlab:backup:#{task}:create")
@@ -353,6 +397,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
             terraform_state.tar.gz
             registry.tar.gz
             packages.tar.gz
+            ci_secure_files.tar.gz
           ]
         )
 
@@ -367,6 +412,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         expect(tar_contents).to match('terraform_state.tar.gz')
         expect(tar_contents).to match('registry.tar.gz')
         expect(tar_contents).to match('packages.tar.gz')
+        expect(tar_contents).to match('ci_secure_files.tar.gz')
         expect(tar_contents).not_to match(%r{^.{4,9}[rwx].* (database.sql.gz|uploads.tar.gz|repositories|builds.tar.gz|
                                                              pages.tar.gz|artifacts.tar.gz|registry.tar.gz)/$})
       end
@@ -417,9 +463,9 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
 
       shared_examples 'includes repositories in all repository storages' do
         specify :aggregate_failures do
-          project_a = create(:project, :repository)
+          project_a = create(:project_with_design, :repository)
           project_snippet_a = create(:project_snippet, :repository, project: project_a, author: project_a.first_owner)
-          project_b = create(:project, :repository, repository_storage: second_storage_name)
+          project_b = create(:project_with_design, :repository, repository_storage: second_storage_name)
           project_snippet_b = create(
             :project_snippet,
             :repository,
@@ -428,7 +474,6 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
             repository_storage: second_storage_name
           )
           create(:wiki_page, container: project_a)
-          create(:design, :with_file, issue: create(:issue, project: project_a))
 
           expect { run_rake_task('gitlab:backup:create') }.to output.to_stdout_from_any_process
 
@@ -471,9 +516,9 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         end
 
         it 'includes repositories in default repository storage', :aggregate_failures do
-          project_a = create(:project, :repository)
+          project_a = create(:project_with_design, :repository)
           project_snippet_a = create(:project_snippet, :repository, project: project_a, author: project_a.first_owner)
-          project_b = create(:project, :repository, repository_storage: second_storage_name)
+          project_b = create(:project_with_design, :repository, repository_storage: second_storage_name)
           project_snippet_b = create(
             :project_snippet,
             :repository,
@@ -482,7 +527,6 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
             repository_storage: second_storage_name
           )
           create(:wiki_page, container: project_a)
-          create(:design, :with_file, issue: create(:issue, project: project_a))
 
           expect { run_rake_task('gitlab:backup:create') }.to output.to_stdout_from_any_process
 
@@ -518,7 +562,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         # We only need a backup of the repositories for this test
         stub_env('SKIP', 'db,uploads,builds,artifacts,lfs,terraform_state,registry')
 
-        create(:project, :repository)
+        create(:project_with_design, :repository)
       end
 
       it 'passes through concurrency environment variables' do
@@ -526,13 +570,14 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         stub_env('GITLAB_BACKUP_MAX_STORAGE_CONCURRENCY', 2)
 
         expect(::Backup::Repositories).to receive(:new)
-          .with(anything, strategy: anything, storages: [], paths: [])
+          .with(anything, strategy: anything, storages: [], paths: [], skip_paths: [])
           .and_call_original
         expect(::Backup::GitalyBackup).to receive(:new).with(
           anything,
           max_parallelism: 5,
           storage_parallelism: 2,
-          incremental: false
+          incremental: false,
+          server_side: false
         ).and_call_original
 
         expect { run_rake_task('gitlab:backup:create') }.to output.to_stdout_from_any_process
@@ -555,7 +600,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
     before do
       stub_env('SKIP', 'an-unknown-type,repositories,uploads,anotherunknowntype')
 
-      create(:project, :repository)
+      create(:project_with_design, :repository)
     end
 
     it "does not contain repositories and uploads" do
@@ -574,6 +619,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
           terraform_state.tar.gz
           registry.tar.gz
           packages.tar.gz
+          ci_secure_files.tar.gz
         ]
       )
 
@@ -586,6 +632,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
       expect(tar_contents).to match('pages.tar.gz')
       expect(tar_contents).to match('registry.tar.gz')
       expect(tar_contents).to match('packages.tar.gz')
+      expect(tar_contents).to match('ci_secure_files.tar.gz')
       expect(tar_contents).not_to match('repositories/')
       expect(tar_contents).to match('repositories: Not found in archive')
     end
@@ -611,7 +658,7 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
     before do
       stub_env('SKIP', 'tar')
 
-      create(:project, :repository)
+      create(:project_with_design, :repository)
     end
 
     it 'created files with backup content and no tar archive' do
@@ -630,7 +677,8 @@ RSpec.describe 'gitlab:backup namespace rake tasks', :delete, feature_category: 
         'pages.tar.gz',
         'registry.tar.gz',
         'packages.tar.gz',
-        'repositories'
+        'repositories',
+        'ci_secure_files.tar.gz'
       )
     end
 

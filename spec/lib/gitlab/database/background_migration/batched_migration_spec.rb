@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :model do
+RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :model, feature_category: :database do
   it_behaves_like 'having unique enum values'
 
   it { is_expected.to be_a Gitlab::Database::SharedModel }
@@ -45,6 +45,12 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
         batched_migration.finish!
 
         expect(batched_migration.status_name).to be :finished
+      end
+
+      it 'updates the finished_at' do
+        freeze_time do
+          expect { batched_migration.finish! }.to change(batched_migration, :finished_at).from(nil).to(Time.current)
+        end
       end
     end
   end
@@ -173,52 +179,6 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
     end
   end
 
-  describe '.active_migration' do
-    let(:connection) { Gitlab::Database.database_base_models[:main].connection }
-    let!(:migration1) { create(:batched_background_migration, :finished) }
-
-    subject(:active_migration) { described_class.active_migration(connection: connection) }
-
-    around do |example|
-      Gitlab::Database::SharedModel.using_connection(connection) do
-        example.run
-      end
-    end
-
-    context 'when there are no migrations on hold' do
-      let!(:migration2) { create(:batched_background_migration, :active) }
-      let!(:migration3) { create(:batched_background_migration, :active) }
-
-      it 'returns the first active migration according to queue order' do
-        expect(active_migration).to eq(migration2)
-      end
-    end
-
-    context 'when there are migrations on hold' do
-      let!(:migration2) { create(:batched_background_migration, :active, on_hold_until: 10.minutes.from_now) }
-      let!(:migration3) { create(:batched_background_migration, :active, on_hold_until: 2.minutes.ago) }
-
-      it 'returns the first active migration that is not on hold according to queue order' do
-        expect(active_migration).to eq(migration3)
-      end
-    end
-
-    context 'when there are migrations not available for the current connection' do
-      let!(:migration2) { create(:batched_background_migration, :active, gitlab_schema: :gitlab_not_existing) }
-      let!(:migration3) { create(:batched_background_migration, :active, gitlab_schema: :gitlab_main) }
-
-      it 'returns the first active migration that is available for the current connection' do
-        expect(active_migration).to eq(migration3)
-      end
-    end
-
-    context 'when there are no active migrations available' do
-      it 'returns nil' do
-        expect(active_migration).to eq(nil)
-      end
-    end
-  end
-
   describe '.find_executable' do
     let(:connection) { Gitlab::Database.database_base_models[:main].connection }
     let(:migration_id) { migration.id }
@@ -325,6 +285,17 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
 
     it 'returns active and paused migrations' do
       expect(described_class.queued).to contain_exactly(migration2, migration3)
+    end
+  end
+
+  describe '.finalizing' do
+    let!(:migration1) { create(:batched_background_migration, :active) }
+    let!(:migration2) { create(:batched_background_migration, :paused) }
+    let!(:migration3) { create(:batched_background_migration, :finalizing) }
+    let!(:migration4) { create(:batched_background_migration, :finished) }
+
+    it 'returns only finalizing migrations' do
+      expect(described_class.finalizing).to contain_exactly(migration3)
     end
   end
 

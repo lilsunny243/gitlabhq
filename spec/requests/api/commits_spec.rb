@@ -132,6 +132,42 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
             it_behaves_like 'project commits'
           end
 
+          context 'with author parameter' do
+            let(:params) { { author: 'Zaporozhets' } }
+
+            it 'returns only this author commits' do
+              get api(route, user), params: params
+
+              expect(response).to have_gitlab_http_status(:ok)
+
+              author_names = json_response.map { |commit| commit['author_name'] }.uniq
+
+              expect(author_names).to contain_exactly('Dmitriy Zaporozhets')
+            end
+
+            context 'when author is missing' do
+              let(:params) { { author: '' } }
+
+              it 'returns all commits' do
+                get api(route, user), params: params
+
+                expect(response).to have_gitlab_http_status(:ok)
+                expect(json_response.count).to eq(20)
+              end
+            end
+
+            context 'when author does not exists' do
+              let(:params) { { author: 'does not exist' } }
+
+              it 'returns an empty list' do
+                get api(route, user), params: params
+
+                expect(response).to have_gitlab_http_status(:ok)
+                expect(json_response).to eq([])
+              end
+            end
+          end
+
           context 'when repository does not exist' do
             let(:project) { create(:project, creator: user, path: 'my.project') }
 
@@ -249,6 +285,18 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
               end
             end
 
+            context 'when per_page is over 100' do
+              let(:per_page) { 101 }
+
+              it 'returns 100 commits (maximum)' do
+                expect(Gitlab::Git::Commit).to receive(:where).with(
+                  hash_including(ref: ref_name, limit: 100, offset: 0)
+                )
+
+                request
+              end
+            end
+
             context 'when pagination params are invalid' do
               let_it_be(:project) { create(:project, :repository) }
 
@@ -279,7 +327,7 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
 
                 where(:page, :per_page, :error_message, :status) do
                   0   | nil  | nil                               | :success
-                  -10 | nil  | nil                               | :internal_server_error
+                  -10 | nil  | nil                               | :success
                   'a' | nil | 'page is invalid'                  | :bad_request
                   nil | 0   | 'per_page has a value not allowed' | :bad_request
                   nil | -1  | nil                                | :success
@@ -295,6 +343,18 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
                     if error_message
                       expect(json_response['error']).to eq(error_message)
                     end
+                  end
+                end
+
+                context 'when per_page is below 0' do
+                  let(:per_page) { -100 }
+
+                  it 'returns 20 commits (default)' do
+                    expect(Gitlab::Git::Commit).to receive(:where).with(
+                      hash_including(ref: ref_name, limit: 20, offset: 0)
+                    )
+
+                    request
                   end
                 end
               end
@@ -401,6 +461,27 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
   describe "POST /projects/:id/repository/commits" do
     let!(:url) { "/projects/#{project_id}/repository/commits" }
 
+    context 'when unauthenticated', 'and project is public' do
+      let_it_be(:project) { create(:project, :public, :repository) }
+      let(:params) do
+        {
+          branch: 'master',
+          commit_message: 'message',
+          actions: [
+            {
+              action: 'create',
+              file_path: '/test.rb',
+              content: 'puts 8'
+            }
+          ]
+        }
+      end
+
+      it_behaves_like '401 response' do
+        let(:request) { post api(url), params: params }
+      end
+    end
+
     it 'returns a 403 unauthorized for user without permissions' do
       post api(url, guest)
 
@@ -492,13 +573,9 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
           subject
         end
 
-        it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        it_behaves_like 'internal event tracking' do
+          let(:event) { ::Gitlab::UsageDataCounters::EditorUniqueCounter::EDIT_BY_WEB_IDE }
           let(:namespace) { project.namespace.reload }
-          let(:category) { 'Gitlab::UsageDataCounters::EditorUniqueCounter' }
-          let(:action) { 'ide_edit' }
-          let(:property) { 'g_edit_by_web_ide' }
-          let(:label) { 'usage_activity_by_stage_monthly.create.action_monthly_active_users_ide_edit' }
-          let(:context) { [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name).to_context] }
         end
 
         context 'counts.web_ide_commits Snowplow event tracking' do
@@ -511,9 +588,8 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
             let(:category) { described_class.to_s }
             let(:namespace) { project.namespace.reload }
             let(:label) { 'counts.web_ide_commits' }
-            let(:feature_flag_name) { 'route_hll_to_snowplow_phase3' }
             let(:context) do
-              [Gitlab::Tracking::ServicePingContext.new(data_source: :redis, key_path: 'counts.web_ide_commits').to_context.to_json]
+              [Gitlab::Usage::MetricDefinition.context_for('counts.web_ide_commits').to_context.to_json]
             end
           end
         end
@@ -695,6 +771,62 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
                   last_commit = forked_project.repository.find_branch(valid_c_params[:branch]).dereferenced_target
                   expect(last_commit.parent_id).to eq(start_sha)
                 end
+              end
+            end
+
+            context 'when project repository access becomes restricted after being forked' do
+              let!(:fork_owner) { create(:user) }
+              let!(:forked_project) { fork_project(public_project, fork_owner, namespace: fork_owner.namespace, repository: true) }
+              let(:url) { "/projects/#{forked_project.id}/repository/commits" }
+
+              before do
+                # Restrict repository visibility of the public project
+                public_project.merge_requests_access_level = 'private'
+                public_project.builds_access_level = 'private'
+                public_project.repository_access_level = 'private'
+                public_project.save!
+
+                valid_c_params[:start_branch] = 'master'
+                valid_c_params[:branch] = 'patch'
+                valid_c_params[:start_project] = public_project.id
+              end
+
+              after do
+                # Reopen repository visibility of the public project
+                public_project.merge_requests_access_level = 'enabled'
+                public_project.repository_access_level = 'enabled'
+                public_project.builds_access_level = 'enabled'
+                public_project.save!
+              end
+
+              it 'returns a 403' do
+                post api(url, fork_owner), params: valid_c_params
+
+                expect(response).to have_gitlab_http_status(:forbidden)
+              end
+            end
+
+            context 'when fork owner has no more access to a private repository' do
+              let_it_be(:private_project) { create(:project, :private, :repository) }
+              let_it_be(:fork_owner) { create(:user) }
+              let_it_be(:fork_owner_membership) { private_project.add_developer(fork_owner) }
+              let_it_be(:forked_project) { fork_project(private_project, fork_owner, namespace: fork_owner.namespace, repository: true) }
+              let(:url) { "/projects/#{forked_project.id}/repository/commits" }
+
+              before do
+                # Restrict user from repository
+                Members::DestroyService.new(private_project.owner).execute(fork_owner_membership)
+                Sidekiq::Worker.drain_all
+
+                valid_c_params[:start_branch] = 'master'
+                valid_c_params[:branch] = 'patch'
+                valid_c_params[:start_project] = private_project.id
+              end
+
+              it 'returns a 402' do
+                post api(url, fork_owner), params: valid_c_params
+
+                expect(response).to have_gitlab_http_status(:not_found)
               end
             end
 
@@ -1564,6 +1696,16 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
 
         it_behaves_like 'ref diff'
       end
+
+      context 'when unidiff format is requested' do
+        it 'returns the diff in Unified format' do
+          get api(route, current_user), params: { unidiff: true }
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to include_limited_pagination_headers
+          expect(json_response.dig(0, 'diff')).to eq(commit.diffs.diffs.first.unidiff)
+        end
+      end
     end
   end
 
@@ -1751,7 +1893,7 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
     context 'when unauthenticated', 'and project is public' do
       let_it_be(:project) { create(:project, :public, :repository) }
 
-      it_behaves_like '403 response' do
+      it_behaves_like '401 response' do
         let(:request) { post api(route), params: { branch: 'master' } }
       end
     end
@@ -1931,7 +2073,7 @@ RSpec.describe API::Commits, feature_category: :source_code_management do
     context 'when unauthenticated', 'and project is public' do
       let_it_be(:project) { create(:project, :public, :repository) }
 
-      it_behaves_like '403 response' do
+      it_behaves_like '401 response' do
         let(:request) { post api(route), params: { branch: branch } }
       end
     end

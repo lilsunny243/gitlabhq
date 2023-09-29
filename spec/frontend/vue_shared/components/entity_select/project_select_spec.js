@@ -45,6 +45,8 @@ describe('ProjectSelect', () => {
   const findEntitySelect = () => wrapper.findComponent(EntitySelect);
   const findAlert = () => wrapper.findComponent(GlAlert);
 
+  const handleInput = jest.fn();
+
   // Helpers
   const createComponent = ({ props = {} } = {}) => {
     wrapper = mountExtended(ProjectSelect, {
@@ -59,15 +61,15 @@ describe('ProjectSelect', () => {
         GlAlert,
         EntitySelect,
       },
+      listeners: {
+        input: handleInput,
+      },
     });
   };
   const openListbox = () => findListbox().vm.$emit('shown');
 
-  beforeAll(() => {
-    gon.api_version = apiVersion;
-  });
-
   beforeEach(() => {
+    gon.api_version = apiVersion;
     mock = new MockAdapter(axios);
   });
 
@@ -100,6 +102,7 @@ describe('ProjectSelect', () => {
       ${'defaultToggleText'} | ${PROJECT_TOGGLE_TEXT}
       ${'headerText'}        | ${PROJECT_HEADER_TEXT}
       ${'clearable'}         | ${true}
+      ${'block'}             | ${false}
     `('passes the $prop prop to entity-select', ({ prop, expectedValue }) => {
       expect(findEntitySelect().props(prop)).toBe(expectedValue);
     });
@@ -137,6 +140,18 @@ describe('ProjectSelect', () => {
       await waitForPromises();
 
       expect(mock.history.get[0].params.include_subgroups).toBe(true);
+    });
+
+    it('does not include shared projects if withShared prop is false', async () => {
+      createComponent({
+        props: {
+          withShared: false,
+        },
+      });
+      openListbox();
+      await waitForPromises();
+
+      expect(mock.history.get[0].params.with_shared).toBe(false);
     });
 
     it('fetches projects globally if no group ID is provided', async () => {
@@ -244,5 +259,12 @@ describe('ProjectSelect', () => {
 
     expect(findAlert().exists()).toBe(true);
     expect(findAlert().text()).toBe(FETCH_PROJECTS_ERROR);
+  });
+
+  it('forwards events to the parent scope via `v-on="$listeners"`', () => {
+    createComponent();
+    findEntitySelect().vm.$emit('input');
+
+    expect(handleInput).toHaveBeenCalledTimes(1);
   });
 });

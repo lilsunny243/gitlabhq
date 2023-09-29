@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mount } from '@vue/test-utils';
 import FileRowExtra from '~/ide/components/file_row_extra.vue';
@@ -37,8 +38,6 @@ describe('IDE extra file row component', () => {
   };
 
   afterEach(() => {
-    wrapper.destroy();
-
     stagedFilesCount = 0;
     unstagedFilesCount = 0;
     changesCount = 0;

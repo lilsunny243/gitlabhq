@@ -10,6 +10,7 @@ RSpec.describe API::ProjectTemplates, feature_category: :source_code_management 
   let(:url_encoded_path) { "#{public_project.namespace.path}%2F#{public_project.path}" }
 
   before do
+    stub_feature_flags(remove_monitor_metrics: false)
     private_project.add_developer(developer)
   end
 
@@ -60,15 +61,6 @@ RSpec.describe API::ProjectTemplates, feature_category: :source_code_management 
       expect(response).to include_pagination_headers
       expect(response).to match_response_schema('public_api/v4/template_list')
       expect(json_response).to satisfy_one { |template| template['key'] == 'mit' }
-    end
-
-    it 'returns metrics_dashboard_ymls' do
-      get api("/projects/#{public_project.id}/templates/metrics_dashboard_ymls")
-
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(response).to include_pagination_headers
-      expect(response).to match_response_schema('public_api/v4/template_list')
-      expect(json_response).to satisfy_one { |template| template['key'] == 'Default' }
     end
 
     it 'returns issue templates' do
@@ -163,14 +155,6 @@ RSpec.describe API::ProjectTemplates, feature_category: :source_code_management 
       expect(json_response['name']).to eq('Android')
     end
 
-    it 'returns a specific metrics_dashboard_yml' do
-      get api("/projects/#{public_project.id}/templates/metrics_dashboard_ymls/Default")
-
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(response).to match_response_schema('public_api/v4/template')
-      expect(json_response['name']).to eq('Default')
-    end
-
     it 'returns a specific license' do
       get api("/projects/#{public_project.id}/templates/licenses/mit")
 
@@ -229,10 +213,6 @@ RSpec.describe API::ProjectTemplates, feature_category: :source_code_management 
 
     it_behaves_like 'accepts project paths with dots' do
       subject { get api("/projects/#{url_encoded_path}/templates/gitlab_ci_ymls/Android") }
-    end
-
-    it_behaves_like 'accepts project paths with dots' do
-      subject { get api("/projects/#{url_encoded_path}/templates/metrics_dashboard_ymls/Default") }
     end
 
     shared_examples 'path traversal attempt' do |template_type|

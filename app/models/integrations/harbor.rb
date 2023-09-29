@@ -17,14 +17,15 @@ module Integrations
 
     field :project_name,
       title: -> { s_('HarborIntegration|Harbor project name') },
-      help: -> { s_('HarborIntegration|The name of the project in Harbor.') }
+      help: -> { s_('HarborIntegration|The name of the project in Harbor.') },
+      required: true
 
     field :username,
       title: -> { s_('HarborIntegration|Harbor username') },
       required: true
 
     field :password,
-      type: 'password',
+      type: :password,
       title: -> { s_('HarborIntegration|Harbor password') },
       help: -> { s_('HarborIntegration|Password for your Harbor username.') },
       non_empty_password_title: -> { s_('HarborIntegration|Enter new Harbor password') },
@@ -62,7 +63,7 @@ module Integrations
     end
 
     def test(*_args)
-      client.ping
+      client.check_project_availability
     end
 
     def ci_variables

@@ -1,6 +1,7 @@
-import { GlButtonGroup, GlButton, GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import { GlButtonGroup, GlButton, GlCollapsibleListbox, GlListboxItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { MOCK_QUERY, MOCK_SORT_OPTIONS } from 'jest/search/mock_data';
 import GlobalSearchSort from '~/search/sort/components/app.vue';
@@ -35,18 +36,16 @@ describe('GlobalSearchSort', () => {
         ...defaultProps,
         ...props,
       },
+      stubs: {
+        GlCollapsibleListbox,
+      },
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   const findSortButtonGroup = () => wrapper.findComponent(GlButtonGroup);
-  const findSortDropdown = () => wrapper.findComponent(GlDropdown);
+  const findSortDropdown = () => wrapper.findComponent(GlCollapsibleListbox);
   const findSortDirectionButton = () => wrapper.findComponent(GlButton);
-  const findDropdownItems = () => findSortDropdown().findAllComponents(GlDropdownItem);
+  const findDropdownItems = () => findSortDropdown().findAllComponents(GlListboxItem);
   const findDropdownItemsText = () => findDropdownItems().wrappers.map((w) => w.text());
 
   describe('template', () => {
@@ -94,7 +93,7 @@ describe('GlobalSearchSort', () => {
         });
 
         it('is set correctly', () => {
-          expect(findSortDropdown().attributes('text')).toBe(value);
+          expect(findSortDropdown().props('toggleText')).toBe(value);
         });
       });
     });
@@ -121,14 +120,14 @@ describe('GlobalSearchSort', () => {
 
   describe('actions', () => {
     describe.each`
-      description       | index | value
-      ${'non-sortable'} | ${0}  | ${MOCK_SORT_OPTIONS[0].sortParam}
-      ${'sortable'}     | ${1}  | ${MOCK_SORT_OPTIONS[1].sortParam.desc}
-    `('handleSortChange', ({ description, index, value }) => {
-      describe(`when clicking a ${description} option`, () => {
+      description       | text                          | value
+      ${'non-sortable'} | ${MOCK_SORT_OPTIONS[0].title} | ${MOCK_SORT_OPTIONS[0].sortParam}
+      ${'sortable'}     | ${MOCK_SORT_OPTIONS[1].title} | ${MOCK_SORT_OPTIONS[1].sortParam.desc}
+    `('handleSortChange', ({ description, text, value }) => {
+      describe(`when selecting a ${description} option`, () => {
         beforeEach(() => {
           createComponent();
-          findDropdownItems().at(index).vm.$emit('click');
+          findSortDropdown().vm.$emit('select', text);
         });
 
         it('calls setQuery and applyQuery correctly', () => {

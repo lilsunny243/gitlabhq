@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::MergeRequests::Mergeability::DetailedMergeStatusService do
+RSpec.describe ::MergeRequests::Mergeability::DetailedMergeStatusService, feature_category: :code_review_workflow do
   subject(:detailed_merge_status) { described_class.new(merge_request: merge_request).execute }
 
   context 'when merge status is cannot_be_merged_rechecking' do
@@ -17,7 +17,19 @@ RSpec.describe ::MergeRequests::Mergeability::DetailedMergeStatusService do
     let(:merge_request) { create(:merge_request, merge_status: :preparing) }
 
     it 'returns :checking' do
-      expect(detailed_merge_status).to eq(:checking)
+      allow(merge_request.merge_request_diff).to receive(:persisted?).and_return(false)
+
+      expect(detailed_merge_status).to eq(:preparing)
+    end
+  end
+
+  context 'when merge status is preparing and merge request diff is persisted' do
+    let(:merge_request) { create(:merge_request, merge_status: :preparing) }
+
+    it 'returns :preparing' do
+      allow(merge_request.merge_request_diff).to receive(:persisted?).and_return(true)
+
+      expect(detailed_merge_status).to eq(:preparing)
     end
   end
 
@@ -57,7 +69,7 @@ RSpec.describe ::MergeRequests::Mergeability::DetailedMergeStatusService do
     end
   end
 
-  context 'when all but the ci check fails' do
+  context 'when ci check is required' do
     let(:merge_request) { create(:merge_request) }
 
     before do
@@ -66,15 +78,20 @@ RSpec.describe ::MergeRequests::Mergeability::DetailedMergeStatusService do
 
     context 'when pipeline does not exist' do
       it 'returns the failure reason' do
-        expect(detailed_merge_status).to eq(:ci_must_pass)
+        expect(detailed_merge_status).to eq(:mergeable)
       end
     end
 
     context 'when pipeline exists' do
       before do
-        create(:ci_pipeline, ci_status, merge_request: merge_request,
-                                        project: merge_request.project, sha: merge_request.source_branch_sha,
-                                        head_pipeline_of: merge_request)
+        create(
+          :ci_pipeline,
+          ci_status,
+          merge_request: merge_request,
+          project: merge_request.project,
+          sha: merge_request.source_branch_sha,
+          head_pipeline_of: merge_request
+        )
       end
 
       context 'when the pipeline is running' do

@@ -10,16 +10,22 @@ workhorse:verify:
 
 .workhorse:test:
   extends: .workhorse:rules:workhorse
-  image: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images/debian-${DEBIAN_VERSION}-ruby-${RUBY_VERSION}-golang-${GO_VERSION}:git-2.36
+  image: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images/debian-${DEBIAN_VERSION}-ruby-${RUBY_VERSION}-golang-${GO_VERSION}-rust-${RUST_VERSION}:rubygems-${RUBYGEMS_VERSION}-git-2.36-exiftool-12.60
+  services:
+    - name: redis:${REDIS_VERSION}-alpine
   variables:
     GITALY_ADDRESS: "tcp://127.0.0.1:8075"
   stage: test
   needs:
     - setup-test-env
   before_script:
+    - source scripts/utils.sh
+    - export BUNDLE_WITHOUT="${BUNDLE_WITHOUT}:default:test:puma:kerberos:metrics:omnibus:ed25519"
+    - bundle_install_script
     - go version
-    - apt-get update && apt-get -y install libimage-exiftool-perl
     - scripts/gitaly-test-build
+    - cp workhorse/config.toml.example workhorse/config.toml
+    - sed -i 's|URL.*$|URL = "redis://redis:6379"|g' workhorse/config.toml
   script:
     - make -C workhorse test
 
@@ -27,21 +33,30 @@ workhorse:test go:
   extends: .workhorse:test
   parallel:
     matrix:
-      - GO_VERSION: ["1.18", "1.19"]
+      - GO_VERSION: ["1.18", "1.19", "1.20"]
+        REDIS_VERSION: ["7.0", "6.2"]
   script:
     - make -C workhorse test-coverage
   coverage: '/\d+.\d+%/'
   artifacts:
+    expire_in: 30 days
     paths:
       - workhorse/coverage.html
 
 workhorse:test fips:
   extends: .workhorse:test
-  image: registry.gitlab.com/gitlab-org/gitlab-omnibus-builder/ubuntu_20.04_fips:4.0.0
+  parallel:
+    matrix:
+      - GO_VERSION: ["1.18", "1.19", "1.20"]
+        REDIS_VERSION: ["7.0", "6.2"]
+  image: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images/ubi-${UBI_VERSION}-ruby-${RUBY_VERSION}-golang-${GO_VERSION}-rust-${RUST_VERSION}:rubygems-${RUBYGEMS_VERSION}-git-2.36-exiftool-12.60
   variables:
     FIPS_MODE: 1
 
 workhorse:test race:
   extends: .workhorse:test
+  parallel:
+    matrix:
+      - REDIS_VERSION: ["7.0", "6.2"]
   script:
     - make -C workhorse test-race

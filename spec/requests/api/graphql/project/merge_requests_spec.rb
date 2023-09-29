@@ -226,6 +226,28 @@ RSpec.describe 'getting merge request listings nested in a project', feature_cat
     it_behaves_like 'when searching with parameters'
   end
 
+  context 'when searching by approved' do
+    let(:approved_mr) { create(:merge_request, target_project: project, source_project: project) }
+
+    before do
+      create(:approval, merge_request: approved_mr)
+    end
+
+    context 'when true' do
+      let(:search_params) { { approved: true } }
+      let(:mrs) { [approved_mr] }
+
+      it_behaves_like 'when searching with parameters'
+    end
+
+    context 'when false' do
+      let(:search_params) { { approved: false } }
+      let(:mrs) { all_merge_requests }
+
+      it_behaves_like 'when searching with parameters'
+    end
+  end
+
   context 'when requesting `approved_by`' do
     let(:search_params) { { iids: [merge_request_a.iid.to_s, merge_request_b.iid.to_s] } }
     let(:extra_iid_for_second_query) { merge_request_c.iid.to_s }
@@ -331,7 +353,7 @@ RSpec.describe 'getting merge request listings nested in a project', feature_cat
     end
 
     context 'when award emoji votes' do
-      let(:requested_fields) { [:upvotes, :downvotes] }
+      let(:requested_fields) { 'upvotes downvotes awardEmoji { nodes { name } }' }
 
       before do
         create_list(:award_emoji, 2, name: 'thumbsup', awardable: merge_request_a)
@@ -373,6 +395,28 @@ RSpec.describe 'getting merge request listings nested in a project', feature_cat
       end
 
       include_examples 'N+1 query check', skip_cached: false
+    end
+
+    context 'when requesting diffStats' do
+      let(:requested_fields) { ['diffStats { path }'] }
+
+      before do
+        create_list(:merge_request_diff, 2, merge_request: merge_request_a)
+        create_list(:merge_request_diff, 2, merge_request: merge_request_b)
+        create_list(:merge_request_diff, 2, merge_request: merge_request_c)
+      end
+
+      include_examples 'N+1 query check', skip_cached: false
+
+      context 'when each merge request diff has no head_commit_sha' do
+        before do
+          [merge_request_a, merge_request_b, merge_request_c].each do |mr|
+            mr.merge_request_diffs.update!(head_commit_sha: nil)
+          end
+        end
+
+        include_examples 'N+1 query check', skip_cached: false
+      end
     end
   end
 

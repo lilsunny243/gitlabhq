@@ -2,10 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User uses shortcuts', :js, feature_category: :projects do
-  let_it_be(:project) { create(:project, :repository) }
-
-  let(:user) { project.first_owner }
+RSpec.describe 'User uses shortcuts', :js, feature_category: :groups_and_projects do
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:project) { create(:project, :repository, namespace: user.namespace) }
 
   before do
     sign_in(user)
@@ -15,64 +14,12 @@ RSpec.describe 'User uses shortcuts', :js, feature_category: :projects do
     wait_for_requests
   end
 
-  context 'disabling shortcuts' do
-    before do
-      page.evaluate_script("localStorage.removeItem('shortcutsDisabled')")
-    end
-
-    it 'can disable shortcuts from help menu' do
-      open_modal_shortcut_keys
-      click_toggle_button
-      close_modal
-
-      open_modal_shortcut_keys
-
-      expect(page).not_to have_selector('[data-testid="modal-shortcuts"]')
-
-      page.refresh
-      open_modal_shortcut_keys
-
-      # after reload, shortcuts modal doesn't exist at all until we add it
-      expect(page).not_to have_selector('[data-testid="modal-shortcuts"]')
-    end
-
-    it 're-enables shortcuts' do
-      open_modal_shortcut_keys
-      click_toggle_button
-      close_modal
-
-      open_modal_from_help_menu
-      click_toggle_button
-      close_modal
-
-      open_modal_shortcut_keys
-      expect(find('[data-testid="modal-shortcuts"]')).to be_visible
-    end
-
-    def open_modal_shortcut_keys
-      find('body').native.send_key('?')
-    end
-
-    def open_modal_from_help_menu
-      find('.header-help-dropdown-toggle').click
-      find('button', text: 'Keyboard shortcuts').click
-    end
-
-    def click_toggle_button
-      find('.js-toggle-shortcuts .gl-toggle').click
-    end
-
-    def close_modal
-      find('.modal button[aria-label="Close"]').click
-    end
-  end
-
   context 'when navigating to the Project pages' do
-    it 'redirects to the project page' do
+    it 'redirects to the project overview page' do
       visit project_issues_path(project)
 
       find('body').native.send_key('g')
-      find('body').native.send_key('p')
+      find('body').native.send_key('o')
 
       expect(page).to have_active_navigation(project.name)
     end
@@ -155,6 +102,14 @@ RSpec.describe 'User uses shortcuts', :js, feature_category: :projects do
   end
 
   context 'when navigating to the CI/CD pages' do
+    it 'redirects to the Pipelines page' do
+      find('body').native.send_key('g')
+      find('body').native.send_key('p')
+
+      expect(page).to have_active_navigation('CI/CD')
+      expect(page).to have_active_sub_navigation('Pipelines')
+    end
+
     it 'redirects to the Jobs page' do
       find('body').native.send_key('g')
       find('body').native.send_key('j')
@@ -171,16 +126,6 @@ RSpec.describe 'User uses shortcuts', :js, feature_category: :projects do
 
       expect(page).to have_active_navigation('Deployments')
       expect(page).to have_active_sub_navigation('Environments')
-    end
-  end
-
-  context 'when navigating to the Monitor pages' do
-    it 'redirects to the Metrics page' do
-      find('body').native.send_key('g')
-      find('body').native.send_key('l')
-
-      expect(page).to have_active_navigation('Monitor')
-      expect(page).to have_active_sub_navigation('Metrics')
     end
   end
 

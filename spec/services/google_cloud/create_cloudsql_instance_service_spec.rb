@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe GoogleCloud::CreateCloudsqlInstanceService do
+RSpec.describe GoogleCloud::CreateCloudsqlInstanceService, feature_category: :deployment_management do
   let(:project) { create(:project) }
   let(:user) { create(:user) }
   let(:gcp_project_id) { 'gcp_project_120' }
@@ -28,13 +28,14 @@ RSpec.describe GoogleCloud::CreateCloudsqlInstanceService do
     it 'triggers creation of a cloudsql instance' do
       expect_next_instance_of(GoogleApi::CloudPlatform::Client) do |client|
         expected_instance_name = "gitlab-#{project.id}-postgres-8000-test-env-42"
-        expect(client).to receive(:create_cloudsql_instance)
-                            .with(gcp_project_id,
-                                  expected_instance_name,
-                                  String,
-                                  database_version,
-                                  'us-east1',
-                                  tier)
+        expect(client).to receive(:create_cloudsql_instance).with(
+          gcp_project_id,
+          expected_instance_name,
+          String,
+          database_version,
+          'us-east1',
+          tier
+        )
       end
 
       result = service.execute
@@ -74,13 +75,14 @@ RSpec.describe GoogleCloud::CreateCloudsqlInstanceService do
 
       it 'uses defined region' do
         expect_next_instance_of(GoogleApi::CloudPlatform::Client) do |client|
-          expect(client).to receive(:create_cloudsql_instance)
-                              .with(gcp_project_id,
-                                    String,
-                                    String,
-                                    database_version,
-                                    'user-defined-region',
-                                    tier)
+          expect(client).to receive(:create_cloudsql_instance).with(
+            gcp_project_id,
+            String,
+            String,
+            database_version,
+            'user-defined-region',
+            tier
+          )
         end
 
         service.execute

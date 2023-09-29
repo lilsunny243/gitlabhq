@@ -5,7 +5,7 @@ module WikiActions
   include PreviewMarkdown
   include SendsBlob
   include Gitlab::Utils::StrongMemoize
-  include RedisTracking
+  include ProductAnalyticsTracking
   extend ActiveSupport::Concern
 
   RESCUE_GIT_TIMEOUTS_IN = %w[show edit history diff pages].freeze
@@ -13,9 +13,10 @@ module WikiActions
   included do
     content_security_policy do |p|
       next if p.directives.blank?
+      next unless Gitlab::CurrentSettings.diagramsnet_enabled?
 
       default_frame_src = p.directives['frame-src'] || p.directives['default-src']
-      frame_src_values = Array.wrap(default_frame_src) | ['https://embed.diagrams.net'].compact
+      frame_src_values = Array.wrap(default_frame_src) | [Gitlab::CurrentSettings.diagramsnet_url].compact
 
       p.frame_src(*frame_src_values)
     end
@@ -46,9 +47,7 @@ module WikiActions
       end
     end
 
-    # NOTE: We want to include wiki page views in the same counter as the other
-    # Event-based wiki actions tracked through TrackUniqueEvents, so we use the same event name.
-    track_redis_hll_event :show, name: Gitlab::UsageDataCounters::TrackUniqueEvents::WIKI_ACTION.to_s
+    track_event :show, name: 'wiki_action'
 
     helper_method :view_file_button, :diff_file_html_data
 
@@ -56,6 +55,12 @@ module WikiActions
       raise exc unless RESCUE_GIT_TIMEOUTS_IN.include?(action_name)
 
       render 'shared/wikis/git_error'
+    end
+
+    rescue_from Gitlab::Git::Repository::NoRepository do
+      @error = _('Could not access the Wiki Repository at this time.')
+
+      render 'shared/wikis/empty'
     end
   end
 
@@ -115,7 +120,11 @@ module WikiActions
   def update
     return render('shared/wikis/empty') unless can?(current_user, :create_wiki, container)
 
-    response = WikiPages::UpdateService.new(container: container, current_user: current_user, params: wiki_params).execute(page)
+    response = WikiPages::UpdateService.new(
+      container: container,
+      current_user: current_user,
+      params: wiki_params
+    ).execute(page)
     @page = response.payload[:page]
 
     if response.success?

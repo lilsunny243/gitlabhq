@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Integration do
+RSpec.describe Integration, feature_category: :integrations do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be(:group) { create(:group) }
@@ -246,31 +246,41 @@ RSpec.describe Integration do
     end
   end
 
+  describe '#ci?' do
+    it 'is true when integration is a CI integration' do
+      expect(build(:jenkins_integration).ci?).to eq(true)
+    end
+
+    it 'is false when integration is not a ci integration' do
+      expect(build(:integration).ci?).to eq(false)
+    end
+  end
+
   describe '.find_or_initialize_non_project_specific_integration' do
     let!(:integration_1) { create(:jira_integration, project_id: nil, group_id: group.id) }
     let!(:integration_2) { create(:jira_integration, project: project) }
 
     it 'returns the right integration' do
-      expect(Integration.find_or_initialize_non_project_specific_integration('jira', group_id: group))
+      expect(described_class.find_or_initialize_non_project_specific_integration('jira', group_id: group))
         .to eq(integration_1)
     end
 
     it 'does not create a new integration' do
-      expect { Integration.find_or_initialize_non_project_specific_integration('redmine', group_id: group) }
-        .not_to change(Integration, :count)
+      expect { described_class.find_or_initialize_non_project_specific_integration('redmine', group_id: group) }
+        .not_to change(described_class, :count)
     end
   end
 
   describe '.find_or_initialize_all_non_project_specific' do
     shared_examples 'integration instances' do
       it 'returns the available integration instances' do
-        expect(Integration.find_or_initialize_all_non_project_specific(Integration.for_instance).map(&:to_param))
-          .to match_array(Integration.available_integration_names(include_project_specific: false))
+        expect(described_class.find_or_initialize_all_non_project_specific(described_class.for_instance).map(&:to_param))
+          .to match_array(described_class.available_integration_names(include_project_specific: false))
       end
 
       it 'does not create integration instances' do
-        expect { Integration.find_or_initialize_all_non_project_specific(Integration.for_instance) }
-          .not_to change(Integration, :count)
+        expect { described_class.find_or_initialize_all_non_project_specific(described_class.for_instance) }
+          .not_to change(described_class, :count)
       end
     end
 
@@ -282,19 +292,19 @@ RSpec.describe Integration do
       end
 
       before do
-        attrs = Integration.available_integration_types(include_project_specific: false).map do
+        attrs = described_class.available_integration_types(include_project_specific: false).map do
           integration_hash(_1)
         end
 
-        Integration.insert_all(attrs)
+        described_class.insert_all(attrs)
       end
 
       it_behaves_like 'integration instances'
 
       context 'with a previous existing integration (:mock_ci) and a new integration (:asana)' do
         before do
-          Integration.insert(integration_hash(:mock_ci))
-          Integration.delete_by(**integration_hash(:asana))
+          described_class.insert(integration_hash(:mock_ci))
+          described_class.delete_by(**integration_hash(:asana))
         end
 
         it_behaves_like 'integration instances'
@@ -826,8 +836,8 @@ RSpec.describe Integration do
     end
 
     shared_examples '#api_field_names' do
-      it 'filters out secret fields' do
-        safe_fields = %w[some_safe_field safe_field url trojan_gift api_only_field]
+      it 'filters out secret fields and conditional fields' do
+        safe_fields = %w[some_safe_field safe_field url trojan_gift api_only_field enabled_field]
 
         expect(fake_integration.new).to have_attributes(
           api_field_names: match_array(safe_fields)
@@ -839,6 +849,11 @@ RSpec.describe Integration do
       it 'filters out API only fields' do
         expect(fake_integration.new.form_fields.pluck(:name)).not_to include('api_only_field')
       end
+
+      it 'filters conditionals fields' do
+        expect(fake_integration.new.form_fields.pluck(:name)).to include('enabled_field')
+        expect(fake_integration.new.form_fields.pluck(:name)).not_to include('disabled_field', 'disabled_field_2')
+      end
     end
 
     context 'when the class overrides #fields' do
@@ -846,20 +861,24 @@ RSpec.describe Integration do
         Class.new(Integration) do
           def fields
             [
-              { name: 'token', type: 'password' },
-              { name: 'api_token', type: 'password' },
-              { name: 'token_api', type: 'password' },
-              { name: 'safe_token', type: 'password' },
-              { name: 'key', type: 'password' },
-              { name: 'api_key', type: 'password' },
-              { name: 'password', type: 'password' },
-              { name: 'password_field', type: 'password' },
+              { name: 'token', type: :password },
+              { name: 'api_token', type: :password },
+              { name: 'token_api', type: :password },
+              { name: 'safe_token', type: :password },
+              { name: 'key', type: :password },
+              { name: 'api_key', type: :password },
+              { name: 'password', type: :password },
+              { name: 'password_field', type: :password },
+              { name: 'webhook' },
               { name: 'some_safe_field' },
               { name: 'safe_field' },
               { name: 'url' },
-              { name: 'trojan_horse', type: 'password' },
-              { name: 'trojan_gift', type: 'text' },
-              { name: 'api_only_field', api_only: true }
+              { name: 'trojan_horse', type: :password },
+              { name: 'trojan_gift', type: :text },
+              { name: 'api_only_field', api_only: true },
+              { name: 'enabled_field', if: true },
+              { name: 'disabled_field', if: false },
+              { name: 'disabled_field_2', if: nil }
             ].shuffle
           end
         end
@@ -873,20 +892,24 @@ RSpec.describe Integration do
     context 'when the class uses the field DSL' do
       let(:fake_integration) do
         Class.new(described_class) do
-          field :token, type: 'password'
-          field :api_token, type: 'password'
-          field :token_api, type: 'password'
-          field :safe_token, type: 'password'
-          field :key, type: 'password'
-          field :api_key, type: 'password'
-          field :password, type: 'password'
-          field :password_field, type: 'password'
+          field :token, type: :password
+          field :api_token, type: :password
+          field :token_api, type: :password
+          field :safe_token, type: :password
+          field :key, type: :password
+          field :api_key, type: :password
+          field :password, type: :password
+          field :password_field, type: :password
+          field :webhook
           field :some_safe_field
           field :safe_field
           field :url
-          field :trojan_horse, type: 'password'
-          field :trojan_gift, type: 'text'
+          field :trojan_horse, type: :password
+          field :trojan_gift, type: :text
           field :api_only_field, api_only: true
+          field :enabled_field, if: -> { true }
+          field :disabled_field, if: -> { false }
+          field :disabled_field_2, if: -> { nil }
         end
       end
 
@@ -992,9 +1015,25 @@ RSpec.describe Integration do
   end
 
   describe '.project_specific_integration_names' do
-    specify do
-      expect(described_class.project_specific_integration_names)
-        .to include(*described_class::PROJECT_SPECIFIC_INTEGRATION_NAMES)
+    subject { described_class.project_specific_integration_names }
+
+    it { is_expected.to include(*described_class::PROJECT_SPECIFIC_INTEGRATION_NAMES) }
+    it { is_expected.to include('gitlab_slack_application') }
+
+    context 'when Rails.env is not test' do
+      before do
+        allow(Rails.env).to receive(:test?).and_return(false)
+      end
+
+      it { is_expected.not_to include('gitlab_slack_application') }
+
+      context 'when `slack_app_enabled` setting is enabled' do
+        before do
+          stub_application_setting(slack_app_enabled: true)
+        end
+
+        it { is_expected.to include('gitlab_slack_application') }
+      end
     end
   end
 
@@ -1002,9 +1041,9 @@ RSpec.describe Integration do
     it 'returns all fields with type `password`' do
       allow(subject).to receive(:fields).and_return(
         [
-          { name: 'password', type: 'password' },
-          { name: 'secret', type: 'password' },
-          { name: 'public', type: 'text' }
+          Integrations::Field.new(name: 'password', integration_class: subject.class, type: :password),
+          Integrations::Field.new(name: 'secret', integration_class: subject.class, type: :password),
+          Integrations::Field.new(name: 'public', integration_class: subject.class, type: :text)
         ])
 
       expect(subject.secret_fields).to match_array(%w[password secret])
@@ -1089,12 +1128,14 @@ RSpec.describe Integration do
         field :foo_p, storage: :properties
         field :foo_dt, storage: :data_fields
 
-        field :bar, type: 'password'
-        field :password
+        field :bar, type: :password
+        field :password, is_secret: true
+
+        field :webhook
 
         field :with_help, help: -> { 'help' }
-        field :select, type: 'select'
-        field :boolean, type: 'checkbox'
+        field :select, type: :select
+        field :boolean, type: :checkbox
       end
     end
 
@@ -1142,7 +1183,7 @@ RSpec.describe Integration do
 
     it 'registers fields in the fields list' do
       expect(integration.fields.pluck(:name)).to match_array %w[
-        foo foo_p foo_dt bar password with_help select boolean
+        foo foo_p foo_dt bar password with_help select boolean webhook
       ]
 
       expect(integration.api_field_names).to match_array %w[
@@ -1152,14 +1193,15 @@ RSpec.describe Integration do
 
     specify 'fields have expected attributes' do
       expect(integration.fields).to include(
-        have_attributes(name: 'foo', type: 'text'),
-        have_attributes(name: 'foo_p', type: 'text'),
-        have_attributes(name: 'foo_dt', type: 'text'),
-        have_attributes(name: 'bar', type: 'password'),
-        have_attributes(name: 'password', type: 'password'),
+        have_attributes(name: 'foo', type: :text),
+        have_attributes(name: 'foo_p', type: :text),
+        have_attributes(name: 'foo_dt', type: :text),
+        have_attributes(name: 'bar', type: :password),
+        have_attributes(name: 'password', type: :password),
+        have_attributes(name: 'webhook', type: :text),
         have_attributes(name: 'with_help', help: 'help'),
-        have_attributes(name: 'select', type: 'select'),
-        have_attributes(name: 'boolean', type: 'checkbox')
+        have_attributes(name: 'select', type: :select),
+        have_attributes(name: 'boolean', type: :checkbox)
       )
     end
   end
@@ -1211,7 +1253,7 @@ RSpec.describe Integration do
       context 'when using data fields' do
         let(:klass) do
           Class.new(Integration) do
-            field :project_url, storage: :data_fields, type: 'checkbox'
+            field :project_url, storage: :data_fields, type: :checkbox
 
             def data_fields
               issue_tracker_data || self.build_issue_tracker_data
@@ -1324,6 +1366,18 @@ RSpec.describe Integration do
 
     context 'when the event is not supported' do
       let(:supported_events) { %w[issue] }
+
+      it 'does not queue a worker' do
+        expect(Integrations::ExecuteWorker).not_to receive(:perform_async)
+
+        async_execute
+      end
+    end
+
+    context 'when the Gitlab::SilentMode is enabled' do
+      before do
+        allow(Gitlab::SilentMode).to receive(:enabled?).and_return(true)
+      end
 
       it 'does not queue a worker' do
         expect(Integrations::ExecuteWorker).not_to receive(:perform_async)

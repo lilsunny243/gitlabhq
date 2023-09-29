@@ -4,7 +4,7 @@ group: Static Analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Infrastructure as Code (IaC) Scanning **(FREE)**
+# Infrastructure as Code (IaC) Scanning **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/6655) in GitLab 14.5.
 
@@ -28,7 +28,7 @@ GitLab IaC Scanning analyzers don't support running on Windows or on any CPU arc
 
 WARNING:
 If you use your own runners, make sure the Docker version installed
-is **not** `19.03.0`. See [troubleshooting information](../sast/index.md#error-response-from-daemon-error-processing-tar-file-docker-tar-relocation-error) for details.
+is **not** `19.03.0`. See [troubleshooting information](../sast/troubleshooting.md#error-response-from-daemon-error-processing-tar-file-docker-tar-relocation-error) for details.
 
 ## Supported languages and frameworks
 
@@ -116,18 +116,21 @@ that you can download and analyze.
 
 ### Enable IaC Scanning via an automatic merge request
 
+NOTE:
+The **Configure with a merge request** button been temporarily disabled due to a known issue. For details, see [merge request 83757](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/83757).
+
 To enable IaC Scanning in a project, you can create a merge request:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Security and Compliance > Configuration**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Secure > Security configuration**.
 1. In the **Infrastructure as Code (IaC) Scanning** row, select **Configure with a merge request**.
 1. Review and merge the merge request to enable IaC Scanning.
 
 Pipelines now include an IaC Scanning job.
 
-## Customize rulesets **(ULTIMATE)**
+## Customize rulesets **(ULTIMATE ALL)**
 
-> [Added](https://gitlab.com/gitlab-org/gitlab/-/issues/235359) support for overriding rules in GitLab 14.8.
+> Support for overriding rules [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/235359) in GitLab 14.8.
 
 You can customize the default IaC Scanning rules provided with GitLab.
 
@@ -152,6 +155,8 @@ To disable analyzer rules:
    - A `value` field for the rule identifier. KICS rule identifiers are alphanumeric strings. To find the rule identifier, you can:
      - Find it in the [JSON report artifact](#reports-json-format).
      - Search for the rule name in the [list of KICS queries](https://docs.kics.io/latest/queries/all-queries/) and copy the alphanumeric identifier that's shown. The rule name is shown on the [Vulnerability Page](../vulnerabilities/index.md) when a rule violation is detected.
+
+After you merge the `sast-ruleset.toml` file to the default branch, existing findings for disabled rules are [automatically resolved](#automatic-vulnerability-resolution).
 
 In the following example `sast-ruleset.toml` file, the disabled rules are assigned to
 the `kics` analyzer by matching the `type` and `value` of identifiers:
@@ -243,7 +248,9 @@ kics-iac-sast:
 
 ## Automatic vulnerability resolution
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368284) in GitLab 15.9 [with a project-level flag](../../../administration/feature_flags.md) named `sec_mark_dropped_findings_as_resolved`. Enabled by default on GitLab.com; disabled by default in self-managed. On GitLab.com, [contact Support](https://about.gitlab.com/support/) if you need to disable the flag for your project.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368284) in GitLab 15.9 [with a project-level flag](../../../administration/feature_flags.md) named `sec_mark_dropped_findings_as_resolved`.
+> - Enabled by default in 15.10. On GitLab.com, [contact Support](https://about.gitlab.com/support/) if you need to disable the flag for your project.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/375128) in GitLab 16.2.
 
 To help you focus on the vulnerabilities that are still relevant, GitLab IaC Scanning automatically [resolves](../vulnerabilities/index.md#vulnerability-status-values) vulnerabilities when:
 
@@ -260,19 +267,14 @@ The IaC tool emits a JSON report file in the existing SAST report format. For mo
 [schema for this report](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/sast-report-format.json).
 
 The JSON report file can be downloaded from the CI pipelines page, or the
-pipelines tab on merge requests by [setting `artifacts: paths`](../../../ci/yaml/index.md#artifactspaths) to `gl-sast-report.json`. For more information see [Downloading artifacts](../../../ci/pipelines/job_artifacts.md).
+pipelines tab on merge requests by [setting `artifacts: paths`](../../../ci/yaml/index.md#artifactspaths) to `gl-sast-report.json`. For more information see [Downloading artifacts](../../../ci/jobs/job_artifacts.md).
 
 ## Troubleshooting
 
-### IaC debug logging
+### Debug-level logging
 
-To help troubleshoot IaC jobs, you can increase the [Secure scanner log verbosity](../sast/index.md#logging-level)
-by using a global CI/CD variable set to `debug`:
-
-```yaml
-variables:
-  SECURE_LOG_LEVEL: "debug"
-```
+Debug-level logging can help when troubleshooting. For details, see
+[debug-level logging](../index.md#debug-level-logging).
 
 ### IaC Scanning findings show as `No longer detected` unexpectedly
 

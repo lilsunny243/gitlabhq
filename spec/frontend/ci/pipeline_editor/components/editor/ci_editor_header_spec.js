@@ -5,18 +5,33 @@ import CiEditorHeader from '~/ci/pipeline_editor/components/editor/ci_editor_hea
 import {
   pipelineEditorTrackingOptions,
   TEMPLATE_REPOSITORY_URL,
+  EDITOR_APP_DRAWER_HELP,
+  EDITOR_APP_DRAWER_NONE,
 } from '~/ci/pipeline_editor/constants';
 
 describe('CI Editor Header', () => {
   let wrapper;
   let trackingSpy = null;
 
-  const createComponent = ({ showDrawer = false, showJobAssistantDrawer = false } = {}) => {
+  const createComponent = ({
+    showHelpDrawer = false,
+    showJobAssistantDrawer = false,
+    showAiAssistantDrawer = false,
+    aiChatAvailable = false,
+    aiCiConfigGenerator = false,
+  } = {}) => {
     wrapper = extendedWrapper(
       shallowMount(CiEditorHeader, {
+        provide: {
+          aiChatAvailable,
+          glFeatures: {
+            aiCiConfigGenerator,
+          },
+        },
         propsData: {
-          showDrawer,
+          showHelpDrawer,
           showJobAssistantDrawer,
+          showAiAssistantDrawer,
         },
       }),
     );
@@ -24,9 +39,9 @@ describe('CI Editor Header', () => {
 
   const findLinkBtn = () => wrapper.findByTestId('template-repo-link');
   const findHelpBtn = () => wrapper.findByTestId('drawer-toggle');
+  const findAiAssistnantBtn = () => wrapper.findByTestId('ai-assistant-drawer-toggle');
 
   afterEach(() => {
-    wrapper.destroy();
     unmockTracking();
   });
 
@@ -40,7 +55,29 @@ describe('CI Editor Header', () => {
       label,
     });
   };
+  describe('Ai Assistant toggle button', () => {
+    describe('when feature is unavailable', () => {
+      it('should not show ai button when feature toggle is off', () => {
+        createComponent({ aiChatAvailable: true });
+        mockTracking(undefined, wrapper.element, jest.spyOn);
+        expect(findAiAssistnantBtn().exists()).toBe(false);
+      });
 
+      it('should not show ai button when feature is unavailable', () => {
+        createComponent({ aiCiConfigGenerator: true });
+        mockTracking(undefined, wrapper.element, jest.spyOn);
+        expect(findAiAssistnantBtn().exists()).toBe(false);
+      });
+    });
+
+    describe('when feature is available', () => {
+      it('should show ai button', () => {
+        createComponent({ aiCiConfigGenerator: true, aiChatAvailable: true });
+        mockTracking(undefined, wrapper.element, jest.spyOn);
+        expect(findAiAssistnantBtn().exists()).toBe(true);
+      });
+    });
+  });
   describe('link button', () => {
     beforeEach(() => {
       createComponent();
@@ -59,7 +96,7 @@ describe('CI Editor Header', () => {
       expect(findLinkBtn().props('icon')).toBe('external-link');
     });
 
-    it('tracks the click on the browse button', async () => {
+    it('tracks the click on the browse button', () => {
       const { browseTemplates } = pipelineEditorTrackingOptions.actions;
 
       testTracker(findLinkBtn(), browseTemplates);
@@ -81,18 +118,18 @@ describe('CI Editor Header', () => {
 
     describe('when pipeline editor drawer is closed', () => {
       beforeEach(() => {
-        createComponent({ showDrawer: false });
+        createComponent({ showHelpDrawer: false });
       });
 
-      it('emits open drawer event when clicked', () => {
-        expect(wrapper.emitted('open-drawer')).toBeUndefined();
+      it('emits switch drawer event when clicked', () => {
+        expect(wrapper.emitted('switch-drawer')).toBeUndefined();
 
         findHelpBtn().vm.$emit('click');
 
-        expect(wrapper.emitted('open-drawer')).toHaveLength(1);
+        expect(wrapper.emitted('switch-drawer')).toEqual([[EDITOR_APP_DRAWER_HELP]]);
       });
 
-      it('tracks open help drawer action', async () => {
+      it('tracks open help drawer action', () => {
         const { actions } = pipelineEditorTrackingOptions;
 
         testTracker(findHelpBtn(), actions.openHelpDrawer);
@@ -101,15 +138,15 @@ describe('CI Editor Header', () => {
 
     describe('when pipeline editor drawer is open', () => {
       beforeEach(() => {
-        createComponent({ showDrawer: true });
+        createComponent({ showHelpDrawer: true });
       });
 
       it('emits close drawer event when clicked', () => {
-        expect(wrapper.emitted('close-drawer')).toBeUndefined();
+        expect(wrapper.emitted('switch-drawer')).toBeUndefined();
 
         findHelpBtn().vm.$emit('click');
 
-        expect(wrapper.emitted('close-drawer')).toHaveLength(1);
+        expect(wrapper.emitted('switch-drawer')).toEqual([[EDITOR_APP_DRAWER_NONE]]);
       });
     });
   });

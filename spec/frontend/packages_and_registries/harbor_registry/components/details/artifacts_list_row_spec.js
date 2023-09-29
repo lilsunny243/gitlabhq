@@ -63,10 +63,6 @@ describe('Harbor artifact list row', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('list item', () => {
     beforeEach(() => {
       mountComponent({
@@ -136,7 +132,7 @@ describe('Harbor artifact list row', () => {
           },
         });
 
-        expect(findByTestId('size').text()).toBe('0 bytes');
+        expect(findByTestId('size').text()).toBe('0 B');
       });
     });
   });

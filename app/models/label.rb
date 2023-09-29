@@ -9,10 +9,12 @@ class Label < ApplicationRecord
   include Sortable
   include FromUnion
   include Presentable
+  include EachBatch
 
   cache_markdown_field :description, pipeline: :single_line
 
   DEFAULT_COLOR = ::Gitlab::Color.of('#6699cc')
+  DESCRIPTION_LENGTH_MAX = 512.kilobytes
 
   attribute :color, ::Gitlab::Database::Type::Color.new, default: DEFAULT_COLOR
 
@@ -23,19 +25,26 @@ class Label < ApplicationRecord
   has_many :merge_requests, through: :label_links, source: :target, source_type: 'MergeRequest'
 
   before_validation :strip_whitespace_from_title
+  before_destroy :prevent_locked_label_destroy, prepend: true
 
   validates :color, color: true, presence: true
+  validate :ensure_lock_on_merge_allowed
 
   # Don't allow ',' for label titles
   validates :title, presence: true, format: { with: /\A[^,]+\z/ }
   validates :title, uniqueness: { scope: [:group_id, :project_id] }
   validates :title, length: { maximum: 255 }
 
+  # we validate the description against DESCRIPTION_LENGTH_MAX only for labels being created and on updates if
+  # the description changes to avoid breaking the existing labels which may have their descriptions longer
+  validates :description, bytesize: { maximum: -> { DESCRIPTION_LENGTH_MAX } }, if: :validate_description_length?
+
   default_scope { order(title: :asc) } # rubocop:disable Cop/DefaultScope
 
   scope :templates, -> { where(template: true, type: [Label.name, nil]) }
   scope :with_title, ->(title) { where(title: title) }
   scope :with_lists_and_board, -> { joins(lists: :board).merge(List.movable) }
+  scope :with_lock_on_merge, -> { where(lock_on_merge: true) }
   scope :on_project_boards, ->(project_id) { with_lists_and_board.where(boards: { project_id: project_id }) }
   scope :on_board, ->(board_id) { with_lists_and_board.where(boards: { id: board_id }) }
   scope :order_name_asc, -> { reorder(title: :asc) }
@@ -64,6 +73,10 @@ class Label < ApplicationRecord
       .merge(LabelLink.where(target: target_relation))
       .select(arel_table[Arel.star], LabelLink.arel_table[:target_id])
       .with_preloaded_container
+  end
+
+  def self.pluck_titles
+    pluck(:title)
   end
 
   def self.prioritized(project)
@@ -277,6 +290,16 @@ class Label < ApplicationRecord
 
   private
 
+  def validate_description_length?
+    return false unless description_changed?
+
+    previous_description = changes['description'].first
+    # previous_description will be nil for new records
+    return true if previous_description.blank?
+
+    previous_description.bytesize <= DESCRIPTION_LENGTH_MAX || description.bytesize > previous_description.bytesize
+  end
+
   def issues_count(user, params = {})
     params.merge!(subject_foreign_key => subject.id, label_name: title, scope: 'all')
     IssuesFinder.new(user, params.with_indifferent_access).execute.count
@@ -298,6 +321,20 @@ class Label < ApplicationRecord
 
   def strip_whitespace_from_title
     self[:title] = title&.strip
+  end
+
+  def prevent_locked_label_destroy
+    return unless lock_on_merge
+
+    errors.add(:base, format(_('%{label_name} is locked and was not removed'), label_name: name))
+    throw :abort # rubocop:disable Cop/BanCatchThrow
+  end
+
+  def ensure_lock_on_merge_allowed
+    return unless template?
+    return unless lock_on_merge || will_save_change_to_lock_on_merge?
+
+    errors.add(:lock_on_merge, _('can not be set for template labels'))
   end
 end
 

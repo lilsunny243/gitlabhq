@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module NavHelper
+  extend self
+
   def header_links
     @header_links ||= get_header_links
   end
@@ -77,28 +79,29 @@ module NavHelper
   end
 
   def admin_monitoring_nav_links
-    %w(system_info background_migrations background_jobs health_check)
+    %w[system_info background_migrations background_jobs health_check]
   end
 
   def admin_analytics_nav_links
-    %w(dev_ops_report usage_trends)
+    %w[dev_ops_report usage_trends]
   end
 
-  def show_super_sidebar?
-    Feature.enabled?(:super_sidebar_nav, current_user) && current_user&.use_new_navigation && super_sidebar_supported?
+  def show_super_sidebar?(user = current_user)
+    # The new sidebar is not enabled for anonymous use
+    # Once we enable the new sidebar by default, this
+    # should return true
+    return Feature.enabled?(:super_sidebar_logged_out) unless user
+
+    # Users who got the special `super_sidebar_nav_enrolled` enabled,
+    # see the new nav as long as they don't explicitly opt-out via the toggle
+    if user.use_new_navigation.nil? && Feature.enabled?(:super_sidebar_nav_enrolled, user)
+      true
+    else
+      !!user.use_new_navigation
+    end
   end
 
   private
-
-  # This is a temporary measure until we support all other existing sidebars:
-  # https://gitlab.com/gitlab-org/gitlab/-/issues/391500
-  # https://gitlab.com/gitlab-org/gitlab/-/issues/391501
-  # https://gitlab.com/gitlab-org/gitlab/-/issues/391502
-  def super_sidebar_supported?
-    return true if @nav.nil?
-
-    %w(your_work project group).include?(@nav)
-  end
 
   def get_header_links
     links = if current_user

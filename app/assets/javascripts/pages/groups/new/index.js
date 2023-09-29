@@ -22,19 +22,22 @@ initFilePickers();
 function initNewGroupCreation(el) {
   const {
     hasErrors,
+    rootPath,
+    groupsUrl,
     parentGroupUrl,
     parentGroupName,
     importExistingGroupPath,
-    verificationRequired,
-    verificationFormUrl,
-    subscriptionsUrl,
+    isSaas,
   } = el.dataset;
 
   const props = {
+    groupsUrl,
+    rootPath,
     parentGroupUrl,
     parentGroupName,
     importExistingGroupPath,
     hasErrors: parseBoolean(hasErrors),
+    isSaas: parseBoolean(isSaas),
   };
 
   const apolloProvider = new VueApollo({
@@ -44,11 +47,6 @@ function initNewGroupCreation(el) {
   return new Vue({
     el,
     apolloProvider,
-    provide: {
-      verificationRequired: parseBoolean(verificationRequired),
-      verificationFormUrl,
-      subscriptionsUrl,
-    },
     render(h) {
       return h(NewGroupCreationApp, { props });
     },

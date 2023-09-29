@@ -1,14 +1,13 @@
 ---
-type: reference, howto
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Migrating from CVS **(FREE)**
+# Migrating from CVS **(FREE ALL)**
 
 [CVS](https://savannah.nongnu.org/projects/cvs) is an old centralized version
-control system similar to [SVN](svn.md).
+control system similar to [SVN](https://subversion.apache.org/).
 
 ## CVS vs Git
 
@@ -40,10 +39,10 @@ The following list illustrates the main differences between CVS and Git:
   your state in version control, then you merge the other developer's changes.
   You can also ask the other developer to do the merge and resolve any conflicts
   themselves.
-- **Signed commits.** Git supports signing your commits with GPG for additional
+- **Signed commits.** Git supports
+  [signing your commits](../repository/signed_commits/index.md) for additional
   security and verification that the commit indeed came from its original author.
-  GitLab can [integrate with GPG](../repository/gpg_signed_commits/index.md)
-  and show whether a signed commit is correctly verified.
+  GitLab shows whether a signed commit is correctly verified.
 
 _Some of the items above were taken from this great
 [Stack Overflow post](https://stackoverflow.com/a/824241/974710). For a more
@@ -71,6 +70,5 @@ Here's a few links to get you started with the migration:
 
 - [Migrate using the `cvs-fast-export` tool](https://gitlab.com/esr/cvs-fast-export)
 - [Stack Overflow post on importing the CVS repository](https://stackoverflow.com/a/11490134/974710)
-- [Convert a CVS repository to Git](https://www.techrepublic.com/article/convert-cvs-repositories-to-git/)
 - [Man page of the `git-cvsimport` tool](https://mirrors.edge.kernel.org/pub/software/scm/git/docs/git-cvsimport.html)
 - [Migrate using `reposurgeon`](http://www.catb.org/~esr/reposurgeon/repository-editing.html#conversion)

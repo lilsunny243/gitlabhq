@@ -33,38 +33,10 @@ module API
             requires :host, type: String, desc: 'The host to query for'
           end
           get "/" do
-            ##
-            # Serverless domain proxy has been deprecated and disabled as per
-            #   https://gitlab.com/gitlab-org/gitlab-pages/-/issues/467
-            #
-            # serverless_domain_finder = ServerlessDomainFinder.new(params[:host])
-            # if serverless_domain_finder.serverless?
-            #   # Handle Serverless domains
-            #   serverless_domain = serverless_domain_finder.execute
-            #   no_content! unless serverless_domain
-            #
-            #   virtual_domain = Serverless::VirtualDomain.new(serverless_domain)
-            #   no_content! unless virtual_domain
-            #
-            #   present virtual_domain, with: Entities::Internal::Serverless::VirtualDomain
-            # end
-
-            host = Namespace.find_by_pages_host(params[:host]) || PagesDomain.find_by_domain_case_insensitive(params[:host])
-            no_content! unless host
-
-            virtual_domain = host.pages_virtual_domain
+            virtual_domain = ::Gitlab::Pages::VirtualHostFinder.new(params[:host]).execute
             no_content! unless virtual_domain
 
-            if virtual_domain.cache_key.present?
-              # Cache context is not added to make it easier to expire the cache with
-              # Gitlab::Pages::CacheControl
-              present_cached virtual_domain,
-                cache_context: nil,
-                with: Entities::Internal::Pages::VirtualDomain,
-                expires_in: ::Gitlab::Pages::CacheControl::EXPIRE
-            else
-              present virtual_domain, with: Entities::Internal::Pages::VirtualDomain
-            end
+            present virtual_domain, with: Entities::Internal::Pages::VirtualDomain
           end
         end
       end

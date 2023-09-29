@@ -38,7 +38,7 @@ RSpec.describe SnippetBlobPresenter do
         let(:blob) { blob_at(file) }
 
         it 'returns rich markdown content' do
-          expect(subject).to include('file-content md')
+          expect(subject).to include('file-content js-markup-content md')
         end
       end
 
@@ -46,7 +46,7 @@ RSpec.describe SnippetBlobPresenter do
         let(:file) { 'test.ipynb' }
 
         it 'returns rich notebook content' do
-          expect(subject.strip).to eq %Q(<div class="file-content" data-endpoint="#{data_endpoint_url}" data-relative-raw-path="#{data_raw_dir}" id="js-notebook-viewer"></div>)
+          expect(subject.strip).to eq %(<div class="file-content" data-endpoint="#{data_endpoint_url}" data-relative-raw-path="#{data_raw_dir}" id="js-notebook-viewer"></div>)
         end
       end
 
@@ -54,7 +54,7 @@ RSpec.describe SnippetBlobPresenter do
         let(:file) { 'openapi.yml' }
 
         it 'returns rich openapi content' do
-          expect(subject).to eq %Q(<div class="file-content" data-endpoint="#{data_endpoint_url}" id="js-openapi-viewer"></div>\n)
+          expect(subject).to eq %(<div class="file-content" data-endpoint="#{data_endpoint_url}" id="js-openapi-viewer"></div>\n)
         end
       end
 

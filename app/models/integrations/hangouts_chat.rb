@@ -2,6 +2,21 @@
 
 module Integrations
   class HangoutsChat < BaseChatNotification
+    field :webhook,
+      section: SECTION_TYPE_CONNECTION,
+      help: 'https://chat.googleapis.com/v1/spaces…',
+      required: true
+
+    field :notify_only_broken_pipelines,
+      type: :checkbox,
+      section: SECTION_TYPE_CONFIGURATION
+
+    field :branches_to_be_notified,
+      type: :select,
+      section: SECTION_TYPE_CONFIGURATION,
+      title: -> { s_('Integrations|Branches for which notifications are to be sent') },
+      choices: -> { branch_choices }
+
     def title
       'Google Chat'
     end
@@ -23,21 +38,7 @@ module Integrations
     end
 
     def self.supported_events
-      %w[push issue confidential_issue merge_request note confidential_note tag_push
-         pipeline wiki_page]
-    end
-
-    def default_fields
-      [
-        { type: 'text', name: 'webhook', help: 'https://chat.googleapis.com/v1/spaces…' },
-        { type: 'checkbox', name: 'notify_only_broken_pipelines' },
-        {
-          type: 'select',
-          name: 'branches_to_be_notified',
-          title: s_('Integrations|Branches for which notifications are to be sent'),
-          choices: self.class.branch_choices
-        }
-      ]
+      %w[push issue confidential_issue merge_request note confidential_note tag_push pipeline wiki_page]
     end
 
     private
@@ -58,9 +59,9 @@ module Integrations
       when Integrations::ChatMessage::NoteMessage
         message.target
       when Integrations::ChatMessage::IssueMessage
-        "issue #{Issue.reference_prefix}#{message.issue_iid}"
+        "issue #{message.project_name}#{Issue.reference_prefix}#{message.issue_iid}"
       when Integrations::ChatMessage::MergeMessage
-        "merge request #{MergeRequest.reference_prefix}#{message.merge_request_iid}"
+        "merge request #{message.project_name}#{MergeRequest.reference_prefix}#{message.merge_request_iid}"
       when Integrations::ChatMessage::PushMessage
         "push #{message.project_name}_#{message.ref}"
       when Integrations::ChatMessage::PipelineMessage

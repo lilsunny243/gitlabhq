@@ -11,6 +11,7 @@ module NotesActions
 
   included do
     before_action :set_polling_interval_header, only: [:index]
+    before_action :require_last_fetched_at_header!, only: [:index]
     before_action :require_noteable!, only: [:index, :create]
     before_action :authorize_admin_note!, only: [:update, :destroy]
     before_action :note_project, only: [:create]
@@ -31,9 +32,6 @@ module NotesActions
       else
         notes.map { |note| note_json(note) }
       end
-
-    # Only present an ETag for the empty response
-    ::Gitlab::EtagCaching::Middleware.skip!(response) if notes.present?
 
     render json: meta.merge(notes: notes)
   end
@@ -62,7 +60,7 @@ module NotesActions
         end
 
         if @note.errors.present? && @note.errors.attribute_names != [:commands_only, :command_names]
-          render json: json, status: :unprocessable_entity
+          render json: { errors: errors_on_create(@note.errors) }, status: :unprocessable_entity
         else
           render json: json
         end
@@ -75,15 +73,21 @@ module NotesActions
   # rubocop:disable Gitlab/ModuleWithInstanceVariables
   def update
     @note = Notes::UpdateService.new(project, current_user, update_note_params).execute(note)
-    unless @note
+    if @note.destroyed?
       head :gone
       return
     end
 
-    prepare_notes_for_rendering([@note])
-
     respond_to do |format|
-      format.json { render json: note_json(@note) }
+      format.json do
+        if @note.errors.present?
+          render json: { errors: @note.errors.full_messages.to_sentence }, status: :unprocessable_entity
+        else
+          prepare_notes_for_rendering([@note])
+          render json: note_json(@note)
+        end
+      end
+
       format.html { redirect_back_or_default }
     end
   end
@@ -256,6 +260,12 @@ module NotesActions
     render_404 unless noteable
   end
 
+  def require_last_fetched_at_header!
+    return if request.headers['X-Last-Fetched-At'].present?
+
+    render json: { message: 'X-Last-Fetched-At header is required' }, status: :bad_request
+  end
+
   def last_fetched_at
     microseconds = request.headers['X-Last-Fetched-At'].to_i
 
@@ -308,6 +318,12 @@ module NotesActions
     return false if params['html']
 
     noteable.discussions_rendered_on_frontend?
+  end
+
+  def errors_on_create(errors)
+    return { commands_only: errors.messages[:commands_only] } if errors.key?(:commands_only)
+
+    errors.full_messages.to_sentence
   end
 end
 

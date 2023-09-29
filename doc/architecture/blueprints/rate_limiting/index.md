@@ -8,6 +8,8 @@ owning-stage: "~devops::enablement"
 participating-stages: []
 ---
 
+<!-- vale gitlab.FutureTense = NO -->
+
 # Next Rate Limiting Architecture
 
 ## Summary
@@ -106,7 +108,7 @@ quota and by a policy.
   - _Example:_ maximum artifact upload size of 1 GB
 - **Quota:** A global constraint in application usage that is aggregated across an
   entire namespace over the duration of their billing cycle.
-  - _Example:_ 400 CI/CD minutes per namespace per month
+  - _Example:_ 400 compute minutes per namespace per month
   - _Example:_ 10 GB transfer per namespace per month
 - **Policy:** A representation of business logic that is decoupled from application
   code. Decoupled policy definitions allow logic to be shared across multiple services
@@ -183,6 +185,24 @@ Things we want to build and support by default:
 1. A panel that makes it easy to override limits per plan / namespace.
 1. Logging that will expose limits applied in Kibana.
 1. An automatically generated documentation page describing all the limits.
+
+### Support rate limits based on resources used
+
+One of the problems of our rate limiting system is that values are static
+(e.g. 100 requests per minutes) and irrespective of the complexity or resources
+used by the operation. For example:
+
+- Firing 100 requests per minute to fetch a simple resource can have very different
+  implications than creating a CI pipeline.
+- Each pipeline creation action can perform very differently depending on the
+  pipeline being created (small MR pipeline VS large scheduled pipeline).
+- Paginating resources after an offset of 1000 starts to become expensive on the database.
+
+We should allow some rate limits to be defiened as `computing score / period` where for
+computing score we calculate the milliseconds accumulated (for all requests executed
+and inflight) within a given period (for example: 1 minute).
+
+This way if a user is sending expensive requests they are likely to hit the rate limit earlier.
 
 ### API to expose limits and policies
 
@@ -375,7 +395,7 @@ hierarchy. Choosing a proper solution will require a thoughtful research.
      - Implementing a separate Go library which uses the same backend (for example, Redis) for rate limiting.
 
 1. **SDK for Satellite Services (Owning Team)**
-   - Build Golang SDK.
+   - Build Go SDK.
    - Create examples showcasing usage of the new rate limits SDK.
 
 1. **Team fan out for Satellite Services (Stage Groups)**

@@ -5,13 +5,7 @@ module QA
     describe 'Pipeline with image:pull_policy' do
       let(:runner_name) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(number: 8)}" }
       let(:job_name) { "test-job-#{pull_policies.join('-')}" }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'pipeline-with-image-pull-policy'
-        end
-      end
-
+      let(:project) { create(:project, name: 'pipeline-with-image-pull-policy') }
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
@@ -71,10 +65,10 @@ module QA
 
             if pull_image
               expect(job_log).to have_content(message),
-                                 "Expected to find #{message} in #{job_log}, but didn't."
+                "Expected to find #{message} in #{job_log}, but didn't."
             else
               expect(job_log).not_to have_content(message),
-                                 "Found #{message} in #{job_log}, but didn't expect to."
+                "Found #{message} in #{job_log}, but didn't expect to."
             end
           end
         end
@@ -96,7 +90,7 @@ module QA
           visit_job
 
           expect(job_log).to include(text1, text2),
-                             "Expected to find contents #{text1} and #{text2} in #{job_log}, but didn't."
+            "Expected to find contents #{text1} and #{text2} in #{job_log}, but didn't."
         end
       end
 
@@ -112,7 +106,7 @@ module QA
         QA::Service::Shellout.shell("docker cp #{runner_name}:/etc/gitlab-runner/config.toml #{tempdir.path}")
 
         File.open(tempdir.path, 'a') do |f|
-          f << %Q[    allowed_pull_policies = #{allowed_policies}\n]
+          f << %[    allowed_pull_policies = #{allowed_policies}\n]
         end
 
         QA::Service::Shellout.shell("docker cp #{tempdir.path} #{runner_name}:/etc/gitlab-runner/config.toml")

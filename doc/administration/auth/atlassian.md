@@ -1,11 +1,11 @@
 ---
 type: reference
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Atlassian OmniAuth Provider **(FREE SELF)**
+# Use Atlassian as an OAuth 2.0 authentication provider **(FREE SELF)**
 
 To enable the Atlassian OmniAuth provider for passwordless authentication you must register an application with Atlassian.
 
@@ -29,25 +29,25 @@ To enable the Atlassian OmniAuth provider for passwordless authentication you mu
 
 1. On your GitLab server, open the configuration file:
 
-   For Omnibus GitLab installations:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    sudo -u git -H editor /home/git/gitlab/config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](../../integration/omniauth.md#configure-common-settings)
+1. Configure the [common settings](../../integration/omniauth.md#configure-common-settings)
    to add `atlassian_oauth2` as a single sign-on provider. This enables
    Just-In-Time account provisioning for users who do not have an existing
    GitLab account.
 1. Add the provider configuration for Atlassian:
 
-   For Omnibus GitLab installations:
+   For Linux package installations:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
@@ -61,7 +61,7 @@ To enable the Atlassian OmniAuth provider for passwordless authentication you mu
    ]
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```yaml
    - { name: "atlassian_oauth2",
@@ -76,8 +76,8 @@ To enable the Atlassian OmniAuth provider for passwordless authentication you mu
 1. Save the configuration file.
 
 1. For the changes to take effect:
-   - If you installed via Omnibus, [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - If you installed from source, [restart GitLab](../restart_gitlab.md#installations-from-source).
+   - If you installed using the Linux package, [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - If you self-compiled your installation, [restart GitLab](../restart_gitlab.md#self-compiled-installations).
 
 On the sign-in page there should now be an Atlassian icon below the regular sign in form. Select the icon to begin the authentication process.
 

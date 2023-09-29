@@ -10,6 +10,9 @@ module Ci
   # of the running builds there is worth the additional pressure.
   class RunningBuild < Ci::ApplicationRecord
     include Ci::Partitionable
+    include SafelyChangeColumnDefault
+
+    columns_changing_default :partition_id
 
     partitionable scope: :build
 
@@ -24,10 +27,12 @@ module Ci
         raise ArgumentError, 'build has not been picked by a shared runner'
       end
 
-      entry = self.new(build: build,
-                       project: build.project,
-                       runner: build.runner,
-                       runner_type: build.runner.runner_type)
+      entry = self.new(
+        build: build,
+        project: build.project,
+        runner: build.runner,
+        runner_type: build.runner.runner_type
+      )
 
       entry.validate!
 

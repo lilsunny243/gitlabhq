@@ -56,27 +56,27 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def web_url
-    url_helpers.project_blob_url(project, ref_qualified_path)
+    url_helpers.project_blob_url(*path_params)
   end
 
   def web_path
-    url_helpers.project_blob_path(project, ref_qualified_path)
+    url_helpers.project_blob_path(*path_params)
   end
 
   def edit_blob_path
-    url_helpers.project_edit_blob_path(project, ref_qualified_path)
+    url_helpers.project_edit_blob_path(*path_params)
   end
 
   def raw_path
-    url_helpers.project_raw_path(project, ref_qualified_path)
+    url_helpers.project_raw_path(*path_params)
   end
 
   def replace_path
-    url_helpers.project_update_blob_path(project, ref_qualified_path)
+    url_helpers.project_update_blob_path(*path_params)
   end
 
   def pipeline_editor_path
-    project_ci_pipeline_editor_path(project, branch_name: blob.commit_id) if can_collaborate_with_project?(project) && blob.path == project.ci_config_path_or_default
+    project_ci_pipeline_editor_path(project, branch_name: commit_id) if can_collaborate_with_project?(project) && blob.path == project.ci_config_path_or_default
   end
 
   def gitpod_blob_url
@@ -86,7 +86,7 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def find_file_path
-    url_helpers.project_find_file_path(project, blob.commit_id)
+    url_helpers.project_find_file_path(project, commit_id, ref_type: ref_type)
   end
 
   def blame_path
@@ -131,13 +131,13 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def can_modify_blob?
-    super(blob, project, blob.commit_id)
+    super(blob, project, commit_id)
   end
 
   def can_current_user_push_to_branch?
-    return false unless current_user && project.repository.branch_exists?(blob.commit_id)
+    return false unless current_user && project.repository.branch_exists?(commit_id)
 
-    user_access(project).can_push_to_branch?(blob.commit_id)
+    user_access(project).can_push_to_branch?(commit_id)
   end
 
   def archived?
@@ -145,7 +145,7 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def ide_edit_path
-    super(project, blob.commit_id, blob.path)
+    super(project, commit_id, blob.path)
   end
 
   def external_storage_url
@@ -159,17 +159,29 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def project_blob_path_root
-    project_blob_path(project, blob.commit_id)
+    project_blob_path(project, commit_id)
   end
 
   private
+
+  def path_params
+    if ref_type.present?
+      [project, ref_qualified_path, { ref_type: ref_type }]
+    else
+      [project, ref_qualified_path]
+    end
+  end
+
+  def ref_type
+    blob.ref_type
+  end
 
   def url_helpers
     Gitlab::Routing.url_helpers
   end
 
   def environment
-    environment_params = project.repository.branch_exists?(blob.commit_id) ? { ref: blob.commit_id } : { sha: blob.commit_id }
+    environment_params = project.repository.branch_exists?(commit_id) ? { ref: commit_id } : { sha: commit_id }
     environment_params[:find_latest] = true
     ::Environments::EnvironmentsByDeploymentsFinder.new(project, current_user, environment_params).execute.last
   end
@@ -178,8 +190,14 @@ class BlobPresenter < Gitlab::View::Presenter::Delegated
     blob.repository.project
   end
 
+  def commit_id
+    # If `ref_type` is present the commit_id will include the ref qualifier e.g. `refs/heads/`.
+    # We only accept/return unqualified refs so we need to remove the qualifier from the `commit_id`.
+    ExtractsRef::RefExtractor.unqualify_ref(blob.commit_id, ref_type)
+  end
+
   def ref_qualified_path
-    File.join(blob.commit_id, blob.path)
+    File.join(commit_id, blob.path)
   end
 
   def load_all_blob_data

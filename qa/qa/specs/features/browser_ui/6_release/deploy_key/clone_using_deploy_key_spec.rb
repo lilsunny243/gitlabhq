@@ -7,20 +7,8 @@ module QA
     describe 'Git clone using a deploy key' do
       let(:runner_name) { "qa-runner-#{SecureRandom.hex(4)}" }
       let(:repository_location) { project.repository_ssh_location }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'deploy-key-clone-project'
-        end
-      end
-
-      let!(:runner) do
-        Resource::ProjectRunner.fabricate_via_api! do |resource|
-          resource.project = project
-          resource.name = runner_name
-          resource.tags = [runner_name]
-        end
-      end
+      let(:project) { create(:project, name: 'deploy-key-clone-project') }
+      let!(:runner) { create(:project_runner, project: project, name: runner_name, tags: [runner_name]) }
 
       before do
         Flow::Login.sign_in
@@ -99,12 +87,7 @@ module QA
         private
 
         def make_ci_variable(key_name, key)
-          Resource::CiVariable.fabricate_via_api! do |resource|
-            resource.project = project
-            resource.key = key_name
-            resource.value = key.private_key
-            resource.masked = false
-          end
+          create(:ci_variable, project: project, key: key_name, value: key.private_key)
         end
       end
     end

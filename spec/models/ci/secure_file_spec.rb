@@ -2,12 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::SecureFile do
+RSpec.describe Ci::SecureFile, factory_default: :keep, feature_category: :mobile_devops do
+  let_it_be(:project) { create_default(:project).freeze }
+  let(:sample_file) { fixture_file('ci_secure_files/upload-keystore.jks') }
+
   before do
     stub_ci_secure_file_object_storage
   end
-
-  let(:sample_file) { fixture_file('ci_secure_files/upload-keystore.jks') }
 
   subject { create(:ci_secure_file, file: CarrierWaveStringFile.new(sample_file)) }
 
@@ -60,10 +61,9 @@ RSpec.describe Ci::SecureFile do
 
   describe 'ordered scope' do
     it 'returns the newest item first' do
-      project = create(:project)
-      file1 = create(:ci_secure_file, created_at: 1.week.ago, project: project)
-      file2 = create(:ci_secure_file, created_at: 2.days.ago, project: project)
-      file3 = create(:ci_secure_file, created_at: 1.day.ago, project: project)
+      file1 = create(:ci_secure_file, created_at: 1.week.ago)
+      file2 = create(:ci_secure_file, created_at: 2.days.ago)
+      file3 = create(:ci_secure_file, created_at: 1.day.ago)
 
       files = project.secure_files.order_by_created_at
 
@@ -144,36 +144,43 @@ RSpec.describe Ci::SecureFile do
 
   describe '#update_metadata!' do
     it 'assigns the expected metadata when a parsable .cer file is supplied' do
-      file = create(:ci_secure_file, name: 'file1.cer',
-                                     file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.cer')))
+      file = create(
+        :ci_secure_file,
+        name: 'file1.cer',
+        file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.cer'))
+      )
       file.update_metadata!
 
       file.reload
 
-      expect(file.expires_at).to eq(DateTime.parse('2022-04-26 19:20:40'))
+      expect(file.expires_at).to eq(DateTime.parse('2023-04-26 19:20:39'))
       expect(file.metadata['id']).to eq('33669367788748363528491290218354043267')
       expect(file.metadata['issuer']['CN']).to eq('Apple Worldwide Developer Relations Certification Authority')
       expect(file.metadata['subject']['OU']).to eq('N7SYAN8PX8')
     end
 
     it 'assigns the expected metadata when a parsable .p12 file is supplied' do
-      file = create(:ci_secure_file, name: 'file1.p12',
-                                     file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.p12')))
+      file = create(
+        :ci_secure_file,
+        name: 'file1.p12',
+        file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.p12'))
+      )
       file.update_metadata!
 
       file.reload
 
-      expect(file.expires_at).to eq(DateTime.parse('2022-09-21 14:56:00'))
+      expect(file.expires_at).to eq(DateTime.parse('2023-09-21 14:55:59'))
       expect(file.metadata['id']).to eq('75949910542696343243264405377658443914')
       expect(file.metadata['issuer']['CN']).to eq('Apple Worldwide Developer Relations Certification Authority')
       expect(file.metadata['subject']['OU']).to eq('N7SYAN8PX8')
     end
 
     it 'assigns the expected metadata when a parsable .mobileprovision file is supplied' do
-      file = create(:ci_secure_file, name: 'file1.mobileprovision',
-                                     file: CarrierWaveStringFile.new(
-                                       fixture_file('ci_secure_files/sample.mobileprovision')
-                                     ))
+      file = create(
+        :ci_secure_file,
+        name: 'file1.mobileprovision',
+        file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.mobileprovision'))
+      )
       file.update_metadata!
 
       file.reload
@@ -187,9 +194,22 @@ RSpec.describe Ci::SecureFile do
 
     it 'logs an error when something goes wrong with the file parsing' do
       corrupt_file = create(:ci_secure_file, name: 'file1.cer', file: CarrierWaveStringFile.new('11111111'))
-      message = 'Validation failed: Metadata must be a valid json schema - not enough data.'
+      message = 'Validation failed: Metadata must be a valid json schema - PEM_read_bio_X509: no start line.'
       expect(Gitlab::AppLogger).to receive(:error).with("Secure File Parser Failure (#{corrupt_file.id}): #{message}")
       corrupt_file.update_metadata!
+    end
+  end
+
+  describe '#local?' do
+    it 'returns true when using local storage' do
+      secure_file = create(:ci_secure_file)
+      secure_file.update!(file_store: ObjectStorage::Store::LOCAL)
+      expect(secure_file.local?).to be true
+    end
+
+    it 'returns false when using object storage' do
+      secure_file = create(:ci_secure_file, file_store: ObjectStorage::Store::REMOTE)
+      expect(secure_file.local?).to be false
     end
   end
 end

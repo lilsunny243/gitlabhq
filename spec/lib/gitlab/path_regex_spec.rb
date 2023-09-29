@@ -177,7 +177,12 @@ RSpec.describe Gitlab::PathRegex do
                         missing_words: missing_words, additional_words: additional_words)
       end
 
-      expect(described_class::TOP_LEVEL_ROUTES)
+      # We have to account for routes that are added by gems into the RAILS_ENV=test only.
+      test_only_top_level_routes = [
+        '_system_test_entrypoint' # added by the view_component gem
+      ]
+
+      expect(described_class::TOP_LEVEL_ROUTES + test_only_top_level_routes)
         .to contain_exactly(*top_level_words), failure_block
     end
 
@@ -250,6 +255,23 @@ RSpec.describe Gitlab::PathRegex do
     it 'does not allow extra slashes' do
       expect(subject).not_to match('/blob/')
       expect(subject).not_to match('blob//')
+    end
+  end
+
+  describe '.organization_path_regex' do
+    subject { described_class.organization_path_regex }
+
+    it 'rejects reserved words' do
+      expect(subject).not_to match('admin/')
+      expect(subject).not_to match('api/')
+      expect(subject).not_to match('create/')
+      expect(subject).not_to match('new/')
+    end
+
+    it 'accepts other words' do
+      expect(subject).to match('simple/')
+      expect(subject).to match('org/')
+      expect(subject).to match('my_org/')
     end
   end
 

@@ -1,6 +1,7 @@
 import { shallowMount } from '@vue/test-utils';
 import { GlButton } from '@gitlab/ui';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import DiffDiscussionReply from '~/diffs/components/diff_discussion_reply.vue';
 import NoteSignedOutWidget from '~/notes/components/note_signed_out_widget.vue';
@@ -25,10 +26,6 @@ describe('DiffDiscussionReply', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('if user can reply', () => {
     beforeEach(() => {

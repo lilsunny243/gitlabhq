@@ -1,22 +1,21 @@
+import htmlRedirectListbox from 'test_fixtures/listbox/redirect_listbox.html';
 import { initListbox } from '~/listbox';
 import { initRedirectListboxBehavior } from '~/listbox/redirect_behavior';
-import { redirectTo } from '~/lib/utils/url_utility';
-import { getFixture, setHTMLFixture } from 'helpers/fixtures';
+import { redirectTo } from '~/lib/utils/url_utility'; // eslint-disable-line import/no-deprecated
+import { setHTMLFixture } from 'helpers/fixtures';
 
 jest.mock('~/lib/utils/url_utility');
 jest.mock('~/listbox', () => ({
   initListbox: jest.fn().mockReturnValue({ foo: true }),
 }));
 
-const fixture = getFixture('listbox/redirect_listbox.html');
-
 describe('initRedirectListboxBehavior', () => {
   let instances;
 
   beforeEach(() => {
     setHTMLFixture(`
-      ${fixture}
-      ${fixture}
+      ${htmlRedirectListbox}
+      ${htmlRedirectListbox}
     `);
 
     instances = initRedirectListboxBehavior();
@@ -42,10 +41,10 @@ describe('initRedirectListboxBehavior', () => {
     const { onChange } = firstCallArgs[1];
     const mockItem = { href: '/foo' };
 
-    expect(redirectTo).not.toHaveBeenCalled();
+    expect(redirectTo).not.toHaveBeenCalled(); // eslint-disable-line import/no-deprecated
 
     onChange(mockItem);
 
-    expect(redirectTo).toHaveBeenCalledWith(mockItem.href);
+    expect(redirectTo).toHaveBeenCalledWith(mockItem.href); // eslint-disable-line import/no-deprecated
   });
 });

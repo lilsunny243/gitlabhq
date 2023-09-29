@@ -47,9 +47,6 @@ export default {
     };
   },
   computed: {
-    showPagination() {
-      return this.pagination.hasPreviousPage || this.pagination.hasNextPage;
-    },
     disableDeleteButton() {
       return this.isLoading || this.selectedItems.length === 0;
     },
@@ -125,13 +122,12 @@ export default {
         :select-item="selectItem"
         :is-selected="isSelected"
         :item="item"
-        :first="index === 0"
+        :first="!hiddenDelete && index === 0"
       ></slot>
     </div>
 
     <div class="gl-display-flex gl-justify-content-center">
       <gl-keyset-pagination
-        v-if="showPagination"
         v-bind="pagination"
         class="gl-mt-3"
         @prev="$emit('prev-page')"

@@ -38,9 +38,9 @@ performed ahead of the maintenance window; subsequent `rsync`s (including a
 final transfer inside the maintenance window) then transfers only the
 *changes* between the **primary** site and the **secondary** sites.
 
-Repository-centric strategies for using `rsync` effectively can be found in the
+Git repository-centric strategies for using `rsync` effectively can be found in the
 [moving repositories](../../operations/moving_repositories.md) documentation; these strategies can
-be adapted for use with any other file-based data, such as [GitLab Pages](../../pages/index.md#change-storage-path).
+be adapted for use with any other file-based data.
 
 ### Container registry
 
@@ -56,12 +56,12 @@ site you are about to failover to:
 rsync --archive --perms --delete root@<geo-primary>:/var/opt/gitlab/gitlab-rails/shared/registry/. /var/opt/gitlab/gitlab-rails/shared/registry
 ```
 
-Alternatively, you can [back up](../../../raketasks/backup_restore.md#back-up-gitlab)
+Alternatively, you can [back up](../../../administration/backup_restore/index.md#back-up-gitlab)
 the container registry on the primary site and restore it onto the secondary
 site:
 
 1. On your primary site, back up only the registry and
-   [exclude specific directories from the backup](../../../raketasks/backup_gitlab.md#excluding-specific-directories-from-the-backup):
+   [exclude specific directories from the backup](../../../administration/backup_restore/backup_gitlab.md#excluding-specific-directories-from-the-backup):
 
    ```shell
    # Create a backup in the /var/opt/gitlab/backups folder
@@ -71,7 +71,7 @@ site:
 1. Copy the backup tarball generated from your primary site to the `/var/opt/gitlab/backups` folder
 on your secondary site.
 
-1. On your secondary site, restore the registry following the [Restore GitLab](../../../raketasks/backup_restore.md#restore-gitlab)
+1. On your secondary site, restore the registry following the [Restore GitLab](../../../administration/backup_restore/index.md#restore-gitlab)
 documentation.
 
 ## Preflight checks
@@ -89,6 +89,11 @@ gitlab-ctl promotion-preflight-checks
 ```
 
 Each step is described in more detail below.
+
+### DNS TTL
+
+If you plan to [update the primary domain DNS record](index.md#step-4-optional-updating-the-primary-domain-dns-record),
+you may wish to maintain a low TTL to ensure fast propagation of DNS changes.
 
 ### Object storage
 
@@ -149,7 +154,8 @@ ensure these processes are close to 100% as possible during active use.
 
 On the **secondary** site:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Geo > Sites**.
    Replicated objects (shown in green) should be close to 100%,
    and there should be no failures (shown in red). If a large proportion of
@@ -177,7 +183,8 @@ This [content was moved to another location](background_verification.md).
 
 On the **primary** site:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Messages**.
 1. Add a message notifying users on the maintenance window.
    You can check under **Geo > Sites** to estimate how long it
@@ -190,7 +197,8 @@ To ensure that all data is replicated to a secondary site, updates (write reques
 be disabled on the **primary** site:
 
 1. Enable [maintenance mode](../../maintenance_mode/index.md) on the **primary** site.
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Monitoring > Background Jobs**.
 1. On the Sidekiq dashboard, select **Cron**.
 1. Select `Disable All` to disable non-Geo periodic background jobs.
@@ -200,13 +208,11 @@ be disabled on the **primary** site:
 
 ## Finish replicating and verifying all data
 
-NOTE:
-GitLab 13.9 through GitLab 14.3 are affected by a bug in which the Geo secondary site statuses appears to stop updating and become unhealthy. For more information, see [Geo Admin Area shows 'Unhealthy' after enabling Maintenance Mode](../replication/troubleshooting.md#geo-admin-area-shows-unhealthy-after-enabling-maintenance-mode).
-
 1. If you are manually replicating any data not managed by Geo, trigger the
    final replication process now.
 1. On the **primary** site:
-   1. On the top bar, select **Main menu > Admin**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **Admin Area**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. On the Sidekiq dashboard, select **Queues**, and wait for all queues except
       those with `geo` in the name to drop to 0.
@@ -221,7 +227,8 @@ GitLab 13.9 through GitLab 14.3 are affected by a bug in which the Geo secondary
       - The Geo log cursor is up to date (0 events behind).
 
 1. On the **secondary** site:
-   1. On the top bar, select **Main menu > Admin**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **Admin Area**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. On the Sidekiq dashboard, select **Queues**, and wait for all the `geo`
       queues to drop to 0 queued and 0 running jobs.

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Admin::ClustersController, feature_category: :kubernetes_management do
+RSpec.describe Admin::ClustersController, feature_category: :deployment_management do
   include AccessMatchersForController
   include GoogleApi::CloudPlatformHelpers
 
@@ -58,7 +58,8 @@ RSpec.describe Admin::ClustersController, feature_category: :kubernetes_manageme
           let(:total_count) { Clusters::Cluster.instance_type.page.total_count }
 
           before do
-            create_list(:cluster, 30, :provided_by_gcp, :production_environment, :instance)
+            allow(Clusters::Cluster).to receive(:default_per_page).and_return(1)
+            create_list(:cluster, 2, :provided_by_gcp, :production_environment, :instance)
           end
 
           it 'redirects to the page' do
@@ -99,39 +100,6 @@ RSpec.describe Admin::ClustersController, feature_category: :kubernetes_manageme
       it { expect { get_index }.to be_allowed_for(:admin) }
       it { expect { get_index }.to be_denied_for(:user) }
       it { expect { get_index }.to be_denied_for(:external) }
-    end
-  end
-
-  it_behaves_like 'GET #metrics_dashboard for dashboard', 'Cluster health' do
-    let(:cluster) { create(:cluster, :instance, :provided_by_gcp) }
-
-    let(:metrics_dashboard_req_params) do
-      {
-        id: cluster.id
-      }
-    end
-  end
-
-  describe 'GET #prometheus_proxy' do
-    let(:user) { admin }
-    let(:proxyable) do
-      create(:cluster, :instance, :provided_by_gcp)
-    end
-
-    it_behaves_like 'metrics dashboard prometheus api proxy' do
-      context 'with anonymous user' do
-        let(:prometheus_body) { nil }
-
-        before do
-          sign_out(admin)
-        end
-
-        it 'returns 404' do
-          get :prometheus_proxy, params: prometheus_proxy_params
-
-          expect(response).to have_gitlab_http_status(:not_found)
-        end
-      end
     end
   end
 
@@ -259,14 +227,6 @@ RSpec.describe Admin::ClustersController, feature_category: :kubernetes_manageme
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to match_response_schema('cluster_status')
       end
-
-      it 'invokes schedule_status_update on each application' do
-        expect_next_instance_of(Clusters::Applications::Ingress) do |instance|
-          expect(instance).to receive(:schedule_status_update)
-        end
-
-        get_cluster_status
-      end
     end
 
     describe 'security' do
@@ -289,24 +249,6 @@ RSpec.describe Admin::ClustersController, feature_category: :kubernetes_manageme
 
     include_examples ':certificate_based_clusters feature flag controller responses' do
       let(:subject) { get_show }
-    end
-
-    describe 'functionality' do
-      render_views
-
-      it 'responds successfully' do
-        get_show
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:cluster)).to eq(cluster)
-      end
-
-      it 'renders integration tab view' do
-        get_show(tab: 'integrations')
-
-        expect(response).to render_template('clusters/clusters/_integrations')
-        expect(response).to have_gitlab_http_status(:ok)
-      end
     end
 
     describe 'security' do

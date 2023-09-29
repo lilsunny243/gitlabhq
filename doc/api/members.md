@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Group and project members API **(FREE)**
+# Group and project members API **(FREE ALL)**
 
 > `created_by` field [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/28789) in GitLab 14.10.
 
@@ -135,7 +135,7 @@ GET /projects/:id/members/all
 | `query`   | string | no     | A query string to search for members |
 | `user_ids`   | array of integers | no     | Filter the results on the given user IDs |
 | `show_seat_info`   | boolean | no     | Show seat information for users |
-| `state`   | string | no | Filter results by member state, one of `awaiting` or `active` **(PREMIUM)** |
+| `state`   | string | no | Filter results by member state, one of `awaiting` or `active` **(PREMIUM ALL)** |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/:id/members/all"
@@ -316,9 +316,8 @@ This API endpoint works on top-level groups only. It does not work on subgroups.
 
 This function takes [pagination](rest/index.md#pagination) parameters `page` and `per_page` to restrict the list of users.
 
-[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/262875) in GitLab 13.7, the `search` and
-`sort` parameters allow you to search for billable group members by name and sort the results,
-respectively.
+[In GitLab 13.7 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/262875), use the `search` parameter
+to search for billable group members by name and `sort` to sort the results.
 
 ```plaintext
 GET /groups/:id/billable_members
@@ -520,9 +519,9 @@ POST /projects/:id/members
 | --------- | ---- | -------- | ----------- |
 | `id`      | integer/string | yes | The ID or [URL-encoded path of the project or group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `user_id` | integer/string | yes | The user ID of the new member or multiple IDs separated by commas |
-| `access_level` | integer | yes | A valid access level |
+| `access_level` | integer | yes | [A valid access level](access_requests.md#valid-access-levels) |
 | `expires_at` | string | no | A date string in the format `YEAR-MONTH-DAY` |
-| `invite_source` | string | no | The source of the invitation that starts the member creation process. See [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/327120). |
+| `invite_source` | string | no | The source of the invitation that starts the member creation process. GitLab team members can view more information in this confidential issue: `https://gitlab.com/gitlab-org/gitlab/-/issues/327120>`. |
 | `tasks_to_be_done` | array of strings | no | Tasks the inviter wants the member to focus on. The tasks are added as issues to a specified project. The possible values are: `ci`, `code` and `issues`. If specified, requires `tasks_project_id`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/69299) in GitLab 14.5 [with a flag](../administration/feature_flags.md) named `invite_members_for_task`. Disabled by default. |
 | `tasks_project_id` | integer | no | The project ID in which to create the task issues. If specified, requires `tasks_to_be_done`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/69299) in GitLab 14.5 [with a flag](../administration/feature_flags.md) named `invite_members_for_task`. Disabled by default. |
 
@@ -572,9 +571,9 @@ PUT /projects/:id/members/:user_id
 | --------- | ---- | -------- | ----------- |
 | `id`      | integer/string | yes | The ID or [URL-encoded path of the project or group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `user_id` | integer | yes   | The user ID of the member |
-| `access_level` | integer | yes | A valid access level |
+| `access_level` | integer | yes | A [valid access level](access_requests.md#valid-access-levels) |
 | `expires_at` | string | no | A date string in the format `YEAR-MONTH-DAY` |
-| `member_role_id` | integer | no | The ID of a member role **(ULTIMATE)** |
+| `member_role_id` | integer | no | The ID of a member role **(ULTIMATE ALL)** |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/:id/members/:user_id?access_level=40"

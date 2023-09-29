@@ -1,7 +1,5 @@
-/* eslint-disable consistent-return */
-
 import $ from 'jquery';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { loadingIconForLegacyJS } from '~/loading_icon_for_legacy_js';
 import { spriteIcon } from '~/lib/utils/common_utils';
 import FilesCommentButton from './files_comment_button';
@@ -26,7 +24,9 @@ export default class SingleFileDiff {
     this.content = $('.diff-content', this.file);
     this.$chevronRightIcon = $('.diff-toggle-caret .chevron-right', this.file);
     this.$chevronDownIcon = $('.diff-toggle-caret .chevron-down', this.file);
-    this.diffForPath = this.content.find('[data-diff-for-path]').data('diffForPath');
+    this.diffForPath = this.content
+      .find('div:not(.note-text)[data-diff-for-path]')
+      .data('diffForPath');
     this.isOpen = !this.diffForPath;
     if (this.diffForPath) {
       this.collapsedContent = this.content;
@@ -66,7 +66,7 @@ export default class SingleFileDiff {
     } else {
       this.$chevronDownIcon.removeClass('gl-display-none');
       this.$chevronRightIcon.addClass('gl-display-none');
-      return this.getContentHTML(cb);
+      return this.getContentHTML(cb); // eslint-disable-line consistent-return
     }
   }
 

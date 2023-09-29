@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference
 ---
 
-# Dockerfiles API **(FREE)**
+# Dockerfiles API **(FREE ALL)**
 
 GitLab provides an API endpoint for instance-level Dockerfile templates.
 Default templates are defined at
@@ -14,9 +14,9 @@ in the GitLab repository.
 
 ## Override Dockerfile API templates **(PREMIUM SELF)**
 
-In [GitLab Premium and higher](https://about.gitlab.com/pricing/) tiers, GitLab instance
+In [GitLab Premium and Ultimate](https://about.gitlab.com/pricing/) tiers, GitLab instance
 administrators can override templates in the
-[Admin Area](../../user/admin_area/settings/instance_template_repository.md).
+[Admin Area](../../administration/settings/instance_template_repository.md).
 
 ## List Dockerfile templates
 

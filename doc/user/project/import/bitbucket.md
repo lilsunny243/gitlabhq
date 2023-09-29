@@ -1,11 +1,10 @@
 ---
-type: reference, howto
 stage: Manage
-group: Import
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Import your project from Bitbucket Cloud to GitLab **(FREE)**
+# Import your project from Bitbucket Cloud to GitLab **(FREE ALL)**
 
 NOTE:
 The Bitbucket Cloud importer works only with [Bitbucket.org](https://bitbucket.org/), not with Bitbucket
@@ -33,12 +32,13 @@ When importing:
 
 ## Prerequisites
 
+> Requirement for Maintainer role instead of Developer role introduced in GitLab 16.0 and backported to GitLab 15.11.1 and GitLab 15.10.5.
+
 - [Bitbucket Cloud integration](../../../integration/bitbucket.md) must be enabled. If that integration is not enabled, ask your GitLab administrator
   to enable it. The Bitbucket Cloud integration is enabled by default on GitLab.com.
-- [Bitbucket Cloud import source](../../admin_area/settings/visibility_and_access_controls.md#configure-allowed-import-sources) must be enabled. If not enabled, ask your
+- [Bitbucket Cloud import source](../../../administration/settings/import_and_export_settings.md#configure-allowed-import-sources) must be enabled. If not enabled, ask your
   GitLab administrator to enable it. The Bitbucket Cloud import source is enabled by default on GitLab.com.
-- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
-  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
+- At least the Maintainer role on the destination group to import to.
 
 ## How it works
 
@@ -70,8 +70,7 @@ For user contributions to be mapped, each user must complete the following befor
 > Ability to re-import projects [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23905) in GitLab 15.9.
 
 1. Sign in to GitLab.
-1. On the top bar, select **New** (**{plus}**).
-1. Select **New project/repository**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Import project**.
 1. Select **Bitbucket Cloud**.
 1. Log in to Bitbucket and grant GitLab access to your Bitbucket account.
@@ -118,5 +117,5 @@ current Bitbucket public name, and reconnect if there's a mismatch:
 1. Following reconnection, the user should use the API again to verify that their `extern_uid` in
    the GitLab database now matches their current Bitbucket public name.
 
-The importer must then [delete the imported project](../../project/working_with_projects.md#delete-a-project)
+The importer must then [delete the imported project](../../project/settings/index.md#delete-a-project)
 and import again.

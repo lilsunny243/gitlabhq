@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference
 ---
 
-# Snippets **(FREE)**
+# Snippets **(FREE ALL)**
 
 With GitLab snippets, you can store and share bits of code and text with other users.
 You can [comment on](#comment-on-snippets), [clone](#clone-snippets), and
@@ -38,19 +38,15 @@ visibility setting keep this setting. You can read more about the change in the
 You can create snippets in multiple ways, depending on whether you want to create a personal or project snippet:
 
 1. Select the kind of snippet you want to create:
-   - **To create a personal snippet**: On the
-     [Snippets dashboard](https://gitlab.com/dashboard/snippets), select
-     **New snippet**, or:
-     - *If you're on a project's page,* select the plus icon (**{plus-square-o}**)
-       in the top navigation bar, and then select **New snippet** from the
-       **GitLab** section of the same dropdown list.
-     - *For all other pages,* select the plus icon (**{plus-square-o}**)
-       in the top navigation bar, then select **New snippet** from the dropdown list.
+   - **To create a personal snippet**, do one of the following:
+     - On the [Snippets dashboard](https://gitlab.com/dashboard/snippets), select
+       **New snippet**.
+     - From a project: On the left sidebar, select **Create new** (**{plus}**). Below **In GitLab**, select **New snippet**.
+     - From any other page: On the left sidebar, select **Create new** (**{plus}**) and then **New snippet**.
      - If you installed the [GitLab Workflow VS Code extension](project/repository/vscode.md),
        use the [`Gitlab: Create snippet` command](https://marketplace.visualstudio.com/items?itemName=GitLab.gitlab-workflow#create-snippet).
-   - **To create a project snippet**: Go to your project's page. Select the
-     plus icon (**{plus-square-o}**), and then select **New snippet** from the
-     **This project** section of the dropdown list.
+   - **To create a project snippet**: Go to your project's page. Select
+     **Create new** (**{plus}**). Below **In this project**, select **New snippet**.
 1. Add a **Title** and **Description**.
 1. Name your **File** with an appropriate extension, such as `example.rb` or `index.html`.
    Filenames with appropriate extensions display [syntax highlighting](#filenames).
@@ -66,14 +62,22 @@ In GitLab versions 13.0 and later, snippets are [versioned by default](#versione
 
 To discover all snippets visible to you in GitLab, you can:
 
-- **View all snippets visible to you**: On the top bar of your GitLab
-  instance, select **Main menu > Snippets** to view your snippets dashboard.
-- **Visit [GitLab snippets](https://gitlab.com/dashboard/snippets)** for your snippets on GitLab.com.
-- **Explore all public snippets**: On the top bar of your GitLab
-  instance, select **Main menu > Snippets** and select **Explore snippets** to view
-  [all public snippets](https://gitlab.com/explore/snippets).
-- **View a project's snippets**: In your project,
-  go to **Snippets**.
+- **View a project's snippets**:
+  1. On the left sidebar, select **Search or go to** and find your project.
+  1. Select **Code > Snippets**.
+- **View all the snippets you created**:
+  1. On the left sidebar, select **Search or go to**.
+  1. Select **Your work**.
+  1. Select **Snippets**.
+
+  On GitLab.com, you can also visit your [snippets directly](https://gitlab.com/dashboard/snippets).
+
+- **Explore all public snippets**:
+  1. On the left sidebar, select **Search or go to**.
+  1. Select **Explore**.
+  1. Select **Snippets**.
+
+  On GitLab.com, you can also visit [all public snippets directly](https://gitlab.com/explore/snippets).
 
 ## Change default visibility of snippets
 
@@ -106,11 +110,11 @@ content was saved as the initial commit to the snippets' repository.
 ## Filenames
 
 Snippets support syntax highlighting based on the filename and
-extension provided for them. While you can submit a snippet
-without a filename and extension, it needs a valid name so the
-content can be created as a file in the snippet's repository.
+extension provided for them. You can submit a snippet
+without a filename and extension, but a valid name is required for
+creating content as a file in the repository.
 
-If you don't give a snippet a filename and extension,
+If no filename and extension are provided for the snippet,
 GitLab adds a filename in the format `snippetfile<x>.txt`
 where `<x>` represents a number added to the file, starting with 1. This
 number increments if you add more unnamed snippets.
@@ -134,7 +138,7 @@ A single snippet can support up to 10 files, which helps keep related files toge
 - A `gulpfile.js` file and a `package.json` file, which together can be
   used to bootstrap a project and manage its dependencies.
 
-If you need more than 10 files for your snippet, we recommend you create a
+If you need more than 10 files for your snippet, you should create a
 [wiki](project/wiki/index.md) instead. Wikis are available for projects at all
 subscription levels, and [groups](project/wiki/group.md) for
 [GitLab Premium](https://about.gitlab.com/pricing/).
@@ -163,9 +167,9 @@ To delete a file from your snippet through the GitLab UI:
 
 ## Clone snippets
 
-Instead of copying a snippet to a local file, you may want to clone a snippet to
-preserve its relationship with the repository, so you can receive or make updates
-as needed. Select **Clone** on a snippet to display the URLs to clone with SSH or HTTPS:
+To ensure you receive updates, clone the snippet instead of copying it locally. Cloning
+maintains the snippet's connection with the repository. Select **Clone** on a snippet
+to display the URLs to clone with SSH or HTTPS:
 
 ![Clone snippet](img/snippet_clone_button_v13_0.png)
 
@@ -225,8 +229,8 @@ Prerequisites:
 
 To do this task:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Snippets**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Code > Snippets**.
 1. Select the snippet you want to report as spam.
 1. Select **Submit as spam**.
 
@@ -243,13 +247,13 @@ GitLab forwards the spam to Akismet.
   than 10 files results in an error.
 - Revisions are not visible to the user on the GitLab UI, but [an issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/39271)
   for updates.
-- The [maximum size for a snippet](../administration/snippets/index.md#snippets-content-size-limit)
-  is 50 MB, by default.
+- The default [maximum size for a snippet](../administration/snippets/index.md)
+  is 50 MB.
 - Git LFS is not supported.
 
 ### Reduce snippets repository size
 
-Because versioned snippets are considered as part of the [namespace storage size](../user/admin_area/settings/account_and_limit_settings.md),
+Because versioned snippets are considered as part of the [namespace storage size](../administration/settings/account_and_limit_settings.md),
 it's recommended to keep snippets' repositories as compact as possible.
 
 For more information about tools to compact repositories,

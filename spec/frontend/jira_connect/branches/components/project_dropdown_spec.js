@@ -49,10 +49,6 @@ describe('ProjectDropdown', () => {
     });
   }
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('when loading projects', () => {
     beforeEach(() => {
       createComponent({
@@ -141,7 +137,6 @@ describe('ProjectDropdown', () => {
   describe('when searching branches', () => {
     it('triggers a refetch', async () => {
       createComponent({ mountFn: mount });
-      jest.clearAllMocks();
 
       const mockSearchTerm = 'gitl';
       await findDropdown().vm.$emit('search', mockSearchTerm);

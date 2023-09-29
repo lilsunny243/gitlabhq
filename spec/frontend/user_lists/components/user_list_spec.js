@@ -2,6 +2,7 @@ import { GlAlert, GlEmptyState, GlLoadingIcon } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import { uniq } from 'lodash';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import Api from '~/api';
 import UserList from '~/user_lists/components/user_list.vue';
@@ -168,7 +169,7 @@ describe('User List', () => {
 
     it('displays the alert message', () => {
       const alert = findAlert();
-      expect(alert.text()).toBe('Something went wrong on our end. Please try again!');
+      expect(alert.text()).toBe('Unable to load user list. Reload the page and try again.');
     });
 
     it('can dismiss the alert', async () => {

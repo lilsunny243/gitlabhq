@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe PersonalAccessTokens::LastUsedService do
+RSpec.describe PersonalAccessTokens::LastUsedService, feature_category: :system_access do
   describe '#execute' do
     subject { described_class.new(personal_access_token).execute }
 
-    context 'when the personal access token has not been used recently' do
-      let_it_be(:personal_access_token) { create(:personal_access_token, last_used_at: 1.year.ago) }
+    context 'when the personal access token was used 10 minutes ago', :freeze_time do
+      let(:personal_access_token) { create(:personal_access_token, last_used_at: 10.minutes.ago) }
 
       it 'updates the last_used_at timestamp' do
         expect { subject }.to change { personal_access_token.last_used_at }
@@ -20,8 +20,8 @@ RSpec.describe PersonalAccessTokens::LastUsedService do
       end
     end
 
-    context 'when the personal access token has been used recently' do
-      let_it_be(:personal_access_token) { create(:personal_access_token, last_used_at: 1.minute.ago) }
+    context 'when the personal access token was used less than 10 minutes ago', :freeze_time do
+      let(:personal_access_token) { create(:personal_access_token, last_used_at: (10.minutes - 1.second).ago) }
 
       it 'does not update the last_used_at timestamp' do
         expect { subject }.not_to change { personal_access_token.last_used_at }

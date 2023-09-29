@@ -3,9 +3,9 @@
 require 'spec_helper'
 
 RSpec.describe 'top nav responsive', :js, feature_category: :navigation do
-  include Spec::Support::Helpers::Features::InviteMembersModalHelper
+  include Features::InviteMembersModalHelpers
 
-  let_it_be(:user) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
 
   before do
     sign_in(user)
@@ -44,7 +44,7 @@ RSpec.describe 'top nav responsive', :js, feature_category: :navigation do
   end
 
   def invite_members_from_menu
-    find('[data-testid="new-dropdown"]').click
+    find('[data-testid="new-menu-toggle"]').click
 
     click_link('Invite members')
   end

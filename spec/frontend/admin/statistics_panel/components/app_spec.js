@@ -2,6 +2,7 @@ import { GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import AxiosMockAdapter from 'axios-mock-adapter';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import StatisticsPanelApp from '~/admin/statistics_panel/components/app.vue';
 import statisticsLabels from '~/admin/statistics_panel/constants';
@@ -28,10 +29,6 @@ describe('Admin statistics app', () => {
     axiosMock = new AxiosMockAdapter(axios);
     axiosMock.onGet(/api\/(.*)\/application\/statistics/).reply(HTTP_STATUS_OK);
     store = createStore();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   const findStats = (idx) => wrapper.findAll('.js-stats').at(idx);

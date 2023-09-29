@@ -4,6 +4,9 @@ module Ci
   class PendingBuild < Ci::ApplicationRecord
     include EachBatch
     include Ci::Partitionable
+    include SafelyChangeColumnDefault
+
+    columns_changing_default :partition_id
 
     belongs_to :project
     belongs_to :build, class_name: 'Ci::Build'
@@ -14,7 +17,6 @@ module Ci
     validates :namespace, presence: true
 
     scope :ref_protected, -> { where(protected: true) }
-    scope :queued_before, ->(time) { where(arel_table[:created_at].lt(time)) }
     scope :with_instance_runners, -> { where(instance_runners_enabled: true) }
     scope :for_tags, ->(tag_ids) do
       if tag_ids.present?

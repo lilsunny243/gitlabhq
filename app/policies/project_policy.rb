@@ -38,8 +38,14 @@ class ProjectPolicy < BasePolicy
   desc "User is a project bot"
   condition(:project_bot) { user.project_bot? && team_member? }
 
+  desc "User is a security policy bot on the project"
+  condition(:security_policy_bot) { user&.security_policy_bot? && team_member? }
+
   desc "Project is public"
   condition(:public_project, scope: :subject, score: 0) { project.public? }
+
+  desc "project is private"
+  condition(:private_project, scope: :subject, score: 0) { project.private? }
 
   desc "Project is visible to internal users"
   condition(:internal_access) do
@@ -48,6 +54,12 @@ class ProjectPolicy < BasePolicy
 
   desc "User is a member of the group"
   condition(:group_member, scope: :subject) { project_group_member? }
+
+  desc "User is a requester of the group"
+  condition(:group_requester, scope: :subject) { project_group_requester? }
+
+  desc "User is external"
+  condition(:external_user) { user.external? }
 
   desc "Project is archived"
   condition(:archived, scope: :subject, score: 0) { project.archived? }
@@ -157,6 +169,14 @@ class ProjectPolicy < BasePolicy
   condition(:service_desk_enabled) { @subject.service_desk_enabled? }
 
   with_scope :subject
+  condition(:model_experiments_enabled) do
+    Feature.enabled?(:ml_experiment_tracking, @subject) && @subject.feature_available?(:model_experiments, @user)
+  end
+
+  with_scope :subject
+  condition(:model_registry_enabled) { Feature.enabled?(:model_registry, @subject) }
+
+  with_scope :subject
   condition(:resource_access_token_feature_available) do
     resource_access_token_feature_available?
   end
@@ -214,6 +234,7 @@ class ProjectPolicy < BasePolicy
     feature_flags
     releases
     infrastructure
+    model_experiments
   ]
 
   features.each do |f|
@@ -222,8 +243,8 @@ class ProjectPolicy < BasePolicy
     condition(:"#{f}_disabled", score: 32) { !access_allowed_to?(f.to_sym) }
   end
 
-  condition(:project_runner_registration_allowed) do
-    Gitlab::CurrentSettings.valid_runner_registrars.include?('project')
+  condition(:project_runner_registration_allowed, scope: :subject) do
+    Gitlab::CurrentSettings.valid_runner_registrars.include?('project') && @subject.runner_registration_enabled
   end
 
   condition :registry_enabled do
@@ -234,8 +255,14 @@ class ProjectPolicy < BasePolicy
     Gitlab.config.packages.enabled
   end
 
-  condition(:create_runner_workflow_enabled) do
-    Feature.enabled?(:create_runner_workflow)
+  condition :terraform_state_disabled do
+    !Gitlab.config.terraform_state.enabled
+  end
+
+  condition(:namespace_catalog_available) { namespace_catalog_available? }
+
+  condition(:created_and_owned_by_banned_user, scope: :subject) do
+    Feature.enabled?(:hide_projects_of_banned_users) && @subject.created_and_owned_by_banned_user?
   end
 
   # `:read_project` may be prevented in EE, but `:read_project_for_iids` should
@@ -262,6 +289,7 @@ class ProjectPolicy < BasePolicy
     enable :change_visibility_level
     enable :remove_project
     enable :archive_project
+    enable :link_forked_project
     enable :remove_fork_project
     enable :destroy_merge_request
     enable :destroy_issue
@@ -274,9 +302,6 @@ class ProjectPolicy < BasePolicy
     enable :set_show_default_award_emojis
     enable :set_show_diff_preview_in_email
     enable :set_warn_about_potentially_unwanted_characters
-
-    enable :register_project_runners
-    enable :create_project_runners
     enable :manage_owners
   end
 
@@ -349,10 +374,10 @@ class ProjectPolicy < BasePolicy
     enable :metrics_dashboard
     enable :read_confidential_issues
     enable :read_package
-    enable :read_product_analytics
     enable :read_ci_cd_analytics
     enable :read_external_emails
     enable :read_grafana
+    enable :export_work_items
   end
 
   # We define `:public_user_access` separately because there are cases in gitlab-ee
@@ -404,15 +429,18 @@ class ProjectPolicy < BasePolicy
   end
 
   rule { infrastructure_disabled }.policy do
-    prevent(*create_read_update_admin_destroy(:terraform_state))
     prevent(*create_read_update_admin_destroy(:cluster))
     prevent(:read_pod_logs)
     prevent(:read_prometheus)
     prevent(:admin_project_google_cloud)
+    prevent(:admin_project_aws)
+  end
+
+  rule { infrastructure_disabled | terraform_state_disabled }.policy do
+    prevent(*create_read_update_admin_destroy(:terraform_state))
   end
 
   rule { can?(:metrics_dashboard) }.policy do
-    enable :read_prometheus
     enable :read_deployment
   end
 
@@ -425,10 +453,11 @@ class ProjectPolicy < BasePolicy
     prevent(*create_read_update_admin_destroy(:package))
   end
 
-  rule { owner | admin | guest | group_member }.prevent :request_access
+  rule { owner | admin | guest | group_member | group_requester }.prevent :request_access
   rule { ~request_access_enabled }.prevent :request_access
 
   rule { can?(:developer_access) & can?(:create_issue) }.enable :import_issues
+  rule { can?(:reporter_access) & can?(:create_work_item) }.enable :import_work_items
 
   rule { can?(:developer_access) }.policy do
     enable :create_package
@@ -454,16 +483,17 @@ class ProjectPolicy < BasePolicy
     enable :destroy_environment
     enable :create_deployment
     enable :update_deployment
-    enable :read_cluster
+    enable :read_cluster # Deprecated as certificate-based cluster integration (`Clusters::Cluster`).
+    enable :read_cluster_agent
+    enable :use_k8s_proxies
     enable :create_release
     enable :update_release
     enable :destroy_release
-    enable :create_metrics_dashboard_annotation
-    enable :delete_metrics_dashboard_annotation
-    enable :update_metrics_dashboard_annotation
+    enable :admin_metrics_dashboard_annotation
     enable :read_alert_management_alert
     enable :update_alert_management_alert
     enable :create_design
+    enable :update_design
     enable :move_design
     enable :destroy_design
     enable :read_terraform_state
@@ -516,6 +546,7 @@ class ProjectPolicy < BasePolicy
     enable :destroy_release
     enable :destroy_artifacts
     enable :admin_operations
+    enable :admin_sentry
     enable :read_deploy_token
     enable :create_deploy_token
     enable :destroy_deploy_token
@@ -527,14 +558,18 @@ class ProjectPolicy < BasePolicy
     enable :destroy_freeze_period
     enable :admin_feature_flags_client
     enable :register_project_runners
-    enable :create_project_runners
+    enable :create_runner
+    enable :admin_project_runners
+    enable :read_project_runners
     enable :update_runners_registration_token
     enable :admin_project_google_cloud
+    enable :admin_project_aws
     enable :admin_secure_files
     enable :read_upload
     enable :destroy_upload
     enable :admin_incident_management_timeline_event_tag
     enable :stop_environment
+    enable :read_import_error
   end
 
   rule { public_project & metrics_dashboard_allowed }.policy do
@@ -750,6 +785,7 @@ class ProjectPolicy < BasePolicy
     prevent :read_design
     prevent :read_design_activity
     prevent :create_design
+    prevent :update_design
     prevent :destroy_design
     prevent :move_design
   end
@@ -778,6 +814,7 @@ class ProjectPolicy < BasePolicy
   rule { write_package_registry_deploy_token }.policy do
     enable :create_package
     enable :read_package
+    enable :destroy_package
     enable :read_project
   end
 
@@ -811,6 +848,7 @@ class ProjectPolicy < BasePolicy
 
   rule { can?(:admin_project) & resource_access_token_feature_available & resource_access_token_creation_allowed }.policy do
     enable :create_resource_access_tokens
+    enable :manage_resource_access_tokens
   end
 
   rule { can?(:admin_project) }.policy do
@@ -819,19 +857,24 @@ class ProjectPolicy < BasePolicy
 
   rule { can?(:project_bot_access) }.policy do
     prevent :create_resource_access_tokens
+    prevent :manage_resource_access_tokens
   end
 
   rule { user_defined_variables_allowed | can?(:maintainer_access) }.policy do
     enable :set_pipeline_variables
   end
 
-  rule { ~security_and_compliance_disabled & can?(:developer_access) }.policy do
+  rule { security_and_compliance_disabled }.policy do
+    prevent :access_security_and_compliance
+  end
+
+  rule { can?(:developer_access) }.policy do
     enable :access_security_and_compliance
   end
 
   rule { ~admin & ~project_runner_registration_allowed }.policy do
     prevent :register_project_runners
-    prevent :create_project_runners
+    prevent :create_runner
   end
 
   rule { can?(:admin_project_member) }.policy do
@@ -856,12 +899,34 @@ class ProjectPolicy < BasePolicy
     enable :read_code
   end
 
-  rule { ~create_runner_workflow_enabled }.policy do
-    prevent :create_project_runners
-  end
-
   # Should be matched with GroupPolicy#read_internal_note
   rule { admin | can?(:reporter_access) }.enable :read_internal_note
+
+  rule { can?(:developer_access) & namespace_catalog_available }.policy do
+    enable :read_namespace_catalog
+  end
+
+  rule { can?(:owner_access) & namespace_catalog_available }.policy do
+    enable :add_catalog_resource
+  end
+
+  rule { model_registry_enabled }.policy do
+    enable :read_model_registry
+  end
+
+  rule { model_experiments_enabled }.policy do
+    enable :read_model_experiments
+  end
+
+  rule { can?(:reporter_access) & model_experiments_enabled }.policy do
+    enable :write_model_experiments
+  end
+
+  rule { ~admin & created_and_owned_by_banned_user }.policy do
+    prevent :read_project
+  end
+
+  rule { ~private_project & guest & external_user }.enable :read_container_image
 
   private
 
@@ -896,16 +961,19 @@ class ProjectPolicy < BasePolicy
     end
   end
 
-  # rubocop: disable CodeReuse/ActiveRecord
   def project_group_member?
     return false if @user.nil?
     return false unless user_is_user?
 
-    project.group &&
-      (
-        project.group.members_with_parents.exists?(user_id: @user.id) ||
-        project.group.requesters.exists?(user_id: @user.id)
-      )
+    project.group && project.group.member?(@user)
+  end
+
+  # rubocop: disable CodeReuse/ActiveRecord
+  def project_group_requester?
+    return false if @user.nil?
+    return false unless user_is_user?
+
+    project.group && project.group.requesters.exists?(user_id: @user.id)
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
@@ -955,6 +1023,10 @@ class ProjectPolicy < BasePolicy
 
   def project
     @subject
+  end
+
+  def namespace_catalog_available?
+    false
   end
 end
 

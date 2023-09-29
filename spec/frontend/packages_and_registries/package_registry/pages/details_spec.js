@@ -1,4 +1,4 @@
-import { GlEmptyState, GlTabs, GlTab, GlSprintf } from '@gitlab/ui';
+import { GlEmptyState, GlModal, GlTabs, GlTab, GlSprintf, GlLink } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
 
 import VueApollo from 'vue-apollo';
@@ -6,8 +6,8 @@ import createMockApollo from 'helpers/mock_apollo_helper';
 import { useMockLocationHelper } from 'helpers/mock_window_location_helper';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
-
+import { createAlert } from '~/alert';
+import { stubComponent } from 'helpers/stub_component';
 import AdditionalMetadata from '~/packages_and_registries/package_registry/components/details/additional_metadata.vue';
 import PackagesApp from '~/packages_and_registries/package_registry/pages/details.vue';
 import DependencyRow from '~/packages_and_registries/package_registry/components/details/dependency_row.vue';
@@ -18,12 +18,10 @@ import PackageTitle from '~/packages_and_registries/package_registry/components/
 import DeletePackages from '~/packages_and_registries/package_registry/components/functional/delete_packages.vue';
 import PackageVersionsList from '~/packages_and_registries/package_registry/components/details/package_versions_list.vue';
 import {
+  REQUEST_FORWARDING_HELP_PAGE_PATH,
   FETCH_PACKAGE_DETAILS_ERROR_MESSAGE,
   PACKAGE_TYPE_COMPOSER,
-  DELETE_PACKAGE_FILE_SUCCESS_MESSAGE,
-  DELETE_PACKAGE_FILE_ERROR_MESSAGE,
-  DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
-  DELETE_PACKAGE_FILES_ERROR_MESSAGE,
+  DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT,
   PACKAGE_TYPE_NUGET,
   PACKAGE_TYPE_MAVEN,
   PACKAGE_TYPE_CONAN,
@@ -31,22 +29,21 @@ import {
   PACKAGE_TYPE_NPM,
 } from '~/packages_and_registries/package_registry/constants';
 
-import destroyPackageFilesMutation from '~/packages_and_registries/package_registry/graphql/mutations/destroy_package_files.mutation.graphql';
 import getPackageDetails from '~/packages_and_registries/package_registry/graphql/queries/get_package_details.query.graphql';
+import getPackageVersionsQuery from '~/packages_and_registries/package_registry/graphql//queries/get_package_versions.query.graphql';
 import {
   packageDetailsQuery,
   packageData,
   packageVersions,
   dependencyLinks,
   emptyPackageDetailsQuery,
-  packageFiles,
-  packageDestroyFilesMutation,
-  packageDestroyFilesMutationError,
-  pagination,
+  defaultPackageGroupSettings,
 } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 useMockLocationHelper();
+
+Vue.use(VueApollo);
 
 describe('PackagesApp', () => {
   let wrapper;
@@ -57,7 +54,7 @@ describe('PackagesApp', () => {
   };
 
   const provide = {
-    packageId: '111',
+    packageId: '1',
     emptyListIllustration: 'svgPath',
     projectListUrl: 'projectListUrl',
     groupListUrl: 'groupListUrl',
@@ -66,18 +63,13 @@ describe('PackagesApp', () => {
   };
 
   const { __typename, ...packageWithoutTypename } = packageData();
+  const showMock = jest.fn();
 
   function createComponent({
     resolver = jest.fn().mockResolvedValue(packageDetailsQuery()),
-    filesDeleteMutationResolver = jest.fn().mockResolvedValue(packageDestroyFilesMutation()),
     routeId = '1',
   } = {}) {
-    Vue.use(VueApollo);
-
-    const requestHandlers = [
-      [getPackageDetails, resolver],
-      [destroyPackageFilesMutation, filesDeleteMutationResolver],
-    ];
+    const requestHandlers = [[getPackageDetails, resolver]];
     apolloProvider = createMockApollo(requestHandlers);
 
     wrapper = shallowMountExtended(PackagesApp, {
@@ -86,17 +78,11 @@ describe('PackagesApp', () => {
       stubs: {
         PackageTitle,
         DeletePackages,
-        GlModal: {
-          template: `
-            <div>
-              <slot name="modal-title"></slot>
-              <p><slot></slot></p>
-            </div>
-          `,
+        GlModal: stubComponent(GlModal, {
           methods: {
-            show: jest.fn(),
+            show: showMock,
           },
-        },
+        }),
         GlSprintf,
         GlTabs,
         GlTab,
@@ -120,8 +106,6 @@ describe('PackagesApp', () => {
   const findDeleteModal = () => wrapper.findByTestId('delete-modal');
   const findDeleteButton = () => wrapper.findByTestId('delete-package');
   const findPackageFiles = () => wrapper.findComponent(PackageFiles);
-  const findDeleteFileModal = () => wrapper.findByTestId('delete-file-modal');
-  const findDeleteFilesModal = () => wrapper.findByTestId('delete-files-modal');
   const findVersionsList = () => wrapper.findComponent(PackageVersionsList);
   const findVersionsCountBadge = () => wrapper.findByTestId('other-versions-badge');
   const findNoVersionsMessage = () => wrapper.findByTestId('no-versions-message');
@@ -130,10 +114,7 @@ describe('PackagesApp', () => {
   const findDependencyRows = () => wrapper.findAllComponents(DependencyRow);
   const findDeletePackageModal = () => wrapper.findAllComponents(DeletePackages).at(1);
   const findDeletePackages = () => wrapper.findComponent(DeletePackages);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
+  const findLink = () => wrapper.findComponent(GlLink);
 
   it('renders an empty state component', async () => {
     createComponent({ resolver: jest.fn().mockResolvedValue(emptyPackageDetailsQuery) });
@@ -193,7 +174,9 @@ describe('PackagesApp', () => {
         createComponent({
           resolver: jest.fn().mockResolvedValue(
             packageDetailsQuery({
-              packageType,
+              extendPackage: {
+                packageType,
+              },
             }),
           ),
         });
@@ -248,16 +231,55 @@ describe('PackagesApp', () => {
       });
     });
 
-    it('shows the delete confirmation modal when delete is clicked', async () => {
-      createComponent();
+    describe('when delete button is clicked', () => {
+      describe('with request forwarding enabled', () => {
+        beforeEach(async () => {
+          const resolver = jest.fn().mockResolvedValue(
+            packageDetailsQuery({
+              packageSettings: {
+                ...defaultPackageGroupSettings,
+                npmPackageRequestsForwarding: true,
+              },
+            }),
+          );
+          createComponent({ resolver });
 
-      await waitForPromises();
+          await waitForPromises();
 
-      await findDeleteButton().trigger('click');
+          await findDeleteButton().trigger('click');
+        });
 
-      expect(findDeleteModal().find('p').text()).toBe(
-        'You are about to delete version 1.0.0 of @gitlab-org/package-15. Are you sure?',
-      );
+        it('shows the delete confirmation modal with request forwarding content', () => {
+          expect(findDeleteModal().text()).toBe(
+            'Deleting this package while request forwarding is enabled for the project can pose a security risk. Do you want to delete @gitlab-org/package-15 version 1.0.0 anyway? What are the risks?',
+          );
+        });
+
+        it('contains link to help page', () => {
+          expect(findLink().exists()).toBe(true);
+          expect(findLink().attributes('href')).toBe(REQUEST_FORWARDING_HELP_PAGE_PATH);
+        });
+      });
+
+      it('shows the delete confirmation modal without request forwarding content', async () => {
+        const resolver = jest.fn().mockResolvedValue(
+          packageDetailsQuery({
+            packageSettings: {
+              ...defaultPackageGroupSettings,
+              npmPackageRequestsForwarding: false,
+            },
+          }),
+        );
+        createComponent({ resolver });
+
+        await waitForPromises();
+
+        await findDeleteButton().trigger('click');
+
+        expect(findDeleteModal().text()).toBe(
+          'You are about to delete version 1.0.0 of @gitlab-org/package-15. Are you sure?',
+        );
+      });
     });
 
     describe('successful request', () => {
@@ -293,25 +315,27 @@ describe('PackagesApp', () => {
 
   describe('package files', () => {
     it('renders the package files component and has the right props', async () => {
-      const expectedFile = { ...packageFiles()[0] };
-      // eslint-disable-next-line no-underscore-dangle
-      delete expectedFile.__typename;
       createComponent();
 
       await waitForPromises();
 
       expect(findPackageFiles().exists()).toBe(true);
 
-      expect(findPackageFiles().props('packageFiles')[0]).toMatchObject(expectedFile);
-      expect(findPackageFiles().props('canDelete')).toBe(packageData().canDestroy);
-      expect(findPackageFiles().props('isLoading')).toEqual(false);
+      expect(findPackageFiles().props()).toMatchObject({
+        canDelete: packageData().canDestroy,
+        packageId: packageData().id,
+        packageType: packageData().packageType,
+        projectPath: 'gitlab-test',
+      });
     });
 
     it('does not render the package files table when the package is composer', async () => {
       createComponent({
         resolver: jest
           .fn()
-          .mockResolvedValue(packageDetailsQuery({ packageType: PACKAGE_TYPE_COMPOSER })),
+          .mockResolvedValue(
+            packageDetailsQuery({ extendPackage: { packageType: PACKAGE_TYPE_COMPOSER } }),
+          ),
       });
 
       await waitForPromises();
@@ -319,242 +343,28 @@ describe('PackagesApp', () => {
       expect(findPackageFiles().exists()).toBe(false);
     });
 
-    describe('deleting a file', () => {
-      const [fileToDelete] = packageFiles();
-
-      const doDeleteFile = async () => {
-        findPackageFiles().vm.$emit('delete-files', [fileToDelete]);
-
-        findDeleteFileModal().vm.$emit('primary');
-
-        return waitForPromises();
-      };
-
-      it('opens delete file confirmation modal', async () => {
-        createComponent();
-
-        await waitForPromises();
-
-        const showDeleteFileSpy = jest.spyOn(wrapper.vm.$refs.deleteFileModal, 'show');
-        const showDeletePackageSpy = jest.spyOn(wrapper.vm.$refs.deleteModal, 'show');
-
-        findPackageFiles().vm.$emit('delete-files', [fileToDelete]);
-
-        expect(showDeletePackageSpy).not.toHaveBeenCalled();
-        expect(showDeleteFileSpy).toHaveBeenCalled();
-      });
-
-      it('when its the only file opens delete package confirmation modal', async () => {
-        const [packageFile] = packageFiles();
+    describe('emits delete-all-files event', () => {
+      it('opens the delete package confirmation modal and shows confirmation text', async () => {
         const resolver = jest.fn().mockResolvedValue(
           packageDetailsQuery({
-            packageFiles: {
-              pageInfo: {
-                hasNextPage: false,
-              },
-              nodes: [packageFile],
-              __typename: 'PackageFileConnection',
+            extendPackage: {},
+            packageSettings: {
+              ...defaultPackageGroupSettings,
+              npmPackageRequestsForwarding: false,
             },
           }),
         );
-
-        createComponent({
-          resolver,
-        });
-
-        await waitForPromises();
-
-        const showDeleteFileSpy = jest.spyOn(wrapper.vm.$refs.deleteFileModal, 'show');
-        const showDeletePackageSpy = jest.spyOn(wrapper.vm.$refs.deleteModal, 'show');
-
-        findPackageFiles().vm.$emit('delete-files', [fileToDelete]);
-
-        expect(showDeletePackageSpy).toHaveBeenCalled();
-        expect(showDeleteFileSpy).not.toHaveBeenCalled();
-
-        await waitForPromises();
-
-        expect(findDeleteModal().find('p').text()).toBe(
-          'Deleting the last package asset will remove version 1.0.0 of @gitlab-org/package-15. Are you sure?',
-        );
-      });
-
-      it('confirming on the modal sets the loading state', async () => {
-        createComponent();
-
-        await waitForPromises();
-
-        findPackageFiles().vm.$emit('delete-files', [fileToDelete]);
-
-        findDeleteFileModal().vm.$emit('primary');
-
-        await nextTick();
-
-        expect(findPackageFiles().props('isLoading')).toEqual(true);
-      });
-
-      it('confirming on the modal deletes the file and shows a success message', async () => {
-        const resolver = jest.fn().mockResolvedValue(packageDetailsQuery());
         createComponent({ resolver });
 
         await waitForPromises();
 
-        await doDeleteFile();
+        findPackageFiles().vm.$emit('delete-all-files', DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT);
 
-        expect(createAlert).toHaveBeenCalledWith(
-          expect.objectContaining({
-            message: DELETE_PACKAGE_FILE_SUCCESS_MESSAGE,
-          }),
-        );
-        // we are re-fetching the package details, so we expect the resolver to have been called twice
-        expect(resolver).toHaveBeenCalledTimes(2);
-      });
-
-      describe('errors', () => {
-        it('shows an error when the mutation request fails', async () => {
-          createComponent({ filesDeleteMutationResolver: jest.fn().mockRejectedValue() });
-          await waitForPromises();
-
-          await doDeleteFile();
-
-          expect(createAlert).toHaveBeenCalledWith(
-            expect.objectContaining({
-              message: DELETE_PACKAGE_FILE_ERROR_MESSAGE,
-            }),
-          );
-        });
-
-        it('shows an error when the mutation request returns an error payload', async () => {
-          createComponent({
-            filesDeleteMutationResolver: jest
-              .fn()
-              .mockResolvedValue(packageDestroyFilesMutationError()),
-          });
-          await waitForPromises();
-
-          await doDeleteFile();
-
-          expect(createAlert).toHaveBeenCalledWith(
-            expect.objectContaining({
-              message: DELETE_PACKAGE_FILE_ERROR_MESSAGE,
-            }),
-          );
-        });
-      });
-    });
-
-    describe('deleting multiple files', () => {
-      const doDeleteFiles = async () => {
-        findPackageFiles().vm.$emit('delete-files', packageFiles());
-
-        findDeleteFilesModal().vm.$emit('primary');
-
-        return waitForPromises();
-      };
-
-      it('opens delete files confirmation modal', async () => {
-        createComponent();
-
-        await waitForPromises();
-
-        const showDeleteFilesSpy = jest.spyOn(wrapper.vm.$refs.deleteFilesModal, 'show');
-
-        findPackageFiles().vm.$emit('delete-files', packageFiles());
-
-        expect(showDeleteFilesSpy).toHaveBeenCalled();
-      });
-
-      it('confirming on the modal sets the loading state', async () => {
-        createComponent();
-
-        await waitForPromises();
-
-        findPackageFiles().vm.$emit('delete-files', packageFiles());
-
-        findDeleteFilesModal().vm.$emit('primary');
+        expect(showMock).toHaveBeenCalledTimes(1);
 
         await nextTick();
 
-        expect(findPackageFiles().props('isLoading')).toEqual(true);
-      });
-
-      it('confirming on the modal deletes the file and shows a success message', async () => {
-        const resolver = jest.fn().mockResolvedValue(packageDetailsQuery());
-        createComponent({ resolver });
-
-        await waitForPromises();
-
-        await doDeleteFiles();
-
-        expect(createAlert).toHaveBeenCalledWith(
-          expect.objectContaining({
-            message: DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
-          }),
-        );
-        // we are re-fetching the package details, so we expect the resolver to have been called twice
-        expect(resolver).toHaveBeenCalledTimes(2);
-      });
-
-      describe('errors', () => {
-        it('shows an error when the mutation request fails', async () => {
-          createComponent({ filesDeleteMutationResolver: jest.fn().mockRejectedValue() });
-          await waitForPromises();
-
-          await doDeleteFiles();
-
-          expect(createAlert).toHaveBeenCalledWith(
-            expect.objectContaining({
-              message: DELETE_PACKAGE_FILES_ERROR_MESSAGE,
-            }),
-          );
-        });
-
-        it('shows an error when the mutation request returns an error payload', async () => {
-          createComponent({
-            filesDeleteMutationResolver: jest
-              .fn()
-              .mockResolvedValue(packageDestroyFilesMutationError()),
-          });
-          await waitForPromises();
-
-          await doDeleteFiles();
-
-          expect(createAlert).toHaveBeenCalledWith(
-            expect.objectContaining({
-              message: DELETE_PACKAGE_FILES_ERROR_MESSAGE,
-            }),
-          );
-        });
-      });
-    });
-
-    describe('deleting all files', () => {
-      it('opens the delete package confirmation modal', async () => {
-        const resolver = jest.fn().mockResolvedValue(
-          packageDetailsQuery({
-            packageFiles: {
-              pageInfo: {
-                hasNextPage: false,
-              },
-              nodes: packageFiles(),
-            },
-          }),
-        );
-        createComponent({
-          resolver,
-        });
-
-        await waitForPromises();
-
-        const showDeletePackageSpy = jest.spyOn(wrapper.vm.$refs.deleteModal, 'show');
-
-        findPackageFiles().vm.$emit('delete-files', packageFiles());
-
-        expect(showDeletePackageSpy).toHaveBeenCalled();
-
-        await waitForPromises();
-
-        expect(findDeleteModal().find('p').text()).toBe(
+        expect(findDeleteModal().text()).toBe(
           'Deleting all package assets will remove version 1.0.0 of @gitlab-org/package-15. Are you sure?',
         );
       });
@@ -576,10 +386,10 @@ describe('PackagesApp', () => {
       createComponent({
         resolver: jest.fn().mockResolvedValue(
           packageDetailsQuery({
-            versions: {
-              count: 0,
-              nodes: [],
-              pageInfo: pagination({ hasNextPage: false, hasPreviousPage: false }),
+            extendPackage: {
+              versions: {
+                count: 0,
+              },
             },
           }),
         ),
@@ -595,61 +405,62 @@ describe('PackagesApp', () => {
     });
 
     it('binds the correct props', async () => {
-      const versionNodes = packageVersions();
       createComponent();
 
       await waitForPromises();
 
       expect(findVersionsList().props()).toMatchObject({
         canDestroy: true,
-        versions: expect.arrayContaining(versionNodes),
+        count: packageVersions().length,
+        isMutationLoading: false,
+        packageId: 'gid://gitlab/Packages::Package/1',
+        isRequestForwardingEnabled: true,
       });
     });
 
     describe('delete packages', () => {
-      it('exists and has the correct props', async () => {
+      beforeEach(async () => {
         createComponent();
-
         await waitForPromises();
-
-        expect(findDeletePackages().props()).toMatchObject({
-          refetchQueries: [{ query: getPackageDetails, variables: {} }],
-          showSuccessAlert: true,
-        });
       });
 
-      it('deletePackages is bound to package-versions-list delete event', async () => {
-        createComponent();
+      it('exists and has the correct props', () => {
+        expect(findDeletePackages().props('showSuccessAlert')).toBe(true);
+        expect(findDeletePackages().props('refetchQueries')).toEqual([
+          {
+            query: getPackageVersionsQuery,
+            variables: {
+              first: 20,
+              id: 'gid://gitlab/Packages::Package/1',
+            },
+          },
+        ]);
+      });
 
-        await waitForPromises();
-
+      it('deletePackages is bound to package-versions-list delete event', () => {
         findVersionsList().vm.$emit('delete', [{ id: 1 }]);
 
         expect(findDeletePackages().emitted('start')).toEqual([[]]);
       });
 
       it('start and end event set loading correctly', async () => {
-        createComponent();
-
-        await waitForPromises();
-
         findDeletePackages().vm.$emit('start');
 
         await nextTick();
 
-        expect(findVersionsList().props('isLoading')).toBe(true);
+        expect(findVersionsList().props('isMutationLoading')).toBe(true);
 
         findDeletePackages().vm.$emit('end');
 
         await nextTick();
 
-        expect(findVersionsList().props('isLoading')).toBe(false);
+        expect(findVersionsList().props('isMutationLoading')).toBe(false);
       });
     });
   });
 
   describe('dependency links', () => {
-    it('does not show the dependency links for a non nuget package', async () => {
+    it('does not show the dependency links for a non nuget package', () => {
       createComponent();
 
       expect(findDependenciesCountBadge().exists()).toBe(false);
@@ -659,8 +470,10 @@ describe('PackagesApp', () => {
       createComponent({
         resolver: jest.fn().mockResolvedValue(
           packageDetailsQuery({
-            packageType: PACKAGE_TYPE_NUGET,
-            dependencyLinks: { nodes: [] },
+            extendPackage: {
+              packageType: PACKAGE_TYPE_NUGET,
+              dependencyLinks: { nodes: [] },
+            },
           }),
         ),
       });
@@ -676,7 +489,9 @@ describe('PackagesApp', () => {
       createComponent({
         resolver: jest.fn().mockResolvedValue(
           packageDetailsQuery({
-            packageType: PACKAGE_TYPE_NUGET,
+            extendPackage: {
+              packageType: PACKAGE_TYPE_NUGET,
+            },
           }),
         ),
       });

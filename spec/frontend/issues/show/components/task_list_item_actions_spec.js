@@ -1,54 +1,72 @@
-import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
+import { GlDisclosureDropdown } from '@gitlab/ui';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { TYPE_EPIC, TYPE_INCIDENT, TYPE_ISSUE } from '~/issues/constants';
 import TaskListItemActions from '~/issues/show/components/task_list_item_actions.vue';
 import eventHub from '~/issues/show/event_hub';
+
+jest.mock('~/issues/show/event_hub');
 
 describe('TaskListItemActions component', () => {
   let wrapper;
 
-  const findGlDropdown = () => wrapper.findComponent(GlDropdown);
-  const findConvertToTaskItem = () => wrapper.findAllComponents(GlDropdownItem).at(0);
-  const findDeleteItem = () => wrapper.findAllComponents(GlDropdownItem).at(1);
+  const findGlDisclosureDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
+  const findConvertToTaskItem = () => wrapper.findByTestId('convert');
+  const findDeleteItem = () => wrapper.findByTestId('delete');
 
-  const mountComponent = () => {
+  const mountComponent = ({ issuableType = TYPE_ISSUE } = {}) => {
     const li = document.createElement('li');
     li.dataset.sourcepos = '3:1-3:10';
     li.appendChild(document.createElement('div'));
     document.body.appendChild(li);
 
-    wrapper = shallowMount(TaskListItemActions, {
-      provide: { canUpdate: true },
+    wrapper = shallowMountExtended(TaskListItemActions, {
+      provide: { canUpdate: true, issuableType },
       attachTo: document.querySelector('div'),
     });
   };
 
-  beforeEach(() => {
-    mountComponent();
-  });
-
   it('renders dropdown', () => {
-    expect(findGlDropdown().props()).toMatchObject({
+    mountComponent();
+
+    expect(findGlDisclosureDropdown().props()).toMatchObject({
       category: 'tertiary',
       icon: 'ellipsis_v',
-      right: true,
-      text: TaskListItemActions.i18n.taskActions,
+      placement: 'right',
+      toggleText: TaskListItemActions.i18n.taskActions,
       textSrOnly: true,
     });
   });
 
-  it('emits event when `Convert to task` dropdown item is clicked', () => {
-    jest.spyOn(eventHub, '$emit');
+  describe('"Convert to task" dropdown item', () => {
+    describe.each`
+      issuableType     | exists
+      ${TYPE_EPIC}     | ${false}
+      ${TYPE_INCIDENT} | ${true}
+      ${TYPE_ISSUE}    | ${true}
+    `(`when $issuableType`, ({ issuableType, exists }) => {
+      it(`${exists ? 'renders' : 'does not render'}`, () => {
+        mountComponent({ issuableType });
 
-    findConvertToTaskItem().vm.$emit('click');
-
-    expect(eventHub.$emit).toHaveBeenCalledWith('convert-task-list-item', '3:1-3:10');
+        expect(findConvertToTaskItem().exists()).toBe(exists);
+      });
+    });
   });
 
-  it('emits event when `Delete` dropdown item is clicked', () => {
-    jest.spyOn(eventHub, '$emit');
+  describe('events', () => {
+    beforeEach(() => {
+      mountComponent();
+    });
 
-    findDeleteItem().vm.$emit('click');
+    it('emits event when `Convert to task` dropdown item is clicked', () => {
+      findConvertToTaskItem().vm.$emit('action');
 
-    expect(eventHub.$emit).toHaveBeenCalledWith('delete-task-list-item', '3:1-3:10');
+      expect(eventHub.$emit).toHaveBeenCalledWith('convert-task-list-item', '3:1-3:10');
+    });
+
+    it('emits event when `Delete` dropdown item is clicked', () => {
+      findDeleteItem().vm.$emit('action');
+
+      expect(eventHub.$emit).toHaveBeenCalledWith('delete-task-list-item', '3:1-3:10');
+    });
   });
 });

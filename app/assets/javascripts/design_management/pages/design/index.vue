@@ -1,10 +1,10 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlAlert } from '@gitlab/ui';
 import { isNull } from 'lodash';
-import Mousetrap from 'mousetrap';
-import { ApolloMutation } from 'vue-apollo';
+import { Mousetrap } from '~/lib/mousetrap';
 import { keysFor, ISSUE_CLOSE_DESIGN } from '~/behaviors/shortcuts/keybindings';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { fetchPolicies } from '~/lib/graphql';
 import { updateGlobalTodoCount } from '~/sidebar/utils';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
@@ -34,12 +34,9 @@ import {
   getPageLayoutElement,
 } from '../../utils/design_management_utils';
 import {
-  ADD_DISCUSSION_COMMENT_ERROR,
-  ADD_IMAGE_DIFF_NOTE_ERROR,
   UPDATE_IMAGE_DIFF_NOTE_ERROR,
   DESIGN_NOT_FOUND_ERROR,
   DESIGN_VERSION_NOT_EXIST_ERROR,
-  UPDATE_NOTE_ERROR,
   TOGGLE_TODO_ERROR,
   DELETE_NOTE_ERROR,
   designDeletionError,
@@ -51,7 +48,6 @@ const DEFAULT_MAX_SCALE = 2;
 
 export default {
   components: {
-    ApolloMutation,
     DesignReplyForm,
     DesignPresentation,
     DesignScaler,
@@ -91,7 +87,6 @@ export default {
   data() {
     return {
       design: {},
-      comment: '',
       annotationCoordinates: null,
       errorMessage: '',
       scale: DEFAULT_SCALE,
@@ -130,9 +125,6 @@ export default {
     markdownPreviewPath() {
       return `/${this.projectPath}/preview_markdown?target_type=Issue`;
     },
-    isSubmitButtonDisabled() {
-      return this.comment.trim().length === 0;
-    },
     designVariables() {
       return {
         fullPath: this.projectPath,
@@ -141,11 +133,10 @@ export default {
         atVersion: this.designsVersion,
       };
     },
-    mutationPayload() {
+    mutationVariables() {
       const { x, y, width, height } = this.annotationCoordinates;
       return {
         noteableId: this.design.id,
-        body: this.comment,
         position: {
           headSha: this.design.diffRefs.headSha,
           baseSha: this.design.diffRefs.baseSha,
@@ -197,13 +188,23 @@ export default {
     Mousetrap.unbind(keysFor(ISSUE_CLOSE_DESIGN));
   },
   methods: {
-    addImageDiffNoteToStore(store, { data: { createImageDiffNote } }) {
+    addImageDiffNoteToStore({ data }) {
+      const { createImageDiffNote } = data;
+      /**
+       * https://gitlab.com/gitlab-org/gitlab/-/issues/388314
+       *
+       * The getClient method is not documented. In future,
+       * need to check for any alternative.
+       */
+      const { cache } = this.$apollo.getClient();
+
       updateStoreAfterAddImageDiffNote(
-        store,
+        cache,
         createImageDiffNote,
         getDesignQuery,
         this.designVariables,
       );
+      this.closeCommentForm(data);
     },
     updateImageDiffNoteInStore(store, { data: { repositionImageDiffNote } }) {
       return updateStoreAfterRepositionImageDiffNote(
@@ -250,7 +251,7 @@ export default {
     },
     onQueryError(message) {
       // because we redirect user to /designs (the issue page),
-      // we want to create these flashes on the issue page
+      // we want to create these alerts on the issue page
       createAlert({ message });
       this.$router.push({ name: this.$options.DESIGNS_ROUTE_NAME });
     },
@@ -258,17 +259,8 @@ export default {
       this.errorMessage = message;
       if (e) throw e;
     },
-    onCreateImageDiffNoteError(e) {
-      this.onError(ADD_IMAGE_DIFF_NOTE_ERROR, e);
-    },
-    onUpdateNoteError(e) {
-      this.onError(UPDATE_NOTE_ERROR, e);
-    },
     onDeleteNoteError(e) {
       this.onError(DELETE_NOTE_ERROR, e);
-    },
-    onDesignDiscussionError(e) {
-      this.onError(ADD_DISCUSSION_COMMENT_ERROR, e);
     },
     onUpdateImageDiffNoteError(e) {
       this.onError(UPDATE_IMAGE_DIFF_NOTE_ERROR, e);
@@ -289,7 +281,6 @@ export default {
       }
     },
     closeCommentForm(data) {
-      this.comment = '';
       this.annotationCoordinates = null;
 
       if (data?.data && !isNull(this.prevCurrentUserTodos)) {
@@ -342,7 +333,7 @@ export default {
 
 <template>
   <div
-    class="design-detail js-design-detail fixed-top gl-w-full gl-bottom-0 gl-display-flex gl-justify-content-center gl-flex-direction-column gl-lg-flex-direction-row"
+    class="design-detail js-design-detail fixed-top gl-w-full gl-display-flex gl-justify-content-center gl-flex-direction-column gl-lg-flex-direction-row"
   >
     <div
       class="gl-display-flex gl-overflow-hidden gl-flex-grow-1 gl-flex-direction-column gl-relative"
@@ -395,39 +386,28 @@ export default {
     </div>
     <design-sidebar
       :design="design"
+      :design-variables="designVariables"
       :resolved-discussions-expanded="resolvedDiscussionsExpanded"
       :markdown-preview-path="markdownPreviewPath"
       :is-loading="isLoading"
-      @onDesignDiscussionError="onDesignDiscussionError"
-      @onCreateImageDiffNoteError="onCreateImageDiffNoteError"
-      @updateNoteError="onUpdateNoteError"
       @deleteNoteError="onDeleteNoteError"
       @resolveDiscussionError="onResolveDiscussionError"
       @toggleResolvedComments="toggleResolvedComments"
       @todoError="onTodoError"
     >
       <template #reply-form>
-        <apollo-mutation
+        <design-reply-form
           v-if="isAnnotating"
-          #default="{ mutate, loading }"
-          :mutation="$options.createImageDiffNoteMutation"
-          :variables="{
-            input: mutationPayload,
-          }"
-          :update="addImageDiffNoteToStore"
-          @done="closeCommentForm"
-          @error="onCreateImageDiffNoteError"
-        >
-          <design-reply-form
-            ref="newDiscussionForm"
-            v-model="comment"
-            :is-saving="loading"
-            :markdown-preview-path="markdownPreviewPath"
-            :noteable-id="design.id"
-            @submit-form="mutate"
-            @cancel-form="closeCommentForm"
-          /> </apollo-mutation
-      ></template>
+          ref="newDiscussionForm"
+          :design-note-mutation="$options.createImageDiffNoteMutation"
+          :mutation-variables="mutationVariables"
+          :markdown-preview-path="markdownPreviewPath"
+          :noteable-id="design.id"
+          :is-discussion="true"
+          @note-submit-complete="addImageDiffNoteToStore"
+          @cancel-form="closeCommentForm"
+        />
+      </template>
     </design-sidebar>
   </div>
 </template>

@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, howto
 ---
 
-# Partial clone **(FREE)**
+# Partial clone **(FREE ALL)**
 
 As Git repositories grow in size, they can become cumbersome to work with
 because of:
@@ -94,9 +94,7 @@ Updating files: 100% (28/28), done.
 
 $ cd www-gitlab-com
 
-$ git sparse-checkout init --cone
-
-$ git sparse-checkout add data
+$ git sparse-checkout set data --cone
 remote: Enumerating objects: 301, done.
 remote: Counting objects: 100% (301/301), done.
 remote: Compressing objects: 100% (292/292), done.

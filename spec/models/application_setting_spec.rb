@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
+RSpec.describe ApplicationSetting, feature_category: :shared, type: :model do
   using RSpec::Parameterized::TableSyntax
 
   subject(:setting) { described_class.create_from_defaults }
@@ -23,20 +23,9 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { expect(setting.id).to eq(1) }
     it { expect(setting.repository_storages_weighted).to eq({}) }
     it { expect(setting.kroki_formats).to eq({}) }
-  end
-
-  describe 'associations' do
-    it do
-      is_expected.to belong_to(:self_monitoring_project).class_name('Project')
-        .with_foreign_key(:instance_administration_project_id)
-        .inverse_of(:application_setting)
-    end
-
-    it do
-      is_expected.to belong_to(:instance_group).class_name('Group')
-        .with_foreign_key(:instance_administrators_group_id)
-        .inverse_of(:application_setting)
-    end
+    it { expect(setting.default_branch_protection_defaults).to eq({}) }
+    it { expect(setting.max_decompressed_archive_size).to eq(25600) }
+    it { expect(setting.decompress_archive_file_timeout).to eq(210) }
   end
 
   describe 'validations' do
@@ -44,6 +33,28 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     let(:https) { 'https://example.com' }
     let(:ftp)   { 'ftp://example.com' }
     let(:javascript) { 'javascript:alert(window.opener.document.location)' }
+
+    let_it_be(:valid_prometheus_alert_db_indicators_settings) do
+      {
+        prometheus_api_url: 'Prometheus URL',
+        apdex_sli_query: {
+          main: 'Apdex SLI query main',
+          ci: 'Apdex SLI query ci'
+        },
+        apdex_slo: {
+          main: 0.99,
+          ci: 0.98
+        },
+        wal_rate_sli_query: {
+          main: 'WAL rate query main',
+          ci: 'WAL rate query ci'
+        },
+        wal_rate_slo: {
+          main: 7000,
+          ci: 7000
+        }
+      }
+    end
 
     it { is_expected.to allow_value(nil).for(:home_page_url) }
     it { is_expected.to allow_value(http).for(:home_page_url) }
@@ -58,8 +69,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to allow_value("dev.gitlab.com").for(:commit_email_hostname) }
     it { is_expected.not_to allow_value("@dev.gitlab").for(:commit_email_hostname) }
 
-    it { is_expected.to allow_value(true).for(:container_expiration_policies_enable_historic_entries) }
-    it { is_expected.to allow_value(false).for(:container_expiration_policies_enable_historic_entries) }
+    it { is_expected.to allow_value(true, false).for(:container_expiration_policies_enable_historic_entries) }
     it { is_expected.not_to allow_value(nil).for(:container_expiration_policies_enable_historic_entries) }
 
     it { is_expected.to allow_value("myemail@gitlab.com").for(:lets_encrypt_notification_email) }
@@ -86,6 +96,10 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.not_to allow_value(['/example'] * 101).for(:protected_paths) }
     it { is_expected.not_to allow_value(nil).for(:protected_paths) }
     it { is_expected.to allow_value([]).for(:protected_paths) }
+    it { is_expected.to allow_value(['/example'] * 100).for(:protected_paths_for_get_request) }
+    it { is_expected.not_to allow_value(['/example'] * 101).for(:protected_paths_for_get_request) }
+    it { is_expected.not_to allow_value(nil).for(:protected_paths_for_get_request) }
+    it { is_expected.to allow_value([]).for(:protected_paths_for_get_request) }
 
     it { is_expected.to allow_value(3).for(:push_event_hooks_limit) }
     it { is_expected.not_to allow_value('three').for(:push_event_hooks_limit) }
@@ -97,9 +111,9 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
 
     it { is_expected.to validate_numericality_of(:container_registry_delete_tags_service_timeout).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.to validate_numericality_of(:container_registry_cleanup_tags_service_max_list_size).only_integer.is_greater_than_or_equal_to(0) }
+    it { is_expected.to validate_numericality_of(:container_registry_data_repair_detail_worker_max_concurrency).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.to validate_numericality_of(:container_registry_expiration_policies_worker_capacity).only_integer.is_greater_than_or_equal_to(0) }
-    it { is_expected.to allow_value(true).for(:container_registry_expiration_policies_caching) }
-    it { is_expected.to allow_value(false).for(:container_registry_expiration_policies_caching) }
+    it { is_expected.to allow_value(true, false).for(:container_registry_expiration_policies_caching) }
 
     it { is_expected.to validate_numericality_of(:container_registry_import_max_tags_count).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.to validate_numericality_of(:container_registry_import_max_retries).only_integer.is_greater_than_or_equal_to(0) }
@@ -108,6 +122,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to validate_numericality_of(:container_registry_pre_import_timeout).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.to validate_numericality_of(:container_registry_import_timeout).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.to validate_numericality_of(:container_registry_pre_import_tags_rate).is_greater_than_or_equal_to(0) }
+    it { is_expected.not_to allow_value(nil).for(:container_registry_data_repair_detail_worker_max_concurrency) }
     it { is_expected.not_to allow_value(nil).for(:container_registry_import_max_tags_count) }
     it { is_expected.not_to allow_value(nil).for(:container_registry_import_max_retries) }
     it { is_expected.not_to allow_value(nil).for(:container_registry_import_start_max_retries) }
@@ -120,6 +135,9 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to validate_presence_of(:container_registry_import_target_plan) }
     it { is_expected.to validate_presence_of(:container_registry_import_created_before) }
 
+    it { is_expected.to validate_numericality_of(:decompress_archive_file_timeout).only_integer.is_greater_than_or_equal_to(0) }
+    it { is_expected.not_to allow_value(nil).for(:decompress_archive_file_timeout) }
+
     it { is_expected.to validate_numericality_of(:dependency_proxy_ttl_group_policy_worker_capacity).only_integer.is_greater_than_or_equal_to(0) }
     it { is_expected.not_to allow_value(nil).for(:dependency_proxy_ttl_group_policy_worker_capacity) }
 
@@ -131,6 +149,8 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
 
     it { is_expected.to validate_numericality_of(:snippet_size_limit).only_integer.is_greater_than(0) }
     it { is_expected.to validate_numericality_of(:wiki_page_max_content_bytes).only_integer.is_greater_than_or_equal_to(1024) }
+    it { is_expected.to allow_value(true, false).for(:wiki_asciidoc_allow_uri_includes) }
+    it { is_expected.not_to allow_value(nil).for(:wiki_asciidoc_allow_uri_includes) }
     it { is_expected.to validate_presence_of(:max_artifacts_size) }
     it { is_expected.to validate_numericality_of(:max_artifacts_size).only_integer.is_greater_than(0) }
     it { is_expected.to validate_presence_of(:max_yaml_size_bytes) }
@@ -142,9 +162,11 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to validate_presence_of(:max_terraform_state_size_bytes) }
     it { is_expected.to validate_numericality_of(:max_terraform_state_size_bytes).only_integer.is_greater_than_or_equal_to(0) }
 
-    it { is_expected.to allow_value(true).for(:user_defaults_to_private_profile) }
-    it { is_expected.to allow_value(false).for(:user_defaults_to_private_profile) }
+    it { is_expected.to allow_value(true, false).for(:user_defaults_to_private_profile) }
     it { is_expected.not_to allow_value(nil).for(:user_defaults_to_private_profile) }
+
+    it { is_expected.to allow_values([true, false]).for(:deny_all_requests_except_allowed) }
+    it { is_expected.not_to allow_value(nil).for(:deny_all_requests_except_allowed) }
 
     it 'ensures max_pages_size is an integer greater than 0 (or equal to 0 to indicate unlimited/maximum)' do
       is_expected.to validate_numericality_of(:max_pages_size).only_integer.is_greater_than_or_equal_to(0)
@@ -197,7 +219,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.not_to allow_value('default' => 100, shouldntexist: 50).for(:repository_storages_weighted).with_message("can't include: shouldntexist") }
 
     %i[notes_create_limit search_rate_limit search_rate_limit_unauthenticated users_get_by_id_limit
-      projects_api_rate_limit_unauthenticated].each do |setting|
+      projects_api_rate_limit_unauthenticated gitlab_shell_operation_limit].each do |setting|
       it { is_expected.to allow_value(400).for(setting) }
       it { is_expected.not_to allow_value('two').for(setting) }
       it { is_expected.not_to allow_value(nil).for(setting) }
@@ -219,10 +241,21 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.not_to allow_value(nil).for(:users_get_by_id_limit_allowlist) }
     it { is_expected.to allow_value([]).for(:users_get_by_id_limit_allowlist) }
 
+    it { is_expected.to allow_value(many_usernames(100)).for(:search_rate_limit_allowlist) }
+    it { is_expected.not_to allow_value(many_usernames(101)).for(:search_rate_limit_allowlist) }
+    it { is_expected.not_to allow_value(nil).for(:search_rate_limit_allowlist) }
+    it { is_expected.to allow_value([]).for(:search_rate_limit_allowlist) }
+
     it { is_expected.to allow_value('all_tiers').for(:whats_new_variant) }
     it { is_expected.to allow_value('current_tier').for(:whats_new_variant) }
     it { is_expected.to allow_value('disabled').for(:whats_new_variant) }
     it { is_expected.not_to allow_value(nil).for(:whats_new_variant) }
+
+    it { is_expected.to allow_value('http://example.com/').for(:public_runner_releases_url) }
+    it { is_expected.not_to allow_value(nil).for(:public_runner_releases_url) }
+
+    it { is_expected.to allow_value([true, false]).for(:update_runner_versions_enabled) }
+    it { is_expected.not_to allow_value(nil).for(:update_runner_versions_enabled) }
 
     it { is_expected.not_to allow_value(['']).for(:valid_runner_registrars) }
     it { is_expected.not_to allow_value(['OBVIOUSLY_WRONG']).for(:valid_runner_registrars) }
@@ -235,13 +268,46 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to allow_value(http).for(:jira_connect_proxy_url) }
     it { is_expected.to allow_value(https).for(:jira_connect_proxy_url) }
 
-    it { is_expected.to allow_value(true).for(:bulk_import_enabled) }
-    it { is_expected.to allow_value(false).for(:bulk_import_enabled) }
+    it { is_expected.to allow_value(true, false).for(:bulk_import_enabled) }
     it { is_expected.not_to allow_value(nil).for(:bulk_import_enabled) }
 
-    it { is_expected.to allow_value(true).for(:allow_runner_registration_token) }
-    it { is_expected.to allow_value(false).for(:allow_runner_registration_token) }
+    it { is_expected.to allow_value(true, false).for(:allow_runner_registration_token) }
     it { is_expected.not_to allow_value(nil).for(:allow_runner_registration_token) }
+
+    it { is_expected.to allow_value(true, false).for(:gitlab_dedicated_instance) }
+    it { is_expected.not_to allow_value(nil).for(:gitlab_dedicated_instance) }
+
+    it { is_expected.not_to allow_value(apdex_slo: '10').for(:prometheus_alert_db_indicators_settings) }
+    it { is_expected.to allow_value(nil).for(:prometheus_alert_db_indicators_settings) }
+    it { is_expected.to allow_value(valid_prometheus_alert_db_indicators_settings).for(:prometheus_alert_db_indicators_settings) }
+
+    it { is_expected.to allow_value([true, false]).for(:silent_mode_enabled) }
+    it { is_expected.not_to allow_value(nil).for(:silent_mode_enabled) }
+
+    it { is_expected.to allow_value(0).for(:ci_max_includes) }
+    it { is_expected.to allow_value(200).for(:ci_max_includes) }
+    it { is_expected.not_to allow_value('abc').for(:ci_max_includes) }
+    it { is_expected.not_to allow_value(nil).for(:ci_max_includes) }
+    it { is_expected.not_to allow_value(10.5).for(:ci_max_includes) }
+    it { is_expected.not_to allow_value(-1).for(:ci_max_includes) }
+
+    it { is_expected.to allow_value(0).for(:ci_max_total_yaml_size_bytes) }
+    it { is_expected.to allow_value(200).for(:ci_max_total_yaml_size_bytes) }
+    it { is_expected.not_to allow_value('abc').for(:ci_max_total_yaml_size_bytes) }
+    it { is_expected.not_to allow_value(nil).for(:ci_max_total_yaml_size_bytes) }
+    it { is_expected.not_to allow_value(10.5).for(:ci_max_total_yaml_size_bytes) }
+    it { is_expected.not_to allow_value(-1).for(:ci_max_total_yaml_size_bytes) }
+
+    it { is_expected.to allow_value([true, false]).for(:remember_me_enabled) }
+    it { is_expected.not_to allow_value(nil).for(:remember_me_enabled) }
+
+    it { is_expected.to validate_numericality_of(:namespace_aggregation_schedule_lease_duration_in_seconds).only_integer.is_greater_than(0) }
+
+    it { is_expected.to allow_values([true, false]).for(:instance_level_code_suggestions_enabled) }
+    it { is_expected.not_to allow_value(nil).for(:instance_level_code_suggestions_enabled) }
+
+    it { is_expected.to allow_values([true, false]).for(:package_registry_allow_anyone_to_pull_option) }
+    it { is_expected.not_to allow_value(nil).for(:package_registry_allow_anyone_to_pull_option) }
 
     context 'when deactivate_dormant_users is enabled' do
       before do
@@ -333,7 +399,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
       end
     end
 
-    describe 'default_branch_name validaitions' do
+    describe 'default_branch_name validations' do
       context "when javascript tags get sanitized properly" do
         it "gets sanitized properly" do
           setting.update!(default_branch_name: "hello<script>alert(1)</script>")
@@ -379,11 +445,14 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
 
         it { is_expected.not_to allow_value(nil).for(:snowplow_collector_hostname) }
         it { is_expected.to allow_value("snowplow.gitlab.com").for(:snowplow_collector_hostname) }
+        it { is_expected.to allow_value("db-snowplow.gitlab.com").for(:snowplow_database_collector_hostname) }
+        it { is_expected.not_to allow_value("#{'a' * 256}db-snowplow.gitlab.com").for(:snowplow_database_collector_hostname) }
         it { is_expected.not_to allow_value('/example').for(:snowplow_collector_hostname) }
       end
 
       context 'when snowplow is not enabled' do
         it { is_expected.to allow_value(nil).for(:snowplow_collector_hostname) }
+        it { is_expected.to allow_value(nil).for(:snowplow_database_collector_hostname) }
       end
     end
 
@@ -452,6 +521,37 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
       end
     end
 
+    describe 'GitLab for Slack app settings' do
+      before do
+        setting.slack_app_enabled = slack_app_enabled
+      end
+
+      context 'when GitLab for Slack app is disabled' do
+        let(:slack_app_enabled) { false }
+
+        it { is_expected.to allow_value(nil).for(:slack_app_id) }
+        it { is_expected.to allow_value(nil).for(:slack_app_secret) }
+        it { is_expected.to allow_value(nil).for(:slack_app_signing_secret) }
+        it { is_expected.to allow_value(nil).for(:slack_app_verification_token) }
+      end
+
+      context 'when GitLab for Slack app is enabled' do
+        let(:slack_app_enabled) { true }
+
+        it { is_expected.to allow_value('123456789a').for(:slack_app_id) }
+        it { is_expected.not_to allow_value(nil).for(:slack_app_id) }
+
+        it { is_expected.to allow_value('secret').for(:slack_app_secret) }
+        it { is_expected.not_to allow_value(nil).for(:slack_app_secret) }
+
+        it { is_expected.to allow_value('signing-secret').for(:slack_app_signing_secret) }
+        it { is_expected.not_to allow_value(nil).for(:slack_app_signing_secret) }
+
+        it { is_expected.to allow_value('token').for(:slack_app_verification_token) }
+        it { is_expected.not_to allow_value(nil).for(:slack_app_verification_token) }
+      end
+    end
+
     describe 'default_artifacts_expire_in' do
       it 'sets an error if it cannot parse' do
         expect do
@@ -514,11 +614,42 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
         .is_greater_than_or_equal_to(0)
     end
 
+    it { is_expected.to validate_presence_of(:max_import_remote_file_size) }
+
+    specify do
+      is_expected.to validate_numericality_of(:max_import_remote_file_size)
+        .only_integer
+        .is_greater_than_or_equal_to(0)
+    end
+
+    it { is_expected.to validate_presence_of(:bulk_import_max_download_file_size) }
+
+    specify do
+      is_expected.to validate_numericality_of(:bulk_import_max_download_file_size)
+       .only_integer
+       .is_greater_than_or_equal_to(0)
+    end
+
+    it { is_expected.to validate_presence_of(:max_decompressed_archive_size) }
+
+    specify do
+      is_expected.to validate_numericality_of(:max_decompressed_archive_size)
+        .only_integer
+        .is_greater_than_or_equal_to(0)
+    end
+
     specify do
       is_expected.to validate_numericality_of(:local_markdown_version)
         .only_integer
         .is_greater_than_or_equal_to(0)
         .is_less_than(65536)
+    end
+
+    specify do
+      is_expected.to validate_numericality_of(:archive_builds_in_seconds)
+        .only_integer
+        .is_greater_than_or_equal_to(1.day.seconds.to_i)
+        .with_message('must be at least 1 day')
     end
 
     describe 'usage_ping_enabled setting' do
@@ -597,6 +728,23 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
         end
 
         it_behaves_like 'usage ping enabled'
+      end
+    end
+
+    describe 'setting validated as `addressable_url` configured with external URI' do
+      before do
+        # Use any property that has the `addressable_url` validation.
+        setting.help_page_documentation_base_url = 'http://example.com'
+      end
+
+      it 'is valid by default' do
+        expect(setting).to be_valid
+      end
+
+      it 'is invalid when unpersisted `deny_all_requests_except_allowed` property is true' do
+        setting.deny_all_requests_except_allowed = true
+
+        expect(setting).not_to be_valid
       end
     end
 
@@ -1055,6 +1203,26 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
       end
     end
 
+    describe 'diagrams.net settings' do
+      context 'when diagrams.net is enabled' do
+        before do
+          setting.diagramsnet_enabled = true
+        end
+
+        it { is_expected.not_to allow_value(nil).for(:diagramsnet_url) }
+        it { is_expected.to allow_value("https://embed.diagrams.net").for(:diagramsnet_url) }
+        it { is_expected.not_to allow_value('not a URL').for(:diagramsnet_url) }
+      end
+
+      context 'when diagrams.net is not enabled' do
+        before do
+          setting.diagramsnet_enabled = false
+        end
+
+        it { is_expected.to allow_value(nil).for(:diagramsnet_url) }
+      end
+    end
+
     context 'throttle_* settings' do
       where(:throttle_setting) do
         %i[
@@ -1144,6 +1312,65 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
       it { is_expected.to allow_value(*Gitlab::ColorSchemes.valid_ids).for(:default_syntax_highlighting_theme) }
       it { is_expected.not_to allow_value(nil, 0, Gitlab::ColorSchemes.available_schemes.size + 1).for(:default_syntax_highlighting_theme) }
     end
+
+    context 'default_branch_protections_defaults validations' do
+      let(:charset) { [*'a'..'z'] + [*0..9] }
+      let(:value) { Array.new(byte_size) { charset.sample }.join }
+
+      it { expect(described_class).to validate_jsonb_schema(['default_branch_protection_defaults']) }
+
+      context 'when json is more than 1kb' do
+        let(:byte_size) { 1.1.kilobytes }
+
+        it { is_expected.not_to allow_value({ name: value }).for(:default_branch_protection_defaults) }
+      end
+
+      context 'when json less than 1kb' do
+        let(:byte_size) { 0.5.kilobytes }
+
+        it { is_expected.to allow_value({ name: value }).for(:default_branch_protection_defaults) }
+      end
+    end
+
+    context 'default_project_visibility, default_group_visibility and restricted_visibility_levels validations' do
+      before do
+        subject.restricted_visibility_levels = [10]
+      end
+
+      it { is_expected.not_to allow_value(10).for(:default_group_visibility) }
+      it { is_expected.not_to allow_value(10).for(:default_project_visibility) }
+      it { is_expected.to allow_value(20).for(:default_group_visibility) }
+      it { is_expected.to allow_value(20).for(:default_project_visibility) }
+
+      it 'sets error messages when default visibility settings are not valid' do
+        subject.default_group_visibility = 10
+        subject.default_project_visibility = 10
+
+        expect(subject).not_to be_valid
+        expect(subject.errors.messages[:default_group_visibility].first).to eq("cannot be set to a restricted visibility level")
+        expect(subject.errors.messages[:default_project_visibility].first).to eq("cannot be set to a restricted visibility level")
+      end
+
+      context 'when prevent_visibility_restriction FF is disabled' do
+        before do
+          stub_feature_flags(prevent_visibility_restriction: false)
+        end
+
+        it { is_expected.to allow_value(10).for(:default_group_visibility) }
+        it { is_expected.to allow_value(10).for(:default_project_visibility) }
+        it { is_expected.to allow_value(20).for(:default_group_visibility) }
+        it { is_expected.to allow_value(20).for(:default_project_visibility) }
+      end
+    end
+
+    describe 'sentry_clientside_traces_sample_rate' do
+      it do
+        is_expected.to validate_numericality_of(:sentry_clientside_traces_sample_rate)
+          .is_greater_than_or_equal_to(0)
+          .is_less_than_or_equal_to(1)
+          .with_message("must be a value between 0 and 1")
+      end
+    end
   end
 
   context 'restrict creating duplicates' do
@@ -1161,6 +1388,17 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
 
     it 'raises an exception' do
       expect { described_class.create_from_defaults }.to raise_error(/table is missing a primary key constraint/)
+    end
+  end
+
+  describe 'ADDRESSABLE_URL_VALIDATION_OPTIONS' do
+    it 'is applied to all addressable_url validated properties' do
+      url_validators = described_class.validators.select { |validator| validator.is_a?(AddressableUrlValidator) }
+
+      url_validators.each do |validator|
+        expect(validator.options).to match(hash_including(described_class::ADDRESSABLE_URL_VALIDATION_OPTIONS)),
+          "#{validator.attributes} should use ADDRESSABLE_URL_VALIDATION_OPTIONS"
+      end
     end
   end
 
@@ -1403,6 +1641,26 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     end
   end
 
+  describe 'default_branch_protection_defaults' do
+    let(:defaults) { { name: 'main', push_access_level: 30, merge_access_level: 30, unprotect_access_level: 40 } }
+
+    it 'returns the value for default_branch_protection_defaults' do
+      subject.default_branch_protection_defaults = defaults
+      expect(subject.default_branch_protection_defaults['name']).to eq('main')
+      expect(subject.default_branch_protection_defaults['push_access_level']).to eq(30)
+      expect(subject.default_branch_protection_defaults['merge_access_level']).to eq(30)
+      expect(subject.default_branch_protection_defaults['unprotect_access_level']).to eq(40)
+    end
+
+    context 'when provided with content that does not match the JSON schema' do
+      # valid json
+      it { is_expected.to allow_value({ name: 'bar' }).for(:default_branch_protection_defaults) }
+
+      # invalid json
+      it { is_expected.not_to allow_value({ foo: 'bar' }).for(:default_branch_protection_defaults) }
+    end
+  end
+
   describe '#static_objects_external_storage_auth_token=', :aggregate_failures do
     subject { setting.static_objects_external_storage_auth_token = token }
 
@@ -1434,7 +1692,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
       it 'ignores the plaintext token' do
         subject
 
-        ApplicationSetting.update_all(static_objects_external_storage_auth_token: 'Test')
+        described_class.update_all(static_objects_external_storage_auth_token: 'Test')
 
         setting.reload
         expect(setting[:static_objects_external_storage_auth_token]).to be_nil
@@ -1471,7 +1729,7 @@ RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
     it { is_expected.to validate_numericality_of(:inactive_projects_min_size_mb).is_greater_than_or_equal_to(0) }
 
     it "deletes the redis key used for tracking inactive projects deletion warning emails when setting is updated",
-       :clean_gitlab_redis_shared_state do
+      :clean_gitlab_redis_shared_state do
       Gitlab::Redis::SharedState.with do |redis|
         redis.hset("inactive_projects_deletion_warning_email_notified", "project:1", "2020-01-01")
       end

@@ -1,12 +1,13 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
-import { GlEmptyState, GlLink, GlSprintf } from '@gitlab/ui';
-import { createAlert, VARIANT_INFO } from '~/flash';
+import { GlButton, GlEmptyState, GlLink, GlSprintf, GlTooltipDirective } from '@gitlab/ui';
+import { createAlert, VARIANT_INFO } from '~/alert';
+import { WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
+import { fetchPolicies } from '~/lib/graphql';
 import { historyReplaceState } from '~/lib/utils/common_utils';
 import { s__ } from '~/locale';
 import { SHOW_DELETE_SUCCESS_ALERT } from '~/packages_and_registries/shared/constants';
 import {
-  PROJECT_RESOURCE_TYPE,
-  GROUP_RESOURCE_TYPE,
   GRAPHQL_PAGE_SIZE,
   DELETE_PACKAGE_SUCCESS_MESSAGE,
   EMPTY_LIST_HELP_URL,
@@ -17,34 +18,47 @@ import DeletePackages from '~/packages_and_registries/package_registry/component
 import PackageTitle from '~/packages_and_registries/package_registry/components/list/package_title.vue';
 import PackageSearch from '~/packages_and_registries/package_registry/components/list/package_search.vue';
 import PackageList from '~/packages_and_registries/package_registry/components/list/packages_list.vue';
+import PersistedPagination from '~/packages_and_registries/shared/components/persisted_pagination.vue';
+import {
+  getPageParams,
+  getNextPageParams,
+  getPreviousPageParams,
+} from '~/packages_and_registries/package_registry/utils';
 
 export default {
   components: {
+    GlButton,
     GlEmptyState,
     GlLink,
     GlSprintf,
     PackageList,
     PackageTitle,
     PackageSearch,
+    PersistedPagination,
     DeletePackages,
   },
-  inject: ['emptyListIllustration', 'isGroupPage', 'fullPath'],
+  directives: {
+    GlTooltip: GlTooltipDirective,
+  },
+  inject: ['emptyListIllustration', 'isGroupPage', 'fullPath', 'settingsPath'],
   data() {
     return {
-      packages: {},
+      packagesResource: {},
       sort: '',
       filters: {},
-      mutationLoading: false,
+      isDeleteInProgress: false,
+      pageParams: {},
     };
   },
   apollo: {
-    packages: {
+    packagesResource: {
       query: getPackagesQuery,
+      fetchPolicy: fetchPolicies.CACHE_AND_NETWORK,
       variables() {
         return this.queryVariables;
       },
       update(data) {
-        return data[this.graphqlResource]?.packages ?? {};
+        return data[this.graphqlResource] ?? {};
       },
       skip() {
         return !this.sort;
@@ -52,6 +66,14 @@ export default {
     },
   },
   computed: {
+    packages() {
+      return this.packagesResource?.packages ?? {};
+    },
+    groupSettings() {
+      return this.isGroupPage
+        ? this.packagesResource?.packageSettings ?? {}
+        : this.packagesResource?.group?.packageSettings ?? {};
+    },
     queryVariables() {
       return {
         isGroupPage: this.isGroupPage,
@@ -61,10 +83,11 @@ export default {
         packageName: this.filters?.packageName,
         packageType: this.filters?.packageType,
         first: GRAPHQL_PAGE_SIZE,
+        ...this.pageParams,
       };
     },
     graphqlResource() {
-      return this.isGroupPage ? GROUP_RESOURCE_TYPE : PROJECT_RESOURCE_TYPE;
+      return this.isGroupPage ? WORKSPACE_GROUP : WORKSPACE_PROJECT;
     },
     pageInfo() {
       return this.packages?.pageInfo ?? {};
@@ -84,7 +107,7 @@ export default {
         : this.$options.i18n.noResultsTitle;
     },
     isLoading() {
-      return this.$apollo.queries.packages.loading || this.mutationLoading;
+      return this.$apollo.queries.packagesResource.loading || this.isDeleteInProgress;
     },
     refetchQueriesData() {
       return [
@@ -103,44 +126,21 @@ export default {
       const urlParams = new URLSearchParams(window.location.search);
       const showAlert = urlParams.get(SHOW_DELETE_SUCCESS_ALERT);
       if (showAlert) {
-        // to be refactored to use gl-alert
         createAlert({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, variant: VARIANT_INFO });
         const cleanUrl = window.location.href.split('?')[0];
         historyReplaceState(cleanUrl);
       }
     },
-    handleSearchUpdate({ sort, filters }) {
+    handleSearchUpdate({ sort, filters, pageInfo }) {
+      this.pageParams = getPageParams(pageInfo);
       this.sort = sort;
       this.filters = { ...filters };
     },
-    updateQuery(_, { fetchMoreResult }) {
-      return fetchMoreResult;
-    },
     fetchNextPage() {
-      const variables = {
-        ...this.queryVariables,
-        first: GRAPHQL_PAGE_SIZE,
-        last: null,
-        after: this.pageInfo?.endCursor,
-      };
-
-      this.$apollo.queries.packages.fetchMore({
-        variables,
-        updateQuery: this.updateQuery,
-      });
+      this.pageParams = getNextPageParams(this.pageInfo.endCursor);
     },
     fetchPreviousPage() {
-      const variables = {
-        ...this.queryVariables,
-        first: null,
-        last: GRAPHQL_PAGE_SIZE,
-        before: this.pageInfo?.startCursor,
-      };
-
-      this.$apollo.queries.packages.fetchMore({
-        variables,
-        updateQuery: this.updateQuery,
-      });
+      this.pageParams = getPreviousPageParams(this.pageInfo.startCursor);
     },
   },
   i18n: {
@@ -150,6 +150,7 @@ export default {
     noResultsText: s__(
       'PackageRegistry|Learn how to %{noPackagesLinkStart}publish and share your packages%{noPackagesLinkEnd} with GitLab.',
     ),
+    settingsText: s__('PackageRegistry|Configure in settings'),
   },
   links: {
     EMPTY_LIST_HELP_URL,
@@ -160,26 +161,37 @@ export default {
 
 <template>
   <div>
-    <package-title :help-url="$options.links.PACKAGE_HELP_URL" :count="packagesCount" />
+    <package-title :help-url="$options.links.PACKAGE_HELP_URL" :count="packagesCount">
+      <template v-if="settingsPath" #settings-link>
+        <gl-button
+          v-gl-tooltip="$options.i18n.settingsText"
+          icon="settings"
+          :href="settingsPath"
+          :aria-label="$options.i18n.settingsText"
+        />
+      </template>
+    </package-title>
     <package-search class="gl-mb-5" @update="handleSearchUpdate" />
 
     <delete-packages
       :refetch-queries="refetchQueriesData"
       show-success-alert
-      @start="mutationLoading = true"
-      @end="mutationLoading = false"
+      @start="isDeleteInProgress = true"
+      @end="isDeleteInProgress = false"
     >
       <template #default="{ deletePackages }">
         <package-list
+          :group-settings="groupSettings"
           :list="packages.nodes"
           :is-loading="isLoading"
-          :page-info="pageInfo"
-          @prev-page="fetchPreviousPage"
-          @next-page="fetchNextPage"
           @delete="deletePackages"
         >
           <template #empty-state>
-            <gl-empty-state :title="emptyStateTitle" :svg-path="emptyListIllustration">
+            <gl-empty-state
+              :title="emptyStateTitle"
+              :svg-path="emptyListIllustration"
+              :svg-height="150"
+            >
               <template #description>
                 <gl-sprintf v-if="hasFilters" :message="$options.i18n.widenFilters" />
                 <gl-sprintf v-else :message="$options.i18n.noResultsText">
@@ -195,5 +207,13 @@ export default {
         </package-list>
       </template>
     </delete-packages>
+    <div v-if="!isDeleteInProgress" class="gl-display-flex gl-justify-content-center">
+      <persisted-pagination
+        class="gl-mt-3"
+        :pagination="pageInfo"
+        @prev="fetchPreviousPage"
+        @next="fetchNextPage"
+      />
+    </div>
   </div>
 </template>

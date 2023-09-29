@@ -4,23 +4,18 @@ require 'active_support/core_ext/array/extract_options'
 
 module QA
   module Page
+    # Gitlab element css selector builder using data-testid attribute
+    #
     class Element
       attr_reader :name, :attributes
 
       def initialize(name, *options)
         @name = name
         @attributes = options.extract_options!
-        @attributes[:pattern] ||= selector
 
         options.each do |option|
-          if option.is_a?(String) || option.is_a?(Regexp)
-            @attributes[:pattern] = option
-          end
+          @attributes[:pattern] = option if option.is_a?(String) || option.is_a?(Regexp)
         end
-      end
-
-      def selector
-        "qa-#{@name.to_s.tr('_', '-')}"
       end
 
       def required?
@@ -28,8 +23,21 @@ module QA
       end
 
       def selector_css
-        %Q([data-qa-selector="#{@name}"]#{additional_selectors},.#{selector})
+        [
+          %([data-testid="#{name}"]#{additional_selectors}),
+          %([data-qa-selector="#{name}"]#{additional_selectors})
+        ].join(',')
       end
+
+      def matches?(line)
+        if expression
+          !!(line =~ /["']#{name}['"]|#{expression}/)
+        else
+          !!(line =~ /["']#{name}['"]/)
+        end
+      end
+
+      private
 
       def expression
         if @attributes[:pattern].is_a?(String)
@@ -39,15 +47,9 @@ module QA
         end
       end
 
-      def matches?(line)
-        !!(line =~ /["']#{name}['"]|#{expression}/)
-      end
-
-      private
-
       def additional_selectors
         @attributes.dup.delete_if { |attr| attr == :pattern || attr == :required }.map do |key, value|
-          %Q([data-qa-#{key.to_s.tr('_', '-')}="#{value}"])
+          %([data-qa-#{key.to_s.tr('_', '-')}="#{value}"])
         end.join
       end
     end

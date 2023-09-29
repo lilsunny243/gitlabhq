@@ -16,7 +16,6 @@
 
     .row
       .form-group.col-md-9
-        = f.label :topics, _('Topics'), class: 'label-bold'
         .js-topics-selector{ data: { hidden_input_id: hidden_topics_field_id } }
         = f.hidden_field :topics, value: @project.topic_list.join(', '), id: hidden_topics_field_id
 
@@ -31,12 +30,11 @@
   = render_if_exists 'shared/repository_size_limit_setting', form: f, type: :project
 
   .form-group.gl-mt-3.gl-mb-3
-    .avatar-container.rect-avatar.s90
-      = project_icon(@project, alt: _('Project avatar'), class: 'avatar project-avatar s90')
+    = render Pajamas::AvatarComponent.new(@project, size: 96, alt: '', class: 'gl-float-left gl-mr-5')
     = f.label :avatar, _('Project avatar'), class: 'label-bold d-block'
     = render 'shared/choose_avatar_button', f: f
     - if @project.avatar?
       %hr
-      = link_to _('Remove avatar'), project_avatar_path(@project), aria: { label: _('Remove avatar') }, data: { confirm: _('Avatar will be removed. Are you sure?'), 'confirm-btn-variant': 'danger' }, method: :delete, class: 'gl-button btn btn-danger-secondary'
+      = link_button_to _('Remove avatar'), project_avatar_path(@project), aria: { label: _('Remove avatar') }, data: { confirm: _('Avatar will be removed. Are you sure?'), 'confirm-btn-variant': 'danger' }, method: :delete, variant: :danger, category: :secondary
 
   = f.submit _('Save changes'), pajamas_button: true, class: "gl-mt-6", data: { qa_selector: 'save_naming_topics_avatar_button' }

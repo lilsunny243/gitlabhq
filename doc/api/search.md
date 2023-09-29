@@ -4,13 +4,13 @@ group: Global Search
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
 ---
 
-# Search API **(FREE)**
+# Search API **(FREE ALL)**
 
 > [Feature flag `search_filter_by_confidential` removed](https://gitlab.com/gitlab-org/gitlab/-/issues/244923) in GitLab 13.6.
 
 Every API call to search must be authenticated.
 
-## Additional scopes **(PREMIUM)**
+## Additional scopes **(PREMIUM ALL)**
 
 Additional scopes are available for the [Advanced Search API](#advanced-search-api)
 and [Group Search API](#group-search-api) if
@@ -31,8 +31,8 @@ GET /search
 | `scope`       | string   | Yes | The scope to search in. Values include `projects`, `issues`, `merge_requests`, `milestones`, `snippet_titles`, `users`. [Additional scopes](#additional-scopes): `blobs`, `commits`, `notes`, `wiki_blobs`. |
 | `search`      | string   | Yes | The search query. |
 | `confidential` | boolean   | No | Filter by confidentiality. Supports `issues` scope; other scopes are ignored. |
-| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
-| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
+| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
+| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
 | `state`       | string   | No | Filter by state. Supports `issues` and `merge_requests` scopes; other scopes are ignored. |
 
 ### Scope: `projects`
@@ -53,13 +53,13 @@ Example response:
     "path": "flight",
     "path_with_namespace": "twitter/flight",
     "created_at": "2017-09-05T07:58:01.621Z",
-    "default_branch": "master",
+    "default_branch": "main",
     "tag_list":[], //deprecated, use `topics` instead
     "topics":[],
     "ssh_url_to_repo": "ssh://jarka@localhost:2222/twitter/flight.git",
     "http_url_to_repo": "http://localhost:3000/twitter/flight.git",
     "web_url": "http://localhost:3000/twitter/flight",
-    "readme_url": "http://localhost:3000/twitter/flight/-/blob/master/README.md",
+    "readme_url": "http://localhost:3000/twitter/flight/-/blob/main/README.md",
     "avatar_url": null,
     "star_count": 0,
     "forks_count": 0,
@@ -153,7 +153,7 @@ Example response:
     "state": "opened",
     "created_at": "2018-01-22T14:21:50.830Z",
     "updated_at": "2018-02-06T12:40:33.295Z",
-    "target_branch": "master",
+    "target_branch": "main",
     "source_branch": "jaja-test",
     "upvotes": 0,
     "downvotes": 0,
@@ -269,7 +269,7 @@ Example response:
 ]
 ```
 
-### Scope: `wiki_blobs` **(PREMIUM)**
+### Scope: `wiki_blobs` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -290,9 +290,10 @@ Example response:
     "path": "home.md",
     "filename": "home.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 5,
-    "project_id": 6
+    "project_id": 6,
+    "group_id": null
   }
 ]
 ```
@@ -300,7 +301,7 @@ Example response:
 NOTE:
 `filename` is deprecated in favor of `path`. Both return the full path of the file inside the repository, but in the future `filename` is intended to be only the filename and not the full path. For details, see [issue 34521](https://gitlab.com/gitlab-org/gitlab/-/issues/34521).
 
-### Scope: commits **(PREMIUM)**
+### Scope: commits **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -335,7 +336,7 @@ Example response:
 ]
 ```
 
-### Scope: blobs **(PREMIUM)**
+### Scope: blobs **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -366,7 +367,7 @@ Example response:
     "path": "README.md",
     "filename": "README.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 46,
     "project_id": 6
   }
@@ -376,7 +377,7 @@ Example response:
 NOTE:
 `filename` is deprecated in favor of `path`. Both return the full path of the file inside the repository, but in the future `filename` is intended to be only the filename and not the full path. For details, see [issue 34521](https://gitlab.com/gitlab-org/gitlab/-/issues/34521).
 
-### Scope: notes **(PREMIUM)**
+### Scope: notes **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -450,8 +451,8 @@ GET /groups/:id/search
 | `scope`       | string   | Yes | The scope to search in. Values include `issues`, `merge_requests`, `milestones`, `projects`, `users`. [Additional scopes](#additional-scopes): `blobs`, `commits`, `notes`, `wiki_blobs`. |
 | `search`      | string   | Yes | The search query. |
 | `confidential` | boolean   | No | Filter by confidentiality. Supports only `issues` scope; other scopes are ignored. |
-| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
-| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
+| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
+| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
 | `state`       | string   | No | Filter by state. Supports `issues` and `merge_requests` only; other scopes are ignored. |
 
 The response depends on the requested scope.
@@ -474,13 +475,13 @@ Example response:
     "path": "flight",
     "path_with_namespace": "twitter/flight",
     "created_at": "2017-09-05T07:58:01.621Z",
-    "default_branch": "master",
+    "default_branch": "main",
     "tag_list":[], //deprecated, use `topics` instead
     "topics":[],
     "ssh_url_to_repo": "ssh://jarka@localhost:2222/twitter/flight.git",
     "http_url_to_repo": "http://localhost:3000/twitter/flight.git",
     "web_url": "http://localhost:3000/twitter/flight",
-    "readme_url": "http://localhost:3000/twitter/flight/-/blob/master/README.md",
+    "readme_url": "http://localhost:3000/twitter/flight/-/blob/main/README.md",
     "avatar_url": null,
     "star_count": 0,
     "forks_count": 0,
@@ -574,7 +575,7 @@ Example response:
     "state": "opened",
     "created_at": "2018-01-22T14:21:50.830Z",
     "updated_at": "2018-02-06T12:40:33.295Z",
-    "target_branch": "master",
+    "target_branch": "main",
     "source_branch": "jaja-test",
     "upvotes": 0,
     "downvotes": 0,
@@ -659,7 +660,7 @@ Example response:
 ]
 ```
 
-### Scope: `wiki_blobs` **(PREMIUM)**
+### Scope: `wiki_blobs` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -680,9 +681,10 @@ Example response:
     "path": "home.md",
     "filename": "home.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 5,
-    "project_id": 6
+    "project_id": 6,
+    "group_id": 1
   }
 ]
 ```
@@ -690,7 +692,7 @@ Example response:
 NOTE:
 `filename` is deprecated in favor of `path`. Both return the full path of the file inside the repository, but in the future `filename` is intended to be only the filename and not the full path. For details, see [issue 34521](https://gitlab.com/gitlab-org/gitlab/-/issues/34521).
 
-### Scope: `commits` **(PREMIUM)**
+### Scope: `commits` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -725,7 +727,7 @@ Example response:
 ]
 ```
 
-### Scope: `blobs` **(PREMIUM)**
+### Scope: `blobs` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -756,7 +758,7 @@ Example response:
     "path": "README.md",
     "filename": "README.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 46,
     "project_id": 6
   }
@@ -766,7 +768,7 @@ Example response:
 NOTE:
 `filename` is deprecated in favor of `path`. Both return the full path of the file inside the repository, but in the future `filename` is intended to be only the filename and not the full path. For details, see [issue 34521](https://gitlab.com/gitlab-org/gitlab/-/issues/34521).
 
-### Scope: `notes` **(PREMIUM)**
+### Scope: `notes` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -841,8 +843,8 @@ GET /projects/:id/search
 | `search`      | string   | Yes | The search query. |
 | `confidential` | boolean   | No | Filter by confidentiality. Supports `issues` scope; other scopes are ignored. |
 | `ref`         | string   | No | The name of a repository branch or tag to search on. The project's default branch is used by default. Applicable only for scopes `blobs`, `commits`, and `wiki_blobs`. |
-| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
-| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for Advanced Search.|
+| `order_by`    | string   | No | Allowed values are `created_at` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
+| `sort`    | string   | No | Allowed values are `asc` or `desc` only. If not set, results are sorted by `created_at` in descending order for basic search, or by the most relevant documents for advanced search.|
 | `state`       | string   | No | Filter by state. Supports the `issues` and `merge_requests` scopes; other scopes are ignored. |
 
 The response depends on the requested scope.
@@ -932,7 +934,7 @@ Example response:
     "state": "opened",
     "created_at": "2018-01-22T14:21:50.830Z",
     "updated_at": "2018-02-06T12:40:33.295Z",
-    "target_branch": "master",
+    "target_branch": "main",
     "source_branch": "jaja-test",
     "upvotes": 0,
     "downvotes": 0,
@@ -1017,7 +1019,7 @@ Example response:
 ]
 ```
 
-### Scope: `notes` **(PREMIUM)**
+### Scope: `notes` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -1054,7 +1056,7 @@ Example response:
 ]
 ```
 
-### Scope: `wiki_blobs` **(PREMIUM)**
+### Scope: `wiki_blobs` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -1092,9 +1094,10 @@ Example response:
     "path": "home.md",
     "filename": "home.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 5,
-    "project_id": 6
+    "project_id": 6,
+    "group_id": 1
   }
 ]
 ```
@@ -1102,7 +1105,7 @@ Example response:
 NOTE:
 `filename` is deprecated in favor of `path`. Both return the full path of the file inside the repository, but in the future `filename` are intended to be only the filename and not the full path. For details, see [issue 34521](https://gitlab.com/gitlab-org/gitlab/-/issues/34521).
 
-### Scope: `commits` **(PREMIUM)**
+### Scope: `commits` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -1137,7 +1140,7 @@ Example response:
 ]
 ```
 
-### Scope: `blobs` **(PREMIUM)**
+### Scope: `blobs` **(PREMIUM ALL)**
 
 > Moved to GitLab Premium in 13.9.
 
@@ -1174,7 +1177,7 @@ Example response:
     "path": "README.md",
     "filename": "README.md",
     "id": null,
-    "ref": "master",
+    "ref": "main",
     "startline": 46,
     "project_id": 6
   }

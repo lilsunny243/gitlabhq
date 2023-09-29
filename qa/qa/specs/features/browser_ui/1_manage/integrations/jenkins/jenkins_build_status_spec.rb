@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Manage', :requires_admin, :skip_live_env, except: { job: 'review-qa-*' } do
-    describe 'Jenkins integration', product_group: :integrations do
+    describe 'Jenkins integration', product_group: :import_and_integrate do
       let(:jenkins_server) { Service::DockerRun::Jenkins.new }
 
       let(:jenkins_client) do
@@ -15,18 +15,9 @@ module QA
       end
 
       let(:jenkins_project_name) { "gitlab_jenkins_#{SecureRandom.hex(5)}" }
-
       let(:connection_name) { 'gitlab-connection' }
-
       let(:project_name) { "project_with_jenkins_#{SecureRandom.hex(4)}" }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = project_name
-          project.initialize_with_readme = true
-          project.auto_devops_enabled = false
-        end
-      end
+      let(:project) { create(:project, :with_readme, name: project_name) }
 
       let(:access_token) do
         Runtime::Env.personal_access_token ||= fabricate_access_token
@@ -49,7 +40,7 @@ module QA
       end
 
       it 'integrates and displays build status for MR pipeline in GitLab',
-         testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347788' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347788' do
         setup_project_integration
 
         jenkins_integration = project.find_integration('jenkins')

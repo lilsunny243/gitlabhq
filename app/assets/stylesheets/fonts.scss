@@ -1,3 +1,5 @@
+$font-display: optional !default;
+
 /* -------------------------------------------------------
 Inter variable font.
 
@@ -7,51 +9,43 @@ Usage:
 @font-face {
   font-family: 'GitLab Sans';
   font-weight: 100 900;
-  font-display: optional;
+  font-display: $font-display;
   font-style: normal;
-  font-named-instance: 'Regular'; /* stylelint-disable property-no-unknown */
+  /* stylelint-disable-next-line property-no-unknown */
+  font-named-instance: 'Regular';
   src: font-url('gitlab-sans/GitLabSans.woff2') format('woff2');
 }
 
+@font-face {
+  font-family: 'GitLab Sans';
+  font-weight: 100 900;
+  font-display: $font-display;
+  font-style: italic;
+  /* stylelint-disable-next-line property-no-unknown */
+  font-named-instance: 'Regular';
+  src: font-url('gitlab-sans/GitLabSans-Italic.woff2') format('woff2');
+}
+
 /* -------------------------------------------------------
-Monospaced font: JetBrains Mono.
+Monospaced font: GitLab Mono.
 
 Usage:
-  html { font-family: 'JetBrains Mono', sans-serif; }
+  html { font-family: 'GitLab Mono', monospace; }
 */
 @font-face {
-  font-family: 'JetBrains Mono';
-  font-display: optional;
+  font-family: 'GitLab Mono';
+  font-weight: 100 900;
+  font-display: $font-display;
   font-style: normal;
-  src: font-url('jetbrains-mono/JetBrainsMono.woff2') format('woff2');
+  src: font-url('gitlab-mono/GitLabMono.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: 'JetBrains Mono';
-  font-display: optional;
-  font-weight: bold;
-  src: font-url('jetbrains-mono/JetBrainsMono-Bold.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-display: optional;
-  font-weight: normal;
+  font-family: 'GitLab Mono';
+  font-weight: 100 900;
+  font-display: $font-display;
   font-style: italic;
-  src: font-url('jetbrains-mono/JetBrainsMono-Italic.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-display: optional;
-  font-weight: bold;
-  font-style: italic;
-  src: font-url('jetbrains-mono/JetBrainsMono-BoldItalic.woff2') format('woff2');
-}
-
-:root {
-  --default-mono-font: 'JetBrains Mono', 'Menlo';
-  --default-regular-font: 'GitLab Sans', -apple-system;
+  src: font-url('gitlab-mono/GitLabMono-Italic.woff2') format('woff2');
 }
 
 // This isn't the best solution, but we needed a quick fix

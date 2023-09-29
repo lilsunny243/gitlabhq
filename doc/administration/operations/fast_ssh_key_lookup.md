@@ -25,10 +25,10 @@ GitLab Shell solves this by providing a way to authorize SSH users via a fast,
 indexed lookup in the GitLab database. This page describes how to enable the fast
 lookup of authorized SSH keys.
 
-## Fast lookup is required for Geo **(PREMIUM)**
+## Fast lookup is required for Geo **(PREMIUM ALL)**
 
-Unlike [Cloud Native GitLab](https://docs.gitlab.com/charts/), Omnibus GitLab by default
-manages an `authorized_keys` file that is located in the
+Unlike [Cloud Native GitLab](https://docs.gitlab.com/charts/), by default Linux package installations
+manage an `authorized_keys` file that is located in the
 `git` user's home directory. For most installations, this file is located under
 `/var/opt/gitlab/.ssh/authorized_keys`, but you can use the following command to
 locate the `authorized_keys` on your system:
@@ -74,7 +74,7 @@ able to accept a fingerprint. Check the version of OpenSSH on your server with `
 
 Add the following to your `sshd_config` file. This file is usually located at
 `/etc/ssh/sshd_config`, but it is at `/assets/sshd_config` if you're using
-Omnibus Docker:
+Docker from a Linux package installation:
 
 ```plaintext
 Match User git    # Apply the AuthorizedKeysCommands to the git user only
@@ -105,7 +105,7 @@ means that GitLab was able to find the key in the database,
 as it is not present in the file.
 
 NOTE:
-For Installations from source, the command would be located at
+For self-compiled installations, the command would be located at
 `/home/git/gitlab-shell/bin/gitlab-shell-authorized-keys-check` if [the install from source](../../install/installation.md#install-gitlab-shell) instructions were followed.
 You might want to consider creating a wrapper script somewhere else, as this command must be
 owned by `root` and not be writable by group or others. You could also consider changing the ownership of this command
@@ -121,7 +121,8 @@ users as long as a large file exists.
 
 To disable writes to the `authorized_keys` file:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Settings > Network**.
 1. Expand **Performance optimization**.
 1. Clear the **Use authorized_keys file to authenticate SSH keys** checkbox.
@@ -140,11 +141,13 @@ This overview is brief. Refer to the above instructions for more context.
 
 1. [Rebuild the `authorized_keys` file](../raketasks/maintenance.md#rebuild-authorized_keys-file).
 1. Enable writes to the `authorized_keys` file.
-   1. On the top bar, select **Main menu > Admin**.
+   1. On the left sidebar, select **Search or go to**.
+   1. Select **Admin Area**.
    1. On the left sidebar, select **Settings > Network**.
    1. Expand **Performance optimization**.
    1. Select the **Use authorized_keys file to authenticate SSH keys** checkbox.
-1. Remove the `AuthorizedKeysCommand` lines from `/etc/ssh/sshd_config` or from `/assets/sshd_config` if you are using Omnibus Docker.
+1. Remove the `AuthorizedKeysCommand` lines from `/etc/ssh/sshd_config` or from `/assets/sshd_config` if you are using Docker
+   from a Linux package installation.
 1. Reload `sshd`: `sudo service sshd reload`.
 
 ## SELinux support and limitations
@@ -161,6 +164,8 @@ Additional technical documentation for `gitlab-sshd` may be found in the
 [GitLab Shell documentation](../../development/gitlab_shell/index.md).
 
 ## Troubleshooting
+
+### SSH traffic slow or high CPU load
 
 If your SSH traffic is [slow](https://github.com/linux-pam/linux-pam/issues/270)
 or causing high CPU load, be sure to check the size of `/var/log/btmp`, and ensure it is rotated on a regular basis or after reaching a certain size.

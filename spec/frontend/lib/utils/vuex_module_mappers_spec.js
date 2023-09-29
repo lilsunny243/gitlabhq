@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import {
   mapVuexModuleActions,
@@ -94,10 +95,6 @@ describe('~/lib/utils/vuex_module_mappers', () => {
       },
       store,
     });
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   describe('from module defined by prop', () => {

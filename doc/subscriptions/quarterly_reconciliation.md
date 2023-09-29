@@ -4,7 +4,7 @@ group: Purchase
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Quarterly reconciliation and annual true-ups **(PREMIUM)**
+# Quarterly reconciliation and annual true-ups **(PREMIUM ALL)**
 
 GitLab reviews your seat usage and sends you an invoice for any overages.
 This review can occur:
@@ -79,6 +79,15 @@ seats, and an invoice is generated for a prorated amount. If a credit card
 is on file, a payment is automatically applied. Otherwise, an invoice is
 sent and subject to your payment terms.
 
+### Troubleshooting failed payment
+
+If your credit card is declined during the reconciliation process, an email will be sent with the subject `Your GitLab subscription failed to reconcile`. Please follow these instructions to update your payment information, and the reconciliation will be automatically retried:
+
+1. Log in to your account at `https://customers.gitlab.com`.
+1. Go to **Payment Methods**.
+1. Select **Add New Payment Method**.
+1. Make sure that the payment method is set as **Default**.
+
 ## Quarterly reconciliation eligibility
 
 ### You are automatically enrolled in quarterly reconciliation if
@@ -91,7 +100,7 @@ sent and subject to your payment terms.
 - You purchased your subscription from a reseller or another channel partner.
 - You purchased a multi-year subscription.
 - You purchased your subscription with a purchasing order.
-- You are a pubic sector customer.
+- You are a public sector customer.
 - You have an offline environment and used a license file to activate your subscription.
 - You are enrolled in a program that provides a free tier such as the GitLab for Education, GitLab for Open Source Program, or GitLab for Startups.
 

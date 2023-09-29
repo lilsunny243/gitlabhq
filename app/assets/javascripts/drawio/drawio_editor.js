@@ -1,14 +1,16 @@
 import _ from 'lodash';
-import { createAlert, VARIANT_SUCCESS } from '~/flash';
+import { createAlert, VARIANT_SUCCESS } from '~/alert';
 import { darkModeEnabled } from '~/lib/utils/color_utils';
+import { base64DecodeUnicode } from '~/lib/utils/text_utility';
 import { __ } from '~/locale';
 import { setAttributes } from '~/lib/utils/dom_utils';
 import {
+  DRAWIO_PARAMS,
   DARK_BACKGROUND_COLOR,
-  DRAWIO_EDITOR_URL,
   DRAWIO_FRAME_ID,
   DIAGRAM_BACKGROUND_COLOR,
   DRAWIO_IFRAME_TIMEOUT,
+  DIAGRAM_MAX_SIZE,
 } from './constants';
 
 function updateDrawioEditorState(drawIOEditorState, data) {
@@ -16,7 +18,7 @@ function updateDrawioEditorState(drawIOEditorState, data) {
 }
 
 function postMessageToDrawioEditor(drawIOEditorState, message) {
-  const { origin } = new URL(DRAWIO_EDITOR_URL);
+  const { origin } = new URL(drawIOEditorState.drawioUrl);
 
   drawIOEditorState.iframe.contentWindow.postMessage(JSON.stringify(message), origin);
 }
@@ -27,7 +29,7 @@ function disposeDrawioEditor(drawIOEditorState) {
 }
 
 function getSvg(data) {
-  const svgPath = atob(data.substring(data.indexOf(',') + 1));
+  const svgPath = base64DecodeUnicode(data.substring(data.indexOf(',') + 1));
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n\
       <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n\
@@ -109,14 +111,24 @@ async function loadExistingDiagram(drawIOEditorState, editorFacade) {
   try {
     diagram = await editorFacade.getDiagram();
   } catch (e) {
-    throw new Error(__('Cannot load the diagram into the draw.io editor'));
+    throw new Error(__('Cannot load the diagram into the diagrams.net editor'));
   }
 
   if (diagram) {
-    const { diagramMarkdown, filename, diagramSvg, contentType } = diagram;
+    const { diagramMarkdown, filename, diagramSvg, contentType, diagramURL } = diagram;
+    const resolvedURL = new URL(diagramURL, window.location.origin);
+    const diagramSvgSize = new Blob([diagramSvg]).size;
 
     if (contentType !== 'image/svg+xml') {
-      throw new Error(__('The selected image is not a diagram'));
+      throw new Error(__('The selected image is not a valid SVG diagram'));
+    }
+
+    if (resolvedURL.origin !== window.location.origin) {
+      throw new Error(__('The selected image is not an asset uploaded in the application'));
+    }
+
+    if (diagramSvgSize > DIAGRAM_MAX_SIZE) {
+      throw new Error(__('The selected image is too large.'));
     }
 
     updateDrawioEditorState(drawIOEditorState, {
@@ -142,7 +154,7 @@ async function prepareEditor(drawIOEditorState, editorFacade) {
   try {
     await loadExistingDiagram(drawIOEditorState, editorFacade);
 
-    iframe.style.visibility = '';
+    iframe.style.visibility = 'visible';
     iframe.style.cursor = '';
     window.scrollTo(0, 0);
   } catch (e) {
@@ -211,24 +223,16 @@ function createEditorIFrame(drawIOEditorState) {
 
   setAttributes(iframe, {
     id: DRAWIO_FRAME_ID,
-    src: DRAWIO_EDITOR_URL,
+    src: drawIOEditorState.drawioUrl,
+    class: 'drawio-editor',
   });
-
-  iframe.style.position = 'absolute';
-  iframe.style.border = '0';
-  iframe.style.top = '0px';
-  iframe.style.left = '0px';
-  iframe.style.width = '100%';
-  iframe.style.height = '100%';
-  iframe.style.zIndex = '1100';
-  iframe.style.visibility = 'hidden';
 
   document.body.appendChild(iframe);
 
   setTimeout(() => {
     if (drawIOEditorState.initialized === false) {
       disposeDrawioEditor(drawIOEditorState);
-      createAlert({ message: __('The draw.io editor could not be loaded.') });
+      createAlert({ message: __('The diagrams.net editor could not be loaded.') });
     }
   }, DRAWIO_IFRAME_TIMEOUT);
 
@@ -253,7 +257,7 @@ function attachDrawioIFrameMessageListener(drawIOEditorState, editorFacade) {
   });
 }
 
-const createDrawioEditorState = ({ filename = null }) => ({
+const createDrawioEditorState = ({ filename = null, drawioUrl }) => ({
   newDiagram: true,
   filename,
   diagramSvg: null,
@@ -263,10 +267,17 @@ const createDrawioEditorState = ({ filename = null }) => ({
   initialized: false,
   dark: darkModeEnabled(),
   disposeEventListener: null,
+  drawioUrl,
 });
 
-export function launchDrawioEditor({ editorFacade, filename }) {
-  const drawIOEditorState = createDrawioEditorState({ filename });
+export function launchDrawioEditor({ editorFacade, filename, drawioUrl = gon.diagramsnet_url }) {
+  const url = new URL(drawioUrl);
+
+  for (const [key, value] of Object.entries(DRAWIO_PARAMS)) {
+    url.searchParams.set(key, value);
+  }
+
+  const drawIOEditorState = createDrawioEditorState({ filename, drawioUrl: url.href });
 
   // The execution order of these two functions matter
   attachDrawioIFrameMessageListener(drawIOEditorState, editorFacade);

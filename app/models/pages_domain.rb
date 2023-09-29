@@ -9,13 +9,14 @@ class PagesDomain < ApplicationRecord
   VERIFICATION_THRESHOLD = 3.days.freeze
   SSL_RENEWAL_THRESHOLD = 30.days.freeze
 
+  MAX_CERTIFICATE_KEY_LENGTH = 8192
+
   enum certificate_source: { user_provided: 0, gitlab_provided: 1 }, _prefix: :certificate
   enum scope: { instance: 0, group: 1, project: 2 }, _prefix: :scope, _default: :project
   enum usage: { pages: 0, serverless: 1 }, _prefix: :usage, _default: :pages
 
   belongs_to :project
   has_many :acme_orders, class_name: "PagesDomainAcmeOrder"
-  has_many :serverless_domain_clusters, class_name: 'Serverless::DomainCluster', inverse_of: :pages_domain
 
   after_initialize :set_verification_code
   before_validation :clear_auto_ssl_failure, unless: :auto_ssl_enabled
@@ -24,10 +25,10 @@ class PagesDomain < ApplicationRecord
   validates :domain, uniqueness: { case_sensitive: false }
   validates :certificate, :key, presence: true, if: :usage_serverless?
   validates :certificate, presence: { message: 'must be present if HTTPS-only is enabled' },
-                          if: :certificate_should_be_present?
+    if: :certificate_should_be_present?
   validates :certificate, certificate: true, if: ->(domain) { domain.certificate.present? }
   validates :key, presence: { message: 'must be present if HTTPS-only is enabled' },
-                  if: :certificate_should_be_present?
+    if: :certificate_should_be_present?
   validates :key, certificate_key: true, named_ecdsa_key: true, if: ->(domain) { domain.key.present? }
   validates :verification_code, presence: true, allow_blank: false
 
@@ -35,6 +36,7 @@ class PagesDomain < ApplicationRecord
   validate :validate_matching_key, if: ->(domain) { domain.certificate.present? || domain.key.present? }
   validate :validate_intermediates, if: ->(domain) { domain.certificate.present? && domain.certificate_changed? }
   validate :validate_custom_domain_count_per_project, on: :create
+  validate :max_certificate_key_length, if: ->(domain) { domain.key.present? }
 
   attribute :auto_ssl_enabled, default: -> { ::Gitlab::LetsEncrypt.enabled? }
   attribute :wildcard, default: false
@@ -173,6 +175,10 @@ class PagesDomain < ApplicationRecord
     "#{VERIFICATION_KEY}=#{verification_code}"
   end
 
+  def verification_record
+    "#{verification_domain} TXT #{keyed_verification_code}"
+  end
+
   def certificate=(certificate)
     super(certificate)
 
@@ -209,20 +215,6 @@ class PagesDomain < ApplicationRecord
     self.certificate_source = 'gitlab_provided' if attribute_changed?(:key)
   end
 
-  def pages_virtual_domain
-    return unless pages_deployed?
-
-    cache = if Feature.enabled?(:cache_pages_domain_api, project.root_namespace)
-              ::Gitlab::Pages::CacheControl.for_domain(id)
-            end
-
-    Pages::VirtualDomain.new(
-      projects: [project],
-      domain: self,
-      cache: cache
-    )
-  end
-
   def clear_auto_ssl_failure
     self.auto_ssl_failed = false
   end
@@ -237,12 +229,22 @@ class PagesDomain < ApplicationRecord
     end
   end
 
-  private
-
   def pages_deployed?
     return false unless project
 
     project.pages_metadatum&.deployed?
+  end
+
+  private
+
+  def max_certificate_key_length
+    return unless pkey.is_a?(OpenSSL::PKey::RSA)
+    return if pkey.to_s.bytesize <= MAX_CERTIFICATE_KEY_LENGTH
+
+    errors.add(
+      :key,
+      s_("PagesDomain|Certificate Key is too long. (Max %d bytes)") % MAX_CERTIFICATE_KEY_LENGTH
+    )
   end
 
   def set_verification_code

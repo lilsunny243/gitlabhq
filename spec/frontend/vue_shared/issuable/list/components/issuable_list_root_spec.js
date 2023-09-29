@@ -7,6 +7,7 @@ import { TEST_HOST } from 'helpers/test_constants';
 
 import IssuableItem from '~/vue_shared/issuable/list/components/issuable_item.vue';
 import IssuableListRoot from '~/vue_shared/issuable/list/components/issuable_list_root.vue';
+import issuableGrid from '~/vue_shared/issuable/list/components/issuable_grid.vue';
 import IssuableTabs from '~/vue_shared/issuable/list/components/issuable_tabs.vue';
 import FilteredSearchBar from '~/vue_shared/components/filtered_search_bar/filtered_search_bar_root.vue';
 import PageSizeSelector from '~/vue_shared/components/page_size_selector.vue';
@@ -43,13 +44,10 @@ describe('IssuableListRoot', () => {
   const findGlKeysetPagination = () => wrapper.findComponent(GlKeysetPagination);
   const findGlPagination = () => wrapper.findComponent(GlPagination);
   const findIssuableItem = () => wrapper.findComponent(IssuableItem);
+  const findIssuableGrid = () => wrapper.findComponent(issuableGrid);
   const findIssuableTabs = () => wrapper.findComponent(IssuableTabs);
   const findVueDraggable = () => wrapper.findComponent(VueDraggable);
   const findPageSizeSelector = () => wrapper.findComponent(PageSizeSelector);
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   describe('computed', () => {
     beforeEach(() => {
@@ -337,7 +335,7 @@ describe('IssuableListRoot', () => {
     describe('alert', () => {
       const error = 'oopsie!';
 
-      it('shows alert when there is an error', () => {
+      it('shows an alert when there is an error', () => {
         wrapper = createComponent({ props: { error } });
 
         expect(findAlert().text()).toBe(error);
@@ -508,7 +506,7 @@ describe('IssuableListRoot', () => {
       });
     });
 
-    it('has the page size change component', async () => {
+    it('has the page size change component', () => {
       expect(findPageSizeSelector().exists()).toBe(true);
     });
 
@@ -517,5 +515,43 @@ describe('IssuableListRoot', () => {
       findPageSizeSelector().vm.$emit('input', pageSize);
       expect(wrapper.emitted('page-size-change')).toEqual([[pageSize]]);
     });
+  });
+
+  describe('grid view issue', () => {
+    beforeEach(() => {
+      wrapper = createComponent({
+        props: {
+          isGridView: true,
+        },
+      });
+    });
+
+    it('renders issuableGrid', () => {
+      expect(findIssuableGrid().exists()).toBe(true);
+    });
+  });
+
+  it('passes `isActive` prop as false if there is no active issuable', () => {
+    wrapper = createComponent({});
+
+    expect(findIssuableItem().props('isActive')).toBe(false);
+  });
+
+  it('passes `isActive` prop as true if active issuable matches issuable item', () => {
+    wrapper = createComponent({
+      props: {
+        activeIssuable: mockIssuableListProps.issuables[0],
+      },
+    });
+
+    expect(findIssuableItem().props('isActive')).toBe(true);
+  });
+
+  it('emits `select-issuable` event on emitting `select-issuable` from issuable item', () => {
+    const mockIssuable = mockIssuableListProps.issuables[0];
+    wrapper = createComponent({});
+    findIssuableItem().vm.$emit('select-issuable', mockIssuable);
+
+    expect(wrapper.emitted('select-issuable')).toEqual([[mockIssuable]]);
   });
 });

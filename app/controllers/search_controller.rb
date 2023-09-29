@@ -3,14 +3,14 @@
 class SearchController < ApplicationController
   include ControllerWithCrossProjectAccessCheck
   include SearchHelper
-  include RedisTracking
+  include ProductAnalyticsTracking
   include ProductAnalyticsTracking
   include SearchRateLimitable
 
   RESCUE_FROM_TIMEOUT_ACTIONS = [:count, :show, :autocomplete, :aggregations].freeze
   CODE_SEARCH_LITERALS = %w[blob: extension: path: filename:].freeze
 
-  track_custom_event :show,
+  track_event :show,
     name: 'i_search_total',
     label: 'redis_hll_counters.search.search_total_unique_counts_monthly',
     action: 'executed',
@@ -32,11 +32,9 @@ class SearchController < ApplicationController
   before_action :check_search_rate_limit!, only: search_rate_limited_endpoints
 
   before_action only: :show do
-    push_frontend_feature_flag(:search_blobs_language_aggregation, current_user)
-  end
-  before_action only: :show do
     update_scope_for_code_search
   end
+
   rescue_from ActiveRecord::QueryCanceled, with: :render_timeout
 
   layout 'search'
@@ -109,16 +107,17 @@ class SearchController < ApplicationController
   end
 
   def autocomplete
-    term = params[:term]
+    term = params.require(:term)
 
     @project = search_service.project
     @ref = params[:project_ref] if params[:project_ref].present?
     @filter = params[:filter]
+    @scope = params[:scope]
 
     # Cache the response on the frontend
     expires_in 1.minute
 
-    render json: Gitlab::Json.dump(search_autocomplete_opts(term, filter: @filter))
+    render json: Gitlab::Json.dump(search_autocomplete_opts(term, filter: @filter, scope: @scope))
   end
 
   def opensearch
@@ -249,7 +248,7 @@ class SearchController < ApplicationController
   end
 
   def search_type
-    'basic'
+    search_service.search_type
   end
 end
 

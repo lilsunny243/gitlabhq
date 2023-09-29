@@ -11,17 +11,17 @@ module Database
 
       INTERVAL_VARIANCE = 5.seconds.freeze
       LEASE_TIMEOUT_MULTIPLIER = 3
-      MAX_RUNNING_MIGRATIONS = 4
 
       included do
         data_consistency :always
         feature_category :database
+        prefer_calling_context_feature_category true
         queue_namespace :batched_background_migrations
       end
 
       class_methods do
         def max_running_jobs
-          MAX_RUNNING_MIGRATIONS
+          Gitlab::CurrentSettings.database_max_running_batched_background_migrations
         end
 
         # We have to overirde this one, as we want
@@ -64,6 +64,8 @@ module Database
       attr_accessor :database_name, :migration
 
       def enabled?
+        return false if Feature.enabled?(:disallow_database_ddl_feature_flags, type: :ops)
+
         Feature.enabled?(:execute_batched_migrations_on_schedule, type: :ops)
       end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Container Registry', :js, feature_category: :projects do
+RSpec.describe 'Container Registry', :js, feature_category: :container_registry do
   include_context 'container registry tags'
 
   let(:user) { create(:user) }
@@ -30,6 +30,20 @@ RSpec.describe 'Container Registry', :js, feature_category: :projects do
     expect(page).to have_title _('Container Registry')
   end
 
+  it 'does not have link to settings' do
+    visit_container_registry
+
+    expect(page).not_to have_link _('Configure in settings')
+  end
+
+  it 'has link to settings when user is maintainer' do
+    project.add_maintainer(user)
+
+    visit_container_registry
+
+    expect(page).to have_link _('Configure in settings')
+  end
+
   context 'when there are no image repositories' do
     it 'list page has no container title' do
       visit_container_registry
@@ -53,6 +67,7 @@ RSpec.describe 'Container Registry', :js, feature_category: :projects do
     it 'list page has a list of images' do
       visit_container_registry
 
+      expect(page).to have_content '1 Image repository'
       expect(page).to have_content 'my/image'
     end
 
@@ -60,10 +75,10 @@ RSpec.describe 'Container Registry', :js, feature_category: :projects do
       visit_container_registry
 
       expect_any_instance_of(ContainerRepository).to receive(:delete_scheduled!).and_call_original
-      expect(DeleteContainerRepositoryWorker).not_to receive(:perform_async)
 
       find('[title="Remove repository"]').click
-      expect(find('.modal .modal-title')).to have_content _('Remove repository')
+      expect(find('.modal .modal-title')).to have_content _('Delete image repository?')
+      find('.modal .modal-body input').set('my/image')
       find('.modal .modal-footer .btn-danger').click
     end
 
@@ -101,7 +116,11 @@ RSpec.describe 'Container Registry', :js, feature_category: :projects do
         first('[data-testid="additional-actions"]').click
         first('[data-testid="single-delete-button"]').click
         expect(find('.modal .modal-title')).to have_content _('Remove tag')
+        stub_container_registry_tags(repository: %r{my/image}, tags: ('1'..'19').to_a, with_manifest: true)
         find('.modal .modal-footer .btn-danger').click
+
+        expect(page).to have_content '19 tags'
+        expect(page).not_to have_content '20 tags'
       end
 
       it('pagination navigate to the second page') do
@@ -170,8 +189,7 @@ RSpec.describe 'Container Registry', :js, feature_category: :projects do
     it 'pagination is preserved after navigating back from details' do
       visit_next_page
       click_link 'my/image'
-      breadcrumb = find '.breadcrumbs'
-      breadcrumb.click_link 'Container Registry'
+      page.go_back
       expect(page).to have_content 'my/image'
     end
   end

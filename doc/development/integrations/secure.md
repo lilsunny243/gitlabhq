@@ -124,7 +124,7 @@ the project repository contains Java source code and the `dependency_scanning` f
 ```yaml
 mysec_dependency_scanning:
   rules:
-    - if: $DEPENDENCY_SCANNING_DISABLED
+    - if: $DEPENDENCY_SCANNING_DISABLED == 'true'
       when: never
     - if: $GITLAB_FEATURES =~ /\bdependency_scanning\b/
       exists:
@@ -181,7 +181,7 @@ See also [Docker Tagging: Best practices for tagging and versioning Docker image
 
 ## Command line
 
-A scanner is a command line tool that takes environment variables as inputs,
+A scanner is a command-line tool that takes environment variables as inputs,
 and generates a file that is uploaded as a report (based on the job definition).
 It also generates text output on the standard output and standard error streams, and exits with a status code.
 
@@ -198,7 +198,7 @@ SAST and Dependency Scanning scanners must scan the files in the project directo
 
 To be consistent with the official Container Scanning for GitLab,
 scanners must scan the Docker image whose name and tag are given by
-`CI_APPLICATION_REPOSITORY` and `CI_APPLICATION_TAG`, respectively. If the `DOCKER_IMAGE`
+`CI_APPLICATION_REPOSITORY` and `CI_APPLICATION_TAG`. If the `DOCKER_IMAGE`
 CI/CD variable is provided, then the `CI_APPLICATION_REPOSITORY` and `CI_APPLICATION_TAG` variables
 are ignored, and the image specified in the `DOCKER_IMAGE` variable is scanned instead.
 
@@ -234,21 +234,12 @@ then `artifacts:reports:dependency_scanning` must be set to `depscan.json`.
 
 ### Exit code
 
-Following the POSIX exit code standard, the scanner exits with 0 for success and any number from 1 to 255 for anything else.
+Following the POSIX exit code standard, the scanner exits with either `0` for success or `1` for failure.
 Success also includes the case when vulnerabilities are found.
 
 When a CI job fails, security report results are not ingested by GitLab, even if the job
-[allows failure](../../ci/yaml/index.md#allow_failure). The report artifacts are still uploaded to GitLab and available
+[allows failure](../../ci/yaml/index.md#allow_failure). However, the report artifacts are still uploaded to GitLab and available
 for [download in the pipeline security tab](../../user/application_security/vulnerability_report/pipeline.md#download-security-scan-outputs).
-
-When executing a scanning job using the [Docker-in-Docker privileged mode](../../user/application_security/sast/index.md#requirements),
-we reserve the following standard exit codes.
-
-| Orchestrator Exit Code | Description                      |
-|------------------------|----------------------------------|
-| 3                      | No match, no compatible analyzer |
-| 4                      | Project directory empty          |
-| 5                      | No compatible Docker image       |
 
 ### Logging
 
@@ -327,8 +318,8 @@ After the deprecation period for a schema version, the file is removed from GitL
 declare removed versions are rejected, and an error message displays on the corresponding pipeline.
 
 If a report uses a `PATCH` version that doesn't match any vendored schema version, it is validated against
-the latest vendored `PATCH` version. For example, if a report version is 14.0.23 and the latest vendored
-version is 14.0.6, the report is validated against version 14.0.6.
+the latest vendored `PATCH` version. For example, if a report version is 15.0.23 and the latest vendored
+version is 15.0.6, the report is validated against version 15.0.6.
 
 GitLab uses the
 [`json_schemer`](https://www.rubydoc.info/gems/json_schemer) gem to perform validation.
@@ -364,12 +355,12 @@ puts(schema_validation_errors)
 ```
 
 1. Download the appropriate schema that matches your report type and declared version. For
-   example, you can find version `14.0.6` of the `container_scanning` report schema at
-   `https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/raw/v14.0.6/dist/container-scanning-report-format.json?inline=false`.
+   example, you can find version `15.0.6` of the `container_scanning` report schema at
+   `https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/raw/v15.0.6/dist/container-scanning-report-format.json?inline=false`.
 1. Save the Ruby script above in a file, for example, `validate.rb`.
 1. Run the script, passing the schema and report file names as arguments in order. For example:
-   1. Using your local Ruby interpreter: `ruby validate.rb container-scanning-format_14-0-6.json gl-container-scanning-report.json`.
-   1. Using Docker: `docker run -it --rm -v $(pwd):/ci ruby:3-slim ruby /ci/validate.rb /ci/container-scanning-format_14-0-6.json  /ci/gl-container-scanning-report.json`
+   1. Using your local Ruby interpreter: `ruby validate.rb container-scanning-format_15-0-6.json gl-container-scanning-report.json`.
+   1. Using Docker: `docker run -it --rm -v $(pwd):/ci ruby:3 ruby /ci/validate.rb /ci/container-scanning-format_15-0-6.json  /ci/gl-container-scanning-report.json`
 1. Validation errors are shown on the screen. You must resolve these errors before GitLab can ingest your report.
 
 ### Report Fields
@@ -412,8 +403,6 @@ The `id` should not collide with any other analyzers or scanners another integra
 
 ##### Scan Primary Identifiers
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368284) in GitLab 15.4 [with a flag](../../administration/feature_flags.md) named `sec_mark_dropped_findings_as_resolved`. Disabled by default.
-
 The `scan.primary_identifiers` field is an optional field containing an array of
 [primary identifiers](../../user/application_security/terminology/index.md#primary-identifier)).
 This is an exhaustive list of all rulesets for which the analyzer performed the scan.
@@ -422,7 +411,7 @@ Even when the [`Vulnerabilities`](#vulnerabilities) array for a given scan may b
 should contain the complete list of potential identifiers to inform the Rails application of which
 rules were executed.
 
-When populated, the Rails application automatically resolves previously detected vulnerabilities as no
+When populated, the Rails application [may automatically resolve previously detected vulnerabilities](../../user/application_security/iac_scanning/index.md#automatic-vulnerability-resolution) as no
 longer relevant when their primary identifier is not included.
 
 ##### Name, message, and description
@@ -588,8 +577,8 @@ All other attributes are optional.
 
 ##### SAST
 
-The `location` of a SAST vulnerability must have a `file` and a `start_line` field,
-giving the path of the affected file, and the affected line number, respectively.
+The `location` of a SAST vulnerability must have a `file` that gives the path of the affected file and
+a `start_line` field with the affected line number.
 It may also have an `end_line`, a `class`, and a `method`.
 
 For instance, here is the `location` object for a security flaw found
@@ -637,18 +626,13 @@ This is addressed in [issue #7586](https://gitlab.com/gitlab-org/gitlab/-/issues
 
 See also [deduplication process](../../user/application_security/vulnerability_report/pipeline.md#deduplication-process).
 
-##### Severity and confidence
+##### Severity
 
-The `severity` field describes how much the vulnerability impacts the software,
-whereas the `confidence` field describes how reliable the assessment of the vulnerability is.
+The `severity` field describes how badly the vulnerability impacts the software.
 The severity is used to sort the vulnerabilities in the security dashboard.
 
 The severity ranges from `Info` to `Critical`, but it can also be `Unknown`.
 Valid values are: `Unknown`, `Info`, `Low`, `Medium`, `High`, or `Critical`
-
-The confidence ranges from `Low` to `Confirmed`, but it can also be `Unknown`,
-`Experimental` or even `Ignore` if the vulnerability is to be ignored.
-Valid values are: `Ignore`, `Unknown`, `Experimental`, `Low`, `Medium`, `High`, or `Confirmed`
 
 `Unknown` values means that data is unavailable to determine it's actual value. Therefore, it may be `high`, `medium`, or `low`,
 and needs to be investigated. We have [provided a chart](../../user/application_security/sast/analyzers.md#data-provided-by-analyzers)

@@ -1,42 +1,73 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Jira development panel **(FREE)**
+# Jira development panel **(FREE ALL)**
 
-> [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/233149) from GitLab Premium to GitLab Free in 13.4.
+You can use the Jira development panel to view GitLab activity for a Jira issue directly in Jira.
+To set up the Jira development panel:
 
-You can view GitLab activity from the Jira development panel.
+- **For Jira Cloud**, use the [GitLab for Jira Cloud app](connect-app.md) developed and maintained by GitLab.
+- **For Jira Data Center or Jira Server**, use the [Jira DVCS connector](dvcs/index.md) developed and maintained by Atlassian.
 
-When you are in GitLab, you refer to a Jira issue by ID. Then
-[the activity](https://support.atlassian.com/jira-software-cloud/docs/view-development-information-for-an-issue/)
-for that issue is displayed in the Jira development panel.
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For an overview, see [Jira development panel integration](https://www.youtube.com/watch?v=VjVTOmMl85M).
 
-In the Jira development panel, you can create a GitLab merge request from a branch.
-You can also create a GitLab branch from a Jira Cloud issue
-([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66032) in GitLab 14.2).
+## Feature availability
+
+This table shows the features available with the Jira DVCS connector and the GitLab for Jira Cloud app:
+
+| Feature             | Jira DVCS connector    | GitLab for Jira Cloud app |
+|---------------------|------------------------|---------------------------|
+| Smart Commits       | **{check-circle}** Yes | **{check-circle}** Yes |
+| Sync merge requests | **{check-circle}** Yes | **{check-circle}** Yes |
+| Sync branches       | **{check-circle}** Yes | **{check-circle}** Yes |
+| Sync commits        | **{check-circle}** Yes | **{check-circle}** Yes |
+| Sync existing data  | **{check-circle}** Yes | **{check-circle}** Yes (partial) <sup>1</sup>|
+| Sync builds         | **{dotted-circle}** No | **{check-circle}** Yes |
+| Sync deployments    | **{dotted-circle}** No | **{check-circle}** Yes |
+| Sync feature flags  | **{dotted-circle}** No | **{check-circle}** Yes |
+| Sync interval       | Up to 60 minutes       | Real time              |
+| Create branches     | **{dotted-circle}** No | **{check-circle}** Yes (GitLab SaaS only) |
+| Create merge request from branch | **{check-circle}** Yes | **{check-circle}** Yes |
+| Create branch from Jira issue | **{dotted-circle}** No | **{check-circle}** Yes ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66032) in GitLab 14.2) |
+
+1. See [GitLab data synced to Jira](connect-app.md#gitlab-data-synced-to-jira).
 
 ## Connected projects in GitLab
 
-The Jira development panel connects to the Jira instance all GitLab projects in:
+The Jira development panel connects a Jira instance with all its projects to the following:
 
-- A top-level group, including all projects in its subgroups.
-- A personal namespace.
+- **For the [GitLab for Jira Cloud app](connect-app.md)**, linked GitLab groups or subgroups and their projects
+- **For the [Jira DVCS connector](dvcs/index.md)**, linked GitLab groups, subgroups, or personal namespaces and their projects
 
-## Where the Jira ID displayed
+## Information displayed in the development panel
 
-The information displayed in the Jira development panel depends on where you mention the Jira issue ID in GitLab.
+You can [view GitLab activity for a Jira issue](https://support.atlassian.com/jira-software-cloud/docs/view-development-information-for-an-issue/)
+in the Jira development panel by referring to the Jira issue by ID in GitLab. The information displayed in the development panel
+depends on where you mention the Jira issue ID in GitLab.
 
 | GitLab: where you mention the Jira issue ID    | Jira development panel: what information is displayed |
 |------------------------------------------------|-------------------------------------------------------|
-| Merge request title or description             | Link to the merge request                             |
-| Branch name                                    | Link to the branch                                    |
-| Commit message                                 | Link to the commit                                    |
+| Merge request title or description             | Link to the merge request<br>Link to the deployment<br>Link to the pipeline through merge request title<br>Link to the pipeline through merge request description <sup>1</sup><br>Link to the branch <sup>2</sup> |
+| Branch name                                    | Link to the branch<br>Link to the deployment                                    |
+| Commit message                                 | Link to the commit<br>Link to the deployment from up to 5,000 commits after the last successful deployment to the environment <sup>3</sup> <sup>4</sup> |
 | [Jira Smart Commit](#jira-smart-commits)       | Custom comment, logged time, or workflow transition   |
 
+1. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/390888) in GitLab 15.10.
+1. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/354373) in GitLab 15.11.
+1. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/300031) in GitLab 16.2 [with a flag](../../administration/feature_flags.md) named `jira_deployment_issue_keys`. Enabled by default.
+1. [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/415025) in GitLab 16.3. Feature flag `jira_deployment_issue_keys` removed.
+
 ## Jira Smart Commits
+
+Prerequisites:
+
+- You must have GitLab and Jira user accounts with the same email address or username.
+- The commands must be in the first line of the commit message.
+- The commit message must not span more than one line.
 
 Jira Smart Commits are special commands to process a Jira issue. With these commands, you can use GitLab to:
 
@@ -44,48 +75,29 @@ Jira Smart Commits are special commands to process a Jira issue. With these comm
 - Log time against a Jira issue.
 - Transition a Jira issue to any status defined in the project workflow.
 
-For more information, see [Using Smart Commits](https://confluence.atlassian.com/fisheye/using-smart-commits-960155400.html)
-in the Atlassian documentation.
+Smart Commits must follow this syntax:
 
-## Configure the integration
+```plaintext
+<ISSUE_KEY> <ignored text> #<command> <optional command parameters>
+```
 
-<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
-For an overview of how to configure the Jira development panel integration, see
-[Agile Management - GitLab Jira development panel integration](https://www.youtube.com/watch?v=VjVTOmMl85M).
+You can execute one or more commands in a single commit.
 
-To simplify administration, we recommend that a GitLab group maintainer or group owner
-(or, if possible, instance administrator in the case of self-managed GitLab) set up the integration.
+### Smart Commit syntax
 
-| Jira usage | GitLab.com customers need | GitLab self-managed customers need |
-|------------|---------------------------|------------------------------------|
-| [Atlassian cloud](https://www.atlassian.com/migration/assess/why-cloud) | The [GitLab for Jira Cloud app](https://marketplace.atlassian.com/apps/1221011/gitlab-com-for-jira-cloud?hosting=cloud&tab=overview) from the [Atlassian Marketplace](https://marketplace.atlassian.com). This method offers real-time sync between GitLab.com and Jira. The method requires inbound connections for the setup and then pushes data to Jira through outbound connections. For more information, see [GitLab for Jira Cloud app](connect-app.md). | The GitLab for Jira Cloud app [installed manually](connect-app.md#install-the-gitlab-for-jira-cloud-app-manually). By default, you can install the app from the [Atlassian Marketplace](https://marketplace.atlassian.com/). The method requires inbound connections for the setup and then pushes data to Jira through outbound connections. For more information, see [Connect the GitLab for Jira Cloud app for self-managed instances](connect-app.md#connect-the-gitlab-for-jira-cloud-app-for-self-managed-instances). |
-| Your own server | The [Jira DVCS connector](dvcs/index.md). This method syncs data every hour and works only with inbound connections. The method tries to set up webhooks in GitLab to implement real-time data sync, which does not work without outbound connections. | The [Jira DVCS connector](dvcs/index.md). This method syncs data every hour and works only with inbound connections. The method tries to set up webhooks in GitLab to implement real-time data sync, which does not work without outbound connections. |
+| Commands                                        | Syntax                                                       |
+|-------------------------------------------------|--------------------------------------------------------------|
+| Add a comment                                   | `KEY-123 #comment Bug is fixed`                              |
+| Log time                                        | `KEY-123 #time 2w 4d 10h 52m Tracking work time`             |
+| Close an issue                                  | `KEY-123 #close Closing issue`                               |
+| Log time and close an issue                     | `KEY-123 #time 2d 5h #close`                                 |
+| Add a comment and transition to **In-progress** | `KEY-123 #comment Started working on the issue #in-progress` |
 
-Each GitLab project can be configured to connect to an entire Jira instance. That means after
-configuration, one GitLab project can interact with all Jira projects in that instance. For:
+For more information about how Smart Commits work and what commands are available to use, see:
 
-- The [view Jira issues](issues.md#view-jira-issues) feature, you must associate a GitLab project with a
-  specific Jira project.
-- Other features, you do not have to explicitly associate a GitLab project with any single Jira
-  project.
+- [Process issues with Smart Commits](https://support.atlassian.com/jira-software-cloud/docs/process-issues-with-smart-commits/)
+- [Using Smart Commits](https://confluence.atlassian.com/fisheye/using-smart-commits-960155400.html)
 
-If you have a single Jira instance, you can pre-fill the settings. For more information, read the
-documentation for [central administration of project integrations](../../user/admin_area/settings/project_integration_management.md).
+## Related topics
 
-## Limitations
-
-- This integration is not supported on GitLab instances under a
-[relative URL](https://docs.gitlab.com/omnibus/settings/configuration.html#configure-a-relative-url-for-gitlab)
-(for example, `http://example.com/gitlab`).
-- [Creating a branch](https://gitlab.com/gitlab-org/gitlab/-/issues/2647) is only supported by the GitLab for Jira app and is not available within the DVCS integration. See [officially supported DVCS features](https://confluence.atlassian.com/adminjiraserver/integrating-with-development-tools-938846890.html) for more information.
-
-## Troubleshoot the development panel
-
-If you use Jira on your own server, go to the [Atlassian documentation](https://confluence.atlassian.com/jirakb/troubleshoot-the-development-panel-in-jira-server-574685212.html)
-for general troubleshooting information.
-
-### Cookies for Oracle's Access Manager
-
-To support Oracle's Access Manager, GitLab sends additional cookies
-to enable Basic Auth. The cookie being added to each request is `OBBasicAuth` with
-a value of `fromDialog`.
+- [Troubleshoot the development panel in Jira Server](https://confluence.atlassian.com/jirakb/troubleshoot-the-development-panel-in-jira-server-574685212.html)

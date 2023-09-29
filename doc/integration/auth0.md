@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Auth0 OmniAuth Provider **(FREE SELF)**
+# Use Auth0 as an OAuth 2.0 authentication provider **(FREE SELF)**
 
 To enable the Auth0 OmniAuth provider, you must create an Auth0 account, and an
 application.
@@ -29,26 +29,26 @@ application.
    - `https://<your_gitlab_url>`
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    cd /home/git/gitlab
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `auth0` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration:
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
@@ -65,7 +65,7 @@ application.
    ]
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```yaml
    - { name: 'auth0',
@@ -82,10 +82,10 @@ application.
 1. Replace `<your_auth0_client_secret>` with the client secret from the Auth0 Console page.
 1. Replace `<your_auth0_client_secret>` with the domain from the Auth0 Console page.
 1. Reconfigure or restart GitLab, depending on your installation method:
-   - *If you installed from Omnibus GitLab,*
-     [Reconfigure](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure) GitLab.
-   - *If you installed from source,*
-     [restart GitLab](../administration/restart_gitlab.md#installations-from-source).
+   - If you installed using the Linux package,
+     [reconfigure GitLab](../administration/restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - If you self-compiled your installation,
+     [restart GitLab](../administration/restart_gitlab.md#self-compiled-installations).
 
 On the sign-in page there should now be an Auth0 icon below the regular sign-in
 form. Select the icon to begin the authentication process. Auth0 asks the

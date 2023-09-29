@@ -6,8 +6,12 @@ require "etc"
 
 # rubocop:disable Rails/Pluck
 module QA
-  RSpec.describe 'Manage', :github, requires_admin: 'creates users', only: { job: 'large-github-import' } do
-    describe 'Project import', product_group: :import do # rubocop:disable RSpec/MultipleMemoizedHelpers
+  RSpec.describe 'Manage', :github, requires_admin: 'creates users',
+    only: { condition: -> { ENV["CI_PROJECT_NAME"] == "import-metrics" } },
+    custom_test_metrics: {
+      tags: { import_type: ENV["QA_IMPORT_TYPE"], import_repo: ENV["QA_LARGE_IMPORT_REPO"] || "rspec/rspec-core" }
+    } do
+    describe 'Project import', product_group: :import_and_integrate do # rubocop:disable RSpec/MultipleMemoizedHelpers
       let(:github_repo) { ENV['QA_LARGE_IMPORT_REPO'] || 'rspec/rspec-core' }
       let(:import_max_duration) { ENV['QA_LARGE_IMPORT_DURATION']&.to_i || 7200 }
       let(:logger) { Runtime::Logger.logger }
@@ -70,6 +74,16 @@ module QA
           "transferred",
           "locked",
           "unlocked",
+          "deployed",
+          "marked_as_duplicate",
+          "unmarked_as_duplicate",
+          "connected",
+          "disconnected",
+          "moved_columns_in_project",
+          "added_to_project",
+          "removed_from_project",
+          "base_ref_deleted",
+          "converted_to_discussion",
           # mentions are supported but they can be reported differently on gitlab's side
           # for example mention of issue creation in pr will be reported in the issue on gitlab side
           # or referenced in github will still create a 'mentioned in' comment in gitlab
@@ -80,11 +94,7 @@ module QA
 
       let(:api_client) { Runtime::API::Client.as_admin }
 
-      let(:user) do
-        Resource::User.fabricate_via_api! do |resource|
-          resource.api_client = api_client
-        end
-      end
+      let(:user) { create(:user, api_client: api_client) }
 
       let(:github_client) do
         Octokit::Client.new(
@@ -196,6 +206,7 @@ module QA
           project.add_name_uuid = false
           project.name = 'imported-project'
           project.github_personal_access_token = Runtime::Env.github_access_token
+          project.additional_access_tokens = Runtime::Env.github_additional_access_tokens
           project.github_repository_path = github_repo
           project.personal_namespace = user.username
           project.api_client = Runtime::API::Client.new(user: user)
@@ -204,17 +215,33 @@ module QA
         end
       end
 
+      before do
+        QA::Support::Helpers::ImportSource.enable('github')
+      end
+
       after do |example|
-        next unless defined?(@import_time)
+        unless defined?(@import_time)
+          next save_json(
+            "data",
+            {
+              status: "failed",
+              importer: :github,
+              import_finished: false,
+              import_time: Time.now - @start
+            }
+          )
+        end
 
         # add additional import time metric
-        example.metadata[:custom_test_metrics] = { fields: { import_time: @import_time } }
+        example.metadata[:custom_test_metrics][:fields] = { import_time: @import_time }
         # save data for comparison notification creation
         save_json(
           "data",
           {
+            status: example.exception ? "failed" : "passed",
             importer: :github,
             import_time: @import_time,
+            import_finished: true,
             errors: imported_project.project_import_status[:failed_relations],
             reported_stats: @stats,
             source: {
@@ -263,7 +290,7 @@ module QA
         'imports large Github repo via api',
         testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347668'
       ) do
-        start = Time.now
+        @start = Time.now
 
         # trigger import and log project paths
         logger.info("== Triggering import of project '#{github_repo}' in to '#{imported_project.reload!.full_path}' ==")
@@ -285,7 +312,7 @@ module QA
         logger.info("== Waiting for import to be finished ==")
         expect(import_status).to eventually_eq('finished').within(max_duration: import_max_duration, sleep_interval: 30)
 
-        @import_time = Time.now - start
+        @import_time = Time.now - @start
 
         aggregate_failures do
           verify_repository_import
@@ -522,11 +549,7 @@ module QA
 
           logger.debug("= Fetching issue comments =")
           Parallel.map(imported_issues, in_threads: Etc.nprocessors) do |issue|
-            resource = Resource::Issue.init do |issue_resource|
-              issue_resource.project = imported_project
-              issue_resource.iid = issue[:iid]
-              issue_resource.api_client = api_client
-            end
+            resource = build(:issue, project: imported_project, iid: issue[:iid], api_client: api_client)
 
             logger.debug("Fetching events and comments for issue '!#{issue[:iid]}'")
             comments = resource.comments(**api_request_params)

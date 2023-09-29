@@ -13,14 +13,11 @@ describe('IntegrationsList', () => {
     wrapper = shallowMountExtended(IntegrationsList, { propsData });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('provides correct `integrations` prop to the IntegrationsTable instance', () => {
     createComponent({ integrations: [...mockInactiveIntegrations, ...mockActiveIntegrations] });
 
     expect(findActiveIntegrationsTable().props('integrations')).toEqual(mockActiveIntegrations);
     expect(findInactiveIntegrationsTable().props('integrations')).toEqual(mockInactiveIntegrations);
+    expect(findInactiveIntegrationsTable().props('inactive')).toBe(true);
   });
 });

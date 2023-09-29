@@ -2,6 +2,7 @@
 import { debounce, isEmpty } from 'lodash';
 import { CONTENT_UPDATE_DEBOUNCE, EDITOR_READY_EVENT } from '~/editor/constants';
 import Editor from '~/editor/source_editor';
+import { markRaw } from '~/lib/utils/vue3compat/mark_raw';
 
 function initSourceEditor({ el, ...args }) {
   const editor = new Editor({
@@ -10,10 +11,12 @@ function initSourceEditor({ el, ...args }) {
     },
   });
 
-  return editor.createInstance({
-    el,
-    ...args,
-  });
+  return markRaw(
+    editor.createInstance({
+      el,
+      ...args,
+    }),
+  );
 }
 
 export default {
@@ -101,7 +104,7 @@ export default {
     :id="`source-editor-${fileGlobalId}`"
     ref="editor"
     data-editor-loading
-    data-qa-selector="source_editor_container"
+    data-testid="source-editor-container"
     @[$options.readyEvent]="$emit($options.readyEvent, $event)"
   >
     <pre class="editor-loading-content">{{ value }}</pre>

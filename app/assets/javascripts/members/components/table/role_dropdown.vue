@@ -1,6 +1,7 @@
 <script>
-import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import { GlCollapsibleListbox } from '@gitlab/ui';
 import { GlBreakpointInstance as bp } from '@gitlab/ui/dist/utils';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions } from 'vuex';
 import * as Sentry from '@sentry/browser';
 import { s__ } from '~/locale';
@@ -9,10 +10,9 @@ import { guestOverageConfirmAction } from 'ee_else_ce/members/guest_overage_conf
 export default {
   name: 'RoleDropdown',
   components: {
-    GlDropdown,
-    GlDropdownItem,
-    LdapDropdownItem: () =>
-      import('ee_component/members/components/action_dropdowns/ldap_dropdown_item.vue'),
+    GlCollapsibleListbox,
+    LdapDropdownFooter: () =>
+      import('ee_component/members/components/action_dropdowns/ldap_dropdown_footer.vue'),
   },
   inject: ['namespace', 'group'],
   props: {
@@ -29,23 +29,22 @@ export default {
     return {
       isDesktop: false,
       busy: false,
+      selectedRoleValue: this.member.accessLevel.integerValue,
     };
   },
   computed: {
     disabled() {
       return this.permissions.canOverride && !this.member.isOverridden;
     },
+    dropdownItems() {
+      return Object.entries(this.member.validRoles).map(([name, value]) => ({
+        value,
+        text: name,
+      }));
+    },
   },
   mounted() {
     this.isDesktop = bp.isDesktop();
-
-    // Bootstrap Vue and GlDropdown to not support adding attributes to the dropdown toggle
-    // This can be changed once https://gitlab.com/gitlab-org/gitlab-ui/-/issues/1060 is implemented
-    const dropdownToggle = this.$refs.glDropdown.$el.querySelector('.dropdown-toggle');
-
-    if (dropdownToggle) {
-      dropdownToggle.dataset.qaSelector = 'access_level_dropdown';
-    }
   },
   methods: {
     ...mapActions({
@@ -63,7 +62,7 @@ export default {
         memberType: this.namespace,
       });
     },
-    async handleSelect(newRoleValue, newRoleName) {
+    async handleSelect(newRoleValue) {
       const currentRoleValue = this.member.accessLevel.integerValue;
       if (newRoleValue === currentRoleValue) {
         return;
@@ -71,56 +70,55 @@ export default {
 
       this.busy = true;
 
+      const { text: newRoleName } = this.dropdownItems.find((item) => item.value === newRoleValue);
       const confirmed = await this.handleOverageConfirm(
         currentRoleValue,
         newRoleValue,
         newRoleName,
       );
       if (!confirmed) {
+        this.selectedRoleValue = currentRoleValue;
         this.busy = false;
         return;
       }
 
-      this.updateMemberRole({
-        memberId: this.member.id,
-        accessLevel: { integerValue: newRoleValue, stringValue: newRoleName },
-      })
-        .then(() => {
-          this.$toast.show(s__('Members|Role updated successfully.'));
-        })
-        .catch((error) => {
-          Sentry.captureException(error);
-        })
-        .finally(() => {
-          this.busy = false;
+      try {
+        await this.updateMemberRole({
+          memberId: this.member.id,
+          accessLevel: { integerValue: newRoleValue, stringValue: newRoleName },
         });
+
+        this.$toast.show(s__('Members|Role updated successfully.'));
+      } catch (error) {
+        Sentry.captureException(error);
+      } finally {
+        this.busy = false;
+      }
     },
   },
 };
 </script>
 
 <template>
-  <gl-dropdown
-    ref="glDropdown"
-    :right="!isDesktop"
-    :text="member.accessLevel.stringValue"
+  <gl-collapsible-listbox
+    v-model="selectedRoleValue"
+    :placement="isDesktop ? 'left' : 'right'"
+    :toggle-text="member.accessLevel.stringValue"
     :header-text="__('Change role')"
     :disabled="disabled"
     :loading="busy"
+    data-qa-selector="access_level_dropdown"
+    :items="dropdownItems"
+    @select="handleSelect"
   >
-    <gl-dropdown-item
-      v-for="(value, name) in member.validRoles"
-      :key="value"
-      is-check-item
-      :is-checked="value === member.accessLevel.integerValue"
-      data-qa-selector="access_level_link"
-      @click="handleSelect(value, name)"
-    >
-      {{ name }}
-    </gl-dropdown-item>
-    <ldap-dropdown-item
-      v-if="permissions.canOverride && member.isOverridden"
-      :member-id="member.id"
-    />
-  </gl-dropdown>
+    <template #list-item="{ item }">
+      <span data-qa-selector="access_level_link">{{ item.text }}</span>
+    </template>
+    <template #footer>
+      <ldap-dropdown-footer
+        v-if="permissions.canOverride && member.isOverridden"
+        :member-id="member.id"
+      />
+    </template>
+  </gl-collapsible-listbox>
 </template>

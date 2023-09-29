@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute' do
+RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute', feature_category: :deployment_management do
   include KubernetesHelpers
 
   let(:cluster) { create(:cluster, :project, :provided_by_gcp) }
@@ -11,7 +11,7 @@ RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute' 
   let(:project) { cluster.project }
   let(:environment) { create(:environment, project: project) }
   let(:cluster_project) { cluster.cluster_project }
-  let(:namespace) { "#{project.name}-#{project.id}-#{environment.slug}" }
+  let(:namespace) { "#{project.path}-#{project.id}-#{environment.slug}" }
 
   subject do
     described_class.new(
@@ -113,10 +113,12 @@ RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute' 
 
     context 'when kubernetes namespace is not persisted' do
       let(:kubernetes_namespace) do
-        build(:cluster_kubernetes_namespace,
-              cluster: cluster,
-              project: project,
-              environment: environment)
+        build(
+          :cluster_kubernetes_namespace,
+          cluster: cluster,
+          project: project,
+          environment: environment
+        )
       end
 
       it_behaves_like 'successful creation of kubernetes namespace'
@@ -126,11 +128,13 @@ RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute' 
   context 'project clusters' do
     context 'when kubernetes namespace is not persisted' do
       let(:kubernetes_namespace) do
-        build(:cluster_kubernetes_namespace,
-              cluster: cluster,
-              project: cluster_project.project,
-              cluster_project: cluster_project,
-              environment: environment)
+        build(
+          :cluster_kubernetes_namespace,
+          cluster: cluster,
+          project: cluster_project.project,
+          cluster_project: cluster_project,
+          environment: environment
+        )
       end
 
       it_behaves_like 'successful creation of kubernetes namespace'
@@ -140,11 +144,13 @@ RSpec.describe Clusters::Kubernetes::CreateOrUpdateNamespaceService, '#execute' 
       let(:namespace) { "new-namespace-#{environment.slug}" }
 
       let(:kubernetes_namespace) do
-        create(:cluster_kubernetes_namespace,
-               cluster: cluster,
-               project: cluster_project.project,
-               cluster_project: cluster_project,
-               environment: environment)
+        create(
+          :cluster_kubernetes_namespace,
+          cluster: cluster,
+          project: cluster_project.project,
+          cluster_project: cluster_project,
+          environment: environment
+        )
       end
 
       before do

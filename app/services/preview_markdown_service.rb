@@ -17,14 +17,14 @@ class PreviewMarkdownService < BaseService
   private
 
   def quick_action_types
-    %w(Issue MergeRequest Commit WorkItem)
+    %w[Issue MergeRequest Commit WorkItem]
   end
 
   def explain_quick_actions(text)
     return text, [] unless quick_action_types.include?(target_type)
 
     quick_actions_service = QuickActions::InterpretService.new(project, current_user)
-    quick_actions_service.explain(text, find_commands_target)
+    quick_actions_service.explain(text, find_commands_target, keep_actions: params[:render_quick_actions])
   end
 
   def find_user_references(text)

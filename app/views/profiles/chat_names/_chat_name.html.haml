@@ -1,20 +1,4 @@
-- integration = chat_name.integration
-- project = integration&.project
 %tr
-  %td
-    %strong
-      - if project.present? && can?(current_user, :read_project, project)
-        = link_to project.full_name, project_path(project)
-      - else
-        .light= _('Not applicable.')
-  %td
-    %strong
-      - if integration.present? && can?(current_user, :admin_project, project)
-        = link_to integration.title, edit_project_settings_integration_path(project, integration)
-      - elsif integration.present?
-        = integration.title
-      - else
-        .light= _('Not applicable.')
   %td
     = chat_name.team_domain
   %td
@@ -26,4 +10,4 @@
       = _('Never')
 
   %td
-    = link_to _('Remove'), profile_chat_name_path(chat_name), method: :delete, class: 'gl-button btn btn-danger float-right', aria: { label: _('Remove') }, data: { confirm: _('Are you sure you want to remove this nickname?'), confirm_btn_variant: 'danger' }
+    = link_button_to _('Remove'), profile_chat_name_path(chat_name), method: :delete, class: 'float-right', aria: { label: _('Remove') }, data: { confirm: _('Are you sure you want to remove this nickname?'), confirm_btn_variant: 'danger' }, variant: :danger

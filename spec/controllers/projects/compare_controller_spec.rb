@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::CompareController do
+RSpec.describe Projects::CompareController, feature_category: :source_code_management do
   include ProjectForksHelper
 
   using RSpec::Parameterized::TableSyntax
@@ -211,6 +211,36 @@ RSpec.describe Projects::CompareController do
       end
     end
 
+    context 'when the target project is the default source but hidden to the user' do
+      let(:project) { create(:project, :repository, :private) }
+      let(:from_ref) { 'improve%2Fmore-awesome' }
+      let(:to_ref) { 'feature' }
+      let(:whitespace) { nil }
+
+      let(:request_params) do
+        {
+          namespace_id: project.namespace,
+          project_id: project,
+          from: from_ref,
+          to: to_ref,
+          w: whitespace,
+          page: page,
+          straight: straight
+        }
+      end
+
+      it 'does not show the diff' do
+        allow(controller).to receive(:source_project).and_return(project)
+        expect(project).to receive(:default_merge_request_target).and_return(private_fork)
+
+        show_request
+
+        expect(response).to be_successful
+        expect(assigns(:diffs)).to be_empty
+        expect(assigns(:commits)).to be_empty
+      end
+    end
+
     context 'when the source ref does not exist' do
       let(:from_project_id) { nil }
       let(:from_ref) { 'non-existent-source-ref' }
@@ -252,6 +282,19 @@ RSpec.describe Projects::CompareController do
       end
     end
 
+    context 'when the from_ref and to_ref are the same' do
+      let(:from_project_id) { nil }
+      let(:from_ref) { 'master' }
+      let(:to_ref) { "master" }
+
+      it 'shows a message that refs are identical' do
+        show_request
+
+        expect(response).to be_successful
+        expect(response.body).to include('are the same')
+      end
+    end
+
     context 'when the source ref is invalid' do
       let(:from_project_id) { nil }
       let(:from_ref) { "master%' AND 2554=4423 AND '%'='" }
@@ -284,13 +327,17 @@ RSpec.describe Projects::CompareController do
       let(:to_ref) { '5937ac0a7beb003549fc5fd26fc247adbce4a52e' }
       let(:page) { 1 }
 
-      it 'shows the diff' do
-        show_request
+      shared_examples 'valid compare page' do
+        it 'shows the diff' do
+          show_request
 
-        expect(response).to be_successful
-        expect(assigns(:diffs).diff_files.first).to be_present
-        expect(assigns(:commits).length).to be >= 1
+          expect(response).to be_successful
+          expect(assigns(:diffs).diff_files.first).to be_present
+          expect(assigns(:commits).length).to be >= 1
+        end
       end
+
+      it_behaves_like 'valid compare page'
 
       it 'only loads blobs in the current page' do
         stub_const('Projects::CompareController::COMMIT_DIFFS_PER_PAGE', 1)
@@ -305,6 +352,19 @@ RSpec.describe Projects::CompareController do
         show_request
 
         expect(response).to be_successful
+      end
+
+      context 'when from_ref is HEAD ref' do
+        let(:from_ref) { 'HEAD' }
+        let(:to_ref) { 'feature' } # Need to change to_ref too so there's something to compare with HEAD
+
+        it_behaves_like 'valid compare page'
+      end
+
+      context 'when to_ref is HEAD ref' do
+        let(:to_ref) { 'HEAD' }
+
+        it_behaves_like 'valid compare page'
       end
     end
 

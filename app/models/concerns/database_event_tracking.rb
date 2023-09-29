@@ -22,19 +22,18 @@ module DatabaseEventTracking
   end
 
   def publish_database_event(name)
-    return unless Feature.enabled?(:product_intelligence_database_event_tracking)
-
     # Gitlab::Tracking#event is triggering Snowplow event
     # Snowplow events are sent with usage of
     # https://snowplow.github.io/snowplow-ruby-tracker/SnowplowTracker/AsyncEmitter.html
     # that reports data asynchronously and does not impact performance nor carries a risk of
     # rollback in case of error
 
-    Gitlab::Tracking.event(
+    Gitlab::Tracking.database_event(
       self.class.to_s,
       "database_event_#{name}",
       label: self.class.table_name,
-      namespace: try(:group) || try(:namespace),
+      project: try(:project),
+      namespace: (try(:group) || try(:namespace)) || try(:project)&.namespace,
       property: name,
       **filtered_record_attributes
     )

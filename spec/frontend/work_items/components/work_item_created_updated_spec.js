@@ -1,18 +1,18 @@
-import { GlAvatarLink, GlSprintf } from '@gitlab/ui';
+import { GlAvatarLink, GlSprintf, GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import WorkItemCreatedUpdated from '~/work_items/components/work_item_created_updated.vue';
-import workItemQuery from '~/work_items/graphql/work_item.query.graphql';
+import ConfidentialityBadge from '~/vue_shared/components/confidentiality_badge.vue';
+import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
 import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
-import { workItemResponseFactory, mockAssignees } from '../mock_data';
+import { workItemByIidResponseFactory, mockAssignees } from '../mock_data';
 
 describe('WorkItemCreatedUpdated component', () => {
   let wrapper;
   let successHandler;
-  let successByIidHandler;
 
   Vue.use(VueApollo);
 
@@ -20,40 +20,31 @@ describe('WorkItemCreatedUpdated component', () => {
   const findUpdatedAt = () => wrapper.find('[data-testid="work-item-updated"]');
 
   const findCreatedAtText = () => findCreatedAt().text().replace(/\s+/g, ' ');
+  const findWorkItemTypeIcon = () => wrapper.findComponent(WorkItemTypeIcon);
+  const findConfidentialityBadge = () => wrapper.findComponent(ConfidentialityBadge);
+  const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
 
   const createComponent = async ({
-    workItemId = 'gid://gitlab/WorkItem/1',
     workItemIid = '1',
-    fetchByIid = false,
     author = null,
     updatedAt,
+    confidential = false,
+    updateInProgress = false,
   } = {}) => {
-    const workItemQueryResponse = workItemResponseFactory({
+    const workItemQueryResponse = workItemByIidResponseFactory({
       author,
       updatedAt,
+      confidential,
     });
-    const byIidResponse = {
-      data: {
-        workspace: {
-          id: 'gid://gitlab/Project/1',
-          workItems: {
-            nodes: [workItemQueryResponse.data.workItem],
-          },
-        },
-      },
-    };
 
     successHandler = jest.fn().mockResolvedValue(workItemQueryResponse);
-    successByIidHandler = jest.fn().mockResolvedValue(byIidResponse);
-
-    const handlers = [
-      [workItemQuery, successHandler],
-      [workItemByIidQuery, successByIidHandler],
-    ];
 
     wrapper = shallowMount(WorkItemCreatedUpdated, {
-      apolloProvider: createMockApollo(handlers),
-      propsData: { workItemId, workItemIid, fetchByIid, fullPath: '/some/project' },
+      apolloProvider: createMockApollo([[workItemByIidQuery, successHandler]]),
+      provide: {
+        fullPath: '/some/project',
+      },
+      propsData: { workItemIid, updateInProgress },
       stubs: {
         GlAvatarLink,
         GlSprintf,
@@ -63,42 +54,68 @@ describe('WorkItemCreatedUpdated component', () => {
     await waitForPromises();
   };
 
-  describe.each([true, false])('fetchByIid is %s', (fetchByIid) => {
-    describe('work item id and iid undefined', () => {
-      beforeEach(async () => {
-        await createComponent({ workItemId: null, workItemIid: null, fetchByIid });
-      });
+  it('skips the work item query when workItemIid is not defined', async () => {
+    await createComponent({ workItemIid: null });
 
-      it('skips the work item query', () => {
-        expect(successHandler).not.toHaveBeenCalled();
-        expect(successByIidHandler).not.toHaveBeenCalled();
-      });
+    expect(successHandler).not.toHaveBeenCalled();
+  });
+
+  it('shows work item type metadata with type and icon', async () => {
+    await createComponent();
+
+    const {
+      data: { workspace: { workItems } = {} },
+    } = workItemByIidResponseFactory();
+
+    expect(findWorkItemTypeIcon().props()).toMatchObject({
+      showText: true,
+      workItemIconName: workItems.nodes[0].workItemType.iconName,
+      workItemType: workItems.nodes[0].workItemType.name,
+    });
+  });
+
+  it('shows author name and link', async () => {
+    const author = mockAssignees[0];
+    await createComponent({ author });
+
+    expect(findCreatedAtText()).toBe(`created by ${author.name}`);
+  });
+
+  it('shows created time when author is null', async () => {
+    await createComponent({ author: null });
+
+    expect(findCreatedAtText()).toBe('created');
+  });
+
+  it('shows updated time', async () => {
+    await createComponent();
+
+    expect(findUpdatedAt().exists()).toBe(true);
+  });
+
+  it('does not show updated time for new work items', async () => {
+    await createComponent({ updatedAt: null });
+
+    expect(findUpdatedAt().exists()).toBe(false);
+  });
+
+  describe('confidential badge', () => {
+    it('renders badge when the work item is confidential', async () => {
+      await createComponent({ confidential: true });
+
+      expect(findConfidentialityBadge().exists()).toBe(true);
     });
 
-    it('shows author name and link', async () => {
-      const author = mockAssignees[0];
+    it('does not render badge when the work item is confidential', async () => {
+      await createComponent({ confidential: false });
 
-      await createComponent({ fetchByIid, author });
-
-      expect(findCreatedAtText()).toEqual(`Created by ${author.name}`);
+      expect(findConfidentialityBadge().exists()).toBe(false);
     });
 
-    it('shows created time when author is null', async () => {
-      await createComponent({ fetchByIid, author: null });
+    it('shows loading icon badge when the work item is confidential', async () => {
+      await createComponent({ updateInProgress: true });
 
-      expect(findCreatedAtText()).toEqual('Created');
-    });
-
-    it('shows updated time', async () => {
-      await createComponent({ fetchByIid });
-
-      expect(findUpdatedAt().exists()).toBe(true);
-    });
-
-    it('does not show updated time for new work items', async () => {
-      await createComponent({ fetchByIid, updatedAt: null });
-
-      expect(findUpdatedAt().exists()).toBe(false);
+      expect(findLoadingIcon().exists()).toBe(true);
     });
   });
 });

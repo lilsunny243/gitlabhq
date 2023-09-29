@@ -20,6 +20,10 @@ FactoryBot.define do
       public_email { email }
     end
 
+    trait :notification_email do
+      notification_email { email }
+    end
+
     trait :private_profile do
       private_profile { true }
     end
@@ -61,7 +65,9 @@ FactoryBot.define do
     end
 
     trait :service_account do
+      name { 'Service account user' }
       user_type { :service_account }
+      skip_confirmation { true }
     end
 
     trait :migration_bot do
@@ -70,6 +76,10 @@ FactoryBot.define do
 
     trait :security_bot do
       user_type { :security_bot }
+    end
+
+    trait :llm_bot do
+      user_type { :llm_bot }
     end
 
     trait :external do
@@ -116,18 +126,16 @@ FactoryBot.define do
       end
     end
 
-    trait :two_factor_via_u2f do
-      transient { registrations_count { 5 } }
-
-      after(:create) do |user, evaluator|
-        create_list(:u2f_registration, evaluator.registrations_count, user: user)
-      end
+    trait :no_super_sidebar do
+      use_new_navigation { false }
     end
 
     trait :two_factor_via_webauthn do
       transient { registrations_count { 5 } }
 
       after(:create) do |user, evaluator|
+        user.generate_otp_backup_codes!
+
         create_list(:webauthn_registration, evaluator.registrations_count, user: user)
       end
     end
@@ -142,6 +150,11 @@ FactoryBot.define do
 
         user.update!(commit_email: additional.email)
       end
+    end
+
+    trait :invalid do
+      first_name { 'A' * 130 } # Exceed `first_name` character limit in model to make it invalid
+      to_create { |user| user.save!(validate: false) }
     end
 
     transient do

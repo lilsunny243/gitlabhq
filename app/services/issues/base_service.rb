@@ -21,7 +21,7 @@ module Issues
       Issues::CloseService
     end
 
-    NO_REBALANCING_NEEDED = ((RelativePositioning::MIN_POSITION * 0.9999)..(RelativePositioning::MAX_POSITION * 0.9999)).freeze
+    NO_REBALANCING_NEEDED = ((RelativePositioning::MIN_POSITION * 0.9999)..(RelativePositioning::MAX_POSITION * 0.9999))
 
     def rebalance_if_needed(issue)
       return unless issue
@@ -52,6 +52,10 @@ module Issues
       super
 
       params.delete(:issue_type) unless create_issue_type_allowed?(issue, params[:issue_type])
+
+      if params[:work_item_type].present? && !create_issue_type_allowed?(project, params[:work_item_type].base_type)
+        params.delete(:work_item_type)
+      end
 
       moved_issue = params.delete(:moved_issue)
 
@@ -103,10 +107,11 @@ module Issues
     def execute_hooks(issue, action = 'open', old_associations: {})
       issue_data  = Gitlab::Lazy.new { hook_data(issue, action, old_associations: old_associations) }
       hooks_scope = issue.confidential? ? :confidential_issue_hooks : :issue_hooks
-      issue.project.execute_hooks(issue_data, hooks_scope)
-      issue.project.execute_integrations(issue_data, hooks_scope)
+      issue.namespace.execute_hooks(issue_data, hooks_scope)
+      issue.namespace.execute_integrations(issue_data, hooks_scope)
 
-      execute_incident_hooks(issue, issue_data) if issue.incident?
+      execute_incident_hooks(issue, issue_data) if issue.work_item_type&.incident?
+      execute_group_mention_hooks(issue, issue_data) if action == 'open'
     end
 
     # We can remove this code after proposal in
@@ -114,28 +119,30 @@ module Issues
     def execute_incident_hooks(issue, issue_data)
       issue_data[:object_kind] = 'incident'
       issue_data[:event_type] = 'incident'
-      issue.project.execute_integrations(issue_data, :incident_hooks)
+      issue.namespace.execute_integrations(issue_data, :incident_hooks)
+    end
+
+    def execute_group_mention_hooks(issue, issue_data)
+      return unless issue.instance_of?(Issue)
+
+      args = {
+        mentionable_type: 'Issue',
+        mentionable_id: issue.id,
+        hook_data: issue_data,
+        is_confidential: issue.confidential?
+      }
+
+      issue.run_after_commit_or_now do
+        Integrations::GroupMentionWorker.perform_async(args)
+      end
     end
 
     def update_project_counter_caches?(issue)
       super || issue.confidential_changed?
     end
 
-    def delete_milestone_closed_issue_counter_cache(milestone)
-      return unless milestone
-
-      Milestones::ClosedIssuesCountService.new(milestone).delete_cache
-    end
-
-    def delete_milestone_total_issue_counter_cache(milestone)
-      return unless milestone
-
-      Milestones::IssuesCountService.new(milestone).delete_cache
-    end
-
-    override :allowed_create_params
-    def allowed_create_params(params)
-      super(params).except(:work_item_type_id, :work_item_type)
+    def log_audit_event(issue, user, event_type, message)
+      # defined in EE
     end
   end
 end

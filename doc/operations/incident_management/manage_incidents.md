@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Manage incidents **(FREE)**
+# Manage incidents **(FREE ALL)**
 
 This page collects instructions for all the things you can do with [incidents](incidents.md) or in relation to them.
 
@@ -24,8 +24,8 @@ Prerequisites:
 
 To create an incident from the incidents list:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Incidents**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Incidents**.
 1. Select **Create incident**.
 
 ### From the issues list
@@ -38,8 +38,8 @@ Prerequisites:
 
 To create an incident from the issues list:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Issues > List**, and select **New issue**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, and select **New issue**.
 1. From the **Type** dropdown list, select **Incident**. Only fields relevant to
    incidents are available on the page.
 1. Select **Create issue**.
@@ -57,8 +57,8 @@ Prerequisites:
 
 To create an incident from an alert:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Alerts**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Alerts**.
 1. Select your desired alert.
 1. Select **Create incident**.
 
@@ -68,9 +68,9 @@ When you [close an incident](#close-an-incident) linked to an alert, GitLab
 [changes the alert's status](alerts.md#change-an-alerts-status) to **Resolved**.
 You are then credited with the alert's status change.
 
-### Automatically, when an alert is triggered **(ULTIMATE)**
+### Automatically, when an alert is triggered **(ULTIMATE ALL)**
 
-In the project settings, you can turn on [creating an incident automatically](../metrics/alerts.md#trigger-actions-from-alerts)
+In the project settings, you can turn on [creating an incident automatically](alerts.md#trigger-actions-from-alerts)
 whenever an alert is triggered.
 
 ### Using the PagerDuty webhook
@@ -88,8 +88,8 @@ Prerequisites:
 
 To set up a webhook with PagerDuty:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Monitor**
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Monitor**
 1. Expand **Incidents**.
 1. Select the **PagerDuty integration** tab.
 1. Turn on the **Active** toggle.
@@ -104,8 +104,8 @@ check if a GitLab incident is created from the incident.
 
 To view the [incidents list](incidents.md#incidents-list):
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Monitor > Incidents**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Monitor > Incidents**.
 
 To view an incident's [details page](incidents.md#incident-details), select it from the list.
 
@@ -166,7 +166,7 @@ To change the status of an incident:
 
 **Triggered** is the default status for new incidents.
 
-### As an on-call responder **(PREMIUM)**
+### As an on-call responder **(PREMIUM ALL)**
 
 On-call responders can respond to [incident pages](paging.md#escalating-an-incident)
 by changing the status.
@@ -181,7 +181,7 @@ In GitLab 15.1 and earlier, changing the status of an [incident created from an 
 also changes the alert status. In [GitLab 15.2 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/356057),
 the alert status is independent and does not change when the incident status changes.
 
-## Change escalation policy **(PREMIUM)**
+## Change escalation policy **(PREMIUM ALL)**
 
 Prerequisites:
 
@@ -201,19 +201,6 @@ In GitLab 15.1 and earlier, the escalation policy for [incidents created from al
 reflects the alert's escalation policy and cannot be changed. In [GitLab 15.2 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/356057),
 the incident escalation policy is independent and can be changed.
 
-## Embed metrics
-
-You can embed metrics anywhere [GitLab Flavored Markdown](../../user/markdown.md) is
-used, like descriptions or comments. Embedding
-metrics helps you share them when discussing incidents or performance issues.
-
-To embed metrics in a Markdown text box in GitLab,
-[paste the link to the dashboard](../metrics/embed.md#embedding-gitlab-managed-kubernetes-metrics).
-
-You can embed both [GitLab-hosted metrics](../metrics/embed.md) (deprecated) and
-[Grafana metrics](../metrics/embed_grafana.md) in incidents and issue
-templates.
-
 ## Close an incident
 
 Prerequisites:
@@ -225,6 +212,10 @@ To close an incident, in the upper-right corner, select **Close incident**.
 When you close an incident that is linked to an [alert](alerts.md),
 the linked alert's status changes to **Resolved**.
 You are then credited with the alert's status change.
+
+<!-- Delete when the `move_close_into_dropdown` feature flag is removed -->
+If you don't see this action at the top of an incident, your project or instance might have
+enabled a feature flag to [moved it in the actions menu](../../user/project/issues/managing_issues.md#move-the-close-button-into-the-actions-menu).
 
 ### Automatically close incidents via recovery alerts
 
@@ -239,15 +230,31 @@ Prerequisites:
 
 To configure the setting:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Monitor**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Monitor**.
 1. Expand the **Incidents** section.
 1. Select the **Automatically close associated incident** checkbox.
 1. Select **Save changes**.
 
-When GitLab receives a recovery alert, it closes the associated incident.
+When GitLab receives a [recovery alert](integrations.md#recovery-alerts), it closes the associated incident.
 This action is recorded as a system note on the incident indicating that it
 was closed automatically by the GitLab Alert bot.
+
+## Delete an incident
+
+Prerequisites:
+
+- You must have the Owner role for a project.
+
+To delete an incident:
+
+1. In an incident, select **Incident actions** (**{ellipsis_v}**).
+1. Select **Delete incident**.
+
+Alternatively:
+
+1. In an incident, select **Edit title and description** (**{pencil}**).
+1. Select **Delete incident**.
 
 ## Other actions
 

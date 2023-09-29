@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues do
+RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues,
+  :clean_gitlab_redis_queues_metadata do
   def clear_queues
     Sidekiq::Queue.new('authorized_projects').clear
     Sidekiq::Queue.new('post_receive').clear
@@ -54,7 +55,7 @@ RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues do
           expect(migrator.migrate_set(set_name)).to eq(scanned: 3, migrated: 0)
 
           expect(set_after.length).to eq(3)
-          expect(set_after.map(&:first)).to all(include('queue' => 'authorized_projects',
+          expect(set_after.map(&:first)).to all(include('queue' => 'default',
                                                         'class' => 'AuthorizedProjectsWorker'))
         end
       end
@@ -73,7 +74,7 @@ RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues do
               if item['class'] == 'AuthorizedProjectsWorker'
                 expect(item).to include('queue' => 'new_queue', 'args' => [i])
               else
-                expect(item).to include('queue' => 'post_receive', 'args' => [i])
+                expect(item).to include('queue' => 'default', 'args' => [i])
               end
 
               expect(score).to be_within(schedule_jitter).of(i.succ.hours.from_now.to_i)
@@ -134,7 +135,7 @@ RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues do
             expect(migrator.migrate_set(set_name)).to eq(scanned: 4, migrated: 0)
 
             expect(set_after.length).to eq(3)
-            expect(set_after.map(&:first)).to all(include('queue' => 'authorized_projects'))
+            expect(set_after.map(&:first)).to all(include('queue' => 'default'))
           end
         end
 
@@ -157,7 +158,7 @@ RSpec.describe Gitlab::SidekiqMigrateJobs, :clean_gitlab_redis_queues do
           expect(migrator.migrate_set(set_name)).to eq(scanned: 4, migrated: 1)
 
           expect(set_after.group_by { |job| job.first['queue'] }.transform_values(&:count))
-            .to eq('authorized_projects' => 6, 'new_queue' => 1)
+            .to eq('default' => 6, 'new_queue' => 1)
         end
 
         it 'iterates through the entire set of jobs' do

@@ -8,10 +8,12 @@ RSpec.describe 'UserAchievements', feature_category: :user_profile do
   let_it_be(:user) { create(:user) }
   let_it_be(:group) { create(:group, :private) }
   let_it_be(:achievement) { create(:achievement, namespace: group) }
-  let_it_be(:user_achievements) { create_list(:user_achievement, 2, achievement: achievement, user: user) }
+  let_it_be(:non_revoked_achievement) { create(:user_achievement, achievement: achievement, user: user) }
+  let_it_be(:revoked_achievement) { create(:user_achievement, :revoked, achievement: achievement, user: user) }
   let_it_be(:fields) do
     <<~HEREDOC
     userAchievements {
+      count
       nodes {
         id
         achievement {
@@ -47,11 +49,14 @@ RSpec.describe 'UserAchievements', feature_category: :user_profile do
 
   it_behaves_like 'a working graphql query'
 
-  it 'returns all user_achievements' do
+  it 'returns all non_revoked user_achievements' do
     expect(graphql_data_at(:user, :userAchievements, :nodes)).to contain_exactly(
-      a_graphql_entity_for(user_achievements[0]),
-      a_graphql_entity_for(user_achievements[1])
+      a_graphql_entity_for(non_revoked_achievement)
     )
+  end
+
+  it 'returns the correct user_achievement count' do
+    expect(graphql_data_at(:user, :userAchievements, :count)).to be(1)
   end
 
   it 'can lookahead to eliminate N+1 queries', :use_clean_rails_memory_store_caching do
@@ -86,6 +91,10 @@ RSpec.describe 'UserAchievements', feature_category: :user_profile do
   context 'when current user is not a member of the private group' do
     let(:current_user) { create(:user) }
 
-    specify { expect(graphql_data_at(:user, :userAchievements, :nodes)).to be_empty }
+    it 'returns all achievements' do
+      expect(graphql_data_at(:user, :userAchievements, :nodes)).to contain_exactly(
+        a_graphql_entity_for(non_revoked_achievement)
+      )
+    end
   end
 end

@@ -1,10 +1,10 @@
-query pathLastCommit($projectPath: ID!, $path: String, $ref: String!) {
+query pathLastCommit($projectPath: ID!, $path: String, $ref: String!, $refType: RefType) {
   project(fullPath: $projectPath) {
     __typename
     id
     repository {
       __typename
-      paginatedTree(path: $path, ref: $ref) {
+      paginatedTree(path: $path, ref: $ref, refType: $refType) {
         __typename
         nodes {
           __typename
@@ -27,7 +27,30 @@ query pathLastCommit($projectPath: ID!, $path: String, $ref: String!) {
               avatarUrl
               webPath
             }
-            signatureHtml
+            signature {
+              __typename
+              ... on GpgSignature {
+                gpgKeyPrimaryKeyid
+                verificationStatus
+              }
+              ... on X509Signature {
+                verificationStatus
+                x509Certificate {
+                  id
+                  subject
+                  subjectKeyIdentifier
+                  x509Issuer {
+                    id
+                    subject
+                    subjectKeyIdentifier
+                  }
+                }
+              }
+              ... on SshSignature {
+                verificationStatus
+                keyFingerprintSha256
+              }
+            }
             pipelines(ref: $ref, first: 1) {
               __typename
               edges {

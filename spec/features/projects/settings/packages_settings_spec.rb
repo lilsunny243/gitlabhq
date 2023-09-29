@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > Packages', :js, feature_category: :projects do
+RSpec.describe 'Projects > Settings > Packages', :js, feature_category: :groups_and_projects do
   let_it_be(:project) { create(:project) }
 
   let(:user) { project.first_owner }
@@ -35,7 +35,7 @@ RSpec.describe 'Projects > Settings > Packages', :js, feature_category: :project
     let(:packages_enabled) { false }
 
     it 'does not show up in UI' do
-      expect(page).not_to have_selector('[data-testid="toggle-label"]', text: 'Packages')
+      expect(page).not_to have_selector('[data-testid="toggle-label"]', text: 'Package registry')
     end
   end
 end

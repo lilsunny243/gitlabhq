@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::IssuesController, feature_category: :team_planning do
+RSpec.describe Projects::IssuesController, :request_store, feature_category: :team_planning do
   include ProjectForksHelper
   include_context 'includes Spam constants'
 
@@ -11,6 +11,11 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
 
   let(:issue) { create(:issue, project: project) }
   let(:spam_action_response_fields) { { 'stub_spam_action_response_fields' => true } }
+
+  before do
+    # We need the spam_params object to be present in the request context
+    Gitlab::RequestContext.start_request_context(request: request)
+  end
 
   describe "GET #index" do
     context 'external issue tracker' do
@@ -115,11 +120,11 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
         allow(Kaminari.config).to receive(:default_per_page).and_return(1)
       end
 
-      it 'redirects to last page when out of bounds on non-html requests' do
+      it 'does not redirect when out of bounds on non-html requests' do
         get :index, params: params.merge(page: last_page + 1), format: 'atom'
 
-        expect(response).to have_gitlab_http_status(:redirect)
-        expect(response).to redirect_to(action: 'index', format: 'atom', page: last_page, state: 'opened')
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(assigns(:issues).size).to eq(0)
       end
     end
 
@@ -183,22 +188,10 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       let_it_be(:task) { create(:issue, :task, project: project) }
 
       shared_examples 'redirects to show work item page' do
-        context 'when use_iid_in_work_items_path feature flag is disabled' do
-          before do
-            stub_feature_flags(use_iid_in_work_items_path: false)
-          end
-
-          it 'redirects to work item page' do
-            make_request
-
-            expect(response).to redirect_to(project_work_items_path(project, task.id, query))
-          end
-        end
-
         it 'redirects to work item page using iid' do
           make_request
 
-          expect(response).to redirect_to(project_work_items_path(project, task.iid, query.merge(iid_path: true)))
+          expect(response).to redirect_to(project_work_items_path(project, task.iid, query))
         end
       end
 
@@ -255,7 +248,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
         get :new, params: { namespace_id: project.namespace, project_id: project }
 
         expect(assigns(:issue)).to be_a_new(Issue)
-        expect(assigns(:issue).issue_type).to eq('issue')
+        expect(assigns(:issue).work_item_type.base_type).to eq('issue')
       end
 
       where(:conf_value, :conf_result) do
@@ -292,7 +285,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
           get :new, params: { namespace_id: project.namespace, project_id: project, issue: { issue_type: issue_type } }
         end
 
-        subject { assigns(:issue).issue_type }
+        subject { assigns(:issue).work_item_type.base_type }
 
         it { is_expected.to eq('issue') }
 
@@ -631,7 +624,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
           subject
 
           expect(response).to have_gitlab_http_status(:ok)
-          expect(issue.reload.issue_type).to eql('incident')
+          expect(issue.reload.work_item_type.base_type).to eq('incident')
         end
       end
 
@@ -742,7 +735,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
         go(id: issue.iid)
 
         expect(json_response).to include('title_text', 'description', 'description_text')
-        expect(json_response).to include('task_status', 'lock_version')
+        expect(json_response).to include('task_completion_status', 'lock_version')
       end
     end
   end
@@ -949,13 +942,8 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
             let(:spammy_title) { 'Whatever' }
             let!(:spam_logs) { create_list(:spam_log, 2, user: user, title: spammy_title) }
 
-            before do
-              request.headers['X-GitLab-Captcha-Response'] = 'a-valid-captcha-response'
-              request.headers['X-GitLab-Spam-Log-Id'] = spam_logs.last.id
-            end
-
             def update_verified_issue
-              update_issue(issue_params: { title: spammy_title })
+              update_issue(issue_params: { title: spammy_title }, additional_params: { spam_log_id: spam_logs.last.id, 'g-recaptcha-response': 'a-valid-captcha-response' })
             end
 
             it 'returns 200 status' do
@@ -972,10 +960,9 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
             end
 
             it 'does not mark spam log as recaptcha_verified when it does not belong to current_user' do
-              spam_log = create(:spam_log)
-              request.headers['X-GitLab-Spam-Log-Id'] = spam_log.id
+              create(:spam_log)
 
-              expect { update_issue }
+              expect { update_verified_issue }
                 .not_to change { SpamLog.last.recaptcha_verified }
             end
           end
@@ -1087,7 +1074,6 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it 'sets the correct issue_type' do
         issue = post_new_issue(issue_type: 'incident')
 
-        expect(issue.issue_type).to eq('incident')
         expect(issue.work_item_type.base_type).to eq('incident')
       end
     end
@@ -1096,7 +1082,6 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it 'defaults to issue type' do
         issue = post_new_issue(issue_type: 'task')
 
-        expect(issue.issue_type).to eq('issue')
         expect(issue.work_item_type.base_type).to eq('issue')
       end
     end
@@ -1105,7 +1090,6 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it 'defaults to issue type' do
         issue = post_new_issue(issue_type: 'objective')
 
-        expect(issue.issue_type).to eq('issue')
         expect(issue.work_item_type.base_type).to eq('issue')
       end
     end
@@ -1114,7 +1098,14 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it 'defaults to issue type' do
         issue = post_new_issue(issue_type: 'key_result')
 
-        expect(issue.issue_type).to eq('issue')
+        expect(issue.work_item_type.base_type).to eq('issue')
+      end
+    end
+
+    context 'when trying to create an epic' do
+      it 'defaults to issue type' do
+        issue = post_new_issue(issue_type: 'epic')
+
         expect(issue.work_item_type.base_type).to eq('issue')
       end
     end
@@ -1164,7 +1155,6 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
 
       expect(issue).to be_a(Issue)
       expect(issue.persisted?).to eq(true)
-      expect(issue.issue_type).to eq('issue')
       expect(issue.work_item_type.base_type).to eq('issue')
     end
 
@@ -1331,6 +1321,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
     context 'user agent details are saved' do
       before do
         request.env['action_dispatch.remote_ip'] = '127.0.0.1'
+        Gitlab::RequestContext.start_request_context(request: request)
       end
 
       it 'creates a user agent detail' do
@@ -1415,7 +1406,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
     context 'setting issue type' do
       let(:issue_type) { 'issue' }
 
-      subject { post_new_issue(issue_type: issue_type)&.issue_type }
+      subject { post_new_issue(issue_type: issue_type)&.work_item_type&.base_type }
 
       it { is_expected.to eq('issue') }
 
@@ -1480,7 +1471,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it "deletes the issue" do
         delete :destroy, params: { namespace_id: project.namespace, project_id: project, id: issue.iid, destroy_confirm: true }
 
-        expect(response).to have_gitlab_http_status(:found)
+        expect(response).to have_gitlab_http_status(:see_other)
         expect(controller).to set_flash[:notice].to(/The issue was successfully deleted\./)
       end
 
@@ -1734,7 +1725,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
 
   describe 'GET service_desk' do
     let_it_be(:project) { create(:project_empty_repo, :public) }
-    let_it_be(:support_bot) { User.support_bot }
+    let_it_be(:support_bot) { Users::Internal.support_bot }
     let_it_be(:other_user) { create(:user) }
     let_it_be(:service_desk_issue_1) { create(:issue, project: project, author: support_bot) }
     let_it_be(:service_desk_issue_2) { create(:issue, project: project, author: support_bot, assignees: [other_user]) }
@@ -1765,7 +1756,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
     it 'allows an assignee to be specified by id' do
       get_service_desk(assignee_id: other_user.id)
 
-      expect(assigns(:users)).to contain_exactly(other_user, support_bot)
+      expect(assigns(:issues)).to contain_exactly(service_desk_issue_2)
     end
   end
 
@@ -1803,7 +1794,19 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
       it 'returns discussion json' do
         get :discussions, params: { namespace_id: project.namespace, project_id: project, id: issue.iid }
 
-        expect(json_response.first.keys).to match_array(%w[id reply_id expanded notes diff_discussion discussion_path individual_note resolvable resolved resolved_at resolved_by resolved_by_push commit_id for_commit project_id confidential])
+        expect(json_response.first.keys).to match_array(%w[id reply_id expanded notes diff_discussion discussion_path individual_note resolvable commit_id for_commit project_id confidential resolve_path resolved resolved_at resolved_by resolved_by_push])
+      end
+
+      context 'when resolvable_issue_threads is disabled' do
+        before do
+          stub_feature_flags(resolvable_issue_threads: false)
+        end
+
+        it 'returns discussion json without resolved fields' do
+          get :discussions, params: { namespace_id: project.namespace, project_id: project, id: issue.iid }
+
+          expect(json_response.first.keys).to match_array(%w[id reply_id expanded notes diff_discussion discussion_path individual_note resolvable commit_id for_commit project_id confidential])
+        end
       end
 
       it 'renders the author status html if there is a status' do
@@ -1826,7 +1829,7 @@ RSpec.describe Projects::IssuesController, feature_category: :team_planning do
         create(:user_status, user: second_discussion.author)
 
         expect { get :discussions, params: { namespace_id: project.namespace, project_id: project, id: issue.iid } }
-          .not_to exceed_query_limit(control)
+          .not_to exceed_query_limit(control).with_threshold(9)
       end
 
       context 'when user is setting notes filters' do

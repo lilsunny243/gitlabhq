@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Repositories analytics for groups **(PREMIUM)**
+# Repositories analytics for groups **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/215104) in GitLab 13.4.
 
@@ -18,7 +18,7 @@ It is similar to [repository analytics for projects](../../analytics/repository_
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/263478) in GitLab 13.7.
 
-The **Analytics > Repositories** group page displays the overall test coverage of all your projects in your group.
+The **Analyze > Repository analytics** group page displays the overall test coverage of all your projects in your group.
 In the **Overall activity** section, you can see:
 
 - The number of projects with coverage reports.
@@ -29,7 +29,7 @@ In the **Overall activity** section, you can see:
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/215140) in GitLab 13.9.
 
-The **Analytics > Repositories** group page displays the average test coverage of all your projects in your group in a graph for the last 30 days.
+The **Analyze > Repository analytics** group page displays the average test coverage of all your projects in your group in a graph for the last 30 days.
 
 ## Latest project test coverage list
 
@@ -37,12 +37,12 @@ The **Analytics > Repositories** group page displays the average test coverage o
 
 To see the latest code coverage for each project in your group:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Analytics > Repositories**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Analyze > Repository analytics**.
 1. In the **Latest test coverage results** section, from the **Select projects** dropdown list, choose the projects you want to check.
 
 You can download code coverage data for specific projects using
-[code coverage history](../../../ci/pipelines/settings.md#view-code-coverage-history).
+[code coverage history](../../../ci/testing/code_coverage.md#view-history-of-project-code-coverage).
 
 ## Download historic test coverage data
 
@@ -52,8 +52,8 @@ You can get a CSV of the code coverage data for all of the projects in your grou
 
 To get the report:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Analytics > Repositories**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Analyze > Repository analytics**.
 1. Select **Download historic test coverage data (.csv)**.
 1. Select the projects and date range you want to include in the report.
 1. Select **Download test coverage data (.csv)**.

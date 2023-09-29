@@ -15,12 +15,14 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
 
   it { is_expected.to be_kind_of(ReactiveCaching) }
   it { is_expected.to nullify_if_blank(:external_url) }
+  it { is_expected.to nullify_if_blank(:kubernetes_namespace) }
+  it { is_expected.to nullify_if_blank(:flux_resource_path) }
 
   it { is_expected.to belong_to(:project).required }
   it { is_expected.to belong_to(:merge_request).optional }
+  it { is_expected.to belong_to(:cluster_agent).optional }
 
   it { is_expected.to have_many(:deployments) }
-  it { is_expected.to have_many(:metrics_dashboard_annotations) }
   it { is_expected.to have_many(:alert_management_alerts) }
   it { is_expected.to have_one(:upcoming_deployment) }
   it { is_expected.to have_one(:latest_opened_most_severe_alert) }
@@ -35,6 +37,8 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
   it { is_expected.to validate_length_of(:slug).is_at_most(24) }
 
   it { is_expected.to validate_length_of(:external_url).is_at_most(255) }
+  it { is_expected.to validate_length_of(:kubernetes_namespace).is_at_most(63) }
+  it { is_expected.to validate_length_of(:flux_resource_path).is_at_most(255) }
 
   describe 'validation' do
     it 'does not become invalid record when external_url is empty' do
@@ -79,15 +83,6 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
           expect(env).to validate_presence_of(:tier).on(:update)
         end
       end
-
-      context 'when FF is disabled' do
-        before do
-          stub_feature_flags(validate_environment_tier_presence: false)
-        end
-
-        it { expect(env).to validate_presence_of(:tier).on(:create) }
-        it { expect(env).not_to validate_presence_of(:tier).on(:update) }
-      end
     end
   end
 
@@ -126,7 +121,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
           expect(environment.errors[:external_url].first).to eq(expected_error_message)
         else
           expect(environment.errors[:external_url]).to be_empty,
-              "There were unexpected errors: #{environment.errors.full_messages}"
+            "There were unexpected errors: #{environment.errors.full_messages}"
           expect(environment.external_url).to eq(source_external_url)
         end
       end
@@ -660,15 +655,17 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
       let(:build) { create(:ci_build, :success) }
 
       let!(:deployment) do
-        create(:deployment, :success,
-                            environment: environment,
-                            deployable: build,
-                            on_stop: 'close_app')
+        create(
+          :deployment,
+          :success,
+          environment: environment,
+          deployable: build,
+          on_stop: 'close_app'
+        )
       end
 
       let!(:close_action) do
-        create(:ci_build, :manual, pipeline: build.pipeline,
-                                   name: 'close_app')
+        create(:ci_build, :manual, pipeline: build.pipeline, name: 'close_app')
       end
 
       context 'when environment is available' do
@@ -694,179 +691,213 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
 
     subject { environment.stop_with_actions!(user) }
 
-    before do
-      expect(environment).to receive(:available?).and_call_original
-    end
-
-    context 'when no other actions' do
-      context 'environment is available' do
-        before do
-          environment.update!(state: :available)
-        end
-
-        it do
-          actions = subject
-
-          expect(environment).to be_stopped
-          expect(actions).to match_array([])
-        end
-      end
-
-      context 'environment is already stopped' do
-        before do
-          environment.update!(state: :stopped)
-        end
-
-        it do
-          subject
-
-          expect(environment).to be_stopped
-        end
-      end
-    end
-
-    context 'when matching action is defined' do
-      let(:pipeline) { create(:ci_pipeline, project: project) }
-      let(:build_a) { create(:ci_build, :success, pipeline: pipeline) }
-
+    shared_examples_for 'stop with playing a teardown job' do
       before do
-        create(:deployment, :success,
-          environment: environment,
-          deployable: build_a,
-          on_stop: 'close_app_a')
+        expect(environment).to receive(:available?).and_call_original
       end
 
-      context 'when user is not allowed to stop environment' do
-        let!(:close_action) do
-          create(:ci_build, :manual, pipeline: pipeline, name: 'close_app_a')
+      context 'when no other actions' do
+        context 'environment is available' do
+          before do
+            environment.update!(state: :available)
+          end
+
+          it do
+            actions = subject
+
+            expect(environment).to be_stopped
+            expect(actions).to match_array([])
+          end
         end
 
-        it 'raises an exception' do
-          expect { subject }.to raise_error(Gitlab::Access::AccessDeniedError)
+        context 'environment is already stopped' do
+          before do
+            environment.update!(state: :stopped)
+          end
+
+          it do
+            subject
+
+            expect(environment).to be_stopped
+          end
         end
       end
 
-      context 'when user is allowed to stop environment' do
+      context 'when matching action is defined' do
+        let(:pipeline) { create(:ci_pipeline, project: project) }
+        let(:job_a) { create(factory_type, :success, pipeline: pipeline, **factory_options) }
+
+        before do
+          create(:deployment, :success,
+            environment: environment,
+            deployable: job_a,
+            on_stop: 'close_app_a')
+        end
+
+        context 'when user is not allowed to stop environment' do
+          let!(:close_action) do
+            create(factory_type, :manual, pipeline: pipeline, name: 'close_app_a', **factory_options)
+          end
+
+          it 'raises an exception' do
+            expect { subject }.to raise_error(Gitlab::Access::AccessDeniedError)
+          end
+        end
+
+        context 'when user is allowed to stop environment' do
+          before do
+            project.add_developer(user)
+
+            create(:protected_branch, :developers_can_merge, name: 'master', project: project)
+          end
+
+          context 'when action did not yet finish' do
+            let!(:close_action) do
+              create(factory_type, :manual, pipeline: pipeline, name: 'close_app_a', **factory_options)
+            end
+
+            it 'returns the same action' do
+              action = subject.first
+              expect(action).to eq(close_action)
+              expect(action.user).to eq(user)
+            end
+
+            it 'environment is not stopped' do
+              subject
+
+              expect(environment).not_to be_stopped
+            end
+          end
+
+          context 'if action did finish' do
+            let!(:close_action) do
+              create(factory_type, :manual, :success, pipeline: pipeline, name: 'close_app_a', **factory_options)
+            end
+
+            it 'returns a new action of the same type when build job' do
+              skip unless factory_type == :ci_build
+
+              action = subject.first
+
+              expect(action).to be_persisted
+              expect(action.name).to eq(close_action.name)
+              expect(action.user).to eq(user)
+            end
+
+            it 'does nothing when bridge job' do
+              skip unless factory_type == :ci_bridge
+
+              action = subject.first
+
+              expect(action).to be_nil
+            end
+          end
+
+          context 'close action does not raise ActiveRecord::StaleObjectError' do
+            let!(:close_action) do
+              create(factory_type, :manual, pipeline: pipeline, name: 'close_app_a', **factory_options)
+            end
+
+            before do
+              # preload the job
+              environment.stop_actions
+
+              # Update record as the other process. This makes `environment.stop_action` stale.
+              close_action.drop!
+            end
+
+            it 'successfully plays the job even if the job was a stale object when build job' do
+              skip unless factory_type == :ci_build
+
+              # Since job is droped.
+              expect(close_action.processed).to be_falsey
+
+              # it encounters the StaleObjectError at first, but reloads the object and runs `job.play`
+              expect { subject }.not_to raise_error
+
+              # Now the job should be processed.
+              expect(close_action.reload.processed).to be_truthy
+            end
+
+            it 'does nothing when bridge job' do
+              skip unless factory_type == :ci_bridge
+
+              expect(close_action.processed).to be_falsey
+
+              # it encounters the StaleObjectError at first, but reloads the object and runs `job.play`
+              expect { subject }.not_to raise_error
+
+              # Bridge is not retried currently.
+              expect(close_action.processed).to be_falsey
+            end
+          end
+        end
+      end
+
+      context 'when there are more then one stop action for the environment' do
+        let(:pipeline) { create(:ci_pipeline, project: project) }
+        let(:job_a) { create(factory_type, :success, pipeline: pipeline, **factory_options) }
+        let(:job_b) { create(factory_type, :success, pipeline: pipeline, **factory_options) }
+
+        let!(:close_actions) do
+          [
+            create(factory_type, :manual, pipeline: pipeline, name: 'close_app_a', **factory_options),
+            create(factory_type, :manual, pipeline: pipeline, name: 'close_app_b', **factory_options)
+          ]
+        end
+
         before do
           project.add_developer(user)
 
-          create(:protected_branch, :developers_can_merge,
-                 name: 'master', project: project)
+          create(:deployment, :success,
+            environment: environment,
+            deployable: job_a,
+            finished_at: 5.minutes.ago,
+            on_stop: 'close_app_a')
+
+          create(:deployment, :success,
+            environment: environment,
+            deployable: job_b,
+            finished_at: 1.second.ago,
+            on_stop: 'close_app_b')
         end
 
-        context 'when action did not yet finish' do
-          let!(:close_action) do
-            create(:ci_build, :manual, pipeline: pipeline, name: 'close_app_a')
-          end
+        it 'returns the same actions' do
+          actions = subject
 
-          it 'returns the same action' do
-            action = subject.first
-            expect(action).to eq(close_action)
-            expect(action.user).to eq(user)
-          end
-
-          it 'environment is not stopped' do
-            subject
-
-            expect(environment).not_to be_stopped
-          end
+          expect(actions.count).to eq(close_actions.count)
+          expect(actions.pluck(:id)).to match_array(close_actions.pluck(:id))
+          expect(actions.pluck(:user)).to match_array(close_actions.pluck(:user))
         end
 
-        context 'if action did finish' do
-          let!(:close_action) do
-            create(:ci_build, :manual, :success,
-                   pipeline: pipeline, name: 'close_app_a')
-          end
-
-          it 'returns a new action of the same type' do
-            action = subject.first
-
-            expect(action).to be_persisted
-            expect(action.name).to eq(close_action.name)
-            expect(action.user).to eq(user)
-          end
-        end
-
-        context 'close action does not raise ActiveRecord::StaleObjectError' do
-          let!(:close_action) do
-            create(:ci_build, :manual, pipeline: pipeline, name: 'close_app_a')
-          end
-
+        context 'when there are failed builds' do
           before do
-            # preload the build
-            environment.stop_actions
+            create(factory_type, :failed, pipeline: pipeline, name: 'close_app_c', **factory_options)
 
-            # Update record as the other process. This makes `environment.stop_action` stale.
-            close_action.drop!
+            create(:deployment, :failed,
+              environment: environment,
+              deployable: create(factory_type, pipeline: pipeline, **factory_options),
+              on_stop: 'close_app_c')
           end
 
-          it 'successfully plays the build even if the build was a stale object' do
-            # Since build is droped.
-            expect(close_action.processed).to be_falsey
+          it 'returns only stop actions from successful builds' do
+            actions = subject
 
-            # it encounters the StaleObjectError at first, but reloads the object and runs `build.play`
-            expect { subject }.not_to raise_error
-
-            # Now the build should be processed.
-            expect(close_action.reload.processed).to be_truthy
+            expect(actions).to match_array(close_actions)
+            expect(actions.count).to eq(pipeline.latest_successful_jobs.count)
           end
         end
       end
     end
 
-    context 'when there are more then one stop action for the environment' do
-      let(:pipeline) { create(:ci_pipeline, project: project) }
-      let(:build_a) { create(:ci_build, :success, pipeline: pipeline) }
-      let(:build_b) { create(:ci_build, :success, pipeline: pipeline) }
+    it_behaves_like 'stop with playing a teardown job' do
+      let(:factory_type) { :ci_build }
+      let(:factory_options) { {} }
+    end
 
-      let!(:close_actions) do
-        [
-          create(:ci_build, :manual, pipeline: pipeline, name: 'close_app_a'),
-          create(:ci_build, :manual, pipeline: pipeline, name: 'close_app_b')
-        ]
-      end
-
-      before do
-        project.add_developer(user)
-
-        create(:deployment, :success,
-          environment: environment,
-          deployable: build_a,
-          finished_at: 5.minutes.ago,
-          on_stop: 'close_app_a')
-
-        create(:deployment, :success,
-          environment: environment,
-          deployable: build_b,
-          finished_at: 1.second.ago,
-          on_stop: 'close_app_b')
-      end
-
-      it 'returns the same actions' do
-        actions = subject
-
-        expect(actions.count).to eq(close_actions.count)
-        expect(actions.pluck(:id)).to match_array(close_actions.pluck(:id))
-        expect(actions.pluck(:user)).to match_array(close_actions.pluck(:user))
-      end
-
-      context 'when there are failed builds' do
-        before do
-          create(:ci_build, :failed, pipeline: pipeline, name: 'close_app_c')
-
-          create(:deployment, :failed,
-            environment: environment,
-            deployable: create(:ci_build, pipeline: pipeline),
-            on_stop: 'close_app_c')
-        end
-
-        it 'returns only stop actions from successful builds' do
-          actions = subject
-
-          expect(actions).to match_array(close_actions)
-          expect(actions.count).to eq(pipeline.latest_successful_builds.count)
-        end
-      end
+    it_behaves_like 'stop with playing a teardown job' do
+      let(:factory_type) { :ci_bridge }
+      let(:factory_options) { { downstream: project } }
     end
   end
 
@@ -1258,8 +1289,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
   describe '#deployment_platform' do
     context 'when there is a deployment platform for environment' do
       let!(:cluster) do
-        create(:cluster, :provided_by_gcp,
-               environment_scope: '*', projects: [project])
+        create(:cluster, :provided_by_gcp, environment_scope: '*', projects: [project])
       end
 
       it 'finds a deployment platform' do
@@ -1387,7 +1417,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
 
     context 'when the environment is available' do
       context 'with a deployment service' do
-        let(:project) { create(:project, :with_prometheus_integration, :repository) }
+        let_it_be(:project) { create(:project, :with_prometheus_integration, :repository) }
 
         context 'and a deployment' do
           let!(:deployment) { create(:deployment, environment: environment) }
@@ -1460,7 +1490,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
     end
 
     context 'when the environment is unavailable' do
-      let(:project) { create(:project, :with_prometheus_integration) }
+      let_it_be(:project) { create(:project, :with_prometheus_integration) }
 
       before do
         environment.stop
@@ -1486,44 +1516,8 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
     end
   end
 
-  describe '#metrics' do
-    let(:project) { create(:project, :with_prometheus_integration) }
-
-    subject { environment.metrics }
-
-    context 'when the environment has metrics' do
-      before do
-        allow(environment).to receive(:has_metrics?).and_return(true)
-      end
-
-      it 'returns the metrics from the deployment service' do
-        expect(environment.prometheus_adapter)
-          .to receive(:query).with(:environment, environment)
-          .and_return(:fake_metrics)
-
-        is_expected.to eq(:fake_metrics)
-      end
-
-      context 'and the prometheus client is not present' do
-        before do
-          allow(environment.prometheus_adapter).to receive(:promethus_client).and_return(nil)
-        end
-
-        it { is_expected.to be_nil }
-      end
-    end
-
-    context 'when the environment does not have metrics' do
-      before do
-        allow(environment).to receive(:has_metrics?).and_return(false)
-      end
-
-      it { is_expected.to be_nil }
-    end
-  end
-
   describe '#additional_metrics' do
-    let(:project) { create(:project, :with_prometheus_integration) }
+    let_it_be(:project) { create(:project, :with_prometheus_integration) }
     let(:metric_params) { [] }
 
     subject { environment.additional_metrics(*metric_params) }
@@ -1660,20 +1654,18 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
     end
 
     context 'environment has a deployment' do
-      let!(:deployment) { create(:deployment, :success, environment: environment, cluster: cluster) }
-
       context 'with no cluster associated' do
-        let(:cluster) { nil }
+        let!(:deployment) { create(:deployment, :success, environment: environment) }
 
         it { is_expected.to be_nil }
       end
 
       context 'with a cluster associated' do
-        let(:cluster) { create(:cluster) }
+        let!(:deployment) { create(:deployment, :success, :on_cluster, environment: environment) }
 
         it 'calls the service finder' do
           expect(Clusters::KnativeServicesFinder).to receive(:new)
-            .with(cluster, environment).and_return(:finder)
+            .with(deployment.cluster, environment).and_return(:finder)
 
           is_expected.to eq :finder
         end
@@ -1823,13 +1815,23 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
     let_it_be(:project) { create(:project, :repository) }
     let_it_be(:environment, reload: true) { create(:environment, project: project) }
 
-    let!(:deployment) { create(:deployment, project: project, environment: environment, deployable: build) }
-    let!(:build) { create(:ci_build, :running, project: project, environment: environment) }
+    let!(:deployment) { create(:deployment, project: project, environment: environment, deployable: job) }
+    let!(:job) { create(:ci_build, :running, project: project, environment: environment) }
 
     it 'cancels an active deployment job' do
       subject
 
-      expect(build.reset).to be_canceled
+      expect(job.reset).to be_canceled
+    end
+
+    context 'when deployment job is bridge' do
+      let!(:job) { create(:ci_bridge, :running, project: project, environment: environment) }
+
+      it 'does not cancel an active deployment job' do
+        subject
+
+        expect(job.reset).to be_running
+      end
     end
 
     context 'when deployable does not exist' do
@@ -1840,7 +1842,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_categ
       it 'does not raise an error' do
         expect { subject }.not_to raise_error
 
-        expect(build.reset).to be_running
+        expect(job.reset).to be_running
       end
     end
   end

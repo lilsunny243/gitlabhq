@@ -37,8 +37,11 @@ RSpec.describe 'admin issues labels', feature_category: :team_planning do
     end
 
     it 'deletes all labels', :js do
-      page.all('.labels .js-remove-label').each do |remove|
-        accept_gl_confirm(button_text: 'Delete label') { remove.click }
+      page.all('.labels .label-actions-list').each do |label|
+        label.click
+        accept_gl_confirm(button_text: 'Delete label') do
+          click_link 'Delete'
+        end
         wait_for_requests
       end
 
@@ -47,6 +50,10 @@ RSpec.describe 'admin issues labels', feature_category: :team_planning do
       expect(page).to have_content("Define your default set of project labels")
       expect(page).not_to have_content('bug')
       expect(page).not_to have_content('feature_label')
+
+      page.within '.js-admin-labels-count' do
+        expect(page).to have_content('0')
+      end
     end
   end
 
@@ -110,7 +117,7 @@ RSpec.describe 'admin issues labels', feature_category: :team_planning do
         click_link 'Delete label'
       end
 
-      expect(page).to have_content('Label was removed')
+      expect(page).to have_content("#{bug_label.title} was removed").and have_no_content("#{bug_label.title}</span>")
     end
   end
 end

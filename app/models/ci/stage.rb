@@ -7,6 +7,12 @@ module Ci
     include Ci::HasStatus
     include Gitlab::OptimisticLocking
     include Presentable
+    include SafelyChangeColumnDefault
+    include IgnorableColumns
+
+    columns_changing_default :partition_id
+
+    ignore_column :pipeline_id_convert_to_bigint, remove_with: '16.6', remove_after: '2023-10-22'
 
     partitionable scope: :pipeline
 
@@ -112,12 +118,12 @@ module Ci
         when 'scheduled' then delay
         when 'skipped', nil then skip
         else
-          raise Ci::HasStatus::UnknownStatusError,
-                "Unknown status `#{new_status}`"
+          raise Ci::HasStatus::UnknownStatusError, "Unknown status `#{new_status}`"
         end
       end
     end
 
+    # This will be removed with ci_remove_ensure_stage_service
     def update_legacy_status
       set_status(latest_stage_status.to_s)
     end
@@ -151,6 +157,7 @@ module Ci
       blocked? || skipped?
     end
 
+    # This will be removed with ci_remove_ensure_stage_service
     def latest_stage_status
       statuses.latest.composite_status || 'skipped'
     end

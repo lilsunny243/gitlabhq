@@ -4,15 +4,16 @@ module Gitlab
   module Database
     module Partitioning
       class SlidingListStrategy
-        attr_reader :model, :partitioning_key, :next_partition_if, :detach_partition_if
+        attr_reader :model, :partitioning_key, :next_partition_if, :detach_partition_if, :analyze_interval
 
         delegate :table_name, to: :model
 
-        def initialize(model, partitioning_key, next_partition_if:, detach_partition_if:)
+        def initialize(model, partitioning_key, next_partition_if:, detach_partition_if:, analyze_interval: nil)
           @model = model
           @partitioning_key = partitioning_key
           @next_partition_if = next_partition_if
           @detach_partition_if = detach_partition_if
+          @analyze_interval = analyze_interval
 
           ensure_partitioning_column_ignored_or_readonly!
         end
@@ -77,6 +78,19 @@ module Gitlab
         end
 
         def validate_and_fix
+          unless model.connection_db_config.name ==
+              Gitlab::Database.db_config_name(Gitlab::Database::SharedModel.connection)
+
+            Gitlab::AppLogger.warn(
+              message: 'Skipping fixing column default because connections mismatch',
+              event: :partition_manager_validate_and_fix_connection_mismatch,
+              model_connection_name: Gitlab::Database.db_config_name(model.connection),
+              shared_connection_name: Gitlab::Database.db_config_name(Gitlab::Database::SharedModel.connection)
+            )
+
+            return
+          end
+
           return if no_partitions_exist?
 
           old_default_value = current_default_value

@@ -24,10 +24,10 @@ InitializerConnections.raise_if_new_database_connection do
 
     use_doorkeeper do
       controllers applications: 'oauth/applications',
-                  authorized_applications: 'oauth/authorized_applications',
-                  authorizations: 'oauth/authorizations',
-                  token_info: 'oauth/token_info',
-                  tokens: 'oauth/tokens'
+        authorized_applications: 'oauth/authorized_applications',
+        authorizations: 'oauth/authorizations',
+        token_info: 'oauth/token_info',
+        tokens: 'oauth/tokens'
     end
     put '/oauth/applications/:id/renew(.:format)' => 'oauth/applications#renew', as: :renew_oauth_application
 
@@ -62,17 +62,10 @@ InitializerConnections.raise_if_new_database_connection do
 
     # Sign up
     scope path: '/users/sign_up', module: :registrations, as: :users_sign_up do
-      resource :welcome, only: [:show, :update], controller: 'welcome'
-
       Gitlab.ee do
+        resource :welcome, only: [:show, :update], controller: 'welcome'
         resource :company, only: [:new, :create], controller: 'company'
-        resources :groups_projects, only: [:new, :create] do
-          collection do
-            post :import
-            put :exit
-          end
-        end
-        draw :verification
+        resources :groups, only: [:new, :create]
       end
     end
 
@@ -88,6 +81,7 @@ InitializerConnections.raise_if_new_database_connection do
 
     # JSON Web Token
     get 'jwt/auth' => 'jwt#auth'
+    post 'jwt/auth', to: proc { [404, {}, ['']] }
 
     # Health check
     get 'health_check(/:checks)' => 'health_check#index', as: :health_check
@@ -122,6 +116,12 @@ InitializerConnections.raise_if_new_database_connection do
       get 'offline' => "pwa#offline"
       get 'manifest' => "pwa#manifest", constraints: lambda { |req| req.format == :json }
 
+      scope module: 'clusters' do
+        scope module: 'agents' do
+          get '/kubernetes/:agent_id', to: 'dashboard#show', as: 'kubernetes_dashboard'
+        end
+      end
+
       # '/-/health' implemented by BasicHealthCheck middleware
       get 'liveness' => 'health#liveness'
       get 'readiness' => 'health#readiness'
@@ -153,22 +153,24 @@ InitializerConnections.raise_if_new_database_connection do
 
         # Remote host can contain "." characters so it needs a constraint
         post 'remote/:remote_host(/*remote_path)',
-             as: :remote,
-             to: 'web_ide/remote_ide#index',
-             constraints: { remote_host: %r{[^/?]+} }
+          as: :remote,
+          to: 'web_ide/remote_ide#index',
+          constraints: { remote_host: %r{[^/?]+} }
       end
 
       draw :operations
       draw :jira_connect
+      draw :organizations
 
       Gitlab.ee do
+        draw :remote_development
         draw :security
         draw :smartcard
-        draw :trial
         draw :trial_registration
         draw :country
         draw :country_state
         draw :subscription
+        draw :phone_verification
 
         scope '/push_from_secondary/:geo_node_id' do
           draw :git_http
@@ -205,7 +207,7 @@ InitializerConnections.raise_if_new_database_connection do
       end
 
       # Spam reports
-      resources :abuse_reports, only: [:new, :create] do
+      resources :abuse_reports, only: [:create] do
         collection do
           post :add_category
         end
@@ -223,6 +225,10 @@ InitializerConnections.raise_if_new_database_connection do
       # Deprecated route for permanent failures
       # https://gitlab.com/gitlab-org/gitlab/-/issues/362606
       post '/members/mailgun/permanent_failures' => 'mailgun/webhooks#process_webhook'
+
+      get '/timelogs' => 'time_tracking/timelogs#index'
+
+      post '/track_namespace_visits' => 'users/namespace_visits#create'
     end
     # End of the /-/ scope.
 
@@ -247,7 +253,6 @@ InitializerConnections.raise_if_new_database_connection do
           end
 
           get :metrics_dashboard
-          get :'/prometheus/api/v1/*proxy_path', to: 'clusters#prometheus_proxy', as: :prometheus_api
           get :cluster_status, format: :json
           delete :clear_cache
         end
@@ -266,6 +271,7 @@ InitializerConnections.raise_if_new_database_connection do
 
     draw :git_http
     draw :api
+    draw :activity_pub
     draw :customers_dot
     draw :sidekiq
     draw :help
@@ -278,6 +284,7 @@ InitializerConnections.raise_if_new_database_connection do
     draw :user
     draw :project
     draw :unmatched_project
+    draw :well_known
 
     # Issue https://gitlab.com/gitlab-org/gitlab/-/issues/210024
     scope as: 'deprecated' do

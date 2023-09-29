@@ -3,7 +3,11 @@
 module QA
   module Resource
     class ProjectImportedFromGithub < Resource::Project
-      attr_accessor :issue_events_import, :full_notes_import, :attachments_import
+      attr_accessor :issue_events_import,
+        :full_notes_import,
+        :attachments_import,
+        :allow_partial_import,
+        :additional_access_tokens
 
       attribute :github_repo_id do
         github_client.repository(github_repository_path).id
@@ -24,7 +28,7 @@ module QA
           import_page.select_advanced_option(:attachments_import) if attachments_import
 
           import_page.import!(github_repository_path, group.full_path, name)
-          import_page.wait_for_success(github_repository_path, wait: 240)
+          import_page.wait_for_success(github_repository_path, wait: 240, allow_partial_import: allow_partial_import)
         end
 
         reload!
@@ -58,13 +62,14 @@ module QA
           new_name: name,
           target_namespace: @personal_namespace || group.full_path,
           personal_access_token: github_personal_access_token,
+          additional_access_tokens: additional_access_tokens,
           ci_cd_only: false,
           optional_stages: {
             single_endpoint_issue_events_import: issue_events_import,
             single_endpoint_notes_import: full_notes_import,
             attachments_import: attachments_import
           }
-        }
+        }.compact
       end
 
       def transform_api_resource(api_resource)

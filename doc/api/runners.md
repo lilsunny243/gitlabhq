@@ -4,7 +4,7 @@ group: Runner
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Runners API **(FREE)**
+# Runners API **(FREE ALL)**
 
 [Pagination](rest/index.md#pagination) is available on the following API endpoints (they return 20 items by default):
 
@@ -23,7 +23,7 @@ There are two tokens to take into account when connecting a runner with GitLab.
 | Token | Description |
 | ----- | ----------- |
 | Registration token | Token used to [register the runner](https://docs.gitlab.com/runner/register/). It can be [obtained through GitLab](../ci/runners/index.md). |
-| Authentication token | Token used to authenticate the runner with the GitLab instance. It is obtained automatically when you [register a runner](https://docs.gitlab.com/runner/register/) or by the Runner API when you manually [register a runner](#register-a-new-runner) or [reset the authentication token](#reset-runners-authentication-token-by-using-the-runner-id). |
+| Authentication token | Token used to authenticate the runner with the GitLab instance. It is obtained automatically when you [register a runner](https://docs.gitlab.com/runner/register/) or by the Runner API when you manually [register a runner](#register-a-new-runner) or [reset the authentication token](#reset-runners-authentication-token-by-using-the-runner-id). You can also obtain the authentication token using [Create a runner](users.md#create-a-runner) API method. |
 
 Here's an example of how the two tokens are used in runner registration:
 
@@ -273,10 +273,10 @@ PUT /runners/:id
 | `id`              | integer | yes      | The ID of a runner                                                                              |
 | `description`     | string  | no       | The description of the runner                                                                   |
 | `active`          | boolean | no       | Deprecated: Use `paused` instead. Flag indicating whether the runner is allowed to receive jobs |
-| `paused`          | boolean | no       | Specifies whether the runner should ignore new jobs                                             |
+| `paused`          | boolean | no       | Specifies if the runner should ignore new jobs                                             |
 | `tag_list`        | array   | no       | The list of tags for the runner                                                                 |
-| `run_untagged`    | boolean | no       | Specifies whether the runner can execute untagged jobs                                          |
-| `locked`          | boolean | no       | Specifies whether the runner is locked                                                          |
+| `run_untagged`    | boolean | no       | Specifies if the runner can execute untagged jobs                                          |
+| `locked`          | boolean | no       | Specifies if the runner is locked                                                          |
 | `access_level`    | string  | no       | The access level of the runner; `not_protected` or `ref_protected`                              |
 | `maximum_timeout` | integer | no       | Maximum timeout that limits the amount of time (in seconds) that runners can run jobs           |
 
@@ -395,7 +395,7 @@ Example response:
         "status": "running",
         "stage": "test",
         "name": "test",
-        "ref": "master",
+        "ref": "main",
         "tag": false,
         "coverage": null,
         "created_at": "2017-11-16T08:50:29.000Z",
@@ -439,7 +439,7 @@ Example response:
         "pipeline": {
             "id": 2,
             "sha": "97de212e80737a608d939f648d959671fb0a0142",
-            "ref": "master",
+            "ref": "main",
             "status": "running"
         },
         "project": {
@@ -656,20 +656,20 @@ Register a new runner for the instance.
 POST /runners
 ```
 
-| Attribute          | Type         | Required | Description                                                                                                                                                   |
-|--------------------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `token`            | string       | yes      | [Registration token](#registration-and-authentication-tokens) |
-| `description`      | string       | no       | Runner's description |
+| Attribute          | Type         | Required | Description                                                                                                                                                                                    |
+|--------------------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `token`            | string       | yes      | [Registration token](#registration-and-authentication-tokens)                                                                                                                                  |
+| `description`      | string       | no       | Description of the runner                                                                                                                                                                      |
 | `info`             | hash         | no       | Runner's metadata. You can include `name`, `version`, `revision`, `platform`, and `architecture`, but only `version`, `platform`, and `architecture` are displayed in the Admin Area of the UI |
-| `active`           | boolean      | no       | Deprecated: Use `paused` instead. Specifies whether the runner is allowed to receive new jobs |
-| `paused`           | boolean      | no       | Specifies whether the runner should ignore new jobs |
-| `locked`           | boolean      | no       | Specifies whether the runner should be locked for the current project |
-| `run_untagged`     | boolean      | no       | Specifies whether the runner should handle untagged jobs |
-| `tag_list`         | string array | no       | A list of runner tags |
-| `access_level`     | string       | no       | The access level of the runner; `not_protected` or `ref_protected` |
-| `maximum_timeout`  | integer      | no       | Maximum timeout that limits the amount of time (in seconds) that runners can run jobs |
-| `maintainer_note`  | string       | no       | [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/350730), see `maintenance_note` |
-| `maintenance_note` | string       | no       | Free-form maintenance notes for the runner (1024 characters) |
+| `active`           | boolean      | no       | Deprecated: Use `paused` instead. Specifies if the runner is allowed to receive new jobs                                                                                                       |
+| `paused`           | boolean      | no       | Specifies if the runner should ignore new jobs                                                                                                                                                 |
+| `locked`           | boolean      | no       | Specifies if the runner should be locked for the current project                                                                                                                               |
+| `run_untagged`     | boolean      | no       | Specifies if the runner should handle untagged jobs                                                                                                                                            |
+| `tag_list`         | string array | no       | A list of runner tags                                                                                                                                                                          |
+| `access_level`     | string       | no       | The access level of the runner; `not_protected` or `ref_protected`                                                                                                                             |
+| `maximum_timeout`  | integer      | no       | Maximum timeout that limits the amount of time (in seconds) that runners can run jobs                                                                                                          |
+| `maintainer_note`  | string       | no       | [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/350730), see `maintenance_note`                                                                                                     |
+| `maintenance_note` | string       | no       | Free-form maintenance notes for the runner (1024 characters)                                                                                                                                   |
 
 ```shell
 curl --request POST "https://gitlab.example.com/api/v4/runners" \
@@ -679,9 +679,11 @@ curl --request POST "https://gitlab.example.com/api/v4/runners" \
 
 Response:
 
-| Status    | Description                     |
-|-----------|---------------------------------|
-| 201       | Runner was created              |
+| Status    | Description                       |
+|-----------|-----------------------------------|
+| 201       | Runner was created                |
+| 403       | Invalid runner registration token |
+| 410       | Runner registration disabled      |
 
 Example response:
 
@@ -776,11 +778,10 @@ Example response:
 
 ## Reset instance's runner registration token
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
-> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104691) in GitLab 15.7.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
 
 WARNING:
-This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/383341) in GitLab 15.7 and is planned for removal in 17.0. This change is a breaking change.
+Runner registration tokens, and support for certain configuration arguments, were [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/380872) in GitLab 15.6 and will be removed in GitLab 17.0. After GitLab 17.0, you will no longer be able to reset runner registration tokens and the `reset_registration_token` endpoint will not function.
 
 Reset the runner registration token for the GitLab instance.
 
@@ -795,11 +796,10 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
 
 ## Reset project's runner registration token
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
-> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104691) in GitLab 15.7.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
 
 WARNING:
-This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/383341) in GitLab 15.7 and is planned for removal in 17.0. This change is a breaking change.
+Runner registration tokens, and support for certain configuration arguments, were [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/380872) in GitLab 15.6 and will be removed in GitLab 17.0. After GitLab 17.0, you will no longer be able to reset runner registration tokens and the `reset_registration_token` endpoint will not function.
 
 Reset the runner registration token for a project.
 
@@ -814,11 +814,10 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
 
 ## Reset group's runner registration token
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
-> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104691) in GitLab 15.7.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 14.3.
 
 WARNING:
-This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/383341) in GitLab 15.7 and is planned for removal in 17.0. This change is a breaking change.
+Runner registration tokens, and support for certain configuration arguments, were [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/380872) in GitLab 15.6 and will be removed in GitLab 17.0. After GitLab 17.0, you will no longer be able to reset runner registration tokens and the `reset_registration_token` endpoint will not function.
 
 Reset the runner registration token for a group.
 

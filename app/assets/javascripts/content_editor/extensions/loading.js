@@ -7,18 +7,17 @@ export default Node.create({
 
   addAttributes() {
     return {
-      label: {
+      id: {
         default: null,
       },
     };
   },
 
-  renderHTML({ node }) {
+  renderHTML() {
     return [
       'span',
       { class: 'gl-display-inline-flex gl-align-items-center' },
-      ['span', { class: 'gl-spinner gl-mx-2' }],
-      ['span', { class: 'gl-link' }, node.attrs.label],
+      ['span', { class: 'gl-dots-loader gl-mx-2' }, ['span']],
     ];
   },
 });

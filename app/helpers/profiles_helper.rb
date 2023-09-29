@@ -34,7 +34,7 @@ module ProfilesHelper
   def middle_dot_divider_classes(stacking, breakpoint)
     ['gl-mb-3'].tap do |classes|
       if stacking
-        classes.concat(%w(middle-dot-divider-sm gl-display-block gl-sm-display-inline-block))
+        classes.concat(%w[middle-dot-divider-sm gl-display-block gl-sm-display-inline-block])
       else
         classes << 'gl-display-inline-block'
         classes << if breakpoint.nil?
@@ -67,6 +67,26 @@ module ProfilesHelper
   # Overridden in EE::ProfilesHelper#ssh_key_expiration_policy_enabled?
   def ssh_key_expiration_policy_enabled?
     false
+  end
+
+  # Overridden in EE::ProfilesHelper#prevent_delete_account?
+  def prevent_delete_account?
+    false
+  end
+
+  def user_profile_data(user)
+    {
+      profile_path: profile_path,
+      profile_avatar_path: profile_avatar_path,
+      avatar_url: avatar_icon_for_user(user, current_user: current_user),
+      has_avatar: user.avatar?.to_s,
+      gravatar_enabled: gravatar_enabled?.to_s,
+      gravatar_link: { hostname: Gitlab.config.gravatar.host, url: "https://#{Gitlab.config.gravatar.host}" }.to_json,
+      brand_profile_image_guidelines: current_appearance&.profile_image_guidelines? ? brand_profile_image_guidelines : '',
+      cropper_css_path: ActionController::Base.helpers.stylesheet_path('lazy_bundles/cropper.css'),
+      user_path: user_path(current_user),
+      **user_status_properties(user)
+    }
   end
 end
 

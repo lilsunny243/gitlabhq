@@ -1,17 +1,20 @@
 <script>
-import { GlAlert, GlKeysetPagination, GlSkeletonLoader, GlPagination } from '@gitlab/ui';
+import { GlAlert, GlBadge, GlKeysetPagination, GlSkeletonLoader, GlPagination } from '@gitlab/ui';
 import { uniqueId } from 'lodash';
 import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
 import PageSizeSelector from '~/vue_shared/components/page_size_selector.vue';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { updateHistory, setUrlParams } from '~/lib/utils/url_utility';
+import { __ } from '~/locale';
 import FilteredSearchBar from '~/vue_shared/components/filtered_search_bar/filtered_search_bar_root.vue';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 
 import issuableEventHub from '~/issues/list/eventhub';
 import { DEFAULT_SKELETON_COUNT, PAGE_SIZE_STORAGE_KEY } from '../constants';
 import IssuableBulkEditSidebar from './issuable_bulk_edit_sidebar.vue';
 import IssuableItem from './issuable_item.vue';
 import IssuableTabs from './issuable_tabs.vue';
+import IssuableGrid from './issuable_grid.vue';
 
 const VueDraggable = () => import('vuedraggable');
 
@@ -24,17 +27,20 @@ export default {
   },
   components: {
     GlAlert,
+    GlBadge,
     GlKeysetPagination,
     GlSkeletonLoader,
     IssuableTabs,
     FilteredSearchBar,
     IssuableItem,
+    IssuableGrid,
     IssuableBulkEditSidebar,
     GlPagination,
     VueDraggable,
     PageSizeSelector,
     LocalStorageSync,
   },
+  mixins: [glFeatureFlagMixin()],
   props: {
     namespace: {
       type: String,
@@ -46,7 +52,8 @@ export default {
     },
     searchInputPlaceholder: {
       type: String,
-      required: true,
+      required: false,
+      default: __('Search or filter results…'),
     },
     searchTokens: {
       type: Array,
@@ -193,6 +200,21 @@ export default {
       required: false,
       default: false,
     },
+    isGridView: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    activeIssuable: {
+      type: Object,
+      required: false,
+      default: null,
+    },
+    preventRedirect: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {
@@ -227,6 +249,9 @@ export default {
     },
     issuablesWrapper() {
       return this.isManualOrdering ? VueDraggable : 'ul';
+    },
+    gridViewFeatureEnabled() {
+      return Boolean(this.glFeatures?.issuesGridView);
     },
   },
   watch: {
@@ -286,6 +311,9 @@ export default {
     handlePageSizeChange(newPageSize) {
       this.$emit('page-size-change', newPageSize);
     },
+    isIssuableActive(issuable) {
+      return Boolean(issuable.iid === this.activeIssuable?.iid);
+    },
   },
   PAGE_SIZE_STORAGE_KEY,
 };
@@ -316,8 +344,9 @@ export default {
       :show-checkbox="showBulkEditSidebar"
       :checkbox-checked="allIssuablesChecked"
       :show-friendly-text="showFilteredSearchFriendlyText"
+      terms-as-tokens
       class="gl-flex-grow-1 gl-border-t-none row-content-block"
-      data-qa-selector="issuable_search_container"
+      data-testid="issuable-search-container"
       @checked-input="handleAllIssuablesCheckedInput"
       @onFilter="$emit('filter', $event)"
       @onSort="$emit('sort', $event)"
@@ -340,7 +369,7 @@ export default {
     <template v-else>
       <component
         :is="issuablesWrapper"
-        v-if="issuables.length > 0"
+        v-if="issuables.length > 0 && !isGridView"
         class="content-list issuable-list issues-list"
         :class="{ 'manual-ordering': isManualOrdering }"
         v-bind="$options.vueDraggableAttributes"
@@ -350,7 +379,7 @@ export default {
           v-for="issuable in issuables"
           :key="issuableId(issuable)"
           :class="{ 'gl-cursor-grab': isManualOrdering }"
-          data-qa-selector="issuable_container"
+          data-testid="issuable-container"
           :data-qa-issuable-title="issuable.title"
           :has-scoped-labels-feature="hasScopedLabelsFeature"
           :issuable-symbol="issuableSymbol"
@@ -359,7 +388,10 @@ export default {
           :show-checkbox="showBulkEditSidebar"
           :checked="issuableChecked(issuable)"
           :show-work-item-type-icon="showWorkItemTypeIcon"
+          :prevent-redirect="preventRedirect"
+          :is-active="isIssuableActive(issuable)"
           @checked-input="handleIssuableCheckedInput(issuable, $event)"
+          @select-issuable="$emit('select-issuable', $event)"
         >
           <template #reference>
             <slot name="reference" :issuable="issuable"></slot>
@@ -371,13 +403,18 @@ export default {
             <slot name="timeframe" :issuable="issuable"></slot>
           </template>
           <template #status>
-            <slot name="status" :issuable="issuable"></slot>
+            <gl-badge size="sm" variant="info">
+              <slot name="status" :issuable="issuable"></slot>
+            </gl-badge>
           </template>
           <template #statistics>
             <slot name="statistics" :issuable="issuable"></slot>
           </template>
         </issuable-item>
       </component>
+      <div v-else-if="issuables.length > 0 && isGridView">
+        <issuable-grid />
+      </div>
       <slot v-else name="empty-state"></slot>
     </template>
 

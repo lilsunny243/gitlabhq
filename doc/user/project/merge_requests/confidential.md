@@ -4,7 +4,7 @@ group: Code Review
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merge requests for confidential issues **(FREE)**
+# Merge requests for confidential issues **(FREE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/58583) in GitLab 12.1.
 
@@ -65,7 +65,7 @@ Your branch, merge requests, and commits remain in your private fork. This preve
 prematurely revealing confidential information.
 
 Open a merge request
-[from your fork to the upstream repository](../repository/forking_workflow.md#merging-upstream) when:
+[from your fork to the upstream repository](../repository/forking_workflow.md#merge-changes-back-upstream) when:
 
 - You are satisfied the problem is resolved in your private fork.
 - You are ready to make the confidential commits public.

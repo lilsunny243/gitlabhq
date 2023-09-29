@@ -7,9 +7,7 @@ if $LOADED_FEATURES.include?(File.expand_path('fast_spec_helper.rb', __dir__))
   abort 'Aborting...'
 end
 
-# Enable deprecation warnings by default and make them more visible
-# to developers to ease upgrading to newer Ruby versions.
-Warning[:deprecated] = true unless ENV.key?('SILENCE_DEPRECATIONS')
+require './spec/deprecation_warnings'
 
 require './spec/deprecation_toolkit_env'
 DeprecationToolkitEnv.configure!
@@ -26,6 +24,7 @@ CrystalballEnv.start!
 ENV["RAILS_ENV"] = 'test'
 ENV["IN_MEMORY_APPLICATION_SETTINGS"] = 'true'
 ENV["RSPEC_ALLOW_INVALID_URLS"] = 'true'
+ENV['USE_CI_BUILDS_ROUTING_TABLE'] = 'true'
 
 require_relative '../config/environment'
 
@@ -38,6 +37,9 @@ require 'test_prof/recipes/rspec/let_it_be'
 require 'test_prof/factory_default'
 require 'test_prof/factory_prof/nate_heckler'
 require 'parslet/rig/rspec'
+require 'axe-rspec'
+
+require 'rspec_flaky'
 
 rspec_profiling_is_configured =
   ENV['RSPEC_PROFILING_POSTGRES_URL'].present? ||
@@ -101,6 +103,32 @@ RSpec.configure do |config|
     end
   end
 
+  config.after do |example|
+    # We fail early if we detect a PG::QueryCanceled error
+    #
+    # See https://gitlab.com/gitlab-org/gitlab/-/issues/402915
+    if example.exception && example.exception.message.include?('PG::QueryCanceled')
+      ENV['RSPEC_BYPASS_SYSTEM_EXIT_PROTECTION'] = 'true'
+
+      warn
+      warn "********************************************************************************************"
+      warn "********************************************************************************************"
+      warn "********************************************************************************************"
+      warn "*                                                                                          *"
+      warn "* We have detected a PG::QueryCanceled error in the specs, so we're failing early.         *"
+      warn "* Please retry this job.                                                                   *"
+      warn "*                                                                                          *"
+      warn "* See https://gitlab.com/gitlab-org/gitlab/-/issues/402915 for more info.                  *"
+      warn "*                                                                                          *"
+      warn "********************************************************************************************"
+      warn "********************************************************************************************"
+      warn "********************************************************************************************"
+      warn
+
+      exit 3
+    end
+  end
+
   config.define_derived_metadata(file_path: %r{(ee)?/spec/.+_spec\.rb\z}) do |metadata|
     location = metadata[:location]
 
@@ -125,7 +153,7 @@ RSpec.configure do |config|
 
     # Admin controller specs get auto admin mode enabled since they are
     # protected by the 'EnforcesAdminAuthentication' concern
-    metadata[:enable_admin_mode] = true if location =~ %r{(ee)?/spec/controllers/admin/}
+    metadata[:enable_admin_mode] = true if %r{(ee)?/spec/controllers/admin/}.match?(location)
   end
 
   config.define_derived_metadata(file_path: %r{(ee)?/spec/.+_docs\.rb\z}) do |metadata|
@@ -151,9 +179,12 @@ RSpec.configure do |config|
   config.include Devise::Test::IntegrationHelpers, type: :feature
   config.include Devise::Test::IntegrationHelpers, type: :request
   config.include LoginHelpers, type: :feature
+  config.include SignUpHelpers, type: :feature
   config.include SearchHelpers, type: :feature
   config.include WaitHelpers, type: :feature
   config.include WaitForRequests, type: :feature
+  config.include Features::DomHelpers, type: :feature
+  config.include Features::HighlightContentHelper, type: :feature
   config.include EmailHelpers, :mailer, type: :mailer
   config.include Warden::Test::Helpers, type: :request
   config.include Gitlab::Routing, type: :routing
@@ -173,13 +204,17 @@ RSpec.configure do |config|
   config.include RailsHelpers
   config.include SidekiqMiddleware
   config.include StubActionCableConnection, type: :channel
-  config.include StubSpamServices
+  config.include StubMemberAccessLevel
   config.include SnowplowHelpers
   config.include RenderedHelpers
   config.include RSpec::Benchmark::Matchers, type: :benchmark
   config.include DetailedErrorHelpers
   config.include RequestUrgencyMatcher, type: :controller
   config.include RequestUrgencyMatcher, type: :request
+  config.include Capybara::RSpecMatchers, type: :request
+  config.include PendingDirectUploadHelpers, :direct_uploads
+  config.include LabelsHelper, type: :feature
+  config.include UnlockPipelinesHelpers, :unlock_pipelines
 
   config.include_context 'when rendered has no HTML escapes', type: :view
 
@@ -201,11 +236,7 @@ RSpec.configure do |config|
     config.exceptions_to_hard_fail = [DeprecationToolkitEnv::DeprecationBehaviors::SelectiveRaise::RaiseDisallowedDeprecation]
   end
 
-  require_relative '../tooling/rspec_flaky/config'
-
   if RspecFlaky::Config.generate_report?
-    require_relative '../tooling/rspec_flaky/listener'
-
     config.reporter.register_listener(
       RspecFlaky::Listener.new,
       :example_passed,
@@ -270,7 +301,7 @@ RSpec.configure do |config|
 
       # It's disabled in specs because we don't support certain features which
       # cause spec failures.
-      stub_feature_flags(use_click_house_database_for_error_tracking: false)
+      stub_feature_flags(gitlab_error_tracking: false)
 
       # Disable this to avoid the Web IDE modals popping up in tests:
       # https://gitlab.com/gitlab-org/gitlab/-/issues/385453
@@ -297,22 +328,19 @@ RSpec.configure do |config|
 
       # These are ops feature flags that are disabled by default
       stub_feature_flags(disable_anonymous_project_search: false)
-
-      # Specs should not get a CAPTCHA challenge by default, this makes the sign-in flow simpler in
-      # most cases. We do test the CAPTCHA flow in the appropriate specs.
-      stub_feature_flags(arkose_labs_login_challenge: false)
+      stub_feature_flags(disable_cancel_redundant_pipelines_service: false)
 
       # Specs should not require email verification by default, this makes the sign-in flow simpler in
       # most cases. We do test the email verification flow in the appropriate specs.
       stub_feature_flags(require_email_verification: false)
 
-      # This feature flag is for selectively disabling by actor, therefore we don't enable it by default.
-      # See https://docs.gitlab.com/ee/development/feature_flags/#selectively-disable-by-actor
-      stub_feature_flags(legacy_merge_request_state_check_for_merged_result_pipelines: false)
+      # Keep-around refs should only be turned off for specific projects/repositories.
+      stub_feature_flags(disable_keep_around_refs: false)
 
-      # Disable the `vue_issues_dashboard` feature flag in specs as we migrate the issues
-      # dashboard page to Vue. https://gitlab.com/gitlab-org/gitlab/-/issues/379025
-      stub_feature_flags(vue_issues_dashboard: false)
+      # Postgres is the primary data source, and ClickHouse only when enabled in certain cases.
+      stub_feature_flags(clickhouse_data_collection: false)
+
+      stub_feature_flags(vite: false)
 
       allow(Gitlab::GitalyClient).to receive(:can_use_disk?).and_return(enable_rugged)
     else
@@ -353,95 +381,6 @@ RSpec.configure do |config|
       end
     end
 
-    # See https://gitlab.com/gitlab-org/gitlab/-/issues/42692
-    # The ongoing implementation of Admin Mode for API is behind the :admin_mode_for_api feature flag.
-    # All API specs will be adapted continuously. The following list contains the specs that have not yet been adapted.
-    # The feature flag is disabled for these specs as long as they are not yet adapted.
-    admin_mode_for_api_feature_flag_paths = %w[
-      ./spec/requests/api/broadcast_messages_spec.rb
-      ./spec/requests/api/ci/pipelines_spec.rb
-      ./spec/requests/api/ci/runners_reset_registration_token_spec.rb
-      ./spec/requests/api/ci/runners_spec.rb
-      ./spec/requests/api/deploy_keys_spec.rb
-      ./spec/requests/api/deploy_tokens_spec.rb
-      ./spec/requests/api/freeze_periods_spec.rb
-      ./spec/requests/api/graphql/user/starred_projects_query_spec.rb
-      ./spec/requests/api/groups_spec.rb
-      ./spec/requests/api/issues/get_group_issues_spec.rb
-      ./spec/requests/api/issues/get_project_issues_spec.rb
-      ./spec/requests/api/issues/issues_spec.rb
-      ./spec/requests/api/issues/post_projects_issues_spec.rb
-      ./spec/requests/api/issues/put_projects_issues_spec.rb
-      ./spec/requests/api/keys_spec.rb
-      ./spec/requests/api/merge_requests_spec.rb
-      ./spec/requests/api/namespaces_spec.rb
-      ./spec/requests/api/notes_spec.rb
-      ./spec/requests/api/pages/internal_access_spec.rb
-      ./spec/requests/api/pages/pages_spec.rb
-      ./spec/requests/api/pages/private_access_spec.rb
-      ./spec/requests/api/pages/public_access_spec.rb
-      ./spec/requests/api/pages_domains_spec.rb
-      ./spec/requests/api/personal_access_tokens/self_information_spec.rb
-      ./spec/requests/api/personal_access_tokens_spec.rb
-      ./spec/requests/api/project_export_spec.rb
-      ./spec/requests/api/project_repository_storage_moves_spec.rb
-      ./spec/requests/api/project_snapshots_spec.rb
-      ./spec/requests/api/project_snippets_spec.rb
-      ./spec/requests/api/projects_spec.rb
-      ./spec/requests/api/releases_spec.rb
-      ./spec/requests/api/sidekiq_metrics_spec.rb
-      ./spec/requests/api/snippet_repository_storage_moves_spec.rb
-      ./spec/requests/api/snippets_spec.rb
-      ./spec/requests/api/statistics_spec.rb
-      ./spec/requests/api/system_hooks_spec.rb
-      ./spec/requests/api/topics_spec.rb
-      ./spec/requests/api/usage_data_non_sql_metrics_spec.rb
-      ./spec/requests/api/usage_data_queries_spec.rb
-      ./spec/requests/api/users_spec.rb
-      ./spec/requests/api/v3/github_spec.rb
-      ./spec/support/shared_examples/requests/api/custom_attributes_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/hooks_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/notes_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/pipelines/visibility_table_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/repository_storage_moves_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/snippets_shared_examples.rb
-      ./spec/support/shared_examples/requests/api/status_shared_examples.rb
-      ./spec/support/shared_examples/requests/clusters/certificate_based_clusters_feature_flag_shared_examples.rb
-      ./spec/support/shared_examples/requests/snippet_shared_examples.rb
-      ./ee/spec/requests/api/audit_events_spec.rb
-      ./ee/spec/requests/api/ci/minutes_spec.rb
-      ./ee/spec/requests/api/elasticsearch_indexed_namespaces_spec.rb
-      ./ee/spec/requests/api/epics_spec.rb
-      ./ee/spec/requests/api/geo_nodes_spec.rb
-      ./ee/spec/requests/api/geo_replication_spec.rb
-      ./ee/spec/requests/api/geo_spec.rb
-      ./ee/spec/requests/api/group_push_rule_spec.rb
-      ./ee/spec/requests/api/group_repository_storage_moves_spec.rb
-      ./ee/spec/requests/api/groups_spec.rb
-      ./ee/spec/requests/api/internal/upcoming_reconciliations_spec.rb
-      ./ee/spec/requests/api/invitations_spec.rb
-      ./ee/spec/requests/api/license_spec.rb
-      ./ee/spec/requests/api/merge_request_approvals_spec.rb
-      ./ee/spec/requests/api/namespaces_spec.rb
-      ./ee/spec/requests/api/notes_spec.rb
-      ./ee/spec/requests/api/project_aliases_spec.rb
-      ./ee/spec/requests/api/project_approval_rules_spec.rb
-      ./ee/spec/requests/api/project_approval_settings_spec.rb
-      ./ee/spec/requests/api/project_approvals_spec.rb
-      ./ee/spec/requests/api/projects_spec.rb
-      ./ee/spec/requests/api/settings_spec.rb
-      ./ee/spec/requests/api/users_spec.rb
-      ./ee/spec/requests/api/vulnerabilities_spec.rb
-      ./ee/spec/requests/api/vulnerability_exports_spec.rb
-      ./ee/spec/requests/api/vulnerability_findings_spec.rb
-      ./ee/spec/requests/api/vulnerability_issue_links_spec.rb
-      ./ee/spec/support/shared_examples/requests/api/project_approval_rules_api_shared_examples.rb
-    ]
-
-    if example.metadata[:file_path].start_with?(*admin_mode_for_api_feature_flag_paths)
-      stub_feature_flags(admin_mode_for_api: false)
-    end
-
     # Make sure specs test by default admin mode setting on, unless forced to the opposite
     stub_application_setting(admin_mode: true) unless example.metadata[:do_not_mock_admin_mode_setting]
 
@@ -452,12 +391,12 @@ RSpec.configure do |config|
   end
 
   config.around(:example, :quarantine) do |example|
-    # Skip tests in quarantine unless we explicitly focus on them.
-    example.run if config.inclusion_filter[:quarantine]
+    # Skip tests in quarantine unless we explicitly focus on them or not in CI
+    example.run if config.inclusion_filter[:quarantine] || !ENV['CI']
   end
 
   config.around(:example, :request_store) do |example|
-    Gitlab::WithRequestStore.with_request_store { example.run }
+    ::Gitlab::SafeRequestStore.ensure_request_store { example.run }
   end
 
   config.around(:example, :enable_rugged) do |example|
@@ -497,7 +436,8 @@ RSpec.configure do |config|
     with_sidekiq_server_middleware do |chain|
       Gitlab::SidekiqMiddleware.server_configurator(
         metrics: false, # The metrics don't go anywhere in tests
-        arguments_logger: false # We're not logging the regular messages for inline jobs
+        arguments_logger: false, # We're not logging the regular messages for inline jobs
+        skip_jobs: false # We're not skipping jobs for inline tests
       ).call(chain)
       chain.add DisableQueryLimit
       chain.insert_after ::Gitlab::SidekiqMiddleware::RequestStoreMiddleware, IsolatedRequestStore
@@ -540,18 +480,44 @@ RSpec.configure do |config|
     end
   end
 
-  # Makes diffs show entire non-truncated values.
-  config.before(:each, unlimited_max_formatted_output_length: true) do |_example|
-    config.expect_with :rspec do |c|
-      c.max_formatted_output_length = nil
-    end
-  end
-
   # Ensures that any Javascript script that tries to make the external VersionCheck API call skips it and returns a response
   config.before(:each, :js) do
     allow_any_instance_of(VersionCheck).to receive(:response).and_return({ "severity" => "success" })
   end
+
+  [:migration, :delete].each do |spec_type|
+    message = <<~STRING
+      We detected an open transaction before running the example. This is not allowed with specs that rely on a table
+      deletion strategy like those marked as `:#{spec_type}`.
+
+      A common scenario for this is using `test-prof` methods in your specs. `let_it_be` and `before_all` methods open
+      a transaction before all the specs in a context are run, and this is not compatible with these type of specs.
+      Consider replacing these methods with `let!` and `before(:all)`.
+
+      For more information see
+      https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#testprof-in-migration-specs
+    STRING
+
+    config.around(:each, spec_type) do |example|
+      self.class.use_transactional_tests = false
+
+      if DbCleaner.all_connection_classes.any? { |klass| klass.connection.transaction_open? }
+        raise message
+      end
+
+      example.run
+
+      delete_from_all_tables!(except: deletion_except_tables)
+
+      self.class.use_transactional_tests = true
+    end
+  end
 end
+
+# Disabled because it's causing N+1 queries.
+# See https://gitlab.com/gitlab-org/gitlab/-/issues/396352.
+# Support::AbilityCheck.inject(Ability.singleton_class)
+Support::PermissionsCheck.inject(Ability.singleton_class)
 
 ActiveRecord::Migration.maintain_test_schema!
 

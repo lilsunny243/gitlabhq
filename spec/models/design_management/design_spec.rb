@@ -55,6 +55,7 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
     it { is_expected.to validate_presence_of(:issue) }
     it { is_expected.to validate_presence_of(:filename) }
     it { is_expected.to validate_length_of(:filename).is_at_most(255) }
+    it { is_expected.to validate_length_of(:description).is_at_most(Gitlab::Database::MAX_TEXT_SIZE_LIMIT) }
     it { is_expected.to validate_uniqueness_of(:filename).scoped_to(:issue_id) }
 
     it "validates that the extension is an image" do
@@ -462,17 +463,7 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
     it 'is a design repository' do
       design = build(:design, issue: issue)
 
-      expect(design.repository).to be_a(DesignManagement::Repository)
-    end
-  end
-
-  describe '#note_etag_key' do
-    it 'returns a correct etag key' do
-      design = design1
-
-      expect(design.note_etag_key).to eq(
-        ::Gitlab::Routing.url_helpers.designs_project_issue_path(design.project, design.issue, { vueroute: design.filename })
-      )
+      expect(design.repository).to be_a(DesignManagement::GitRepository)
     end
   end
 
@@ -512,11 +503,11 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
   end
 
   describe '#to_reference' do
-    let(:namespace) { build(:namespace, id: non_existing_record_id, path: 'sample-namespace') }
-    let(:project)   { build(:project, name: 'sample-project', namespace: namespace) }
-    let(:group)     { create(:group, name: 'Group', path: 'sample-group') }
-    let(:issue)     { build(:issue, iid: 1, project: project) }
     let(:filename)  { 'homescreen.jpg' }
+    let(:namespace) { build(:namespace, id: non_existing_record_id) }
+    let(:project)   { build(:project, namespace: namespace) }
+    let(:group)     { build(:group) }
+    let(:issue)     { build(:issue, iid: 1, project: project) }
     let(:design)    { build(:design, filename: filename, issue: issue, project: project) }
 
     context 'when nil argument' do
@@ -535,7 +526,7 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
           design.to_reference(group, full: true)
         ]
 
-        expect(refs).to all(eq 'sample-namespace/sample-project#1/designs[homescreen.jpg]')
+        expect(refs).to all(eq "#{project.full_path}#1/designs[homescreen.jpg]")
       end
     end
 
@@ -546,7 +537,7 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
           design.to_reference(group, full: false)
         ]
 
-        expect(refs).to all(eq 'sample-namespace/sample-project#1[homescreen.jpg]')
+        expect(refs).to all(eq "#{project.full_path}#1[homescreen.jpg]")
       end
     end
 
@@ -595,7 +586,7 @@ RSpec.describe DesignManagement::Design, feature_category: :design_management do
           'url_filename' => filename,
           'issue' => issue.iid.to_s,
           'namespace' => design.project.namespace.to_param,
-          'project' => design.project.name
+          'project' => design.project.to_param
         )
       end
 

@@ -7,7 +7,6 @@ class TemplateFinder
     dockerfiles: ::Gitlab::Template::DockerfileTemplate,
     gitignores: ::Gitlab::Template::GitignoreTemplate,
     gitlab_ci_ymls: ::Gitlab::Template::GitlabCiYmlTemplate,
-    metrics_dashboard_ymls: ::Gitlab::Template::MetricsDashboardTemplate,
     issues: ::Gitlab::Template::IssueTemplate,
     merge_requests: ::Gitlab::Template::MergeRequestTemplate
   ).freeze
@@ -16,15 +15,21 @@ class TemplateFinder
     def build(type, project, params = {})
       if type.to_s == 'licenses'
         LicenseTemplateFinder.new(project, params) # rubocop: disable CodeReuse/Finder
-      else
+      elsif type_allowed?(type)
         new(type, project, params)
       end
     end
 
     def all_template_names(project, type)
-      return {} if !VENDORED_TEMPLATES.key?(type.to_s) && type.to_s != 'licenses'
+      return {} unless type_allowed?(type)
 
       build(type, project).template_names
+    end
+
+    def type_allowed?(type)
+      return true if type.to_s == 'licenses'
+
+      VENDORED_TEMPLATES.key?(type)
     end
   end
 

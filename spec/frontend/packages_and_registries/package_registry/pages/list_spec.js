@@ -1,27 +1,28 @@
-import { GlEmptyState, GlSprintf, GlLink } from '@gitlab/ui';
+import { GlButton, GlEmptyState, GlSprintf, GlLink } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
+import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
+import { s__ } from '~/locale';
+import { WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import ListPage from '~/packages_and_registries/package_registry/pages/list.vue';
 import PackageTitle from '~/packages_and_registries/package_registry/components/list/package_title.vue';
 import PackageSearch from '~/packages_and_registries/package_registry/components/list/package_search.vue';
 import OriginalPackageList from '~/packages_and_registries/package_registry/components/list/packages_list.vue';
 import DeletePackages from '~/packages_and_registries/package_registry/components/functional/delete_packages.vue';
 import {
-  PROJECT_RESOURCE_TYPE,
-  GROUP_RESOURCE_TYPE,
   GRAPHQL_PAGE_SIZE,
   EMPTY_LIST_HELP_URL,
   PACKAGE_HELP_URL,
 } from '~/packages_and_registries/package_registry/constants';
-
+import PersistedPagination from '~/packages_and_registries/shared/components/persisted_pagination.vue';
 import getPackagesQuery from '~/packages_and_registries/package_registry/graphql/queries/get_packages.query.graphql';
 import destroyPackagesMutation from '~/packages_and_registries/package_registry/graphql/mutations/destroy_packages.mutation.graphql';
 import { packagesListQuery, packageData, pagination } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('PackagesListApp', () => {
   let wrapper;
@@ -31,6 +32,7 @@ describe('PackagesListApp', () => {
     emptyListIllustration: 'emptyListIllustration',
     isGroupPage: true,
     fullPath: 'gitlab-org',
+    settingsPath: 'settings-path',
   };
 
   const PackageList = {
@@ -50,6 +52,8 @@ describe('PackagesListApp', () => {
   const findListComponent = () => wrapper.findComponent(PackageList);
   const findEmptyState = () => wrapper.findComponent(GlEmptyState);
   const findDeletePackages = () => wrapper.findComponent(DeletePackages);
+  const findSettingsLink = () => wrapper.findComponent(GlButton);
+  const findPagination = () => wrapper.findComponent(PersistedPagination);
 
   const mountComponent = ({
     resolver = jest.fn().mockResolvedValue(packagesListQuery()),
@@ -72,17 +76,17 @@ describe('PackagesListApp', () => {
         GlLoadingIcon,
         GlSprintf,
         GlLink,
+        PackageTitle,
         PackageList,
         DeletePackages,
+      },
+      directives: {
+        GlTooltip: createMockDirective('gl-tooltip'),
       },
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
-  const waitForFirstRequest = async () => {
+  const waitForFirstRequest = () => {
     // emit a search update so the query is executed
     findSearch().vm.$emit('update', { sort: 'NAME_DESC', filters: [] });
     return waitForPromises();
@@ -96,6 +100,15 @@ describe('PackagesListApp', () => {
     expect(resolver).not.toHaveBeenCalled();
   });
 
+  it('has persisted pagination', async () => {
+    const resolver = jest.fn().mockResolvedValue(packagesListQuery());
+
+    mountComponent({ resolver });
+    await waitForFirstRequest();
+
+    expect(findPagination().props('pagination')).toEqual(pagination());
+  });
+
   it('has a package title', async () => {
     mountComponent();
 
@@ -105,6 +118,52 @@ describe('PackagesListApp', () => {
     expect(findPackageTitle().props()).toMatchObject({
       count: 2,
       helpUrl: PACKAGE_HELP_URL,
+    });
+  });
+
+  describe('link to settings', () => {
+    describe('when settings path is not provided', () => {
+      beforeEach(() => {
+        mountComponent({
+          provide: {
+            ...defaultProvide,
+            settingsPath: '',
+          },
+        });
+      });
+
+      it('is not rendered', () => {
+        expect(findSettingsLink().exists()).toBe(false);
+      });
+    });
+
+    describe('when settings path is provided', () => {
+      const label = s__('PackageRegistry|Configure in settings');
+
+      beforeEach(() => {
+        mountComponent();
+      });
+
+      it('is rendered', () => {
+        expect(findSettingsLink().exists()).toBe(true);
+      });
+
+      it('has the right icon', () => {
+        expect(findSettingsLink().props('icon')).toBe('settings');
+      });
+
+      it('has the right attributes', () => {
+        expect(findSettingsLink().attributes()).toMatchObject({
+          'aria-label': label,
+          href: defaultProvide.settingsPath,
+        });
+      });
+
+      it('sets tooltip with right label', () => {
+        const tooltip = getBinding(findSettingsLink().element, 'gl-tooltip');
+
+        expect(tooltip.value).toBe(label);
+      });
     });
   });
 
@@ -145,13 +204,17 @@ describe('PackagesListApp', () => {
       expect(findListComponent().props()).toMatchObject({
         list: expect.arrayContaining([expect.objectContaining({ id: packageData().id })]),
         isLoading: false,
-        pageInfo: expect.objectContaining({ endCursor: pagination().endCursor }),
+        groupSettings: expect.objectContaining({
+          mavenPackageRequestsForwarding: true,
+          npmPackageRequestsForwarding: true,
+          pypiPackageRequestsForwarding: true,
+        }),
       });
     });
 
-    it('when list emits next-page fetches the next set of records', async () => {
+    it('when pagination emits next event fetches the next set of records', async () => {
       await waitForFirstRequest();
-      findListComponent().vm.$emit('next-page');
+      findPagination().vm.$emit('next');
       await waitForPromises();
 
       expect(resolver).toHaveBeenCalledWith(
@@ -159,26 +222,30 @@ describe('PackagesListApp', () => {
       );
     });
 
-    it('when list emits prev-page fetches the prev set of records', async () => {
+    it('when pagination emits prev event fetches the prev set of records', async () => {
       await waitForFirstRequest();
-      findListComponent().vm.$emit('prev-page');
+      findPagination().vm.$emit('prev');
       await waitForPromises();
 
       expect(resolver).toHaveBeenCalledWith(
-        expect.objectContaining({ before: pagination().startCursor, last: GRAPHQL_PAGE_SIZE }),
+        expect.objectContaining({
+          first: null,
+          before: pagination().startCursor,
+          last: GRAPHQL_PAGE_SIZE,
+        }),
       );
     });
   });
 
   describe.each`
-    type                     | sortType
-    ${PROJECT_RESOURCE_TYPE} | ${'sort'}
-    ${GROUP_RESOURCE_TYPE}   | ${'groupSort'}
+    type                 | sortType
+    ${WORKSPACE_PROJECT} | ${'sort'}
+    ${WORKSPACE_GROUP}   | ${'groupSort'}
   `('$type query', ({ type, sortType }) => {
     let provide;
     let resolver;
 
-    const isGroupPage = type === GROUP_RESOURCE_TYPE;
+    const isGroupPage = type === WORKSPACE_GROUP;
 
     beforeEach(() => {
       provide = { ...defaultProvide, isGroupPage };
@@ -195,6 +262,16 @@ describe('PackagesListApp', () => {
       expect(resolver).toHaveBeenCalledWith(
         expect.objectContaining({ isGroupPage, [sortType]: 'NAME_DESC' }),
       );
+    });
+
+    it('list component has group settings prop set', () => {
+      expect(findListComponent().props()).toMatchObject({
+        groupSettings: expect.objectContaining({
+          mavenPackageRequestsForwarding: true,
+          npmPackageRequestsForwarding: true,
+          pypiPackageRequestsForwarding: true,
+        }),
+      });
     });
   });
 

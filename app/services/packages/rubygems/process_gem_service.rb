@@ -9,6 +9,8 @@ module Packages
       include ExclusiveLeaseGuard
 
       ExtractionError = Class.new(StandardError)
+      InvalidMetadataError = Class.new(StandardError)
+
       DEFAULT_LEASE_TIMEOUT = 1.hour.to_i.freeze
 
       def initialize(package_file)
@@ -20,6 +22,9 @@ module Packages
         return success if process_gem
 
         error('Gem was not processed')
+      rescue ActiveRecord::StatementInvalid
+        # TODO: We can remove this rescue block when we fix https://gitlab.com/gitlab-org/gitlab/-/issues/415899
+        raise InvalidMetadataError, 'Invalid metadata'
       end
 
       private
@@ -64,10 +69,9 @@ module Packages
       end
 
       def gemspec
-        strong_memoize(:gemspec) do
-          gem.spec
-        end
+        gem.spec
       end
+      strong_memoize_attr :gemspec
 
       def success
         ServiceResponse.success(payload: { package: package })
@@ -78,24 +82,21 @@ module Packages
       end
 
       def temp_package
-        strong_memoize(:temp_package) do
-          package_file.package
-        end
+        package_file.package
       end
+      strong_memoize_attr :temp_package
 
       def package
-        strong_memoize(:package) do
-          # if package with name/version already exists, use that package
-          package = temp_package.project
+        package = temp_package.project
                                 .packages
                                 .rubygems
                                 .with_name(gemspec.name)
                                 .with_version(gemspec.version.to_s)
                                 .not_pending_destruction
                                 .last
-          package || temp_package
-        end
+        package || temp_package
       end
+      strong_memoize_attr :package
 
       def gem
         # use_file will set an exclusive lease on the file for as long as

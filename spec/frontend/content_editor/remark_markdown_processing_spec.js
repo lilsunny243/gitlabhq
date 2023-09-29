@@ -30,7 +30,7 @@ import TaskList from '~/content_editor/extensions/task_list';
 import TaskItem from '~/content_editor/extensions/task_item';
 import Video from '~/content_editor/extensions/video';
 import remarkMarkdownDeserializer from '~/content_editor/services/remark_markdown_deserializer';
-import markdownSerializer from '~/content_editor/services/markdown_serializer';
+import MarkdownSerializer from '~/content_editor/services/markdown_serializer';
 import { SAFE_VIDEO_EXT, SAFE_AUDIO_EXT, DIAGRAM_LANGUAGES } from '~/content_editor/constants';
 
 import { createTestEditor, createDocBuilder } from './test_utils';
@@ -158,7 +158,7 @@ describe('Client side Markdown processing', () => {
   };
 
   const serialize = (document) =>
-    markdownSerializer({}).serialize({
+    new MarkdownSerializer().serialize({
       doc: document,
       pristineDoc: document,
     });
@@ -1337,26 +1337,26 @@ content
 alert("Hello world")
 </script>
     `,
-      expectedHtml: '<p></p>',
+      expectedHtml: '<p dir="auto"></p>',
     },
     {
       markdown: `
 <foo>Hello</foo>
       `,
-      expectedHtml: '<p></p>',
+      expectedHtml: '<p dir="auto"></p>',
     },
     {
       markdown: `
 <h1 class="heading-with-class">Header</h1>
       `,
-      expectedHtml: '<h1>Header</h1>',
+      expectedHtml: '<h1 dir="auto">Header</h1>',
     },
     {
       markdown: `
 <a id="link-id">Header</a> and other text
       `,
       expectedHtml:
-        '<p><a target="_blank" rel="noopener noreferrer nofollow">Header</a> and other text</p>',
+        '<p dir="auto"><a target="_blank" rel="noopener noreferrer nofollow">Header</a> and other text</p>',
     },
     {
       markdown: `
@@ -1366,11 +1366,11 @@ body {
 }
 </style>
       `,
-      expectedHtml: '<p></p>',
+      expectedHtml: '<p dir="auto"></p>',
     },
     {
       markdown: '<div style="transform">div</div>',
-      expectedHtml: '<div><p>div</p></div>',
+      expectedHtml: '<div><p dir="auto">div</p></div>',
     },
   ])(
     'removes unknown tags and unsupported attributes from HTML output',
@@ -1421,6 +1421,7 @@ body {
       };
     };
 
+    // NOTE: unicode \u001 and \u003 cannot be used in test names because they cause test report XML parsing errors
     it.each`
       desc                                                                     | urlInput                                                                                                                                                                                                             | urlOutput
       ${'protocol-based JS injection: simple, no spaces'}                      | ${protocolBasedInjectionSimpleNoSpaces}                                                                                                                                                                              | ${null}
@@ -1439,7 +1440,7 @@ body {
       ${'protocol-based JS injection: preceding colon'}                        | ${":javascript:alert('XSS');"}                                                                                                                                                                                       | ${":javascript:alert('XSS');"}
       ${'protocol-based JS injection: null char'}                              | ${"java\0script:alert('XSS')"}                                                                                                                                                                                       | ${"java�script:alert('XSS')"}
       ${'protocol-based JS injection: invalid URL char'}                       | ${"java\\script:alert('XSS')"}                                                                                                                                                                                       | ${"java\\script:alert('XSS')"}
-    `('sanitize $desc:\n\tURL "$urlInput" becomes "$urlOutput"', ({ urlInput, urlOutput }) => {
+    `('sanitize $desc becomes "$urlOutput"', ({ urlInput, urlOutput }) => {
       const exampleFactories = [docWithImageFactory, docWithLinkFactory];
 
       exampleFactories.forEach(async (exampleFactory) => {

@@ -1,7 +1,9 @@
 /* eslint-disable class-methods-use-this */
 import $ from 'jquery';
 import Vue from 'vue';
-import { createAlert } from '~/flash';
+import VueApollo from 'vue-apollo';
+import createDefaultClient from '~/lib/graphql';
+import { createAlert } from '~/alert';
 import { getCookie, isMetaClick, parseBoolean, scrollToElement } from '~/lib/utils/common_utils';
 import { parseUrlPathname } from '~/lib/utils/url_utility';
 import createEventHub from '~/helpers/event_hub_factory';
@@ -13,8 +15,19 @@ import axios from './lib/utils/axios_utils';
 
 import { localTimeAgo } from './lib/utils/datetime_utility';
 import { isInVueNoteablePage } from './lib/utils/dom_utils';
-import { __ } from './locale';
+import { __, s__ } from './locale';
 import syntaxHighlight from './syntax_highlight';
+
+Vue.use(VueApollo);
+
+const apolloProvider = new VueApollo({
+  defaultClient: createDefaultClient(
+    {},
+    {
+      useGet: true,
+    },
+  ),
+});
 
 // MergeRequestTabs
 //
@@ -75,32 +88,31 @@ function scrollToContainer(container) {
   }
 }
 
-function computeTopOffset(tabs) {
-  const navbar = document.querySelector('.navbar-gitlab');
-  const peek = document.getElementById('js-peek');
-  let stickyTop;
-
-  stickyTop = navbar ? navbar.offsetHeight : 0;
-  stickyTop = peek ? stickyTop + peek.offsetHeight : stickyTop;
-  stickyTop = tabs ? stickyTop + tabs.offsetHeight : stickyTop;
-
-  return stickyTop;
-}
-
 function mountPipelines() {
   const pipelineTableViewEl = document.querySelector('#commit-pipeline-table-view');
   const { mrWidgetData } = gl;
   const table = new Vue({
     components: {
-      CommitPipelinesTable: () => import('~/commit/pipelines/pipelines_table.vue'),
+      MergeRequestPipelinesTable: () => {
+        return gon.features.mrPipelinesGraphql
+          ? import('~/ci/merge_requests/components/pipelines_table_wrapper.vue')
+          : import('~/commit/pipelines/legacy_pipelines_table_wrapper.vue');
+      },
     },
+    apolloProvider,
     provide: {
       artifactsEndpoint: pipelineTableViewEl.dataset.artifactsEndpoint,
       artifactsEndpointPlaceholder: pipelineTableViewEl.dataset.artifactsEndpointPlaceholder,
       targetProjectFullPath: mrWidgetData?.target_project_full_path || '',
+      fullPath: pipelineTableViewEl.dataset.fullPath,
+      graphqlPath: pipelineTableViewEl.dataset.graphqlPath,
+      manualActionsLimit: 50,
+      mergeRequestId: mrWidgetData ? mrWidgetData.iid : null,
+      sourceProjectFullPath: mrWidgetData?.source_project_full_path || '',
+      withFailedJobsDetails: true,
     },
     render(createElement) {
-      return createElement('commit-pipelines-table', {
+      return createElement('merge-request-pipelines-table', {
         props: {
           endpoint: pipelineTableViewEl.dataset.endpoint,
           emptyStateSvgPath: pipelineTableViewEl.dataset.emptyStateSvgPath,
@@ -134,11 +146,11 @@ function destroyPipelines(app) {
   return null;
 }
 
-function loadDiffs({ url, sticky, tabs }) {
+function loadDiffs({ url, tabs }) {
   return axios.get(url).then(({ data }) => {
     const $container = $('#diffs');
     $container.html(data.html);
-    initDiffStatsDropdown(sticky);
+    initDiffStatsDropdown();
 
     localTimeAgo(document.querySelectorAll('#diffs .js-timeago'));
     syntaxHighlight($('#diffs .js-syntax-highlight'));
@@ -177,12 +189,14 @@ function getActionFromHref(href) {
 }
 
 const pageBundles = {
-  show: () => import(/* webpackPrefetch: true */ '~/mr_notes/init_notes'),
+  show: () => import(/* webpackPrefetch: true */ '~/mr_notes/mount_app'),
   diffs: () => import(/* webpackPrefetch: true */ '~/diffs'),
 };
 
 export default class MergeRequestTabs {
   constructor({ action, setUrl, stubLocation } = {}) {
+    const containers = document.querySelectorAll('.content-wrapper .container-fluid');
+    this.contentWrapper = containers[containers.length - 1];
     this.mergeRequestTabs = document.querySelector('.merge-request-tabs-container');
     this.mergeRequestTabsAll =
       this.mergeRequestTabs && this.mergeRequestTabs.querySelectorAll
@@ -208,7 +222,7 @@ export default class MergeRequestTabs {
     this.diffsLoaded = false;
     this.diffsClass = null;
     this.commitsLoaded = false;
-    this.fixedLayoutPref = null;
+    this.isFixedLayoutPreferred = this.contentWrapper.classList.contains('container-limited');
     this.eventHub = createEventHub();
     this.loadedPages = { [action]: true };
 
@@ -250,10 +264,11 @@ export default class MergeRequestTabs {
   }
   recallScroll(action) {
     const storedPosition = this.scrollPositions[action];
+    if (storedPosition == null) return;
 
     setTimeout(() => {
       window.scrollTo({
-        top: storedPosition && storedPosition > 0 ? storedPosition : 0,
+        top: storedPosition > 0 ? storedPosition : 0,
         left: 0,
         behavior: 'auto',
       });
@@ -306,7 +321,7 @@ export default class MergeRequestTabs {
       const tab = this.mergeRequestTabs.querySelector(`.${action}-tab`);
       if (tab) tab.classList.add('active');
 
-      if (!this.loadedPages[action] && action in pageBundles) {
+      if (isInVueNoteablePage() && !this.loadedPages[action] && action in pageBundles) {
         toggleLoader(true);
         pageBundles[action]()
           .then(({ default: init }) => {
@@ -316,7 +331,7 @@ export default class MergeRequestTabs {
           })
           .catch(() => {
             toggleLoader(false);
-            createAlert({ message: __('MergeRequest|Failed to load the page') });
+            createAlert({ message: s__('MergeRequest|Failed to load the page') });
           });
       }
 
@@ -332,11 +347,11 @@ export default class MergeRequestTabs {
         }
         // this.hideSidebar();
         this.resetViewContainer();
-        this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
+        this.mergeRequestPipelinesTable = destroyPipelines(this.mergeRequestPipelinesTable);
       } else if (action === 'new') {
         this.expandView();
         this.resetViewContainer();
-        this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
+        this.mergeRequestPipelinesTable = destroyPipelines(this.mergeRequestPipelinesTable);
       } else if (this.isDiffAction(action)) {
         if (!isInVueNoteablePage()) {
           /*
@@ -351,7 +366,7 @@ export default class MergeRequestTabs {
         }
         // this.hideSidebar();
         this.expandViewContainer();
-        this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
+        this.mergeRequestPipelinesTable = destroyPipelines(this.mergeRequestPipelinesTable);
         this.commitsTab.classList.remove('active');
       } else if (action === 'pipelines') {
         // this.hideSidebar();
@@ -369,7 +384,7 @@ export default class MergeRequestTabs {
 
         // this.showSidebar();
         this.resetViewContainer();
-        this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
+        this.mergeRequestPipelinesTable = destroyPipelines(this.mergeRequestPipelinesTable);
       }
 
       renderGFM(document.querySelector('.detail-page-description'));
@@ -468,12 +483,14 @@ export default class MergeRequestTabs {
 
     axios
       .get(`${source}.json`, { params: { page, per_page: 100 } })
-      .then(({ data }) => {
+      .then(({ data: { html, count, next_page: nextPage } }) => {
         toggleLoader(false);
+
+        document.querySelector('.js-commits-count').textContent = count;
 
         const commitsDiv = document.querySelector('div#commits');
         // eslint-disable-next-line no-unsanitized/property
-        commitsDiv.innerHTML += data.html;
+        commitsDiv.innerHTML += html;
         localTimeAgo(commitsDiv.querySelectorAll('.js-timeago'));
         this.commitsLoaded = true;
         scrollToContainer('#commits');
@@ -489,7 +506,7 @@ export default class MergeRequestTabs {
           });
         }
 
-        if (!data.next_page) {
+        if (!nextPage) {
           return import('./add_context_commits_modal');
         }
 
@@ -505,7 +522,7 @@ export default class MergeRequestTabs {
   }
 
   mountPipelinesView() {
-    this.commitPipelinesTable = mountPipelines();
+    this.mergeRequestPipelinesTable = mountPipelines();
   }
 
   // load the diff tab content from the backend
@@ -521,7 +538,6 @@ export default class MergeRequestTabs {
 
     loadDiffs({
       url: diffUrl,
-      sticky: computeTopOffset(this.mergeRequestTabs),
       tabs: this,
     })
       .then(() => {
@@ -561,22 +577,14 @@ export default class MergeRequestTabs {
     return action === 'diffs' || action === 'new/diffs';
   }
 
-  expandViewContainer(removeLimited = true) {
-    const $wrapper = $('.content-wrapper .container-fluid').not('.breadcrumbs');
-    if (this.fixedLayoutPref === null) {
-      this.fixedLayoutPref = $wrapper.hasClass('container-limited');
-    }
-    if (this.diffViewType() === 'parallel' || removeLimited) {
-      $wrapper.removeClass('container-limited');
-    } else {
-      $wrapper.toggleClass('container-limited', this.fixedLayoutPref);
-    }
+  expandViewContainer() {
+    this.contentWrapper.classList.remove('container-limited');
+    this.contentWrapper.classList.add('diffs-container-limited');
   }
 
   resetViewContainer() {
-    if (this.fixedLayoutPref !== null) {
-      $('.content-wrapper .container-fluid').toggleClass('container-limited', this.fixedLayoutPref);
-    }
+    this.contentWrapper.classList.toggle('container-limited', this.isFixedLayoutPreferred);
+    this.contentWrapper.classList.remove('diffs-container-limited');
   }
 
   // Expand the issuable sidebar unless the user explicitly collapsed it

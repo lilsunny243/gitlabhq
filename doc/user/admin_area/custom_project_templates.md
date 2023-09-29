@@ -1,54 +1,11 @@
 ---
-stage: Manage
-group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-type: reference
+redirect_to: '../../administration/custom_project_templates.md'
+remove_date: '2023-10-10'
 ---
 
-# Custom instance-level project templates **(PREMIUM SELF)**
+This document was moved to [another location](../../administration/custom_project_templates.md).
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/6860) in GitLab 11.2.
-
-GitLab administrators can set a group to be the source of project templates that are
-selectable when a new project is created on the instance. These templates can be selected
-when you go to **New project > Create from template** and select the **Instance** tab.
-
-Every project in the group, but not its subgroups, can be selected when a new project
-is created, based on the user's access permissions:
-
-- Public projects can be selected by any authenticated user as a template for a new project,
-  if all enabled [project features](../project/settings/index.md#configure-project-visibility-features-and-permissions)
-  except for **GitLab Pages** and **Security and Compliance** are set to **Everyone With Access**.
-  The same applies to internal projects.
-- Private projects can be selected only by users who are members of the projects.
-
-The **Metrics Dashboard** is set to **Only Project Members** when you create a new project. Make
-sure you change it to **Everyone With Access** before making it a project template.
-
-Repository and database information that are copied over to each new project are
-identical to the data exported with the [GitLab Project Import/Export](../project/settings/import_export.md).
-
-To set project templates at the group level, see [Custom group-level project templates](../group/custom_project_templates.md).
-
-## Select instance-level project template group
-
-To select the group to use as the source for the project templates:
-
-1. On the top bar, navigate to **Main menu > Admin > Settings > Templates**.
-1. Expand **Custom project templates**.
-1. Select a group to use.
-1. Select **Save changes**.
-
-Projects in subgroups of the template group are **not** included in the template list.
-
-<!-- ## Troubleshooting
-
-Include any troubleshooting steps that you can foresee. If you know beforehand what issues
-one might have when setting this up, or when something is changed, or on upgrading, it's
-important to describe those, too. Think of things that may go wrong and include them here.
-This is important to minimize requests for support, and to avoid doc comments with
-questions that you know someone might ask.
-
-Each scenario can be a third-level heading, for example `### Getting error message X`.
-If you have none to add when creating a doc, leave this section in place
-but commented out to help encourage others to add to it in the future. -->
+<!-- This redirect file can be deleted after <2023-10-10>. -->
+<!-- Redirects that point to other docs in the same project expire in three months. -->
+<!-- Redirects that point to docs in a different project or site (for example, link is not relative and starts with `https:`) expire in one year. -->
+<!-- Before deletion, see: https://docs.gitlab.com/ee/development/documentation/redirects.html -->

@@ -1,6 +1,7 @@
 import { GlModal } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
+import { shallowMount, createWrapper } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { BV_SHOW_MODAL, BV_HIDE_MODAL } from '~/lib/utils/constants';
 import GlModalVuex from '~/vue_shared/components/gl_modal_vuex.vue';
@@ -122,24 +123,24 @@ describe('GlModalVuex', () => {
     state.isVisible = false;
 
     factory();
-    const rootEmit = jest.spyOn(wrapper.vm.$root, '$emit');
+    const rootWrapper = createWrapper(wrapper.vm.$root);
 
     state.isVisible = true;
 
     await nextTick();
-    expect(rootEmit).toHaveBeenCalledWith(BV_SHOW_MODAL, TEST_MODAL_ID);
+    expect(rootWrapper.emitted(BV_SHOW_MODAL)[0]).toContain(TEST_MODAL_ID);
   });
 
   it('calls bootstrap hide when isVisible changes', async () => {
     state.isVisible = true;
 
     factory();
-    const rootEmit = jest.spyOn(wrapper.vm.$root, '$emit');
+    const rootWrapper = createWrapper(wrapper.vm.$root);
 
     state.isVisible = false;
 
     await nextTick();
-    expect(rootEmit).toHaveBeenCalledWith(BV_HIDE_MODAL, TEST_MODAL_ID);
+    expect(rootWrapper.emitted(BV_HIDE_MODAL)[0]).toContain(TEST_MODAL_ID);
   });
 
   it.each(['ok', 'cancel'])(

@@ -11,8 +11,7 @@ the package assumes the defaults as noted below.
 
 ## Ports
 
-See the table below for the list of ports that the Omnibus GitLab assigns
-by default:
+See the table below for the list of ports that the Linux package assigns by default:
 
 |      Component       | On by default | Communicates via | Alternative |              Connection port               |
 |:--------------------:|:-------------:|:----------------:|:-----------:|:------------------------------------------:|
@@ -30,7 +29,7 @@ by default:
 |  PgBouncer exporter  |      No       |       Port       |      X      |                    9188                    |
 |   GitLab Exporter    |      Yes      |       Port       |      X      |                    9168                    |
 |   Sidekiq exporter   |      Yes      |       Port       |      X      |                    8082                    |
-| Sidekiq health check |      No       |       Port       |      X      |                    8092[^Sidekiq-health] |
+| Sidekiq health check |      Yes      |       Port       |      X      |                    8092[^Sidekiq-health]   |
 |    Web exporter      |      No       |       Port       |      X      |                    8083                    |
 |    Geo PostgreSQL    |      No       |      Socket      | Port (5431) |                     X                      |
 |    Redis Sentinel    |      No       |       Port       |      X      |                   26379                    |
@@ -47,10 +46,14 @@ by default:
 |      Mattermost      |      No       |       Port       |      X      |                    8065                    |
 |      Mattermost      |      No       |       Port       |      X      |                 80 or 443                  |
 |      PgBouncer       |      No       |       Port       |      X      |                    6432                    |
-|        Consul        |      No       |       Port       |      X      | 8300, 8301(UDP), 8500, 8600[^Consul-notes] |
+|        Consul        |      No       |       Port       |      X      | 8300, 8301(TCP and UDP), 8500, 8600[^Consul-notes] |
 |       Patroni        |      No       |       Port       |      X      |                    8008                    |
-|      GitLab KAS      |      Yes       |       Port       |      X      |                    8150                    |
-|        Gitaly        |      No       |       Port       |      X      |                    8075                    |
+|      GitLab KAS      |      Yes      |       Port       |      X      |                    8150                    |
+|        Gitaly        |      Yes      |      Socket      | Port (8075) |                8075 or 9999 (TLS)          |
+|   Gitaly exporter    |      Yes      |       Port       |      X      |                    9236                    |
+|       Praefect       |      No       |       Port       |      X      |                2305 or 3305 (TLS)          |
+| GitLab Workhorse exporter |      Yes      |       Port       |      X      |                     9229                   |
+|  Registry exporter   |      No       |       Port       |      X      |                     5001                   |
 
 Legend:
 

@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Navigation bar counter', :use_clean_rails_memory_store_caching, feature_category: :team_planning do
-  let(:user) { create(:user) }
+  let(:user) { create(:user, :no_super_sidebar) }
   let(:project) { create(:project, namespace: user.namespace) }
   let(:issue) { create(:issue, project: project) }
   let(:merge_request) { create(:merge_request, source_project: project) }
@@ -14,7 +14,7 @@ RSpec.describe 'Navigation bar counter', :use_clean_rails_memory_store_caching, 
     sign_in(user)
   end
 
-  it 'reflects dashboard issues count' do
+  it 'reflects dashboard issues count', :js do
     visit issues_path
 
     expect_counters('issues', '1', n_("%d assigned issue", "%d assigned issues", 1) % 1)

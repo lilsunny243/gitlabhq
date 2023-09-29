@@ -1,7 +1,7 @@
 - breadcrumb_title _("Reporting")
 - page_title _("Reporting")
 - add_page_specific_style 'page_bundles/settings'
-- @content_class = "limit-container-width" unless fluid_layout
+- @force_desktop_expanded_sidebar = true
 
 %section.settings.as-spam.no-animate#js-spam-settings{ class: ('expanded' if expanded_by_default?) }
   .settings-header
@@ -9,7 +9,7 @@
       = _('Spam and Anti-bot Protection')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       = _('Configure CAPTCHAs, IP address limits, and other anti-spam measures.')
   .settings-content
     = render 'spam'
@@ -23,9 +23,9 @@
       = _('Abuse reports')
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded_by_default? ? _('Collapse') : _('Expand')
-    %p
+    %p.gl-text-secondary
       = _('Receive notification of abuse reports by email.')
-      = link_to _('Learn more.'), help_page_path('user/admin_area/review_abuse_reports.md'), target: '_blank', rel: 'noopener noreferrer'
+      = link_to _('Learn more.'), help_page_path('administration/review_abuse_reports.md'), target: '_blank', rel: 'noopener noreferrer'
   .settings-content
     = render 'abuse'
 

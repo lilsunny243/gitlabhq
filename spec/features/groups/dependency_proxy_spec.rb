@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe 'Group Dependency Proxy', feature_category: :dependency_proxy do
-  let(:owner) { create(:user) }
-  let(:reporter) { create(:user) }
+  let(:owner) { create(:user, :no_super_sidebar) }
+  let(:reporter) { create(:user, :no_super_sidebar) }
   let(:group) { create(:group) }
   let(:path) { group_dependency_proxy_path(group) }
   let(:settings_path) { group_settings_packages_and_registries_path(group) }
@@ -52,6 +52,12 @@ RSpec.describe 'Group Dependency Proxy', feature_category: :dependency_proxy do
           expect(find('input[data-testid="proxy-url"]').value).to have_content('/dependency_proxy/containers')
         end
 
+        it 'has link to settings' do
+          visit path
+
+          expect(page).to have_link s_('DependencyProxy|Configure in settings')
+        end
+
         it 'hides the proxy URL when feature is disabled' do
           visit settings_path
           wait_for_requests
@@ -79,6 +85,10 @@ RSpec.describe 'Group Dependency Proxy', feature_category: :dependency_proxy do
 
         it 'does not show the feature toggle but shows the proxy URL' do
           expect(find('input[data-testid="proxy-url"]').value).to have_content('/dependency_proxy/containers')
+        end
+
+        it 'does not have link to settings' do
+          expect(page).not_to have_link s_('DependencyProxy|Configure in settings')
         end
       end
     end

@@ -118,6 +118,9 @@
               "null"
             ]
           },
+          "resolved_by_push": {
+            "type": "boolean"
+          },
           "resolved_at": {
             "type": [
               "string",
@@ -192,6 +195,12 @@
           "internal": {
             "type": [
               "boolean",
+              "null"
+            ]
+          },
+          "external_author": {
+            "type": [
+              "string",
               "null"
             ]
           }

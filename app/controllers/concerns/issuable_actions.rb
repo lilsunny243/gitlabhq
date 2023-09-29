@@ -12,6 +12,7 @@ module IssuableActions
     before_action :authorize_destroy_issuable!, only: :destroy
     before_action :check_destroy_confirmation!, only: :destroy
     before_action :authorize_admin_issuable!, only: :bulk_update
+    before_action :set_application_context!, only: :show
   end
 
   def show
@@ -76,7 +77,7 @@ module IssuableActions
       title_text: issuable.title,
       description: view_context.markdown_field(issuable, :description),
       description_text: issuable.description,
-      task_status: issuable.task_status,
+      task_completion_status: issuable.task_completion_status,
       lock_version: issuable.lock_version
     }
 
@@ -97,7 +98,7 @@ module IssuableActions
     index_path = polymorphic_path([parent, issuable.class])
 
     respond_to do |format|
-      format.html { redirect_to index_path }
+      format.html { redirect_to index_path, status: :see_other }
       format.json do
         render json: {
           web_url: index_path
@@ -151,9 +152,7 @@ module IssuableActions
     end
 
     case issuable
-    when MergeRequest
-      render_mr_discussions(discussion_notes, discussion_serializer, discussion_cache_context)
-    when Issue
+    when MergeRequest, Issue
       if stale?(etag: [discussion_cache_context, discussion_notes])
         render json: discussion_serializer.represent(discussion_notes, context: self)
       end
@@ -163,20 +162,6 @@ module IssuableActions
   end
 
   private
-
-  def render_mr_discussions(discussions, serializer, cache_context)
-    return unless stale?(etag: [cache_context, discussions])
-
-    if Feature.enabled?(:disabled_mr_discussions_redis_cache, project)
-      render json: serializer.represent(discussions, context: self)
-    else
-      render_cached_discussions(discussions, serializer, cache_context)
-    end
-  end
-
-  def render_cached_discussions(discussions, serializer, cache_context)
-    render_cached(discussions, with: serializer, cache_context: ->(_) { cache_context }, context: self)
-  end
 
   def notes_filter
     strong_memoize(:notes_filter) do
@@ -189,24 +174,13 @@ module IssuableActions
       if Gitlab::Database.read_only? || params[:persist_filter] == 'false'
         notes_filter_param || current_user&.notes_filter_for(issuable)
       else
-        notes_filter = current_user&.set_notes_filter(notes_filter_param, issuable) || notes_filter_param
-
-        # We need to invalidate the cache for polling notes otherwise it will
-        # ignore the filter.
-        # The ideal would be to invalidate the cache for each user.
-        issuable.expire_note_etag_cache if notes_filter_updated?
-
-        notes_filter
+        current_user&.set_notes_filter(notes_filter_param, issuable) || notes_filter_param
       end
     end
   end
 
-  def notes_filter_updated?
-    current_user&.user_preference&.previous_changes&.any?
-  end
-
   def discussion_cache_context
-    [current_user&.cache_key, project.team.human_max_access(current_user&.id)].join(':')
+    [current_user&.cache_key, project.team.human_max_access(current_user&.id), 'v2'].join(':')
   end
 
   def discussion_serializer
@@ -242,6 +216,10 @@ module IssuableActions
     render_404 unless can?(current_user, :"update_#{resource_name}", issuable)
   end
 
+  def set_application_context!
+    # no-op. The logic is defined in EE module.
+  end
+
   def bulk_update_params
     clean_bulk_update_params(
       params.require(:update).permit(bulk_update_permitted_keys)
@@ -267,6 +245,7 @@ module IssuableActions
       :milestone_id,
       :state_event,
       :subscription_event,
+      :confidential,
       assignee_ids: [],
       add_label_ids: [],
       remove_label_ids: []

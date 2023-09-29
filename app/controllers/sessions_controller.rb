@@ -13,13 +13,14 @@ class SessionsController < Devise::SessionsController
   include BizibleCSP
   include VerifiesWithEmail
   include GoogleAnalyticsCSP
+  include GoogleSyndicationCSP
   include PreferredLanguageSwitcher
+  include SkipsAlreadySignedInMessage
+  include AcceptsPendingInvitations
+  extend ::Gitlab::Utils::Override
 
   skip_before_action :check_two_factor_requirement, only: [:destroy]
   skip_before_action :check_password_expiration, only: [:destroy]
-
-  # replaced with :require_no_authentication_without_flash
-  skip_before_action :require_no_authentication, only: [:new, :create]
 
   prepend_before_action :check_initial_setup, only: [:new]
   prepend_before_action :authenticate_with_two_factor,
@@ -29,16 +30,12 @@ class SessionsController < Devise::SessionsController
   prepend_before_action :require_no_authentication_without_flash, only: [:new, :create]
   prepend_before_action :check_forbidden_password_based_login, if: -> { action_name == 'create' && password_based_login? }
   prepend_before_action :ensure_password_authentication_enabled!, if: -> { action_name == 'create' && password_based_login? }
-
   before_action :auto_sign_in_with_provider, only: [:new]
   before_action :init_preferred_language, only: :new
   before_action :store_unauthenticated_sessions, only: [:new]
   before_action :save_failed_login, if: :action_new_and_failed_login?
   before_action :load_recaptcha
   before_action :set_invite_params, only: [:new]
-  before_action do
-    push_frontend_feature_flag(:webauthn)
-  end
 
   after_action :log_failed_login, if: :action_new_and_failed_login?
   after_action :verify_known_sign_in, only: [:create]
@@ -56,7 +53,7 @@ class SessionsController < Devise::SessionsController
   # token mismatch.
   protect_from_forgery with: :exception, prepend: true, except: :destroy
 
-  feature_category :authentication_and_authorization
+  feature_category :system_access
   urgency :low
 
   CAPTCHA_HEADER = 'X-GitLab-Show-Login-Captcha'
@@ -72,8 +69,7 @@ class SessionsController < Devise::SessionsController
     super do |resource|
       # User has successfully signed in, so clear any unused reset token
       if resource.reset_password_token.present?
-        resource.update(reset_password_token: nil,
-                        reset_password_sent_at: nil)
+        resource.update(reset_password_token: nil, reset_password_sent_at: nil)
       end
 
       if resource.deactivated?
@@ -83,6 +79,8 @@ class SessionsController < Devise::SessionsController
         # hide the default signed-in notification
         flash[:notice] = nil
       end
+
+      accept_pending_invitations
 
       log_audit_event(current_user, resource, with: authentication_method)
       log_user_activity(current_user)
@@ -100,12 +98,11 @@ class SessionsController < Devise::SessionsController
 
   private
 
-  def require_no_authentication_without_flash
-    require_no_authentication
+  override :after_pending_invitations_hook
+  def after_pending_invitations_hook
+    member = resource.members.last
 
-    if flash[:alert] == I18n.t('devise.failure.already_authenticated')
-      flash[:alert] = nil
-    end
+    store_location_for(:user, member.source.activity_path) if member
   end
 
   def captcha_enabled?
@@ -311,10 +308,8 @@ class SessionsController < Devise::SessionsController
   def authentication_method
     if user_params[:otp_attempt]
       AuthenticationEvent::TWO_FACTOR
-    elsif user_params[:device_response] && Feature.enabled?(:webauthn)
+    elsif user_params[:device_response]
       AuthenticationEvent::TWO_FACTOR_WEBAUTHN
-    elsif user_params[:device_response] && !Feature.enabled?(:webauthn)
-      AuthenticationEvent::TWO_FACTOR_U2F
     else
       AuthenticationEvent::STANDARD
     end

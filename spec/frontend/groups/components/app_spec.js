@@ -3,10 +3,10 @@ import AxiosMockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import appComponent from '~/groups/components/app.vue';
 import groupFolderComponent from '~/groups/components/group_folder.vue';
-import groupItemComponent from '~/groups/components/group_item.vue';
+import groupItemComponent from 'jh_else_ce/groups/components/group_item.vue';
 import eventHub from '~/groups/event_hub';
 import GroupsService from '~/groups/service/groups_service';
 import GroupsStore from '~/groups/store/groups_store';
@@ -34,7 +34,7 @@ import {
 const $toast = {
   show: jest.fn(),
 };
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('AppComponent', () => {
   let wrapper;
@@ -42,7 +42,7 @@ describe('AppComponent', () => {
   let mock;
   let getGroupsSpy;
 
-  const store = new GroupsStore({ hideProjects: false });
+  const store = new GroupsStore({});
   const service = new GroupsService(mockEndpoint);
 
   const createShallowComponent = ({ propsData = {} } = {}) => {
@@ -51,7 +51,6 @@ describe('AppComponent', () => {
       propsData: {
         store,
         service,
-        hideProjects: false,
         containerId: 'js-groups-tree',
         ...propsData,
       },
@@ -64,11 +63,6 @@ describe('AppComponent', () => {
     });
     vm = wrapper.vm;
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   beforeEach(async () => {
     mock = new AxiosMockAdapter(axios);
@@ -99,10 +93,9 @@ describe('AppComponent', () => {
             page: 2,
             filterGroupsBy: 'git',
             sortBy: 'created_desc',
-            archived: true,
           })
           .then(() => {
-            expect(getGroupsSpy).toHaveBeenCalledWith(1, 2, 'git', 'created_desc', true);
+            expect(getGroupsSpy).toHaveBeenCalledWith(1, 2, 'git', 'created_desc');
           });
       });
 
@@ -117,7 +110,7 @@ describe('AppComponent', () => {
         });
       });
 
-      it('should show flash error when request fails', () => {
+      it('should show an alert when request fails', () => {
         mock.onGet('/dashboard/groups.json').reply(HTTP_STATUS_BAD_REQUEST);
 
         jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
@@ -160,7 +153,6 @@ describe('AppComponent', () => {
           filterGroupsBy: 'foobar',
           sortBy: null,
           updatePagination: true,
-          archived: null,
         });
         return fetchPromise.then(() => {
           expect(vm.updateGroups).toHaveBeenCalledWith(mockSearchedGroups, true);
@@ -183,7 +175,6 @@ describe('AppComponent', () => {
           page: 2,
           filterGroupsBy: null,
           sortBy: null,
-          archived: true,
         });
 
         expect(vm.isLoading).toBe(true);
@@ -192,7 +183,6 @@ describe('AppComponent', () => {
           filterGroupsBy: null,
           sortBy: null,
           updatePagination: true,
-          archived: true,
         });
 
         return fetchPagePromise.then(() => {
@@ -325,7 +315,7 @@ describe('AppComponent', () => {
         });
       });
 
-      it('should show error flash message if request failed to leave group', () => {
+      it('should show error alert if request failed to leave group', () => {
         const message = 'An error occurred. Please try again.';
         jest
           .spyOn(vm.service, 'leaveGroup')
@@ -342,7 +332,7 @@ describe('AppComponent', () => {
         });
       });
 
-      it('should show appropriate error flash message if request forbids to leave group', () => {
+      it('shows appropriate error alert if request forbids to leave group', () => {
         const message = 'Failed to leave the group. Please make sure you are not the only owner.';
         jest.spyOn(vm.service, 'leaveGroup').mockRejectedValue({ status: HTTP_STATUS_FORBIDDEN });
         jest.spyOn(vm.store, 'removeGroup');
@@ -477,7 +467,7 @@ describe('AppComponent', () => {
     it('calls API with expected params', () => {
       emitFetchFilteredAndSortedGroups();
 
-      expect(getGroupsSpy).toHaveBeenCalledWith(undefined, undefined, search, sort, undefined);
+      expect(getGroupsSpy).toHaveBeenCalledWith(undefined, undefined, search, sort);
     });
 
     it('updates pagination', () => {

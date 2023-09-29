@@ -1,6 +1,7 @@
 <script>
 import { GlTabs, GlTab } from '@gitlab/ui';
 import { debounce } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapGetters, mapActions } from 'vuex';
 import {
   EDITOR_TYPE_DIFF,
@@ -12,7 +13,7 @@ import {
 import { SourceEditorExtension } from '~/editor/extensions/source_editor_extension_base';
 import { EditorWebIdeExtension } from '~/editor/extensions/source_editor_webide_ext';
 import SourceEditor from '~/editor/source_editor';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import ModelManager from '~/ide/lib/common/model_manager';
 import { defaultDiffEditorOptions, defaultEditorOptions } from '~/ide/lib/editor_options';
 import { __ } from '~/locale';
@@ -27,6 +28,9 @@ import { performanceMarkAndMeasure } from '~/performance/utils';
 import ContentViewer from '~/vue_shared/components/content_viewer/content_viewer.vue';
 import { viewerInformationForPath } from '~/vue_shared/components/content_viewer/lib/viewer_utils';
 import DiffViewer from '~/vue_shared/components/diff_viewer/diff_viewer.vue';
+import { markRaw } from '~/lib/utils/vue3compat/mark_raw';
+import { readFileAsDataURL } from '~/lib/utils/file_utility';
+
 import {
   leftSidebarViews,
   viewerTypes,
@@ -38,7 +42,7 @@ import { getRulesWithTraversal } from '../lib/editorconfig/parser';
 import mapRulesToMonaco from '../lib/editorconfig/rules_mapper';
 import { getFileEditorOrDefault } from '../stores/modules/editor/utils';
 import { extractMarkdownImagesFromEntries } from '../stores/utils';
-import { getPathParent, readFileAsDataURL, registerSchema, isTextFile } from '../utils';
+import { getPathParent, registerSchema, isTextFile } from '../utils';
 import FileAlert from './file_alert.vue';
 import FileTemplatesBar from './file_templates/bar.vue';
 
@@ -66,7 +70,7 @@ export default {
       images: {},
       rules: {},
       globalEditor: null,
-      modelManager: new ModelManager(),
+      modelManager: markRaw(new ModelManager()),
       isEditorLoading: true,
       unwatchCiYaml: null,
       SELivepreviewExtension: null,
@@ -212,7 +216,7 @@ export default {
   },
   mounted() {
     if (!this.globalEditor) {
-      this.globalEditor = new SourceEditor();
+      this.globalEditor = markRaw(new SourceEditor());
     }
     this.initEditor();
 
@@ -284,14 +288,16 @@ export default {
         const instanceOptions = isDiff ? defaultDiffEditorOptions : defaultEditorOptions;
         const method = isDiff ? EDITOR_DIFF_INSTANCE_FN : EDITOR_CODE_INSTANCE_FN;
 
-        this.editor = this.globalEditor[method]({
-          el: this.$refs.editor,
-          blobPath: this.file.path,
-          blobGlobalId: this.file.key,
-          blobContent: this.content || this.file.content,
-          ...instanceOptions,
-          ...this.editorOptions,
-        });
+        this.editor = markRaw(
+          this.globalEditor[method]({
+            el: this.$refs.editor,
+            blobPath: this.file.path,
+            blobGlobalId: this.file.key,
+            blobContent: this.content || this.file.content,
+            ...instanceOptions,
+            ...this.editorOptions,
+          }),
+        );
         this.editor.use([
           {
             definition: SourceEditorExtension,

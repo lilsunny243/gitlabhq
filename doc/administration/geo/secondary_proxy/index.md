@@ -71,7 +71,7 @@ a single URL used by all Geo sites, including the primary.
    is using the secondary proxying and set the `URL` field to the single URL.
    Make sure the primary site is also using this URL.
 
-In Kubernetes, you can use the same domain under `global.hosts.domain` as for the primary site.
+In Kubernetes, you can [use the same domain under `global.hosts.domain` as for the primary site](https://docs.gitlab.com/charts/advanced/geo/index.html).
 
 ## Geo proxying with Separate URLs
 
@@ -122,14 +122,11 @@ for details.
   To use TLS certificates with Let's Encrypt, you can manually point the domain to one of the Geo sites, generate
   the certificate, then copy it to all other sites.
 
-- [Viewing projects and designs data from a primary site is not possible when using a unified URL](../index.md#view-replication-data-on-the-primary-site).
+- Using Geo secondary sites to accelerate runners is not officially supported. Support for this functionality is planned and can be tracked in [epic 9779](https://gitlab.com/groups/gitlab-org/-/epics/9779). If a replication lag occurs between the primary and secondary site, and the pipeline ref is not available on the secondary site when the job is executed, the job will fail.
 
-- When secondary proxying is used together with separate URLs, registering [GitLab runners](https://docs.gitlab.com/runner/) to clone from
-secondary sites is not supported. The runner registration succeeds, but the clone URL defaults to the primary site. The runner
-[clone URL](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section) is configured per GitLab deployment
-and cannot be configured per Geo site. Therefore, all runners clone from the primary site (or configured clone URL) irrespective of
-which Geo site they register on. For information about GitLab CI using a specific Geo secondary to clone from, see issue
-[3294](https://gitlab.com/gitlab-org/gitlab/-/issues/3294#note_1009488466).
+- When secondary proxying is used together with separate URLs,
+  [signing in the secondary site using SAML](../replication/single_sign_on.md#saml-with-separate-url-with-proxying-enabled)
+  is only supported if the SAML Identity Provider (IdP) allows an application to be configured with multiple callback URLs.
 
 ## Behavior of secondary sites when the primary Geo site is down
 
@@ -152,6 +149,8 @@ sites for improved latency and bandwidth nearby. All write requests are proxied 
 The following table details the components currently tested through the Geo secondary site Workhorse proxy.
 It does not cover all data types.
 
+In this context, accelerated reads refer to read requests served from the secondary site, provided that the data is up to date for the component on the secondary site. If the data on the secondary site is determined to be out of date, the request is forwarded to the primary site. Read requests for components not listed in the table below are always automatically forwarded to the primary site.
+
 | Feature / component                                 | Accelerated reads?     |
 |:----------------------------------------------------|:-----------------------|
 | Project, wiki, design repository (using the web UI) | **{dotted-circle}** No |
@@ -165,10 +164,12 @@ It does not cover all data types.
 | LFS objects (using Git)                             | **{check-circle}** Yes |
 | Pages                                               | **{dotted-circle}** No <sup>2</sup> |
 | Advanced search (using the web UI)                  | **{dotted-circle}** No |
+| Container registry                                  | **{dotted-circle}** No <sup>3</sup>|
 
 1. Git reads are served from the local secondary while pushes get proxied to the primary.
    Selective sync or cases where repositories don't exist locally on the Geo secondary throw a "not found" error.
 1. Pages can use the same URL (without access control), but must be configured separately and are not proxied.
+1. The container registry is only recommended for Disaster Recovery scenarios. If the secondary site's container registry is not up to date, the read request is served with old data as the request is not forwarded to the primary site.
 
 ## Disable Geo proxying
 
@@ -178,7 +179,8 @@ Secondary proxying is enabled by default in GitLab 15.1 on a secondary site even
 
 Additionally, the `gitlab-workhorse` service polls `/api/v4/geo/proxy` every 10 seconds. In GitLab 15.2 and later, it is only polled once, if Geo is not enabled. Prior to GitLab 15.2, you can stop this polling by disabling secondary proxying.
 
-You can disable the secondary proxying on each Geo site, separately, by following these steps with Omnibus-based packages:
+You can disable the secondary proxying on each Geo site separately by following these steps on a Linux package
+installation:
 
 1. SSH into each application node (serving user traffic directly) on your secondary Geo site
    and add the following environment variable:

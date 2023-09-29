@@ -12,7 +12,7 @@ Refer to the information below when troubleshooting Gitaly and Gitaly Cluster.
 
 The following sections provide possible solutions to Gitaly errors.
 
-See also [Gitaly timeout](../../user/admin_area/settings/gitaly_timeouts.md) settings,
+See also [Gitaly timeout](../settings/gitaly_timeouts.md) settings,
 and our advice on [parsing the `gitaly/current` file](../logs/log_parsing.md#parsing-gitalycurrent).
 
 ### Check versions when using standalone Gitaly servers
@@ -20,7 +20,8 @@ and our advice on [parsing the `gitaly/current` file](../logs/log_parsing.md#par
 When using standalone Gitaly servers, you must make sure they are the same version
 as GitLab to ensure full compatibility:
 
-1. On the top bar, select **Main menu > Admin** on your GitLab instance.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Overview > Gitaly Servers**.
 1. Confirm all Gitaly servers indicate that they are up to date.
 
@@ -66,7 +67,7 @@ for details.
 ### Client side gRPC logs
 
 Gitaly uses the [gRPC](https://grpc.io/) RPC framework. The Ruby gRPC
-client has its own log file which may contain useful information when
+client has its own log file which may contain helpful information when
 you are seeing Gitaly errors. You can control the log level of the
 gRPC client with the `GRPC_LOG_LEVEL` environment variable. The
 default level is `WARN`.
@@ -85,7 +86,7 @@ check for an SSL or TLS problem:
 ```
 
 Check whether `Verify return code` field indicates a
-[known Omnibus GitLab configuration problem](https://docs.gitlab.com/omnibus/settings/ssl.html).
+[known Linux package installation configuration problem](https://docs.gitlab.com/omnibus/settings/ssl/index.html).
 
 If `openssl` succeeds but `gitlab-rake gitlab:gitaly:check` fails,
 check [certificate requirements](configure_gitaly.md#certificate-requirements) for Gitaly.
@@ -93,7 +94,7 @@ check [certificate requirements](configure_gitaly.md#certificate-requirements) f
 ### Server side gRPC logs
 
 gRPC tracing can also be enabled in Gitaly itself with the `GODEBUG=http2debug`
-environment variable. To set this in an Omnibus GitLab install:
+environment variable. To set this in a Linux package installation:
 
 1. Add the following to your `gitlab.rb` file:
 
@@ -103,7 +104,7 @@ environment variable. To set this in an Omnibus GitLab install:
    }
    ```
 
-1. [Reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure) GitLab.
+1. [Reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation) GitLab.
 
 ### Correlating Git processes with RPCs
 
@@ -122,27 +123,6 @@ sudo cat /proc/$PID/environ | tr '\0' '\n' | grep ^CORRELATION_ID=
 
 This method isn't reliable for `git cat-file` processes, because Gitaly
 internally pools and re-uses those across RPCs.
-
-### Observing `gitaly-ruby` traffic
-
-[`gitaly-ruby`](configure_gitaly.md#gitaly-ruby) is an internal implementation detail of Gitaly,
-so, there's not that much visibility into what goes on inside
-`gitaly-ruby` processes.
-
-If you have Prometheus set up to scrape your Gitaly process, you can see
-request rates and error codes for individual RPCs in `gitaly-ruby` by
-querying `grpc_client_handled_total`.
-
-All gRPC calls made by `gitaly-ruby` itself are internal calls from the main Gitaly process to one of its `gitaly-ruby`
-sidecars.
-
-Assuming your `grpc_client_handled_total` counter only observes Gitaly,
-the following query shows you RPCs are (most likely) internally
-implemented as calls to `gitaly-ruby`:
-
-```prometheus
-sum(rate(grpc_client_handled_total[5m])) by (grpc_method) > 0
-```
 
 ### Repository changes fail with a `401 Unauthorized` error
 
@@ -237,7 +217,7 @@ Confirm the following are all true:
 To fix this problem, confirm that your [`gitlab-secrets.json` file](configure_gitaly.md#configure-gitaly-servers)
 on the Gitaly server matches the one on Gitaly client. If it doesn't match,
 update the secrets file on the Gitaly server to match the Gitaly client, then
-[reconfigure](../restart_gitlab.md#omnibus-gitlab-reconfigure).
+[reconfigure](../restart_gitlab.md#reconfigure-a-linux-package-installation).
 
 If you've confirmed that your `gitlab-secrets.json` file is the same on all Gitaly servers and clients,
 the application might be fetching this secret from a different file. Your Gitaly server's
@@ -289,7 +269,7 @@ git push origin +refs/heads/*:refs/heads/* +refs/tags/*:refs/tags/*
 
 Any other namespaces that the administrator wants to push can be included there as well via additional patterns.
 
-### Command line tools cannot connect to Gitaly
+### Command-line tools cannot connect to Gitaly
 
 gRPC cannot reach your Gitaly server if:
 
@@ -345,7 +325,7 @@ You might see the following in Gitaly and Praefect logs:
 }
 ```
 
-This is a gRPC call
+This information in the logs is a gRPC call
 [error response code](https://grpc.github.io/grpc/core/md_doc_statuscodes.html).
 
 If this error occurs, even though
@@ -358,7 +338,7 @@ server to keep them synchronized.
 
 ### Gitaly not listening on new address after reconfiguring
 
-When updating the `gitaly['listen_addr']` or `gitaly['prometheus_listen_addr']` values, Gitaly may
+When updating the `gitaly['configuration'][:listen_addr]` or `gitaly['configuration'][:prometheus_listen_addr]` values, Gitaly may
 continue to listen on the old address after a `sudo gitlab-ctl reconfigure`.
 
 When this occurs, run `sudo gitlab-ctl restart` to resolve the issue. This should no longer be
@@ -401,6 +381,12 @@ push, which causes a significant delay.
 
 If Git pushes are too slow when Dynatrace is enabled, disable Dynatrace.
 
+### `gitaly check` fails with `401` status code
+
+`gitaly check` can fail with `401` status code if Gitaly can't access the internal GitLab API.
+
+One way to resolve this is to make sure the entry is correct for the GitLab internal API URL configured in `gitlab.rb` with `gitlab_rails['internal_api_url']`.
+
 ## Gitaly fails to fork processes stored on `noexec` file systems
 
 Because of changes [introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5999) in GitLab 14.10, applying the `noexec` option to a mount
@@ -414,6 +400,10 @@ To resolve this, remove the `noexec` option from the file system mount. An alter
 
 1. Add `gitaly['runtime_dir'] = '<PATH_WITH_EXEC_PERM>'` to `/etc/gitlab/gitlab.rb` and specify a location without `noexec` set.
 1. Run `sudo gitlab-ctl reconfigure`.
+
+### Commit signing fails with `invalid argument: signing key is encrypted` or `invalid data: tag byte does not have MSB set.`
+
+Because Gitaly commit signing is headless and not associated with a specific user, the GPG signing key must be created without a passphrase, or the passphrase must be removed before export.
 
 ## Troubleshoot Praefect (Gitaly Cluster)
 
@@ -492,7 +482,7 @@ in sync so the token check succeeds.
 This check helps identify the root cause of `permission denied`
 [errors being logged by Praefect](#permission-denied-errors-appearing-in-gitaly-or-praefect-logs-when-accessing-repositories).
 
-For offline environments where access to public [`pool.ntp.org`](https://pool.ntp.org) servers is not possible, the Praefect `check` sub-command fails this
+For offline environments where access to public `pool.ntp.org` servers is not possible, the Praefect `check` sub-command fails this
 check with an error message similar to:
 
 ```plaintext
@@ -544,9 +534,8 @@ To determine the primary node of a repository:
 - With legacy election strategies in GitLab 13.12 and earlier, the primary was the same for all repositories in a virtual storage.
   To determine the current primary Gitaly node for a specific virtual storage:
 
-  - Use the `Shard Primary Election` [Grafana chart](praefect.md#grafana) on the
+  - (Recommended) Use the `Shard Primary Election` [Grafana chart](praefect.md#grafana) on the
     [`Gitlab Omnibus - Praefect` dashboard](https://gitlab.com/gitlab-org/grafana-dashboards/-/blob/master/omnibus/praefect.json).
-    This is recommended.
   - If you do not have Grafana set up, use the following command on each host of each
     Praefect node:
 
@@ -566,6 +555,9 @@ You can retrieve a repository's metadata by its Praefect-assigned repository ID:
 ```shell
 sudo /opt/gitlab/embedded/bin/praefect -config /var/opt/gitlab/praefect/config.toml metadata -repository-id <repository-id>
 ```
+
+When the physical path on the physical storage starts with `@cluster`, you can
+[find the repository ID in the physical path](index.md#praefect-generated-replica-paths-gitlab-150-and-later).
 
 You can also retrieve a repository's metadata by its virtual storage and relative path:
 
@@ -669,7 +661,7 @@ However, the Praefect database tables are not created on initial reconfigure and
 errors that relations do not exist if either:
 
 - The `gitlab-ctl reconfigure` command isn't executed.
-- There are errors during the execution.
+- Errors occur during the execution.
 
 For example:
 
@@ -693,7 +685,7 @@ praefect sql-migrate: OK (applied 21 migrations)
 
 This indicates that the virtual storage name used in the
 [Praefect configuration](praefect.md#praefect) does not match the storage name used in
-[`git_data_dirs` setting](praefect.md#gitaly) for GitLab.
+[`gitaly['configuration'][:storage][<index>][:name]` setting](praefect.md#gitaly) for GitLab.
 
 Resolve this by matching the virtual storage names used in Praefect and GitLab configuration.
 
@@ -715,9 +707,13 @@ Possible solutions:
 - Provision larger VMs to gain access to larger network traffic allowances.
 - Use your cloud service's monitoring and logging to check that the Praefect nodes are not exhausting their traffic allowances.
 
+### `gitlab-ctl reconfigure` fails with error: `STDOUT: praefect: configuration error: error reading config file: toml: cannot store TOML string into a Go int`
+
+This error occurs when `praefect['database_port']` or `praefect['database_direct_port']` are configured as a string instead of an integer.
+
 ## Profiling Gitaly
 
-Gitaly exposes several of the Golang built-in performance profiling tools on the Prometheus listen port. For example, if Prometheus is listening
+Gitaly exposes several of the Go built-in performance profiling tools on the Prometheus listen port. For example, if Prometheus is listening
 on port `9236` of the GitLab server:
 
 - Get a list of running `goroutines` and their backtraces:

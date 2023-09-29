@@ -2,23 +2,23 @@
 
 class Groups::RunnersController < Groups::ApplicationController
   before_action :authorize_read_group_runners!, only: [:index, :show]
+  before_action :authorize_create_group_runners!, only: [:new, :register]
   before_action :authorize_update_runner!, only: [:edit, :update, :destroy, :pause, :resume]
-  before_action :runner, only: [:edit, :update, :destroy, :pause, :resume, :show]
+  before_action :runner, only: [:edit, :update, :destroy, :pause, :resume, :show, :register]
 
   feature_category :runner
   urgency :low
 
   def index
     @group_runner_registration_token = @group.runners_token if can?(current_user, :register_group_runners, group)
+    @group_new_runner_path = new_group_runner_path(@group) if can?(current_user, :create_runner, group)
 
     Gitlab::Tracking.event(self.class.name, 'index', user: current_user, namespace: @group)
   end
 
-  def show
-  end
+  def show; end
 
-  def edit
-  end
+  def edit; end
 
   def update
     if Ci::Runners::UpdateRunnerService.new(@runner).execute(runner_params).success?
@@ -26,6 +26,12 @@ class Groups::RunnersController < Groups::ApplicationController
     else
       render 'edit'
     end
+  end
+
+  def new; end
+
+  def register
+    render_404 unless runner.registration_available?
   end
 
   private
@@ -36,6 +42,8 @@ class Groups::RunnersController < Groups::ApplicationController
     @runner ||= Ci::RunnersFinder.new(current_user: current_user, params: group_params).execute
       .except(:limit, :offset)
       .find(params[:id])
+  rescue Gitlab::Access::AccessDeniedError
+    nil
   end
 
   def runner_params
@@ -43,7 +51,13 @@ class Groups::RunnersController < Groups::ApplicationController
   end
 
   def authorize_update_runner!
-    return if can?(current_user, :admin_group_runners, group) && can?(current_user, :update_runner, runner)
+    return if can?(current_user, :update_runner, runner)
+
+    render_404
+  end
+
+  def authorize_create_group_runners!
+    return if can?(current_user, :create_runner, group)
 
     render_404
   end

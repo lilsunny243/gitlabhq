@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Alerts **(FREE)**
+# Alerts **(FREE ALL)**
 
 Alerts are a critical entity in your incident management workflow. They represent a notable event that might indicate a service outage or disruption. GitLab provides a list view for triage and detail view for deeper investigation of what happened.
 
@@ -153,7 +153,7 @@ When you [close an incident](manage_incidents.md#close-an-incident) that is link
 GitLab [changes the alert's status](#change-an-alerts-status) to **Resolved**.
 You are then credited with the alert's status change.
 
-#### As an on-call responder **(PREMIUM)**
+#### As an on-call responder **(PREMIUM ALL)**
 
 On-call responders can respond to [alert pages](paging.md#escalating-an-alert)
 by changing the alert status.
@@ -179,8 +179,8 @@ To assign an alert:
 
 1. Display the list of current alerts:
 
-   1. On the top bar, select **Main menu > Projects** and find your project.
-   1. On the left sidebar, select **Monitor > Alerts**.
+   1. On the left sidebar, select **Search or go to** and find your project.
+   1. Select **Monitor > Alerts**.
 
 1. Select your desired alert to display its details.
 
@@ -205,3 +205,28 @@ You can manually create a [to-do item](../../user/todos.md) for yourself
 from an alert, and view it later on your **To-Do List**.
 
 To add a to-do item, on the right sidebar, select **Add a to do**.
+
+### Trigger actions from alerts **(ULTIMATE ALL)**
+
+> - Introduced in GitLab 13.1: incidents are not created automatically by default.
+> - Mapping common severity values from the alert payload [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/50871) in GitLab 13.9.
+
+Turn on creating [incidents](incidents.md) automatically whenever an alert is triggered.
+
+Prerequisites:
+
+- You must have at least the Maintainer role for the project.
+
+To configure the actions:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Monitor**.
+1. Expand the **Alerts** section, then select the **Alert settings** tab.
+1. Select the **Create an incident** checkbox.
+1. Optional. To customize the incident, from the **Incident template**, select a template to be
+   appended to the [incident summary](incidents.md#summary).
+   If the dropdown list is empty,
+   [create an issue template](../../user/project/description_templates.md#create-an-issue-template) first.
+1. Optional. To send [an email notification](paging.md#email-notifications-for-alerts), select the
+   **Send a single email notification to Owners and Maintainers for new alerts** checkbox.
+1. Select **Save changes**.

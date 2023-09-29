@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::HTTP do
+RSpec.describe Gitlab::HTTP, feature_category: :shared do
   include StubRequests
 
   let(:default_options) { described_class::DEFAULT_TIMEOUT_OPTIONS }
@@ -28,18 +28,21 @@ RSpec.describe Gitlab::HTTP do
   end
 
   context 'when reading the response is too slow' do
-    before(:all) do
+    before_all do
       # Override Net::HTTP to add a delay between sending each response chunk
       mocked_http = Class.new(Net::HTTP) do
         def request(*)
           super do |response|
             response.instance_eval do
               def read_body(*)
-                @body.each do |fragment|
+                mock_stream = @body.split(' ')
+                mock_stream.each do |fragment|
                   sleep 0.002.seconds
 
                   yield fragment if block_given?
                 end
+
+                @body
               end
             end
 
@@ -64,8 +67,8 @@ RSpec.describe Gitlab::HTTP do
     before do
       stub_const("#{described_class}::DEFAULT_READ_TOTAL_TIMEOUT", 0.001.seconds)
 
-      WebMock.stub_request(:post, /.*/).to_return do |request|
-        { body: %w(a b), status: 200 }
+      WebMock.stub_request(:post, /.*/).to_return do
+        { body: "chunk-1 chunk-2", status: 200 }
       end
     end
 
@@ -361,6 +364,79 @@ RSpec.describe Gitlab::HTTP do
             expect(described_class.try_get(path, **request_options, extra_log_info: extra_log_info_proc, &block)).to be_nil
           end
         end
+      end
+    end
+  end
+
+  describe 'silent mode', feature_category: :geo_replication do
+    before do
+      stub_full_request("http://example.org", method: :any)
+      stub_application_setting(silent_mode_enabled: silent_mode)
+    end
+
+    context 'when silent mode is enabled' do
+      let(:silent_mode) { true }
+
+      it 'allows GET requests' do
+        expect { described_class.get('http://example.org') }.not_to raise_error
+      end
+
+      it 'allows HEAD requests' do
+        expect { described_class.head('http://example.org') }.not_to raise_error
+      end
+
+      it 'allows OPTIONS requests' do
+        expect { described_class.options('http://example.org') }.not_to raise_error
+      end
+
+      it 'blocks POST requests' do
+        expect { described_class.post('http://example.org') }.to raise_error(Gitlab::HTTP::SilentModeBlockedError)
+      end
+
+      it 'blocks PUT requests' do
+        expect { described_class.put('http://example.org') }.to raise_error(Gitlab::HTTP::SilentModeBlockedError)
+      end
+
+      it 'blocks DELETE requests' do
+        expect { described_class.delete('http://example.org') }.to raise_error(Gitlab::HTTP::SilentModeBlockedError)
+      end
+
+      it 'logs blocked requests' do
+        expect(::Gitlab::AppJsonLogger).to receive(:info).with(
+          message: "Outbound HTTP request blocked",
+          outbound_http_request_method: 'Net::HTTP::Post',
+          silent_mode_enabled: true
+        )
+
+        expect { described_class.post('http://example.org') }.to raise_error(Gitlab::HTTP::SilentModeBlockedError)
+      end
+    end
+
+    context 'when silent mode is disabled' do
+      let(:silent_mode) { false }
+
+      it 'allows GET requests' do
+        expect { described_class.get('http://example.org') }.not_to raise_error
+      end
+
+      it 'allows HEAD requests' do
+        expect { described_class.head('http://example.org') }.not_to raise_error
+      end
+
+      it 'allows OPTIONS requests' do
+        expect { described_class.options('http://example.org') }.not_to raise_error
+      end
+
+      it 'blocks POST requests' do
+        expect { described_class.post('http://example.org') }.not_to raise_error
+      end
+
+      it 'blocks PUT requests' do
+        expect { described_class.put('http://example.org') }.not_to raise_error
+      end
+
+      it 'blocks DELETE requests' do
+        expect { described_class.delete('http://example.org') }.not_to raise_error
       end
     end
   end

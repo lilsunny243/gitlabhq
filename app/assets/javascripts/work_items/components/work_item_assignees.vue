@@ -54,6 +54,7 @@ export default {
     GlIntersectionObserver,
   },
   mixins: [Tracking.mixin()],
+  inject: ['fullPath'],
   props: {
     workItemId: {
       type: String,
@@ -80,10 +81,6 @@ export default {
       type: Boolean,
       required: false,
       default: false,
-    },
-    fullPath: {
-      type: String,
-      required: true,
     },
   },
   data() {
@@ -129,8 +126,16 @@ export default {
     assigneesTitleId() {
       return uniqueId('assignees-title-');
     },
+    deduplicatedUsers() {
+      return this.users.nodes.reduce((acc, current) => {
+        if (!acc.find((node) => node.user.id === current.user.id)) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+    },
     searchUsers() {
-      return this.users.nodes.map((node) => addClass({ ...node, ...node.user }));
+      return this.deduplicatedUsers.map((node) => addClass({ ...node, ...node.user }));
     },
     pageInfo() {
       return this.users.pageInfo;
@@ -143,7 +148,7 @@ export default {
       };
     },
     containerClass() {
-      return !this.isEditing ? 'gl-shadow-none!' : '';
+      return !this.isEditing ? 'gl-shadow-none! hide-unfocused-input-decoration' : '';
     },
     isLoadingUsers() {
       return this.$apollo.queries.users.loading;
@@ -298,7 +303,7 @@ export default {
   <div class="form-row gl-mb-5 work-item-assignees gl-relative gl-flex-nowrap">
     <span
       :id="assigneesTitleId"
-      class="gl-font-weight-bold col-lg-2 col-3 gl-pt-2 min-w-fit-content gl-overflow-wrap-break"
+      class="gl-font-weight-bold gl-mt-2 col-lg-2 col-3 gl-pt-2 min-w-fit-content gl-overflow-wrap-break work-item-field-label"
       data-testid="assignees-title"
       >{{ assigneeText }}</span
     >
@@ -308,11 +313,12 @@ export default {
       :selected-tokens="localAssignees"
       :container-class="containerClass"
       :class="{ 'gl-hover-border-gray-200': canUpdate }"
+      menu-class="token-selector-menu-class"
       :dropdown-items="dropdownItems"
       :loading="isLoadingUsers && !isLoadingMore"
       :view-only="!canUpdate"
       :allow-clear-all="isEditing"
-      class="assignees-selector gl-flex-grow-1 gl-border gl-border-white gl-rounded-base col-9 gl-align-self-start gl-px-0! gl-mx-2"
+      class="assignees-selector hide-unfocused-input-decoration work-item-field-value gl-flex-grow-1 gl-border gl-rounded-base col-9 gl-align-self-start gl-px-0! gl-mx-2"
       data-testid="work-item-assignees-input"
       @input="handleAssigneesInput"
       @text-input="debouncedSearchKeyUpdate"
@@ -334,7 +340,7 @@ export default {
             class="assign-myself"
             data-testid="assign-self"
             @click.stop="assignToCurrentUser"
-            >{{ __('Assign myself') }}</gl-button
+            >{{ __('Assign yourself') }}</gl-button
           >
         </div>
       </template>
@@ -382,7 +388,7 @@ export default {
               :display-text="__('Invite members')"
               trigger-element="side-nav"
               icon="plus"
-              trigger-source="work-item-assignees-dropdown"
+              trigger-source="work_item_assignees_dropdown"
               classes="gl-display-block gl-text-body! gl-hover-text-decoration-none gl-pb-2"
             />
           </gl-dropdown-item>

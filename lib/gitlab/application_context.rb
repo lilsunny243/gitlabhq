@@ -25,7 +25,8 @@ module Gitlab
       :artifact_used_cdn,
       :artifacts_dependencies_size,
       :artifacts_dependencies_count,
-      :root_caller_id
+      :root_caller_id,
+      :merge_action_status
     ].freeze
     private_constant :KNOWN_KEYS
 
@@ -43,11 +44,17 @@ module Gitlab
       Attribute.new(:artifact_used_cdn, Object),
       Attribute.new(:artifacts_dependencies_size, Integer),
       Attribute.new(:artifacts_dependencies_count, Integer),
-      Attribute.new(:root_caller_id, String)
+      Attribute.new(:root_caller_id, String),
+      Attribute.new(:merge_action_status, String)
     ].freeze
+    private_constant :APPLICATION_ATTRIBUTES
 
     def self.known_keys
       KNOWN_KEYS
+    end
+
+    def self.application_attributes
+      APPLICATION_ATTRIBUTES
     end
 
     def self.with_context(args, &block)
@@ -77,12 +84,13 @@ module Gitlab
     end
 
     def initialize(**args)
-      unknown_attributes = args.keys - APPLICATION_ATTRIBUTES.map(&:name)
+      unknown_attributes = args.keys - self.class.application_attributes.map(&:name)
       raise ArgumentError, "#{unknown_attributes} are not known keys" if unknown_attributes.any?
 
       @set_values = args.keys
 
       assign_attributes(args)
+      set_attr_readers
     end
 
     # rubocop: disable Metrics/CyclomaticComplexity
@@ -97,6 +105,7 @@ module Gitlab
         assign_hash_if_value(hash, :artifact_used_cdn)
         assign_hash_if_value(hash, :artifacts_dependencies_size)
         assign_hash_if_value(hash, :artifacts_dependencies_count)
+        assign_hash_if_value(hash, :merge_action_status)
 
         hash[:user] = -> { username } if include_user?
         hash[:user_id] = -> { user_id } if include_user?
@@ -119,12 +128,14 @@ module Gitlab
 
     attr_reader :set_values
 
-    APPLICATION_ATTRIBUTES.each do |attr|
-      lazy_attr_reader attr.name, type: attr.type
+    def set_attr_readers
+      self.class.application_attributes.each do |attr|
+        self.class.lazy_attr_reader attr.name, type: attr.type
+      end
     end
 
     def assign_hash_if_value(hash, attribute_name)
-      unless KNOWN_KEYS.include?(attribute_name)
+      unless self.class.known_keys.include?(attribute_name)
         raise ArgumentError, "unknown attribute `#{attribute_name}`"
       end
 
@@ -134,7 +145,7 @@ module Gitlab
     end
 
     def assign_attributes(values)
-      values.slice(*APPLICATION_ATTRIBUTES.map(&:name)).each do |name, value|
+      values.slice(*self.class.application_attributes.map(&:name)).each do |name, value|
         instance_variable_set("@#{name}", value)
       end
     end

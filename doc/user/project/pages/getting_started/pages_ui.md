@@ -1,10 +1,10 @@
 ---
-stage: Create
-group: Incubation
+stage: Plan
+group: Knowledge
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Create a Pages deployment for your static site **(FREE)**
+# Create a GitLab Pages deployment for a static site **(FREE ALL)**
 
 If you already have a GitLab project that contains your static site or framework,
 you can generate a GitLab Pages website from it.
@@ -33,11 +33,9 @@ a pipeline deploys your Pages website.
 
 To complete the setup and generate a GitLab Pages deployment:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Pages**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. On the left sidebar, select **Deploy > Pages**.
 
-   If this path is not visible, select **Deployments > Pages**.
-   [This location is part of an experiment](../index.md#menu-position-test).
    A **Get Started with Pages** form appears. If this form is not available,
    see [Troubleshooting](#if-the-get-started-with-pages-form-is-not-available).
 1. For **Step 1**, enter an image name and verify that your files are in a `public` folder.
@@ -54,7 +52,7 @@ To complete the setup and generate a GitLab Pages deployment:
 1. For **Step 4**, add a commit message and select **Commit**. This commit triggers your first
    GitLab Pages deployment.
 
-To view the running pipeline, go to **CI/CD > Pipelines**.
+To view the running pipeline, go to **Build > Pipelines**.
 
 To view the artifacts that were created during the deployment, view the job,
 and on the right side, select **Download artifacts**.

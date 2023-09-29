@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::ClustersController, feature_category: :kubernetes_management do
+RSpec.describe Projects::ClustersController, feature_category: :deployment_management do
   include AccessMatchersForController
   include GoogleApi::CloudPlatformHelpers
   include KubernetesHelpers
 
-  let_it_be(:project) { create(:project) }
+  let_it_be_with_reload(:project) { create(:project) }
 
   let(:user) { create(:user) }
 
@@ -57,7 +57,8 @@ RSpec.describe Projects::ClustersController, feature_category: :kubernetes_manag
           let(:total_count) { project.clusters.page.total_count }
 
           before do
-            create_list(:cluster, 30, :provided_by_gcp, :production_environment, projects: [project])
+            allow(Clusters::Cluster).to receive(:default_per_page).and_return(1)
+            create_list(:cluster, 2, :provided_by_gcp, :production_environment, projects: [project])
           end
 
           it 'redirects to the page' do
@@ -110,48 +111,6 @@ RSpec.describe Projects::ClustersController, feature_category: :kubernetes_manag
       it { expect { go }.to be_denied_for(:guest).of(project) }
       it { expect { go }.to be_denied_for(:user) }
       it { expect { go }.to be_denied_for(:external) }
-    end
-  end
-
-  describe 'GET #prometheus_proxy' do
-    let(:proxyable) do
-      create(:cluster, :provided_by_gcp, projects: [project])
-    end
-
-    it_behaves_like 'metrics dashboard prometheus api proxy' do
-      let(:proxyable_params) do
-        {
-          id: proxyable.id.to_s,
-          namespace_id: project.namespace.full_path,
-          project_id: project.name
-        }
-      end
-
-      context 'with anonymous user' do
-        let(:prometheus_body) { nil }
-
-        before do
-          sign_out(user)
-        end
-
-        it 'redirects to signin page' do
-          get :prometheus_proxy, params: prometheus_proxy_params
-
-          expect(response).to redirect_to(new_user_session_path)
-        end
-      end
-    end
-  end
-
-  it_behaves_like 'GET #metrics_dashboard for dashboard', 'Cluster health' do
-    let(:cluster) { create(:cluster, :provided_by_gcp, projects: [project]) }
-
-    let(:metrics_dashboard_req_params) do
-      {
-        id: cluster.id,
-        namespace_id: project.namespace.full_path,
-        project_id: project.name
-      }
     end
   end
 
@@ -337,12 +296,6 @@ RSpec.describe Projects::ClustersController, feature_category: :kubernetes_manag
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to match_response_schema('cluster_status')
       end
-
-      it 'invokes schedule_status_update on each application' do
-        expect_any_instance_of(Clusters::Applications::Ingress).to receive(:schedule_status_update)
-
-        go
-      end
     end
 
     describe 'security' do
@@ -379,24 +332,6 @@ RSpec.describe Projects::ClustersController, feature_category: :kubernetes_manag
 
     include_examples ':certificate_based_clusters feature flag controller responses' do
       let(:subject) { go }
-    end
-
-    describe 'functionality' do
-      render_views
-
-      it "renders view" do
-        go
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:cluster)).to eq(cluster)
-      end
-
-      it 'renders integration tab view' do
-        go(tab: 'integrations')
-
-        expect(response).to render_template('clusters/clusters/_integrations')
-        expect(response).to have_gitlab_http_status(:ok)
-      end
     end
 
     describe 'security' do

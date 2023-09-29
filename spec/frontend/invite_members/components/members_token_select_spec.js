@@ -30,11 +30,6 @@ const createComponent = (props) => {
 describe('MembersTokenSelect', () => {
   let wrapper;
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   const findTokenSelector = () => wrapper.findComponent(GlTokenSelector);
 
   describe('rendering the token-selector component', () => {
@@ -135,13 +130,32 @@ describe('MembersTokenSelect', () => {
         expect(tokenSelector.props('hideDropdownWithNoItems')).toBe(false);
       });
 
+      it('calls the API with search parameter with whitespaces and is trimmed', async () => {
+        tokenSelector.vm.$emit('text-input', ' foo@bar.com ');
+
+        await waitForPromises();
+
+        expect(UserApi.getUsers).toHaveBeenCalledWith('foo@bar.com', {
+          active: true,
+          without_project_bots: true,
+        });
+        expect(tokenSelector.props('hideDropdownWithNoItems')).toBe(false);
+      });
+
       describe('when input text is an email', () => {
-        it('allows user defined tokens', async () => {
-          tokenSelector.vm.$emit('text-input', 'foo@bar.com');
+        it.each`
+          email             | result
+          ${'foo@bar.com'}  | ${true}
+          ${'foo@bar.com '} | ${false}
+          ${' foo@bar.com'} | ${false}
+          ${'foo@ba r.com'} | ${false}
+          ${'fo o@bar.com'} | ${false}
+        `(`with token creation validation on $email`, async ({ email, result }) => {
+          tokenSelector.vm.$emit('text-input', email);
 
           await nextTick();
 
-          expect(tokenSelector.props('allowUserDefinedTokens')).toBe(true);
+          expect(tokenSelector.props('allowUserDefinedTokens')).toBe(result);
         });
       });
     });

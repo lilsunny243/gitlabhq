@@ -82,10 +82,10 @@ export const handleLocationHash = () => {
   const fixedTabs = document.querySelector('.js-tabs-affix');
   const fixedDiffStats = document.querySelector('.js-diff-files-changed');
   const fixedNav = document.querySelector('.navbar-gitlab');
+  const fixedTopBar = document.querySelector('.top-bar-fixed');
   const performanceBar = document.querySelector('#js-peek');
   const topPadding = 8;
   const diffFileHeader = document.querySelector('.js-file-title');
-  const versionMenusContainer = document.querySelector('.mr-version-menus-container');
   const fixedIssuableTitle = document.querySelector('.issue-sticky-header');
 
   let adjustment = 0;
@@ -93,9 +93,9 @@ export const handleLocationHash = () => {
   adjustment -= getElementOffsetHeight(fixedNav);
   adjustment -= getElementOffsetHeight(fixedTabs);
   adjustment -= getElementOffsetHeight(fixedDiffStats);
+  adjustment -= getElementOffsetHeight(fixedTopBar);
   adjustment -= getElementOffsetHeight(performanceBar);
   adjustment -= getElementOffsetHeight(diffFileHeader);
-  adjustment -= getElementOffsetHeight(versionMenusContainer);
 
   if (isInIssuePage()) {
     adjustment -= getElementOffsetHeight(fixedIssuableTitle);
@@ -153,6 +153,7 @@ export const contentTop = () => {
   const heightCalculators = [
     () => getOuterHeight('#js-peek'),
     () => getOuterHeight('.navbar-gitlab'),
+    () => getOuterHeight('.top-bar-fixed'),
     ({ desktop }) => {
       const mrStickyHeader = document.querySelector('.merge-request-sticky-header');
       if (mrStickyHeader) {
@@ -689,21 +690,6 @@ export const getCookie = (name) => Cookies.get(name);
 export const removeCookie = (name) => Cookies.remove(name);
 
 /**
- * Returns the status of a feature flag.
- * Currently, there is no way to access feature
- * flags in Vuex other than directly tapping into
- * window.gon.
- *
- * This should only be used on Vuex. If feature flags
- * need to be accessed in Vue components consider
- * using the Vue feature flag mixin.
- *
- * @param {String} flag Feature flag
- * @returns {Boolean} on/off
- */
-export const isFeatureFlagEnabled = (flag) => window.gon.features?.[flag];
-
-/**
  * This method takes in array with snake_case strings
  * and returns a new array with camelCase strings
  *
@@ -732,4 +718,22 @@ export const getFirstPropertyValue = (data) => {
   if (!key) return null;
 
   return data[key];
+};
+
+export const isCurrentUser = (userId) => {
+  const currentUserId = window.gon?.current_user_id;
+
+  if (!currentUserId) {
+    return false;
+  }
+
+  return Number(userId) === currentUserId;
+};
+
+/**
+ * Clones an object via JSON stringifying and re-parsing.
+ * This ensures object references are not persisted (e.g. unlike lodash cloneDeep)
+ */
+export const cloneWithoutReferences = (obj) => {
+  return JSON.parse(JSON.stringify(obj));
 };

@@ -97,6 +97,7 @@ export const ROUGE_TO_HLJS_LANGUAGE_MAP = {
   sql: 'sql',
   stan: 'stan',
   stata: 'stata',
+  svelte: 'svelte',
   swift: 'swift',
   tap: 'tap',
   tcl: 'tcl',
@@ -141,8 +142,15 @@ export const BIDI_CHARS_CLASS_LIST = 'unicode-bidi has-tooltip';
 
 export const BIDI_CHAR_TOOLTIP = 'Potentially unwanted character detected: Unicode BiDi Control';
 
-export const HLJS_ON_AFTER_HIGHLIGHT = 'after:highlight';
+/**
+ * We fallback to highlighting these languages with Rouge, see the following issues for more detail:
+ * Python: https://gitlab.com/gitlab-org/gitlab/-/issues/384375#note_1212752013
+ * HAML: https://github.com/highlightjs/highlight.js/issues/3783
+ * */
+export const LEGACY_FALLBACKS = ['python', 'haml'];
 
-// We fallback to highlighting these languages with Rouge, see the following issue for more detail:
-// https://gitlab.com/gitlab-org/gitlab/-/issues/384375#note_1212752013
-export const LEGACY_FALLBACKS = ['python'];
+export const CODEOWNERS_FILE_NAME = 'CODEOWNERS';
+
+export const CODEOWNERS_LANGUAGE = 'codeowners';
+
+export const SVELTE_LANGUAGE = 'svelte';

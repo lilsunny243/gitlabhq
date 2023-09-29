@@ -10,13 +10,21 @@ class GroupGroupLink < ApplicationRecord
   validates :shared_group_id, uniqueness: { scope: [:shared_with_group_id],
                                             message: N_('The group has already been shared with this group') }
   validates :shared_with_group, presence: true
-  validates :group_access, inclusion: { in: Gitlab::Access.all_values },
-                           presence: true
+  validates :group_access, inclusion: { in: Gitlab::Access.all_values }, presence: true
 
   scope :non_guests, -> { where('group_access > ?', Gitlab::Access::GUEST) }
+  scope :for_shared_groups, -> (group_ids) { where(shared_group_id: group_ids) }
 
   scope :with_owner_or_maintainer_access, -> do
     where(group_access: [Gitlab::Access::OWNER, Gitlab::Access::MAINTAINER])
+  end
+
+  scope :with_developer_maintainer_owner_access, -> do
+    where(group_access: [Gitlab::Access::DEVELOPER, Gitlab::Access::MAINTAINER, Gitlab::Access::OWNER])
+  end
+
+  scope :with_developer_access, -> do
+    where(group_access: [Gitlab::Access::DEVELOPER])
   end
 
   scope :with_owner_access, -> do

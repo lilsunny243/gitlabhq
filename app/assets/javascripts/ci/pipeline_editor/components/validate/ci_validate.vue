@@ -2,7 +2,7 @@
 import {
   GlAlert,
   GlButton,
-  GlDropdown,
+  GlDisclosureDropdown,
   GlIcon,
   GlLoadingIcon,
   GlLink,
@@ -61,7 +61,7 @@ export default {
     CiLintResults,
     GlAlert,
     GlButton,
-    GlDropdown,
+    GlDisclosureDropdown,
     GlIcon,
     GlLoadingIcon,
     GlLink,
@@ -195,13 +195,12 @@ export default {
     <div class="gl-display-flex gl-justify-content-space-between gl-mt-3">
       <div>
         <label>{{ $options.i18n.pipelineSource }}</label>
-        <gl-dropdown
+        <gl-disclosure-dropdown
           v-gl-tooltip.hover
           class="gl-ml-3"
           :title="$options.i18n.pipelineSourceTooltip"
-          :text="$options.i18n.pipelineSourceDefault"
+          :toggle-text="$options.i18n.pipelineSourceDefault"
           disabled
-          data-testid="pipeline-source"
         />
         <validate-pipeline-popover />
         <gl-icon
@@ -247,7 +246,6 @@ export default {
           class="gl-mt-3"
           :disabled="isInitialCiContentLoading"
           data-testid="simulate-pipeline-button"
-          data-qa-selector="simulate_pipeline_button"
           @click="validateYaml"
         >
           {{ $options.i18n.cta }}

@@ -4,6 +4,7 @@ require 'spec_helper'
 
 RSpec.describe Ci::PipelineEditorHelper do
   let_it_be(:project) { create(:project) }
+  let_it_be(:user) { create(:user) }
 
   describe 'can_view_pipeline_editor?' do
     subject { helper.can_view_pipeline_editor?(project) }
@@ -62,13 +63,17 @@ RSpec.describe Ci::PipelineEditorHelper do
         .to receive(:image_path)
         .with('illustrations/project-run-CICD-pipelines-sm.svg')
         .and_return('illustrations/validate.svg')
+
+      allow(helper)
+        .to receive(:current_user)
+        .and_return(user)
     end
 
     subject(:pipeline_editor_data) { helper.js_pipeline_editor_data(project) }
 
     context 'with a project with commits' do
       it 'returns pipeline editor data' do
-        expect(pipeline_editor_data).to eq(default_helper_data.merge({
+        expect(pipeline_editor_data).to include(default_helper_data.merge({
           "pipeline_etag" => graphql_etag_pipeline_sha_path(project.commit.sha),
           "total-branches" => project.repository.branches.length
         }))
@@ -79,7 +84,7 @@ RSpec.describe Ci::PipelineEditorHelper do
       let(:project) { create(:project, :empty_repo) }
 
       it 'returns pipeline editor data' do
-        expect(pipeline_editor_data).to eq(default_helper_data.merge({
+        expect(pipeline_editor_data).to include(default_helper_data.merge({
           "pipeline_etag" => '',
           "total-branches" => 0
         }))

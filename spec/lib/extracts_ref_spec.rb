@@ -57,5 +57,48 @@ RSpec.describe ExtractsRef do
     end
   end
 
+  describe '#ref_type' do
+    let(:params) { ActionController::Parameters.new(ref_type: 'heads') }
+
+    it 'delegates to .ref_type' do
+      expect(described_class).to receive(:ref_type).with('heads')
+      ref_type
+    end
+  end
+
+  describe '.ref_type' do
+    subject { described_class.ref_type(ref_type) }
+
+    context 'when ref_type is nil' do
+      let(:ref_type) { nil }
+
+      it { is_expected.to eq(nil) }
+    end
+
+    context 'when ref_type is heads' do
+      let(:ref_type) { 'heads' }
+
+      it { is_expected.to eq('heads') }
+    end
+
+    context 'when ref_type is tags' do
+      let(:ref_type) { 'tags' }
+
+      it { is_expected.to eq('tags') }
+    end
+
+    context 'when case does not match' do
+      let(:ref_type) { 'tAgS' }
+
+      it { is_expected.to(eq('tags')) }
+    end
+
+    context 'when ref_type is invalid' do
+      let(:ref_type) { 'invalid' }
+
+      it { is_expected.to eq(nil) }
+    end
+  end
+
   it_behaves_like 'extracts refs'
 end

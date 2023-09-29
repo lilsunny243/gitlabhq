@@ -23,15 +23,17 @@ At the Git level, we achieve deduplication by using
 Git alternates is a mechanism that lets a repository borrow objects from
 another repository on the same machine.
 
-If we want repository A to borrow from repository B, we first write a
-path that resolves to `B.git/objects` in the special file
-`A.git/objects/info/alternates`. This establishes the alternates link.
-Next, we must perform a Git repack in A. After the repack, any objects
-that are duplicated between A and B are deleted from A. Repository
-A is now no longer self-contained, but it still has its own refs and
-configuration. Objects in A that are not in B remain in A. For this
-to work, it is of course critical that **no objects ever get deleted from
-B** because A might need them.
+To make repository A borrow from repository B:
+
+1. Establish the alternates link in the special file `A.git/objects/info/alternates`
+   by writing a path that resolves to `B.git/objects`.
+1. In repository A, run `git repack` to remove all objects in repository A that
+   also exist in repository B.
+
+After the repack, repository A is no longer self-contained, but still contains its
+own refs and configuration. Objects in A that are not in B remain in A. For this
+configuration to work, **objects must not be deleted from repository B** because
+repository A might need them.
 
 WARNING:
 Do not run `git prune` or `git gc` in object pool repositories, which are
@@ -44,7 +46,7 @@ reliable decide if an object is no longer needed.
 
 ### Git alternates in GitLab: pool repositories
 
-GitLab organizes this object borrowing by [creating special **pool repositories**](../administration/repository_storage_types.md)
+GitLab organizes this object borrowing by [creating special **pool repositories**](../administration/repository_storage_paths.md)
 which are hidden from the user. We then use Git
 alternates to let a collection of project repositories borrow from a
 single pool repository. We call such a collection of project
@@ -54,7 +56,7 @@ identical to) the fork networks that get formed when users fork
 projects.
 
 At the Git level, pool repositories are created and managed using Gitaly
-RPC calls. Just like with normal repositories, the authority on which
+RPC calls. Just like with typical repositories, the authority on which
 pool repositories exist, and which repositories borrow from them, lies
 at the Rails application level in SQL.
 
@@ -99,7 +101,7 @@ are as follows:
 
 ### Assumptions
 
-- All repositories in a pool must use [hashed storage](../administration/repository_storage_types.md).
+- All repositories in a pool must use [hashed storage](../administration/repository_storage_paths.md).
   This is so that we don't have to ever worry about updating paths in
   `object/info/alternates` files.
 - All repositories in a pool must be on the same Gitaly storage shard.
@@ -142,7 +144,7 @@ are as follows:
 
 ### Consequences
 
-- If a normal Project participating in a pool gets moved to another
+- If a typical Project participating in a pool gets moved to another
   Gitaly storage shard, its "belongs to PoolRepository" relation will
   be broken. Because of the way moving repositories between shard is
   implemented, we get a fresh self-contained copy

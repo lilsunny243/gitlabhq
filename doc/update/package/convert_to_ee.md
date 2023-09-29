@@ -22,7 +22,7 @@ that may require Support intervention.
 
 The steps can be summed up to:
 
-1. Make a [GitLab backup](../../raketasks/backup_gitlab.md).
+1. Make a [GitLab backup](../../administration/backup_restore/backup_gitlab.md).
 
 1. Find the currently installed GitLab version:
 
@@ -68,8 +68,8 @@ The steps can be summed up to:
    NOTE:
    If you want to use `dpkg`/`rpm` instead of `apt-get`/`yum`, go through the first
    step to find the current GitLab version, then follow
-   [Update using a manually-downloaded package](index.md#upgrade-using-a-manually-downloaded-package),
-   and then [add your license](../../user/admin_area/license.md).
+   [Upgrade using a manually-downloaded package](index.md#upgrade-using-a-manually-downloaded-package),
+   and then [add your license](../../administration/license.md).
 
 1. Install the `gitlab-ee` package. The install automatically
    uninstalls the `gitlab-ce` package on your GitLab server. `reconfigure`
@@ -99,7 +99,7 @@ The steps can be summed up to:
    sudo gitlab-ctl reconfigure
    ```
 
-1. Now activate GitLab Enterprise Edition by [adding your license](../../user/admin_area/license.md).
+1. Now activate GitLab Enterprise Edition by [adding your license](../../administration/license.md).
 
 1. After you confirm that GitLab is working as expected, you may remove the old
    Community Edition repository:
@@ -116,7 +116,7 @@ The steps can be summed up to:
    sudo rm /etc/yum.repos.d/gitlab_gitlab-ce.repo
    ```
 
-1. Optional. [Set up the Elasticsearch integration](../../integration/advanced_search/elasticsearch.md) to enable [Advanced Search](../../user/search/advanced_search.md).
+1. Optional. [Set up the Elasticsearch integration](../../integration/advanced_search/elasticsearch.md) to enable [advanced search](../../user/search/advanced_search.md).
 
-That's it! You can now use GitLab Enterprise Edition! To update to a newer
-version, follow [Update using the official repositories](index.md#upgrade-using-the-official-repositories).
+That's it! You can now use GitLab Enterprise Edition! To upgrade to a newer
+version, follow [Upgrade using the official repositories](index.md#upgrade-using-the-official-repositories).

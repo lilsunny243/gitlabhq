@@ -23,16 +23,16 @@ module QA
       Runtime::ApplicationSettings.get_application_settings(api_client: source_admin_api_client)[:bulk_import_enabled]
     end
     let!(:source_admin_user) do
-      Resource::User.fabricate_via_api! do |usr|
-        usr.api_client = source_admin_api_client
-        usr.username = Runtime::Env.admin_username || "root"
-      end.tap(&:set_public_email)
+      create(:user,
+        :set_public_email,
+        api_client: source_admin_api_client,
+        username: Runtime::Env.admin_username || 'root')
     end
     let!(:source_group) do
       Resource::Sandbox.fabricate_via_api! do |group|
         group.api_client = source_admin_api_client
         group.path = "source-group-for-import-#{SecureRandom.hex(4)}"
-        group.avatar = File.new(File.join(Runtime::Path.fixtures_path, 'designs', 'tanuki.jpg'), "r")
+        group.avatar = File.new(Runtime::Path.fixture('designs', 'tanuki.jpg'), "r")
       end
     end
 
@@ -43,17 +43,12 @@ module QA
       Runtime::ApplicationSettings.get_application_settings(api_client: admin_api_client)[:bulk_import_enabled]
     end
     let!(:admin_user) do
-      Resource::User.fabricate_via_api! do |usr|
-        usr.api_client = admin_api_client
-        usr.username = Runtime::Env.admin_username || "root"
-      end.tap(&:set_public_email)
+      create(:user,
+        :set_public_email,
+        api_client: admin_api_client,
+        username: Runtime::Env.admin_username || 'root')
     end
-    let!(:user) do
-      Resource::User.fabricate_via_api! do |usr|
-        usr.api_client = admin_api_client
-        usr.username = "target-user-#{SecureRandom.hex(6)}"
-      end
-    end
+    let!(:user) { create(:user, api_client: admin_api_client, username: "target-user-#{SecureRandom.hex(6)}") }
     let!(:api_client) { Runtime::API::Client.new(user: user) }
     let!(:target_sandbox) do
       Resource::Sandbox.fabricate_via_api! do |group|
@@ -77,7 +72,7 @@ module QA
       imported_group.import_details.sum([]) { |details| details[:failures] }
     end
 
-    let(:cleanup!) {}
+    let(:cleanup!) {} # rubocop:disable Lint/EmptyBlock
 
     def expect_group_import_finished_successfully
       imported_group # trigger import

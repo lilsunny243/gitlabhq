@@ -44,7 +44,7 @@ module Sidebars
 
         override :active_routes
         def active_routes
-          { controller: 'projects/issues' }
+          { path: %w[projects/issues#index projects/issues#show projects/issues#new] }
         end
 
         override :has_pill?
@@ -57,7 +57,8 @@ module Sidebars
         override :pill_count
         def pill_count
           strong_memoize(:pill_count) do
-            context.project.open_issues_count(context.current_user)
+            count = context.project.open_issues_count(context.current_user)
+            format_cached_count(1000, count)
           end
         end
 
@@ -71,10 +72,10 @@ module Sidebars
         override :serialize_as_menu_item_args
         def serialize_as_menu_item_args
           super.merge({
-            sprite_icon: sprite_icon,
             pill_count: pill_count,
             has_pill: has_pill?,
-            super_sidebar_parent: ::Sidebars::StaticMenu
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::PlanMenu,
+            item_id: :project_issue_list
           })
         end
 
@@ -82,6 +83,10 @@ module Sidebars
 
         def show_issues_menu_items?
           can?(context.current_user, :read_issue, context.project)
+        end
+
+        def multi_issue_boards?
+          context.project.multiple_issue_boards_available?
         end
 
         def list_menu_item
@@ -96,13 +101,18 @@ module Sidebars
         end
 
         def boards_menu_item
-          title = context.project.multiple_issue_boards_available? ? s_('IssueBoards|Boards') : s_('IssueBoards|Board')
+          title = if context.is_super_sidebar
+                    multi_issue_boards? ? s_('Issue boards') : s_('Issue board')
+                  else
+                    multi_issue_boards? ? s_('IssueBoards|Boards') : s_('IssueBoards|Board')
+                  end
 
           ::Sidebars::MenuItem.new(
             title: title,
             link: project_boards_path(context.project),
             super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::PlanMenu,
             active_routes: { controller: :boards },
+            container_html_options: { class: 'shortcuts-issue-boards' },
             item_id: :boards
           )
         end
@@ -111,7 +121,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Service Desk'),
             link: service_desk_project_issues_path(context.project),
-            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::PlanMenu,
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::MonitorMenu,
             active_routes: { path: 'issues#service_desk' },
             item_id: :service_desk
           )
@@ -122,7 +132,6 @@ module Sidebars
             title: _('Milestones'),
             link: project_milestones_path(context.project),
             super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::PlanMenu,
-            super_sidebar_before: :service_desk,
             active_routes: { controller: :milestones },
             item_id: :milestones
           )

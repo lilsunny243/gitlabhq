@@ -5,9 +5,12 @@ import {
   FILTER_NONE,
   FILTER_STARTED,
   FILTER_UPCOMING,
+  FILTERED_SEARCH_TERM,
   OPERATOR_IS,
   OPERATOR_NOT,
   OPERATOR_OR,
+  OPERATOR_AFTER,
+  OPERATOR_BEFORE,
   TOKEN_TYPE_ASSIGNEE,
   TOKEN_TYPE_AUTHOR,
   TOKEN_TYPE_CONFIDENTIAL,
@@ -23,6 +26,8 @@ import {
   TOKEN_TYPE_TYPE,
   TOKEN_TYPE_WEIGHT,
   TOKEN_TYPE_SEARCH_WITHIN,
+  TOKEN_TYPE_CREATED,
+  TOKEN_TYPE_CLOSED,
 } from '~/vue_shared/components/filtered_search_bar/constants';
 import {
   WORK_ITEM_TYPE_ENUM_INCIDENT,
@@ -33,7 +38,6 @@ import {
 
 export const ISSUE_REFERENCE = /^#\d+$/;
 export const MAX_LIST_SIZE = 10;
-export const PAGE_SIZE = 20;
 export const PARAM_ASSIGNEE_ID = 'assignee_id';
 export const PARAM_FIRST_PAGE_SIZE = 'first_page_size';
 export const PARAM_LAST_PAGE_SIZE = 'last_page_size';
@@ -75,16 +79,22 @@ export const NORMAL_FILTER = 'normalFilter';
 export const SPECIAL_FILTER = 'specialFilter';
 export const ALTERNATIVE_FILTER = 'alternativeFilter';
 
+export const ISSUES_VIEW_TYPE_KEY = 'issuesViewType';
+export const ISSUES_LIST_VIEW_KEY = 'List';
+export const ISSUES_GRID_VIEW_KEY = 'Grid';
+
 export const i18n = {
+  actionsLabel: __('Actions'),
   calendarLabel: __('Subscribe to calendar'),
-  closed: __('CLOSED'),
-  closedMoved: __('CLOSED (MOVED)'),
+  closed: __('Closed'),
+  closedMoved: __('Closed (moved)'),
   confidentialNo: __('No'),
   confidentialYes: __('Yes'),
   downvotes: __('Downvotes'),
-  editIssues: __('Edit issues'),
+  editIssues: __('Bulk edit'),
   errorFetchingCounts: __('An error occurred while getting issue counts'),
   errorFetchingIssues: __('An error occurred while loading issues'),
+  importIssues: __('Import issues'),
   issueRepositioningMessage: __(
     'Issues are being rebalanced at the moment, so manual reordering is disabled.',
   ),
@@ -109,11 +119,13 @@ export const i18n = {
   noSearchResultsTitle: __('Sorry, your filter produced no results'),
   relatedMergeRequests: __('Related merge requests'),
   reorderError: __('An error occurred while reordering issues.'),
+  deleteError: __('An error occurred while deleting an issuable.'),
   rssLabel: __('Subscribe to RSS feed'),
-  searchPlaceholder: __('Search or filter results...'),
   upvotes: __('Upvotes'),
   titles: __('Titles'),
   descriptions: __('Descriptions'),
+  listLabel: __('List'),
+  gridLabel: __('Grid'),
 };
 
 export const urlSortParams = {
@@ -154,13 +166,13 @@ export const specialFilterValues = [
 
 export const TYPE_TOKEN_OBJECTIVE_OPTION = {
   icon: 'issue-type-objective',
-  title: 'objective',
+  title: s__('WorkItem|Objective'),
   value: 'objective',
 };
 
 export const TYPE_TOKEN_KEY_RESULT_OPTION = {
   icon: 'issue-type-keyresult',
-  title: 'key_result',
+  title: s__('WorkItem|Key Result'),
   value: 'key_result',
 };
 
@@ -174,13 +186,23 @@ export const defaultWorkItemTypes = [
 ];
 
 export const defaultTypeTokenOptions = [
-  { icon: 'issue-type-issue', title: 'issue', value: 'issue' },
-  { icon: 'issue-type-incident', title: 'incident', value: 'incident' },
-  { icon: 'issue-type-test-case', title: 'test_case', value: 'test_case' },
-  { icon: 'issue-type-task', title: 'task', value: 'task' },
+  { icon: 'issue-type-issue', title: s__('WorkItem|Issue'), value: 'issue' },
+  { icon: 'issue-type-incident', title: s__('WorkItem|Incident'), value: 'incident' },
+  { icon: 'issue-type-test-case', title: s__('WorkItem|Test case'), value: 'test_case' },
+  { icon: 'issue-type-task', title: s__('WorkItem|Task'), value: 'task' },
 ];
 
-export const filters = {
+export const filtersMap = {
+  [FILTERED_SEARCH_TERM]: {
+    [API_PARAM]: {
+      [NORMAL_FILTER]: 'search',
+    },
+    [URL_PARAM]: {
+      [undefined]: {
+        [NORMAL_FILTER]: 'search',
+      },
+    },
+  },
   [TOKEN_TYPE_AUTHOR]: {
     [API_PARAM]: {
       [NORMAL_FILTER]: 'authorUsername',
@@ -394,6 +416,34 @@ export const filters = {
     [URL_PARAM]: {
       [OPERATOR_IS]: {
         [NORMAL_FILTER]: 'crm_organization_id',
+      },
+    },
+  },
+  [TOKEN_TYPE_CREATED]: {
+    [API_PARAM]: {
+      [NORMAL_FILTER]: 'createdBefore',
+      [ALTERNATIVE_FILTER]: 'createdAfter',
+    },
+    [URL_PARAM]: {
+      [OPERATOR_AFTER]: {
+        [ALTERNATIVE_FILTER]: 'created_after',
+      },
+      [OPERATOR_BEFORE]: {
+        [NORMAL_FILTER]: 'created_before',
+      },
+    },
+  },
+  [TOKEN_TYPE_CLOSED]: {
+    [API_PARAM]: {
+      [NORMAL_FILTER]: 'closedBefore',
+      [ALTERNATIVE_FILTER]: 'closedAfter',
+    },
+    [URL_PARAM]: {
+      [OPERATOR_AFTER]: {
+        [ALTERNATIVE_FILTER]: 'closed_after',
+      },
+      [OPERATOR_BEFORE]: {
+        [NORMAL_FILTER]: 'closed_before',
       },
     },
   },

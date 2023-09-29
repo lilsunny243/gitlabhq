@@ -1,15 +1,9 @@
 <script>
-import {
-  GlFormRadio,
-  GlFormRadioGroup,
-  GlIcon,
-  GlLink,
-  GlSprintf,
-  GlTooltipDirective,
-} from '@gitlab/ui';
+import { GlFormRadio, GlFormRadioGroup, GlIcon, GlLink, GlTooltipDirective } from '@gitlab/ui';
 import { getWeekdayNames } from '~/lib/utils/datetime_utility';
 import { __, s__, sprintf } from '~/locale';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { DOCS_URL_IN_EE_DIR } from 'jh_else_ce/lib/utils/url_utility';
 
 const KEY_EVERY_DAY = 'everyDay';
 const KEY_EVERY_WEEK = 'everyWeek';
@@ -22,7 +16,6 @@ export default {
     GlFormRadioGroup,
     GlIcon,
     GlLink,
-    GlSprintf,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -54,7 +47,7 @@ export default {
       inputNameAttribute: 'schedule[cron]',
       radioValue: this.initialCronInterval ? KEY_CUSTOM : KEY_EVERY_DAY,
       cronInterval: this.initialCronInterval,
-      cronSyntaxUrl: 'https://docs.gitlab.com/ee/topics/cron/',
+      cronSyntaxUrl: `${DOCS_URL_IN_EE_DIR}/topics/cron/`,
     };
   },
   computed: {
@@ -68,7 +61,8 @@ export default {
     formattedTime() {
       if (this.randomHour > 12) {
         return `${this.randomHour - 12}:00pm`;
-      } else if (this.randomHour === 12) {
+      }
+      if (this.randomHour === 12) {
         return `12:00pm`;
       }
       return `${this.randomHour}:00am`;
@@ -95,8 +89,7 @@ export default {
         },
         {
           value: KEY_CUSTOM,
-          text: s__('PipelineScheduleIntervalPattern|Custom (%{linkStart}Learn more.%{linkEnd})'),
-          link: this.cronSyntaxUrl,
+          text: s__('PipelineScheduleIntervalPattern|Custom'),
         },
       ];
     },
@@ -116,7 +109,7 @@ export default {
     },
   },
   watch: {
-    cronInterval() {
+    cronInterval(val) {
       // updates field validation state when model changes, as
       // glFieldError only updates on input.
       if (this.sendNativeErrors) {
@@ -124,6 +117,8 @@ export default {
           gl.pipelineScheduleFieldErrors.updateFormValidityState();
         });
       }
+
+      this.$emit('cronValue', val);
     },
     radioValue: {
       immediate: true,
@@ -151,6 +146,10 @@ export default {
       return value === KEY_CUSTOM && this.dailyLimit;
     },
   },
+  i18n: {
+    learnCronSyntax: s__('PipelineScheduleIntervalPattern|Set a custom interval with Cron syntax.'),
+    cronSyntaxLink: s__('PipelineScheduleIntervalPattern|What is Cron syntax?'),
+  },
 };
 </script>
 
@@ -163,21 +162,14 @@ export default {
         :value="option.value"
         :data-testid="option.value"
       >
-        <gl-sprintf v-if="option.link" :message="option.text">
-          <template #link="{ content }">
-            <gl-link :href="option.link" target="_blank" class="gl-font-sm">
-              {{ content }}
-            </gl-link>
-          </template>
-        </gl-sprintf>
-
-        <template v-else>{{ option.text }}</template>
+        {{ option.text }}
 
         <gl-icon
           v-if="showDailyLimitMessage(option)"
           v-gl-tooltip.hover
-          name="question"
+          name="question-o"
           :title="scheduleDailyLimitMsg"
+          data-testid="daily-limit"
         />
       </gl-form-radio>
     </gl-form-radio-group>
@@ -191,5 +183,11 @@ export default {
       required="true"
       @input="onCustomInput"
     />
+    <p class="gl-mt-1 gl-mb-0 gl-text-secondary">
+      {{ $options.i18n.learnCronSyntax }}
+      <gl-link :href="cronSyntaxUrl" target="_blank">
+        {{ $options.i18n.cronSyntaxLink }}
+      </gl-link>
+    </p>
   </div>
 </template>

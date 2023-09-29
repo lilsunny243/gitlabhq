@@ -1,12 +1,16 @@
 <script>
-import { GlModal, GlSprintf, GlLink, GlPopover } from '@gitlab/ui';
+import {
+  GlModal,
+  GlSprintf,
+  GlLink,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownGroup,
+  GlDisclosureDropdownItem,
+} from '@gitlab/ui';
 import { s__, __ } from '~/locale';
 import { visitUrl } from '~/lib/utils/url_utility';
-import UserCalloutDismisser from '~/vue_shared/components/user_callout_dismisser.vue';
-import ActionsButton from '~/vue_shared/components/actions_button.vue';
-import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
-import ConfirmForkModal from '~/vue_shared/components/confirm_fork_modal.vue';
-import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import Tracking from '~/tracking';
+import ConfirmForkModal from '~/vue_shared/components/web_ide/confirm_fork_modal.vue';
 import { KEY_EDIT, KEY_WEB_IDE, KEY_GITPOD, KEY_PIPELINE_EDITOR } from './constants';
 
 export const i18n = {
@@ -22,24 +26,24 @@ export const i18n = {
   webIdeTooltip: s__(
     'WebIDE|Quickly and easily edit multiple files in your project. Press . to open',
   ),
+  toggleText: __('Edit'),
 };
 
-export const PREFERRED_EDITOR_KEY = 'gl-web-ide-button-selected';
-export const PREFERRED_EDITOR_RESET_KEY = 'gl-web-ide-button-selected-reset';
+const TRACKING_ACTION_NAME = 'click_consolidated_edit';
 
 export default {
+  name: 'CEWebIdeLink',
   components: {
-    ActionsButton,
-    LocalStorageSync,
     GlModal,
     GlSprintf,
     GlLink,
-    GlPopover,
+    GlDisclosureDropdown,
+    GlDisclosureDropdownGroup,
+    GlDisclosureDropdownItem,
     ConfirmForkModal,
-    UserCalloutDismisser,
   },
   i18n,
-  mixins: [glFeatureFlagsMixin()],
+  mixins: [Tracking.mixin()],
   props: {
     isFork: {
       type: Boolean,
@@ -144,7 +148,6 @@ export default {
   },
   data() {
     return {
-      selection: this.showPipelineEditorButton ? KEY_PIPELINE_EDITOR : KEY_WEB_IDE,
       showEnableGitpodModal: false,
       showForkModal: false,
     };
@@ -158,10 +161,11 @@ export default {
         this.gitpodAction,
       ].filter((action) => action);
     },
+    hasActions() {
+      return this.actions.length > 0;
+    },
     editAction() {
-      if (!this.showEditButton) {
-        return null;
-      }
+      if (!this.showEditButton) return null;
 
       const handleOptions = this.needsToFork
         ? {
@@ -179,13 +183,11 @@ export default {
 
       return {
         key: KEY_EDIT,
-        text: __('Edit'),
+        text: __('Edit single file'),
         secondaryText: __('Edit this file only.'),
-        tooltip: '',
-        attrs: {
-          'data-qa-selector': 'edit_button',
-          'data-track-action': 'click_consolidated_edit',
-          'data-track-label': 'edit',
+        tracking: {
+          action: TRACKING_ACTION_NAME,
+          label: 'single_file',
         },
         ...handleOptions,
       };
@@ -193,22 +195,21 @@ export default {
     webIdeActionText() {
       if (this.webIdeText) {
         return this.webIdeText;
-      } else if (this.isBlob) {
+      }
+      if (this.isBlob) {
         return __('Open in Web IDE');
-      } else if (this.isFork) {
+      }
+      if (this.isFork) {
         return __('Edit fork in Web IDE');
       }
 
       return __('Web IDE');
     },
     webIdeAction() {
-      if (!this.showWebIdeButton) {
-        return null;
-      }
+      if (!this.showWebIdeButton) return null;
 
       const handleOptions = this.needsToFork
         ? {
-            href: '#modal-confirm-fork-webide',
             handle: () => {
               if (this.disableForkModal) {
                 this.$emit('edit', 'ide');
@@ -219,9 +220,7 @@ export default {
             },
           }
         : {
-            href: this.webIdeUrl,
-            handle: (evt) => {
-              evt.preventDefault();
+            handle: () => {
               visitUrl(this.webIdeUrl, true);
             },
           };
@@ -230,11 +229,9 @@ export default {
         key: KEY_WEB_IDE,
         text: this.webIdeActionText,
         secondaryText: this.$options.i18n.webIdeText,
-        tooltip: this.$options.i18n.webIdeTooltip,
-        attrs: {
-          'data-qa-selector': 'web_ide_button',
-          'data-track-action': 'click_consolidated_edit_ide',
-          'data-track-label': 'web_ide',
+        tracking: {
+          action: TRACKING_ACTION_NAME,
+          label: 'web_ide',
         },
         ...handleOptions,
       };
@@ -261,11 +258,11 @@ export default {
         key: KEY_PIPELINE_EDITOR,
         text: __('Edit in pipeline editor'),
         secondaryText,
-        tooltip: secondaryText,
-        attrs: {
-          'data-qa-selector': 'pipeline_editor_button',
-        },
         href: this.pipelineEditorUrl,
+        tracking: {
+          action: TRACKING_ACTION_NAME,
+          label: 'pipeline_editor',
+        },
       };
     },
     gitpodAction() {
@@ -286,9 +283,9 @@ export default {
         key: KEY_GITPOD,
         text: this.gitpodActionText,
         secondaryText,
-        tooltip: secondaryText,
-        attrs: {
-          'data-qa-selector': 'gitpod_button',
+        tracking: {
+          action: TRACKING_ACTION_NAME,
+          label: 'gitpod',
         },
         ...handleOptions,
       };
@@ -312,124 +309,77 @@ export default {
         },
       };
     },
-    displayVscodeWebIdeCallout() {
-      return this.glFeatures.vscodeWebIde && !this.showEditButton;
+    mountForkModal() {
+      const { disableForkModal, showWebIdeButton, showEditButton } = this;
+      if (disableForkModal) return false;
+
+      return showWebIdeButton || showEditButton;
     },
-  },
-  mounted() {
-    this.resetPreferredEditor();
   },
   methods: {
-    select(key) {
-      this.selection = key;
-    },
     showModal(dataKey) {
       this[dataKey] = true;
     },
-    resetPreferredEditor() {
-      if (!this.glFeatures.vscodeWebIde || this.showEditButton) {
-        return;
-      }
-
-      if (localStorage.getItem(PREFERRED_EDITOR_RESET_KEY) === 'true') {
-        return;
-      }
-
-      localStorage.setItem(PREFERRED_EDITOR_KEY, KEY_WEB_IDE);
-      localStorage.setItem(PREFERRED_EDITOR_RESET_KEY, true);
-
-      this.select(KEY_WEB_IDE);
-    },
-    dismissCalloutOnActionClicked(dismiss) {
-      if (this.displayVscodeWebIdeCallout) {
-        dismiss();
-      }
+    executeAction(action) {
+      this.track(action.tracking.action, { label: action.tracking.label });
+      action.handle?.();
     },
   },
-  webIdeButtonId: 'web-ide-link',
-  PREFERRED_EDITOR_KEY,
 };
 </script>
 
 <template>
-  <user-callout-dismisser
-    :skip-query="!displayVscodeWebIdeCallout"
-    feature-name="vscode_web_ide_callout"
-  >
-    <template #default="{ dismiss, shouldShowCallout }">
-      <div class="gl-sm-ml-3">
-        <actions-button
-          :id="$options.webIdeButtonId"
-          :actions="actions"
-          :selected-key="selection"
-          :variant="isBlob ? 'confirm' : 'default'"
-          :category="isBlob ? 'primary' : 'secondary'"
-          :show-action-tooltip="!displayVscodeWebIdeCallout || !shouldShowCallout"
-          @select="select"
-          @actionClicked="dismissCalloutOnActionClicked(dismiss)"
-        />
-        <local-storage-sync
-          :storage-key="$options.PREFERRED_EDITOR_KEY"
-          :value="selection"
-          as-string
-          @input="select"
-        />
-        <gl-modal
-          v-if="computedShowGitpodButton && !gitpodEnabled"
-          v-model="showEnableGitpodModal"
-          v-bind="enableGitpodModalProps"
+  <div class="gl-sm-ml-3">
+    <gl-disclosure-dropdown
+      v-if="hasActions"
+      :variant="isBlob ? 'confirm' : 'default'"
+      :category="isBlob ? 'primary' : 'secondary'"
+      :toggle-text="$options.i18n.toggleText"
+      data-qa-selector="action_dropdown"
+      fluid-width
+      block
+      @shown="$emit('shown')"
+      @hidden="$emit('hidden')"
+    >
+      <slot name="before-actions"></slot>
+      <gl-disclosure-dropdown-group class="edit-dropdown-group-width">
+        <gl-disclosure-dropdown-item
+          v-for="action in actions"
+          :key="action.key"
+          :item="action"
+          :data-qa-selector="`${action.key}_menu_item`"
+          @action="executeAction(action)"
         >
-          <gl-sprintf :message="$options.i18n.modal.content">
-            <template #link="{ content }">
-              <gl-link :href="userPreferencesGitpodPath">{{ content }}</gl-link>
-            </template>
-          </gl-sprintf>
-        </gl-modal>
-        <confirm-fork-modal
-          v-if="showWebIdeButton || showEditButton"
-          v-model="showForkModal"
-          :modal-id="forkModalId"
-          :fork-path="forkPath"
-        />
-        <gl-popover
-          v-if="displayVscodeWebIdeCallout"
-          :target="$options.webIdeButtonId"
-          :show="shouldShowCallout"
-          :css-classes="['web-ide-promo-popover']"
-          :boundary-padding="80"
-          show-close-button
-          triggers="manual"
-          @close-button-clicked="dismiss"
-        >
-          <img
-            :src="webIdePromoPopoverImg"
-            class="web-ide-promo-popover-illustration"
-            width="280"
-            height="140"
-          />
-          <div class="gl-mx-2">
-            <h5 class="gl-mt-3 gl-mb-3">{{ __('The new Web IDE') }}</h5>
-            <p>
-              {{
-                __(
-                  'VS Code in your browser. View code and make changes from the same UI as in your local IDE.',
-                )
-              }}
-            </p>
-            <gl-link
-              class="gl-button btn btn-confirm block gl-mb-4 gl-mt-5"
-              variant="confirm"
-              category="primary"
-              target="_blank"
-              :href="webIdeUrl"
-              block
-              @click="dismissCalloutOnActionClicked(dismiss)"
-            >
-              {{ __('Try it out now') }}
-            </gl-link>
-          </div>
-        </gl-popover>
-      </div>
-    </template>
-  </user-callout-dismisser>
+          <template #list-item>
+            <div class="gl-display-flex gl-flex-direction-column">
+              <span data-testid="action-primary-text" class="gl-font-weight-bold gl-mb-2">{{
+                action.text
+              }}</span>
+              <span data-testid="action-secondary-text" class="gl-text-gray-700">
+                {{ action.secondaryText }}
+              </span>
+            </div>
+          </template>
+        </gl-disclosure-dropdown-item>
+      </gl-disclosure-dropdown-group>
+      <slot name="after-actions"></slot>
+    </gl-disclosure-dropdown>
+    <gl-modal
+      v-if="computedShowGitpodButton && !gitpodEnabled"
+      v-model="showEnableGitpodModal"
+      v-bind="enableGitpodModalProps"
+    >
+      <gl-sprintf :message="$options.i18n.modal.content">
+        <template #link="{ content }">
+          <gl-link :href="userPreferencesGitpodPath">{{ content }}</gl-link>
+        </template>
+      </gl-sprintf>
+    </gl-modal>
+    <confirm-fork-modal
+      v-if="mountForkModal"
+      v-model="showForkModal"
+      :modal-id="forkModalId"
+      :fork-path="forkPath"
+    />
+  </div>
 </template>

@@ -14,6 +14,7 @@ module API
     urgency :low
 
     helpers ::API::Helpers::PackagesHelpers
+    helpers ::API::Helpers::Packages::Npm
 
     params do
       requires :id, types: [String, Integer], desc: 'ID or URL-encoded path of the project'
@@ -29,6 +30,7 @@ module API
       params do
         use :pagination
       end
+      route_setting :authentication, job_token_allowed: true
       get ':id/packages/:package_id/package_files' do
         package = ::Packages::PackageFinder
           .new(user_project, params[:package_id]).execute
@@ -51,6 +53,7 @@ module API
       params do
         requires :package_file_id, type: Integer, desc: 'ID of a package file'
       end
+      route_setting :authentication, job_token_allowed: true
       delete ':id/packages/:package_id/package_files/:package_file_id' do
         authorize_destroy_package!(user_project)
 
@@ -68,6 +71,8 @@ module API
 
         destroy_conditionally!(package_file) do |package_file|
           package_file.pending_destruction!
+
+          enqueue_sync_metadata_cache_worker(user_project, package.name) if package.npm?
         end
       end
     end

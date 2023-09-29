@@ -25,6 +25,33 @@ RSpec.describe Analytics::CycleAnalytics::ValueStream, type: :model, feature_cat
     it_behaves_like 'value stream analytics namespace models' do
       let(:factory_name) { :cycle_analytics_value_stream }
     end
+
+    it 'validates count of value streams per namespace' do
+      stub_const("#{described_class.name}::MAX_VALUE_STREAMS_PER_NAMESPACE", 1)
+      group = create(:group)
+      create(:cycle_analytics_value_stream, name: 'test', namespace: group)
+
+      new_value_stream = build(:cycle_analytics_value_stream, name: 'test2', namespace: group)
+
+      expect do
+        new_value_stream.save!
+      end.to raise_error(ActiveRecord::RecordInvalid,
+        _('Validation failed: Namespace Maximum number of value streams per namespace exceeded'))
+    end
+  end
+
+  describe 'scopes' do
+    let_it_be(:group) { create(:group) }
+
+    describe '.order_by_name_asc' do
+      let_it_be(:stream1) { create(:cycle_analytics_value_stream, namespace: group, name: 'Bbb') }
+      let_it_be(:stream2) { create(:cycle_analytics_value_stream, namespace: group, name: 'aaa') }
+      let_it_be(:stream3) { create(:cycle_analytics_value_stream, namespace: group, name: 'Aaa') }
+
+      it 'returns in case-insensitive alphabetical order' do
+        expect(described_class.order_by_name_asc).to eq [stream2, stream3, stream1]
+      end
+    end
   end
 
   describe 'ordering of stages' do

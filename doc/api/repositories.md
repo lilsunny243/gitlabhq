@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, api
 ---
 
-# Repositories API **(FREE)**
+# Repositories API **(FREE ALL)**
 
 ## List repository tree
 
@@ -164,7 +164,8 @@ Supported attributes:
 Example request:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.com/api/v4/projects/<project_id>/repository/archive?sha=<commit_sha>&path=<path>"
+curl --header "PRIVATE-TOKEN: <your_access_token>" \
+  "https://gitlab.com/api/v4/projects/<project_id>/repository/archive?sha=<commit_sha>&path=<path>"
 ```
 
 ## Compare branches, tags or commits
@@ -186,9 +187,10 @@ Supported attributes:
 | `to`              | string         | yes      | The commit SHA or branch name. |
 | `from_project_id` | integer        | no       | The ID to compare from. |
 | `straight`        | boolean        | no       | Comparison method: `true` for direct comparison between `from` and `to` (`from`..`to`), `false` to compare using merge base (`from`...`to`)'. Default is `false`. |
+| `unidiff`           | boolean | No       | Present diffs in the [unified diff](https://www.gnu.org/software/diffutils/manual/html_node/Detailed-Unified.html) format. Default is false. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/130610) in GitLab 16.5.     |
 
 ```plaintext
-GET /projects/:id/repository/compare?from=master&to=feature
+GET /projects/:id/repository/compare?from=main&to=feature
 ```
 
 Example response:
@@ -216,7 +218,7 @@ Example response:
     "new_path": "files/js/application.js",
     "a_mode": null,
     "b_mode": "100644",
-    "diff": "--- a/files/js/application.js\n+++ b/files/js/application.js\n@@ -24,8 +24,10 @@\n //= require g.raphael-min\n //= require g.bar-min\n //= require branch-graph\n-//= require highlightjs.min\n-//= require ace/ace\n //= require_tree .\n //= require d3\n //= require underscore\n+\n+function fix() { \n+  alert(\"Fixed\")\n+}",
+    "diff": "@@ -24,8 +24,10 @@\n //= require g.raphael-min\n //= require g.bar-min\n //= require branch-graph\n-//= require highlightjs.min\n-//= require ace/ace\n //= require_tree .\n //= require d3\n //= require underscore\n+\n+function fix() { \n+  alert(\"Fixed\")\n+}",
     "new_file": false,
     "renamed_file": false,
     "deleted_file": false
@@ -278,10 +280,11 @@ GET /projects/:id/repository/merge_base
 | `id`      | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
 | `refs`    | array          | yes      | The refs to find the common ancestor of. Accepts multiple refs.                    |
 
-Example request:
+Example request, with the refs truncated for readability:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/merge_base?refs[]=304d257dcb821665ab5110318fc58a007bd104ed&refs[]=0031876facac3f2b2702a0e53a26e89939a42209"
+curl --header "PRIVATE-TOKEN: <your_access_token>" \
+  "https://gitlab.example.com/api/v4/projects/5/repository/merge_base?refs[]=304d257d&refs[]=0031876f"
 ```
 
 Example response:
@@ -385,26 +388,30 @@ If the last tag is `v0.9.0` and the default branch is `main`, the range of commi
 included in this example is `v0.9.0..main`:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: token" --data "version=1.0.0" "https://gitlab.com/api/v4/projects/42/repository/changelog"
+curl --request POST --header "PRIVATE-TOKEN: token" \
+  --data "version=1.0.0" "https://gitlab.com/api/v4/projects/42/repository/changelog"
 ```
 
 To generate the data on a different branch, specify the `branch` parameter. This
 command generates data from the `foo` branch:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: token" --data "version=1.0.0&branch=foo" "https://gitlab.com/api/v4/projects/42/repository/changelog"
+curl --request POST --header "PRIVATE-TOKEN: token" \
+  --data "version=1.0.0&branch=foo" "https://gitlab.com/api/v4/projects/42/repository/changelog"
 ```
 
 To use a different trailer, use the `trailer` parameter:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: token" --data "version=1.0.0&trailer=Type" "https://gitlab.com/api/v4/projects/42/repository/changelog"
+curl --request POST --header "PRIVATE-TOKEN: token" \
+  --data "version=1.0.0&trailer=Type" "https://gitlab.com/api/v4/projects/42/repository/changelog"
 ```
 
 To store the results in a different file, use the `file` parameter:
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: token" --data "version=1.0.0&file=NEWS" "https://gitlab.com/api/v4/projects/42/repository/changelog"
+curl --request POST --header "PRIVATE-TOKEN: token" \
+  --data "version=1.0.0&file=NEWS" "https://gitlab.com/api/v4/projects/42/repository/changelog"
 ```
 
 ## Generate changelog data
@@ -426,25 +433,30 @@ Supported attributes:
 | Attribute | Type     | Required   | Description |
 | :-------- | :------- | :--------- | :---------- |
 | `version` | string   | yes | The version to generate the changelog for. The format must follow [semantic versioning](https://semver.org/). |
-| `config_file` | string   | no | The path of changelog configuration file in the project's Git repository, defaults to `.gitlab/changelog_config.yml`. |
-| `date`    | datetime | no | The date and time of the release, ISO 8601 formatted. Example: `2016-03-11T03:45:40Z`. Defaults to the current time. |
+| `config_file` | string   | no | The path of changelog configuration file in the project's Git repository. Defaults to `.gitlab/changelog_config.yml`. |
+| `date`    | datetime | no | The date and time of the release. Uses ISO 8601 format. Example: `2016-03-11T03:45:40Z`. Defaults to the current time. |
 | `from`    | string   | no | The start of the range of commits (as a SHA) to use for generating the changelog. This commit itself isn't included in the list. |
 | `to`      | string   | no | The end of the range of commits (as a SHA) to use for the changelog. This commit _is_ included in the list. Defaults to the HEAD of the default project branch. |
-| `trailer` | string   | no | The Git trailer to use for including commits, defaults to `Changelog`. |
+| `trailer` | string   | no | The Git trailer to use for including commits. Defaults to `Changelog`. |
 
 ```shell
-curl --header "PRIVATE-TOKEN: token" "https://gitlab.com/api/v4/projects/42/repository/changelog?version=1.0.0"
+curl --header "PRIVATE-TOKEN: token" \
+  "https://gitlab.com/api/v4/projects/42/repository/changelog?version=1.0.0"
 ```
 
-Example Response:
+Example response, with line breaks added for readability:
 
 ```json
 {
-  "notes": "## 1.0.0 (2021-11-17)\n\n### feature (2 changes)\n\n- [Title 2](namespace13/project13@ad608eb642124f5b3944ac0ac772fecaf570a6bf) ([merge request](namespace13/project13!2))\n- [Title 1](namespace13/project13@3c6b80ff7034fa0d585314e1571cc780596ce3c8) ([merge request](namespace13/project13!1))\n"
+  "notes": "## 1.0.0 (2021-11-17)\n\n### feature (2 changes)\n\n-
+    [Title 2](namespace13/project13@ad608eb642124f5b3944ac0ac772fecaf570a6bf)
+    ([merge request](namespace13/project13!2))\n-
+    [Title 1](namespace13/project13@3c6b80ff7034fa0d585314e1571cc780596ce3c8)
+    ([merge request](namespace13/project13!1))\n"
 }
 ```
 
 ## Related topics
 
 - User documentation for [changelogs](../user/project/changelogs.md)
-- Developer documentation for [changelog entries](../development/changelog.md) in GitLab.
+- Developer documentation for [changelog entries](../development/changelog.md) in GitLab

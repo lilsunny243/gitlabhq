@@ -2,25 +2,31 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Download buttons in branches page', feature_category: :projects do
+RSpec.describe 'Download buttons in branches page', feature_category: :groups_and_projects do
   let(:user) { create(:user) }
   let(:role) { :developer }
   let(:status) { 'success' }
   let(:project) { create(:project, :repository) }
 
   let(:pipeline) do
-    create(:ci_pipeline,
-           project: project,
-           sha: project.commit('binary-encoding').sha,
-           ref: 'binary-encoding', # make sure the branch is in the 1st page!
-           status: status)
+    create(
+      :ci_pipeline,
+      project: project,
+      sha: project.commit('binary-encoding').sha,
+      ref: 'binary-encoding', # make sure the branch is in the 1st page!
+      status: status
+    )
   end
 
   let!(:build) do
-    create(:ci_build, :success, :artifacts,
-           pipeline: pipeline,
-           status: pipeline.status,
-           name: 'build')
+    create(
+      :ci_build,
+      :success,
+      :artifacts,
+      pipeline: pipeline,
+      status: pipeline.status,
+      name: 'build'
+    )
   end
 
   before do

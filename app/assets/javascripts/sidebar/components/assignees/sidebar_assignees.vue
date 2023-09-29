@@ -1,6 +1,6 @@
 <script>
 import { refreshUserMergeRequestCounts } from '~/commons/nav/user_merge_requests';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPE_ISSUE } from '~/issues/constants';
 import { __ } from '~/locale';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
@@ -26,11 +26,6 @@ export default {
     field: {
       type: String,
       required: true,
-    },
-    signedIn: {
-      type: Boolean,
-      required: false,
-      default: false,
     },
     issuableType: {
       type: String,
@@ -143,7 +138,6 @@ export default {
       :number-of-assignees="store.assignees.length"
       :loading="loading || store.isFetching.assignees"
       :editable="store.editable"
-      :show-toggle="!signedIn"
       :changing="store.changing"
     />
     <assignees

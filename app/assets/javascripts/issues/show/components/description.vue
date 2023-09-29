@@ -1,19 +1,18 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlToast } from '@gitlab/ui';
-import $ from 'jquery';
 import Sortable from 'sortablejs';
 import Vue from 'vue';
 import getIssueDetailsQuery from 'ee_else_ce/work_items/graphql/get_issue_details.query.graphql';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { TYPENAME_ISSUE, TYPENAME_WORK_ITEM } from '~/graphql_shared/constants';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPE_ISSUE } from '~/issues/constants';
 import { __, s__, sprintf } from '~/locale';
 import { getSortableDefaultOptions, isDragging } from '~/sortable/utils';
 import TaskList from '~/task_list';
-import addHierarchyChildMutation from '~/work_items/graphql/add_hierarchy_child.mutation.graphql';
-import removeHierarchyChildMutation from '~/work_items/graphql/remove_hierarchy_child.mutation.graphql';
+import { addHierarchyChild, removeHierarchyChild } from '~/work_items/graphql/cache_utils';
 import createWorkItemMutation from '~/work_items/graphql/create_work_item.mutation.graphql';
 import deleteWorkItemMutation from '~/work_items/graphql/delete_work_item.mutation.graphql';
 import projectWorkItemTypesQuery from '~/work_items/graphql/project_work_item_types.query.graphql';
@@ -59,11 +58,6 @@ export default {
       required: false,
       default: '',
     },
-    taskStatus: {
-      type: String,
-      required: false,
-      default: '',
-    },
     issuableType: {
       type: String,
       required: false,
@@ -80,6 +74,11 @@ export default {
       default: 0,
     },
     issueId: {
+      type: Number,
+      required: false,
+      default: null,
+    },
+    issueIid: {
       type: Number,
       required: false,
       default: null,
@@ -138,7 +137,10 @@ export default {
   },
   watch: {
     descriptionHtml(newDescription, oldDescription) {
-      if (!this.initialUpdate && newDescription !== oldDescription) {
+      if (
+        !this.initialUpdate &&
+        this.stripClientState(newDescription) !== this.stripClientState(oldDescription)
+      ) {
         this.animateChange();
       } else {
         this.initialUpdate = false;
@@ -148,16 +150,12 @@ export default {
         this.renderGFM();
       });
     },
-    taskStatus() {
-      this.updateTaskStatusText();
-    },
   },
   mounted() {
     eventHub.$on('convert-task-list-item', this.convertTaskListItem);
     eventHub.$on('delete-task-list-item', this.deleteTaskListItem);
 
     this.renderGFM();
-    this.updateTaskStatusText();
   },
   beforeDestroy() {
     eventHub.$off('convert-task-list-item', this.convertTaskListItem);
@@ -282,24 +280,6 @@ export default {
 
       this.$emit('taskListUpdateFailed');
     },
-    updateTaskStatusText() {
-      const taskRegexMatches = this.taskStatus.match(/(\d+) of ((?!0)\d+)/);
-      const $issuableHeader = $('.issuable-meta');
-      const $tasks = $('#task_status', $issuableHeader);
-      const $tasksShort = $('#task_status_short', $issuableHeader);
-
-      if (taskRegexMatches) {
-        $tasks.text(this.taskStatus);
-        $tasksShort.text(
-          `${taskRegexMatches[1]}/${taskRegexMatches[2]} checklist item${
-            taskRegexMatches[2] > 1 ? 's' : ''
-          }`,
-        );
-      } else {
-        $tasks.text('');
-        $tasksShort.text('');
-      }
-    },
     createTaskListItemActions(provide) {
       const app = new Vue({
         el: document.createElement('div'),
@@ -322,10 +302,13 @@ export default {
       this.$emit('saveDescription', newDescription);
     },
     renderTaskListItemActions() {
-      const taskListItems = this.$el.querySelectorAll?.('.task-list-item:not(.inapplicable)');
+      const taskListItems = this.$el.querySelectorAll?.(
+        '.task-list-item:not(.inapplicable, table .task-list-item)',
+      );
 
       taskListItems?.forEach((item) => {
-        const dropdown = this.createTaskListItemActions({ canUpdate: this.canUpdate });
+        const provide = { canUpdate: this.canUpdate, issuableType: this.issuableType };
+        const dropdown = this.createTaskListItemActions(provide);
         this.insertNextToTaskListItemText(dropdown, item);
         this.addPointerEventListeners(item, '.task-list-item-actions');
         this.hasTaskListItemActions = true;
@@ -347,32 +330,39 @@ export default {
         listItem.append(element);
       }
     },
+    stripClientState(description) {
+      return description.replaceAll('<details open="true">', '<details>');
+    },
     async createTask({ taskTitle, taskDescription, oldDescription }) {
       try {
         const { title, description } = extractTaskTitleAndDescription(taskTitle, taskDescription);
+
         const iterationInput = {
           iterationWidget: {
             iterationId: this.issueDetails.iteration?.id ?? null,
           },
         };
-        const input = {
-          confidential: this.issueDetails.confidential,
-          description,
-          hierarchyWidget: {
-            parentId: this.issueGid,
-          },
-          ...(this.hasIterationsFeature && iterationInput),
-          milestoneWidget: {
-            milestoneId: this.issueDetails.milestone?.id ?? null,
-          },
-          projectPath: this.fullPath,
-          title,
-          workItemTypeId: this.taskWorkItemTypeId,
-        };
 
         const { data } = await this.$apollo.mutate({
           mutation: createWorkItemMutation,
-          variables: { input },
+          variables: {
+            input: {
+              confidential: this.issueDetails.confidential,
+              description,
+              hierarchyWidget: {
+                parentId: this.issueGid,
+              },
+              ...(this.hasIterationsFeature && iterationInput),
+              milestoneWidget: {
+                milestoneId: this.issueDetails.milestone?.id ?? null,
+              },
+              projectPath: this.fullPath,
+              title,
+              workItemTypeId: this.taskWorkItemTypeId,
+            },
+          },
+          update: (cache, { data: { workItemCreate } }) =>
+            addHierarchyChild(cache, this.fullPath, String(this.issueIid), workItemCreate.workItem),
         });
 
         const { workItem, errors } = data.workItemCreate;
@@ -380,11 +370,6 @@ export default {
         if (errors?.length) {
           throw new Error(errors);
         }
-
-        await this.$apollo.mutate({
-          mutation: addHierarchyChildMutation,
-          variables: { id: this.issueGid, workItem },
-        });
 
         this.$toast.show(s__('WorkItem|Converted to task'), {
           action: {
@@ -406,18 +391,13 @@ export default {
         const { data } = await this.$apollo.mutate({
           mutation: deleteWorkItemMutation,
           variables: { input: { id } },
+          update: (cache) =>
+            removeHierarchyChild(cache, this.fullPath, String(this.issueIid), { id }),
         });
 
-        const { errors } = data.workItemDelete;
-
-        if (errors?.length) {
-          throw new Error(errors);
+        if (data.workItemDelete.errors?.length) {
+          throw new Error(data.workItemDelete.errors);
         }
-
-        await this.$apollo.mutate({
-          mutation: removeHierarchyChildMutation,
-          variables: { id: this.issueGid, workItem: { id } },
-        });
 
         this.$toast.show(s__('WorkItem|Task reverted'));
       } catch (error) {

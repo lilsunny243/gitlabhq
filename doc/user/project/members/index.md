@@ -1,10 +1,10 @@
 ---
-stage: Manage
-group: Organization
+stage: Data Stores
+group: Tenant Scale
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Members of a project **(FREE)**
+# Members of a project **(FREE ALL)**
 
 Members are the users and groups who have access to your project.
 
@@ -69,7 +69,7 @@ If a user is:
 
 ### Membership and visibility rights
 
-Depending on their membership type, members of groups or projects are granted different visibility levels
+Depending on their membership type, members of groups or projects are granted different [visibility levels](../../../user/public_access.md)
 and rights into the group or project.
 
 | Action | Direct group member | Inherited group member | Direct shared group member | Inherited shared group member |
@@ -79,8 +79,8 @@ and rights into the group or project.
 | View labels of groups higher in the hierarchy | ✓ | ✓ | ✓ | ✓ |
 | View milestones of groups higher in the hierarchy | ✓ | ✓ | ✓ | ✓ |
 | Be shared into other groups | ✓ |  |  |  |
-| Be shared into other projects | ✓ | ✓ |  |  |
-| Share the group with other members | ✓ |  |  |  |
+| Be shared into other projects | ✓ | ✓ | ✓ | ✓ |
+| Share the group with other members | ✓ | ✓ | ✓ | ✓ |
 
 In the following example, `User` is a:
 
@@ -108,6 +108,7 @@ graph TD
 > - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/247208) in GitLab 13.11 from a form to a modal window [with a flag](../../feature_flags.md). Disabled by default.
 > - Modal window [enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/247208) in GitLab 14.8.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/352526) in GitLab 14.9. [Feature flag `invite_members_group_modal`](https://gitlab.com/gitlab-org/gitlab/-/issues/352526) removed.
+> - Expiring access email notification [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/12704) in GitLab 16.2.
 
 Add users to a project so they become direct members and have permission
 to perform actions.
@@ -118,8 +119,8 @@ Prerequisite:
 
 To add a user to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. Select **Invite members**.
 1. If the user:
 
@@ -129,6 +130,9 @@ To add a user to a project:
 1. Select a [role](../../permissions.md).
 1. Optional. Select an **Access expiration date**.
    From that date onward, the user can no longer access the project.
+
+   If you selected an access expiration date, the project member gets an email notification
+   seven days before their access expires.
 
    WARNING:
    If you give a member the Maintainer role and select an expiration date, that member
@@ -176,8 +180,8 @@ Prerequisites:
 
 To add a group to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. Select **Invite a group**.
 1. Select a group.
 1. Select the highest [role](../../permissions.md) for users in the group.
@@ -200,10 +204,15 @@ Prerequisite:
 
 - You must have the Maintainer or Owner role.
 
+If the importing member's role in the target project is:
+
+- Maintainer, then members with the Owner role in the source project are imported with the Maintainer role.
+- Owner, then members with the Owner role in the source project are imported with the Owner role.
+
 To import users:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. Select **Import from a project**.
 1. Select the project. You can view only the projects for which you're a maintainer.
 1. Select **Import project members**.
@@ -227,10 +236,10 @@ Prerequisites:
 
 To remove a member from a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. Next to the project member you want to remove, select **Remove member**.
-1. Optional. In the confirmation box, select the
+1. Optional. On the confirmation dialog, select the
    **Also unassign this user from related issues and merge requests** checkbox.
 1. To prevent leaks of sensitive information from private projects, verify the
    member has not forked the private repository or created webhooks. Existing forks continue to receive
@@ -264,8 +273,8 @@ You can filter and sort members in a project.
 
 ### Display inherited members
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. In the **Filter members** box, select `Membership` `=` `Inherited`.
 1. Press <kbd>Enter</kbd>.
 
@@ -273,8 +282,8 @@ You can filter and sort members in a project.
 
 ### Display direct members
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Project information > Members**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Manage > Members**.
 1. In the **Filter members** box, select `Membership` `=` `Direct`.
 1. Press <kbd>Enter</kbd>.
 
@@ -296,8 +305,8 @@ You can sort members by **Account**, **Access granted**, **Max role**, or **Last
 
 GitLab users can request to become a member of a project.
 
-1. On the top bar, select **Main menu > Projects** and find the project you want to be a member of.
-1. By the project name, select **Request Access**.
+1. On the left sidebar, select **Search or go to** and find the project you want to be a member of.
+1. By the project's name, select **Request Access**.
 
 ![Request access button](img/request_access_button.png)
 
@@ -320,8 +329,8 @@ Prerequisite:
 
 - You must be the project owner.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. Under **Project visibility**, select **Users can request access**.
 1. Select **Save changes**.

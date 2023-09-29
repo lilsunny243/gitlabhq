@@ -4,7 +4,7 @@ group: Source Code
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merge request approval settings **(PREMIUM)**
+# Merge request approval settings **(PREMIUM ALL)**
 
 You can configure the settings for [merge request approvals](index.md) to
 ensure the approval rules meet your use case. You can also configure
@@ -63,7 +63,9 @@ this setting, unless you configure one of these options:
 
 ## Prevent approvals by users who add commits
 
-> Moved to GitLab Premium in 13.9.
+> - Moved to GitLab Premium in 13.9.
+> - [Feature flag `keep_merge_commits_for_approvals`](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/127744) added in GitLab 16.3 to also include merge commits in this check.
+> - [Feature flag `keep_merge_commits_for_approvals`](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/131778) removed in GitLab 16.5. This check now includes merge commits.
 
 By default, users who commit to a merge request can still approve it. At both
 the project level or [instance level](../../../admin_area/merge_requests_approvals.md),
@@ -78,13 +80,13 @@ their own. To do this:
    it can't be changed at the project level.
 1. Select **Save changes**.
 
-Depending on your version of GitLab, [code owners](../../code_owners.md) who commit
+Depending on your version of GitLab, [code owners](../../codeowners/index.md) who commit
 to a merge request may or may not be able to approve the work:
 
-- In GitLab 13.10 and earlier, [code owners](../../code_owners.md) who commit
+- In GitLab 13.10 and earlier, code owners who commit
   to a merge request can approve it, even if the merge request affects files they own.
 - In [GitLab 13.11 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/331548),
-  [code owners](../../code_owners.md) who commit
+  code owners who commit
   to a merge request cannot approve it, when the merge request affects files they own.
 
 For more information, see the [official Git documentation](https://git-scm.com/book/en/v2/Git-Basics-Viewing-the-Commit-History).
@@ -112,7 +114,7 @@ permission enables an electronic signature for approvals, such as the one define
 [Code of Federal Regulations (CFR) Part 11](https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfcfr/CFRSearch.cfm?CFRPart=11&showFR=1&subpartNode=21:1.0.1.1.8.3)):
 
 1. Enable password authentication for the web interface, as described in the
-   [sign-in restrictions documentation](../../../admin_area/settings/sign_in_restrictions.md#password-authentication-enabled).
+   [sign-in restrictions documentation](../../../../administration/settings/sign_in_restrictions.md#password-authentication-enabled).
 1. On the left sidebar, select **Settings > Merge requests**.
 1. In the **Merge request approvals** section, scroll to **Approval settings** and
    select **Require user password to approve**.
@@ -121,7 +123,7 @@ permission enables an electronic signature for approvals, such as the one define
 ## Remove all approvals when commits are added to the source branch
 
 By default, an approval on a merge request is removed when you add more changes
-after the approval. In GitLab Premium and higher tiers, to keep existing approvals
+after the approval. In GitLab Premium and Ultimate tiers, to keep existing approvals
 after more changes are added to the merge request:
 
 1. On the left sidebar, select **Settings > Merge requests**.
@@ -140,7 +142,7 @@ However, approvals are reset if the target branch is changed.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/90578) in GitLab 15.3.
 
-If you only want to remove approvals by Code Owners whose files have been changed:
+If you only want to remove approvals by Code Owners whose files have been changed when a commit is added:
 
 Prerequisite:
 
@@ -152,13 +154,6 @@ To do this:
 1. In the **Merge request approvals** section, scroll to **Approval settings** and
    select **Remove approvals by Code Owners if their files changed**.
 1. Select **Save changes**.
-
-## Code coverage check approvals
-
-You can require specific approvals if a merge request would result in a decline in code test
-coverage.
-
-For more information, see [Coverage check approval rule](../../../../ci/pipelines/settings.md#coverage-check-approval-rule).
 
 ## Settings cascading
 
@@ -179,5 +174,5 @@ that inherited them.
 ## Related topics
 
 - [Instance-level merge request approval settings](../../../admin_area/merge_requests_approvals.md)
-- [Compliance report](../../../compliance/compliance_report/index.md)
+- [Compliance center](../../../compliance/compliance_center/index.md)
 - [Merge request approvals API](../../../../api/merge_request_approvals.md)

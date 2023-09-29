@@ -10,7 +10,7 @@ module API
     feature_category :importers
     urgency :low
 
-    before { authenticate! unless route.settings[:skip_authentication] }
+    before { authenticate! }
 
     helpers do
       def import_params
@@ -33,16 +33,14 @@ module API
       end
     end
 
-    before do
-      forbidden! unless Gitlab::CurrentSettings.import_sources.include?('gitlab_project')
-    end
-
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       desc 'Workhorse authorize the project import upload' do
         detail 'This feature was introduced in GitLab 12.9'
         tags ['project_import']
       end
       post 'import/authorize' do
+        forbidden! unless Gitlab::CurrentSettings.import_sources.include?('gitlab_project')
+
         require_gitlab_workhorse!
 
         status 200
@@ -90,6 +88,8 @@ module API
         consumes ['multipart/form-data']
       end
       post 'import' do
+        forbidden! unless Gitlab::CurrentSettings.import_sources.include?('gitlab_project')
+
         require_gitlab_workhorse!
 
         check_rate_limit! :project_import, scope: [current_user, :project_import]
@@ -111,7 +111,7 @@ module API
         ).execute
 
         if response.success?
-          present(response.payload, with: Entities::ProjectImportStatus)
+          present(response.payload, with: Entities::ProjectImportStatus, current_user: current_user)
         else
           render_api_error!(response.message, response.http_status)
         end
@@ -132,9 +132,8 @@ module API
         ]
         tags ['project_import']
       end
-      route_setting :skip_authentication, true
       get ':id/import' do
-        present user_project, with: Entities::ProjectImportStatus
+        present user_project, with: Entities::ProjectImportStatus, current_user: current_user
       end
 
       params do
@@ -164,6 +163,8 @@ module API
         ]
       end
       post 'remote-import' do
+        forbidden! unless Gitlab::CurrentSettings.import_sources.include?('gitlab_project')
+
         check_rate_limit! :project_import, scope: [current_user, :project_import]
 
         response = ::Import::GitlabProjects::CreateProjectService.new(
@@ -180,7 +181,7 @@ module API
         ).execute
 
         if response.success?
-          present(response.payload, with: Entities::ProjectImportStatus)
+          present(response.payload, with: Entities::ProjectImportStatus, current_user: current_user)
         else
           render_api_error!(response.message, response.http_status)
         end
@@ -217,7 +218,7 @@ module API
         ]
       end
       post 'remote-import-s3' do
-        not_found! unless ::Feature.enabled?(:import_project_from_remote_file_s3)
+        forbidden! unless Gitlab::CurrentSettings.import_sources.include?('gitlab_project')
 
         check_rate_limit! :project_import, scope: [current_user, :project_import]
 
@@ -239,7 +240,7 @@ module API
         ).execute
 
         if response.success?
-          present(response.payload, with: Entities::ProjectImportStatus)
+          present(response.payload, with: Entities::ProjectImportStatus, current_user: current_user)
         else
           render_api_error!(response.message, response.http_status)
         end

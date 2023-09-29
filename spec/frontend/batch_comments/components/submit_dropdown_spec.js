@@ -1,7 +1,10 @@
+import { GlDropdown } from '@gitlab/ui';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import SubmitDropdown from '~/batch_comments/components/submit_dropdown.vue';
+import { mockTracking } from 'helpers/tracking_helper';
 
 jest.mock('~/autosave');
 
@@ -9,9 +12,11 @@ Vue.use(Vuex);
 
 let wrapper;
 let publishReview;
+let trackingSpy;
 
-function factory({ canApprove = true } = {}) {
+function factory({ canApprove = true, shouldAnimateReviewButton = false } = {}) {
   publishReview = jest.fn();
+  trackingSpy = mockTracking(undefined, null, jest.spyOn);
 
   const store = new Vuex.Store({
     getters: {
@@ -30,6 +35,7 @@ function factory({ canApprove = true } = {}) {
     modules: {
       batchComments: {
         namespaced: true,
+        state: { shouldAnimateReviewButton },
         actions: {
           publishReview,
         },
@@ -44,10 +50,10 @@ function factory({ canApprove = true } = {}) {
 const findCommentTextarea = () => wrapper.findByTestId('comment-textarea');
 const findSubmitButton = () => wrapper.findByTestId('submit-review-button');
 const findForm = () => wrapper.findByTestId('submit-gl-form');
+const findSubmitDropdown = () => wrapper.findComponent(GlDropdown);
 
 describe('Batch comments submit dropdown', () => {
   afterEach(() => {
-    wrapper.destroy();
     window.mrTabs = null;
   });
 
@@ -64,6 +70,19 @@ describe('Batch comments submit dropdown', () => {
       note: 'Hello world',
       approve: false,
       approval_password: '',
+    });
+  });
+
+  it('tracks submit action', () => {
+    factory();
+
+    findCommentTextarea().setValue('Hello world');
+
+    findForm().vm.$emit('submit', { preventDefault: jest.fn() });
+
+    expect(trackingSpy).toHaveBeenCalledWith(undefined, 'save_markdown', {
+      label: 'markdown_editor',
+      property: 'MergeRequest_review',
     });
   });
 
@@ -99,4 +118,19 @@ describe('Batch comments submit dropdown', () => {
 
     expect(wrapper.findByTestId('approve_merge_request').exists()).toBe(exists);
   });
+
+  it.each`
+    shouldAnimateReviewButton | animationClassApplied | classText
+    ${true}                   | ${true}               | ${'applies'}
+    ${false}                  | ${false}              | ${'does not apply'}
+  `(
+    '$classText animation class to `Finish review` button if `shouldAnimateReviewButton` is $shouldAnimateReviewButton',
+    ({ shouldAnimateReviewButton, animationClassApplied }) => {
+      factory({ shouldAnimateReviewButton });
+
+      expect(findSubmitDropdown().classes('submit-review-dropdown-animated')).toBe(
+        animationClassApplied,
+      );
+    },
+  );
 });

@@ -1,23 +1,33 @@
 import { mount } from '@vue/test-utils';
 import Toolbar from '~/vue_shared/components/markdown/toolbar.vue';
-import EditorModeDropdown from '~/vue_shared/components/markdown/editor_mode_dropdown.vue';
+import EditorModeSwitcher from '~/vue_shared/components/markdown/editor_mode_switcher.vue';
+import { updateText } from '~/lib/utils/text_markdown';
+import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+
+jest.mock('~/lib/utils/text_markdown');
 
 describe('toolbar', () => {
   let wrapper;
 
-  const createMountedWrapper = (props = {}) => {
+  const createWrapper = (props = {}, attachTo = document.body) => {
     wrapper = mount(Toolbar, {
+      attachTo,
       propsData: { markdownDocsPath: '', ...props },
+      mocks: {
+        $apollo: {
+          queries: {
+            currentUser: {
+              loading: false,
+            },
+          },
+        },
+      },
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('user can attach file', () => {
     beforeEach(() => {
-      createMountedWrapper();
+      createWrapper();
     });
 
     it('should render uploading-container', () => {
@@ -27,7 +37,7 @@ describe('toolbar', () => {
 
   describe('user cannot attach file', () => {
     beforeEach(() => {
-      createMountedWrapper({ canAttachFile: false });
+      createWrapper({ canAttachFile: false });
     });
 
     it('should not render uploading-container', () => {
@@ -37,13 +47,13 @@ describe('toolbar', () => {
 
   describe('comment tool bar settings', () => {
     it('does not show comment tool bar div', () => {
-      createMountedWrapper({ showCommentToolBar: false });
+      createWrapper({ showCommentToolBar: false });
 
       expect(wrapper.find('.comment-toolbar').exists()).toBe(false);
     });
 
     it('shows comment tool bar by default', () => {
-      createMountedWrapper();
+      createWrapper();
 
       expect(wrapper.find('.comment-toolbar').exists()).toBe(true);
     });
@@ -51,15 +61,26 @@ describe('toolbar', () => {
 
   describe('with content editor switcher', () => {
     beforeEach(() => {
-      createMountedWrapper({
-        showContentEditorSwitcher: true,
-      });
+      setHTMLFixture(
+        '<div class="md-area"><textarea>some value</textarea><div id="root"></div></div>',
+      );
+      createWrapper(
+        {
+          showContentEditorSwitcher: true,
+        },
+        '#root',
+      );
+    });
+
+    afterEach(() => {
+      resetHTMLFixture();
     });
 
     it('re-emits event from switcher', () => {
-      wrapper.findComponent(EditorModeDropdown).vm.$emit('input', 'richText');
+      wrapper.findComponent(EditorModeSwitcher).vm.$emit('switch');
 
       expect(wrapper.emitted('enableContentEditor')).toEqual([[]]);
+      expect(updateText).not.toHaveBeenCalled();
     });
   });
 });

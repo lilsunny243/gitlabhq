@@ -16,13 +16,11 @@ module MergeRequests
     delegate :merge_jid, :state, to: :@merge_request
 
     def execute(merge_request, options = {})
-      if project.merge_requests_ff_only_enabled && !self.is_a?(FfMergeService)
-        FfMergeService.new(project: project, current_user: current_user, params: params).execute(merge_request)
-        return
-      end
-
       return if merge_request.merged?
       return unless exclusive_lease(merge_request.id).try_obtain
+
+      merge_strategy_class = options[:merge_strategy] || MergeRequests::MergeStrategies::FromSourceBranch
+      @merge_strategy = merge_strategy_class.new(merge_request, current_user, merge_params: params, options: options)
 
       @merge_request = merge_request
       @options = options
@@ -39,7 +37,7 @@ module MergeRequests
       end
 
       log_info("Merge process finished on JID #{jid} with state #{state}")
-    rescue MergeError => e
+    rescue MergeError, MergeRequests::MergeStrategies::StrategyError => e
       handle_merge_error(log_message: e.message, save_message_on_model: true)
     ensure
       exclusive_lease(merge_request.id).cancel
@@ -50,6 +48,7 @@ module MergeRequests
     def validate!
       authorization_check!
       error_check!
+      validate_strategy!
       updated_check!
     end
 
@@ -59,21 +58,8 @@ module MergeRequests
       end
     end
 
-    def error_check!
-      super
-
-      check_source
-
-      error =
-        if @merge_request.should_be_rebased?
-          'Only fast-forward merge is allowed for your project. Please update your source branch'
-        elsif !@merge_request.mergeable?(skip_discussions_check: @options[:skip_discussions_check])
-          'Merge request is not mergeable'
-        elsif !@merge_request.squash && project.squash_always?
-          'This project requires squashing commits when merge requests are accepted.'
-        end
-
-      raise_error(error) if error
+    def validate_strategy!
+      @merge_strategy.validate!
     end
 
     def updated_check!
@@ -85,45 +71,34 @@ module MergeRequests
 
     def commit
       log_info("Git merge started on JID #{merge_jid}")
-      commit_id = try_merge
 
-      if commit_id
-        log_info("Git merge finished on JID #{merge_jid} commit #{commit_id}")
-      else
-        raise_error(GENERIC_ERROR_MESSAGE)
-      end
+      merge_result = try_merge { @merge_strategy.execute_git_merge! }
 
-      update_merge_sha_metadata(commit_id)
+      commit_sha = merge_result[:commit_sha]
+      raise_error(GENERIC_ERROR_MESSAGE) unless commit_sha
 
-      commit_id
+      log_info("Git merge finished on JID #{merge_jid} commit #{commit_sha}")
+
+      new_merge_request_attributes = {
+        merged_commit_sha: commit_sha,
+        merge_commit_sha: merge_result[:merge_commit_sha],
+        squash_commit_sha: merge_result[:squash_commit_sha]
+      }.compact
+      merge_request.update!(new_merge_request_attributes) if new_merge_request_attributes.present?
+
+      commit_sha
     ensure
       merge_request.update_and_mark_in_progress_merge_commit_sha(nil)
       log_info("Merge request marked in progress")
     end
 
-    def update_merge_sha_metadata(commit_id)
-      data_to_update = merge_success_data(commit_id)
-      data_to_update[:squash_commit_sha] = source if merge_request.squash_on_merge?
-
-      merge_request.update!(**data_to_update) if data_to_update.present?
-    end
-
-    def merge_success_data(commit_id)
-      { merge_commit_sha: commit_id }
-    end
-
     def try_merge
-      execute_git_merge
+      yield
     rescue Gitlab::Git::PreReceiveError => e
-      raise MergeError,
-            "Something went wrong during merge pre-receive hook. #{e.message}".strip
+      raise MergeError, "Something went wrong during merge pre-receive hook. #{e.message}".strip
     rescue StandardError => e
       handle_merge_error(log_message: e.message)
       raise_error(GENERIC_ERROR_MESSAGE)
-    end
-
-    def execute_git_merge
-      repository.merge(current_user, source, merge_request, commit_message)
     end
 
     def after_merge
@@ -161,7 +136,7 @@ module MergeRequests
     end
 
     def handle_merge_error(log_message:, save_message_on_model: false)
-      log_error("MergeService ERROR: #{merge_request_info} - #{log_message}")
+      log_error("MergeService ERROR: #{merge_request_info}:#{merge_status} - #{log_message}")
       @merge_request.update(merge_error: log_message) if save_message_on_model
     end
 
@@ -180,13 +155,15 @@ module MergeRequests
     end
 
     def log_payload(message)
-      Gitlab::ApplicationContext.current
-        .merge(merge_request_info: merge_request_info,
-               message: message)
+      Gitlab::ApplicationContext.current.merge(merge_request_info: merge_request_info, message: message)
     end
 
     def merge_request_info
       @merge_request_info ||= merge_request.to_reference(full: true)
+    end
+
+    def merge_status
+      @merge_status ||= @merge_request.merge_status
     end
 
     def source_matches?

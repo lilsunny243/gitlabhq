@@ -7,7 +7,7 @@ module Integrations
     validates :api_key, :user_key, :priority, presence: true, if: :activated?
 
     field :api_key,
-      type: 'password',
+      type: :password,
       title: -> { _('API key') },
       help: -> { s_('PushoverService|Enter your application key.') },
       non_empty_password_title: -> { s_('ProjectService|Enter new API key') },
@@ -16,7 +16,7 @@ module Integrations
       required: true
 
     field :user_key,
-      type: 'password',
+      type: :password,
       title: -> { _('User key') },
       help: -> { s_('PushoverService|Enter your user key.') },
       non_empty_password_title: -> { s_('PushoverService|Enter new user key') },
@@ -30,7 +30,7 @@ module Integrations
       placeholder: ''
 
     field :priority,
-      type: 'select',
+      type: :select,
       required: true,
       choices: -> do
         [
@@ -42,24 +42,24 @@ module Integrations
       end
 
     field :sound,
-      type: 'select',
+      type: :select,
       choices: -> do
         [
           ['Device default sound', nil],
           ['Pushover (default)', 'pushover'],
-          %w(Bike bike),
-          %w(Bugle bugle),
+          %w[Bike bike],
+          %w[Bugle bugle],
           ['Cash Register', 'cashregister'],
-          %w(Classical classical),
-          %w(Cosmic cosmic),
-          %w(Falling falling),
-          %w(Gamelan gamelan),
-          %w(Incoming incoming),
-          %w(Intermission intermission),
-          %w(Magic magic),
-          %w(Mechanical mechanical),
+          %w[Classical classical],
+          %w[Cosmic cosmic],
+          %w[Falling falling],
+          %w[Gamelan gamelan],
+          %w[Incoming incoming],
+          %w[Intermission intermission],
+          %w[Magic magic],
+          %w[Mechanical mechanical],
           ['Piano Bar', 'pianobar'],
-          %w(Siren siren),
+          %w[Siren siren],
           ['Space Alarm', 'spacealarm'],
           ['Tug Boat', 'tugboat'],
           ['Alien Alarm (long)', 'alien'],
@@ -84,7 +84,7 @@ module Integrations
     end
 
     def self.supported_events
-      %w(push)
+      %w[push]
     end
 
     def execute(data)

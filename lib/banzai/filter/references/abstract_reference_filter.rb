@@ -20,7 +20,7 @@ module Banzai
         # transitory value (it never gets saved) we can initialize once, and it
         # doesn't matter if it changes on a restart.
         REFERENCE_PLACEHOLDER = "_reference_#{SecureRandom.hex(16)}_"
-        REFERENCE_PLACEHOLDER_PATTERN = %r{#{REFERENCE_PLACEHOLDER}(\d+)}.freeze
+        REFERENCE_PLACEHOLDER_PATTERN = %r{#{REFERENCE_PLACEHOLDER}(\d+)}
 
         # Public: Find references in text (like `!123` for merge requests)
         #
@@ -202,9 +202,13 @@ module Banzai
               title = object_link_title(object, matches)
               klass = reference_class(object_sym)
 
-              data_attributes = data_attributes_for(link_content || match, parent, object,
-                                                    link_content: !!link_content,
-                                                    link_reference: link_reference)
+              data_attributes = data_attributes_for(
+                link_content || match,
+                parent,
+                object,
+                link_content: !!link_content,
+                link_reference: link_reference
+              )
               data_attributes[:reference_format] = matches[:format] if matches.names.include?("format")
               data_attributes.merge!(additional_object_attributes(object))
 

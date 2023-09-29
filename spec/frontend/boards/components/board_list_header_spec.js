@@ -1,12 +1,20 @@
-import { GlDisclosureDropdown, GlDisclosureDropdownItem } from '@gitlab/ui';
+import { GlButtonGroup } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
-import { boardListQueryResponse, mockLabelList } from 'jest/boards/mock_data';
+import waitForPromises from 'helpers/wait_for_promises';
+import {
+  boardListQueryResponse,
+  mockLabelList,
+  updateBoardListResponse,
+} from 'jest/boards/mock_data';
 import BoardListHeader from '~/boards/components/board_list_header.vue';
+import updateBoardListMutation from '~/boards/graphql/board_list_update.mutation.graphql';
 import { ListType } from '~/boards/constants';
+import * as cacheUpdates from '~/boards/graphql/cache_updates';
 import listQuery from 'ee_else_ce/boards/graphql/board_lists_deferred.query.graphql';
 
 Vue.use(VueApollo);
@@ -19,10 +27,14 @@ describe('Board List Header Component', () => {
 
   const updateListSpy = jest.fn();
   const toggleListCollapsedSpy = jest.fn();
+  const mockClientToggleListCollapsedResolver = jest.fn();
+  const updateListHandlerSuccess = jest.fn().mockResolvedValue(updateBoardListResponse);
+
+  beforeEach(() => {
+    cacheUpdates.setError = jest.fn();
+  });
 
   afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
     fakeApollo = null;
 
     localStorage.clear();
@@ -34,9 +46,10 @@ describe('Board List Header Component', () => {
     withLocalStorage = true,
     currentUserId = 1,
     listQueryHandler = jest.fn().mockResolvedValue(boardListQueryResponse()),
+    updateListHandler = updateListHandlerSuccess,
     injectedProps = {},
   } = {}) => {
-    const boardId = '1';
+    const boardId = 'gid://gitlab/Board/1';
 
     const listMock = {
       ...mockLabelList,
@@ -60,8 +73,17 @@ describe('Board List Header Component', () => {
       state: {},
       actions: { updateList: updateListSpy, toggleListCollapsed: toggleListCollapsedSpy },
     });
-
-    fakeApollo = createMockApollo([[listQuery, listQueryHandler]]);
+    fakeApollo = createMockApollo(
+      [
+        [listQuery, listQueryHandler],
+        [updateBoardListMutation, updateListHandler],
+      ],
+      {
+        Mutation: {
+          clientToggleListCollapsed: mockClientToggleListCollapsedResolver,
+        },
+      },
+    );
 
     wrapper = shallowMountExtended(BoardListHeader, {
       apolloProvider: fakeApollo,
@@ -69,9 +91,9 @@ describe('Board List Header Component', () => {
       propsData: {
         list: listMock,
         filterParams: {},
+        boardId,
       },
       provide: {
-        boardId,
         weightFeatureAvailable: false,
         currentUserId,
         isEpicBoard: false,
@@ -79,18 +101,29 @@ describe('Board List Header Component', () => {
         ...injectedProps,
       },
       stubs: {
-        GlDisclosureDropdown,
-        GlDisclosureDropdownItem,
+        GlButtonGroup,
       },
     });
   };
 
-  const findDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
+  const findButtonGroup = () => wrapper.findComponent(GlButtonGroup);
   const isCollapsed = () => wrapper.vm.list.collapsed;
   const findTitle = () => wrapper.find('.board-title');
   const findCaret = () => wrapper.findByTestId('board-title-caret');
-  const findNewIssueButton = () => wrapper.findByTestId('newIssueBtn');
-  const findSettingsButton = () => wrapper.findByTestId('settingsBtn');
+  const findNewIssueButton = () => wrapper.findByTestId('new-issue-btn');
+  const findSettingsButton = () => wrapper.findByTestId('settings-btn');
+  const findBoardListHeader = () => wrapper.findByTestId('board-list-header');
+
+  it('renders border when label color is present', () => {
+    createComponent({ listType: ListType.label });
+
+    expect(findBoardListHeader().classes()).toContain(
+      'gl-border-t-solid',
+      'gl-border-4',
+      'gl-rounded-top-left-base',
+      'gl-rounded-top-right-base',
+    );
+  });
 
   describe('Add issue button', () => {
     const hasNoAddButton = [ListType.closed];
@@ -105,13 +138,13 @@ describe('Board List Header Component', () => {
     it.each(hasNoAddButton)('does not render dropdown when List Type is `%s`', (listType) => {
       createComponent({ listType });
 
-      expect(findDropdown().exists()).toBe(false);
+      expect(findButtonGroup().exists()).toBe(false);
     });
 
     it.each(hasAddButton)('does render when List Type is `%s`', (listType) => {
       createComponent({ listType });
 
-      expect(findDropdown().exists()).toBe(true);
+      expect(findButtonGroup().exists()).toBe(true);
       expect(findNewIssueButton().exists()).toBe(true);
     });
 
@@ -120,7 +153,7 @@ describe('Board List Header Component', () => {
         currentUserId: null,
       });
 
-      expect(findDropdown().exists()).toBe(false);
+      expect(findButtonGroup().exists()).toBe(false);
     });
   });
 
@@ -130,26 +163,26 @@ describe('Board List Header Component', () => {
     it.each(hasSettings)('does render for List Type `%s`', (listType) => {
       createComponent({ listType });
 
-      expect(findDropdown().exists()).toBe(true);
+      expect(findButtonGroup().exists()).toBe(true);
       expect(findSettingsButton().exists()).toBe(true);
     });
 
     it('does not render dropdown when ListType `closed`', () => {
       createComponent({ listType: ListType.closed });
 
-      expect(findDropdown().exists()).toBe(false);
+      expect(findButtonGroup().exists()).toBe(false);
     });
 
     it('renders dropdown but not the Settings button when ListType `backlog`', () => {
       createComponent({ listType: ListType.backlog });
 
-      expect(findDropdown().exists()).toBe(true);
+      expect(findButtonGroup().exists()).toBe(true);
       expect(findSettingsButton().exists()).toBe(false);
     });
   });
 
   describe('expanding / collapsing the column', () => {
-    it('should display collapse icon when column is expanded', async () => {
+    it('should display collapse icon when column is expanded', () => {
       createComponent();
 
       const icon = findCaret();
@@ -157,7 +190,7 @@ describe('Board List Header Component', () => {
       expect(icon.props('icon')).toBe('chevron-lg-down');
     });
 
-    it('should display expand icon when column is collapsed', async () => {
+    it('should display expand icon when column is collapsed', () => {
       createComponent({ collapsed: true });
 
       const icon = findCaret();
@@ -193,7 +226,9 @@ describe('Board List Header Component', () => {
       await nextTick();
 
       expect(updateListSpy).not.toHaveBeenCalled();
-      expect(localStorage.getItem(`${wrapper.vm.uniqueKey}.collapsed`)).toBe(String(isCollapsed()));
+      expect(localStorage.getItem(`${wrapper.vm.uniqueKey}.collapsed`)).toBe(
+        String(!isCollapsed()),
+      );
     });
   });
 
@@ -214,6 +249,89 @@ describe('Board List Header Component', () => {
       createComponent({ listType });
 
       expect(findTitle().classes()).toContain('gl-cursor-grab');
+    });
+  });
+
+  describe('Apollo boards', () => {
+    beforeEach(async () => {
+      createComponent({ listType: ListType.label, injectedProps: { isApolloBoard: true } });
+      await nextTick();
+    });
+
+    it('set active board item on client when clicking on card', async () => {
+      findCaret().vm.$emit('click');
+      await nextTick();
+
+      expect(mockClientToggleListCollapsedResolver).toHaveBeenCalledWith(
+        {},
+        {
+          list: mockLabelList,
+          collapsed: true,
+        },
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('does not call update list mutation when user is not logged in', async () => {
+      createComponent({ currentUserId: null, injectedProps: { isApolloBoard: true } });
+
+      findCaret().vm.$emit('click');
+      await nextTick();
+
+      expect(updateListHandlerSuccess).not.toHaveBeenCalled();
+    });
+
+    it('calls update list mutation when user is logged in', async () => {
+      createComponent({ currentUserId: 1, injectedProps: { isApolloBoard: true } });
+
+      findCaret().vm.$emit('click');
+      await nextTick();
+
+      expect(updateListHandlerSuccess).toHaveBeenCalledWith({
+        listId: mockLabelList.id,
+        collapsed: true,
+      });
+    });
+
+    describe('when fetch list query fails', () => {
+      const errorMessage = 'Failed to fetch list';
+      const listQueryHandlerFailure = jest.fn().mockRejectedValue(new Error(errorMessage));
+
+      beforeEach(() => {
+        createComponent({
+          listQueryHandler: listQueryHandlerFailure,
+          injectedProps: { isApolloBoard: true },
+        });
+      });
+
+      it('sets error', async () => {
+        await waitForPromises();
+
+        expect(cacheUpdates.setError).toHaveBeenCalled();
+      });
+    });
+
+    describe('when update list mutation fails', () => {
+      const errorMessage = 'Failed to update list';
+      const updateListHandlerFailure = jest.fn().mockRejectedValue(new Error(errorMessage));
+
+      beforeEach(() => {
+        createComponent({
+          currentUserId: 1,
+          updateListHandler: updateListHandlerFailure,
+          injectedProps: { isApolloBoard: true },
+        });
+      });
+
+      it('sets error', async () => {
+        await waitForPromises();
+
+        findCaret().vm.$emit('click');
+        await waitForPromises();
+
+        expect(cacheUpdates.setError).toHaveBeenCalled();
+      });
     });
   });
 });

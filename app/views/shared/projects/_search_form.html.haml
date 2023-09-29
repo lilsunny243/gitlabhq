@@ -2,7 +2,7 @@
 - admin_view ||= false
 - top_padding = admin_view ? 'gl-lg-pt-3' : ''
 
-= form_tag filter_projects_path, method: :get, class: "project-filter-form gl-display-flex! gl-flex-wrap-wrap gl-w-full gl-gap-3 #{top_padding}", data: { qa_selector: 'project_filter_form_container' }, id: 'project-filter-form' do |f|
+= form_tag filter_projects_path, method: :get, class: "project-filter-form gl-display-flex! gl-flex-wrap gl-w-full gl-gap-3 #{top_padding}", data: { qa_selector: 'project_filter_form_container' }, id: 'project-filter-form' do |f|
   = search_field_tag :name, params[:name],
     placeholder: placeholder,
     class: "project-filter-form-field form-control input-short js-projects-list-filter gl-m-0!",
@@ -51,5 +51,5 @@
     .gl-display-flex.gl-w-full.gl-md-w-auto{ class: 'gl-m-0!' }
       .js-namespace-select{ data: { field_name: 'namespace_id', selected_id: namespace&.id, selected_text: selected_text, update_location: 'true' } }
 
-    = link_to new_project_path, class: 'gl-button btn btn-confirm gl-display-inline gl-mb-0!' do
+    = link_button_to new_project_path, class: 'gl-display-inline gl-mb-0!', variant: :confirm do
       = _('New Project')

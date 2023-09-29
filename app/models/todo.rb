@@ -6,13 +6,14 @@ class Todo < ApplicationRecord
   include EachBatch
   include IgnorableColumns
 
-  ignore_column :note_id_convert_to_bigint, remove_with: '16.0', remove_after: '2023-05-22'
+  ignore_column :note_id_convert_to_bigint, remove_with: '16.2', remove_after: '2023-07-22'
 
   # Time to wait for todos being removed when not visible for user anymore.
   # Prevents TODOs being removed by mistake, for example, removing access from a user
   # and giving it back again.
   WAIT_FOR_DELETE = 1.hour
 
+  # Actions
   ASSIGNED            = 1
   MENTIONED           = 2
   BUILD_FAILED        = 3
@@ -23,6 +24,7 @@ class Todo < ApplicationRecord
   MERGE_TRAIN_REMOVED = 8 # This is an EE-only feature
   REVIEW_REQUESTED    = 9
   MEMBER_ACCESS_REQUESTED = 10
+  REVIEW_SUBMITTED = 11 # This is an EE-only feature
 
   ACTION_NAMES = {
     ASSIGNED => :assigned,
@@ -34,7 +36,8 @@ class Todo < ApplicationRecord
     UNMERGEABLE => :unmergeable,
     DIRECTLY_ADDRESSED => :directly_addressed,
     MERGE_TRAIN_REMOVED => :merge_train_removed,
-    MEMBER_ACCESS_REQUESTED => :member_access_requested
+    MEMBER_ACCESS_REQUESTED => :member_access_requested,
+    REVIEW_SUBMITTED => :review_submitted
   }.freeze
 
   ACTIONS_MULTIPLE_ALLOWED = [Todo::MENTIONED, Todo::DIRECTLY_ADDRESSED, Todo::MEMBER_ACCESS_REQUESTED].freeze
@@ -76,10 +79,11 @@ class Todo < ApplicationRecord
   scope :for_target, -> (id) { where(target_id: id) }
   scope :for_commit, -> (id) { where(commit_id: id) }
   scope :with_entity_associations, -> do
-    preload(:target, :author, :note, group: :route, project: [:route, { namespace: [:route, :owner] }, :project_setting])
+    preload(:target, :author, :note, group: :route, project: [:route, :group, { namespace: [:route, :owner] }, :project_setting])
   end
   scope :joins_issue_and_assignees, -> { left_joins(issue: :assignees) }
   scope :for_internal_notes, -> { joins(:note).where(note: { confidential: true }) }
+  scope :with_preloaded_user, -> { preload(:user) }
 
   enum resolved_by_action: { system_done: 0, api_all_done: 1, api_done: 2, mark_all_done: 3, mark_done: 4 }, _prefix: :resolved_by
 
@@ -115,7 +119,18 @@ class Todo < ApplicationRecord
     # target - The value of the `target_type` column, such as `Issue`.
     # state - The value of the `state` column, such as `pending` or `done`.
     def any_for_target?(target, state = nil)
-      state.nil? ? exists?(target: target) : exists?(target: target, state: state)
+      conditions = {}
+
+      if target.respond_to?(:todoable_target_type_name)
+        conditions[:target_type] = target.todoable_target_type_name
+        conditions[:target_id] = target.id
+      else
+        conditions[:target] = target
+      end
+
+      conditions[:state] = state unless state.nil?
+
+      exists?(conditions)
     end
 
     # Updates attributes of a relation of todos to the new state.
@@ -208,6 +223,10 @@ class Todo < ApplicationRecord
 
   def member_access_requested?
     action == MEMBER_ACCESS_REQUESTED
+  end
+
+  def review_submitted?
+    action == REVIEW_SUBMITTED
   end
 
   def member_access_type

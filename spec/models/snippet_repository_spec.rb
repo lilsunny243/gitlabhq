@@ -223,7 +223,7 @@ RSpec.describe SnippetRepository do
 
         snippet_repository.multi_files_action(user, [new_file], **commit_opts)
 
-        expect(blob_at(snippet, default_name)).to be
+        expect(blob_at(snippet, default_name)).to be_present
       end
 
       it 'reuses the existing file name' do
@@ -293,7 +293,7 @@ RSpec.describe SnippetRepository do
       it_behaves_like 'snippet repository with git errors', 'README', described_class::CommitError
 
       context 'when user name is invalid' do
-        let(:user) { create(:user, name: '.') }
+        let(:user) { create(:user, name: ',') }
 
         it_behaves_like 'snippet repository with git errors', 'non_existing_file', described_class::InvalidSignatureError
       end

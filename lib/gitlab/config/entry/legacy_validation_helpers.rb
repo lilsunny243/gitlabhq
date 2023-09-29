@@ -24,8 +24,7 @@ module Gitlab
           if parser && parser.respond_to?(:validate_duration_limit)
             parser.validate_duration_limit(value, limit)
           else
-            ChronicDuration.parse(value).second.from_now <
-              ChronicDuration.parse(limit).second.from_now
+            ChronicDuration.parse(value).second.from_now < ChronicDuration.parse(limit).second.from_now
           end
         rescue ChronicDuration::DurationParseError
           false

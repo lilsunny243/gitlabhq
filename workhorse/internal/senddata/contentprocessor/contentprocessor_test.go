@@ -51,13 +51,13 @@ func TestSetProperContentTypeAndDisposition(t *testing.T) {
 		{
 			desc:               "HTML type",
 			contentType:        "text/plain; charset=utf-8",
-			contentDisposition: "inline",
+			contentDisposition: "inline; filename=blob",
 			body:               "<html><body>Hello world!</body></html>",
 		},
 		{
 			desc:               "Javascript within HTML type",
 			contentType:        "text/plain; charset=utf-8",
-			contentDisposition: "inline",
+			contentDisposition: "inline; filename=blob",
 			body:               "<script>alert(\"foo\")</script>",
 		},
 		{
@@ -83,6 +83,12 @@ func TestSetProperContentTypeAndDisposition(t *testing.T) {
 			contentType:        "image/svg+xml",
 			contentDisposition: "attachment",
 			body:               "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 330 82\"><title>SVG logo combined with the W3C logo, set horizontally</title><desc>The logo combines three entities displayed horizontall</desc><metadata>",
+		},
+		{
+			desc:               "Incomplete SVG start tag",
+			contentType:        "image/svg+xml",
+			contentDisposition: "attachment",
+			body:               "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"",
 		},
 		{
 			desc:               "Application type",

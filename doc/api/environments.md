@@ -1,11 +1,13 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
-# Environments API **(FREE)**
+# Environments API **(FREE ALL)**
+
+> Support for [GitLab CI/CD job token](../ci/jobs/ci_job_token.md) authentication [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/414549) in GitLab 16.2.
 
 ## List environments
 
@@ -40,89 +42,7 @@ Example response:
     "created_at": "2019-05-25T18:55:13.252Z",
     "updated_at": "2019-05-27T18:55:13.252Z",
     "enable_advanced_logs_querying": false,
-    "logs_api_path": "/project/-/logs/k8s.json?environment_name=review%2Ffix-foo",
-    "last_deployment": {
-      "id": 100,
-      "iid": 34,
-      "ref": "fdroid",
-      "sha": "416d8ea11849050d3d1f5104cf8cf51053e790ab",
-      "created_at": "2019-03-25T18:55:13.252Z",
-      "status": "success",
-      "user": {
-        "id": 1,
-        "name": "Administrator",
-        "state": "active",
-        "username": "root",
-        "avatar_url": "http://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon",
-        "web_url": "http://localhost:3000/root"
-      },
-      "deployable": {
-        "id": 710,
-        "status": "success",
-        "stage": "deploy",
-        "name": "staging",
-        "ref": "fdroid",
-        "tag": false,
-        "coverage": null,
-        "created_at": "2019-03-25T18:55:13.215Z",
-        "started_at": "2019-03-25T12:54:50.082Z",
-        "finished_at": "2019-03-25T18:55:13.216Z",
-        "duration": 21623.13423,
-        "project": {
-          "ci_job_token_scope_enabled": false
-        },
-        "user": {
-          "id": 1,
-          "name": "Administrator",
-          "username": "root",
-          "state": "active",
-          "avatar_url": "http://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon",
-          "web_url": "http://gitlab.dev/root",
-          "created_at": "2015-12-21T13:14:24.077Z",
-          "bio": null,
-          "location": null,
-          "public_email": "",
-          "skype": "",
-          "linkedin": "",
-          "twitter": "",
-          "website_url": "",
-          "organization": null
-        },
-        "commit": {
-          "id": "416d8ea11849050d3d1f5104cf8cf51053e790ab",
-          "short_id": "416d8ea1",
-          "created_at": "2016-01-02T15:39:18.000Z",
-          "parent_ids": [
-            "e9a4449c95c64358840902508fc827f1a2eab7df"
-          ],
-          "title": "Removed fabric to fix #40",
-          "message": "Removed fabric to fix #40\n",
-          "author_name": "Administrator",
-          "author_email": "admin@example.com",
-          "authored_date": "2016-01-02T15:39:18.000Z",
-          "committer_name": "Administrator",
-          "committer_email": "admin@example.com",
-          "committed_date": "2016-01-02T15:39:18.000Z"
-        },
-        "pipeline": {
-          "id": 34,
-          "sha": "416d8ea11849050d3d1f5104cf8cf51053e790ab",
-          "ref": "fdroid",
-          "status": "success",
-          "web_url": "http://localhost:3000/Commit451/lab-coat/pipelines/34"
-        },
-        "web_url": "http://localhost:3000/Commit451/lab-coat/-/jobs/710",
-        "artifacts": [
-          {
-            "file_type": "trace",
-            "size": 1305,
-            "filename": "job.log",
-            "file_format": null
-          }
-        ],
-        "runner": null,
-        "artifacts_expire_at": null
-      }
+    "logs_api_path": "/project/-/logs/k8s.json?environment_name=review%2Ffix-foo"
   }
 ]
 ```
@@ -281,6 +201,8 @@ Example response:
 
 ## Update an existing environment
 
+> Parameter `name` [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/338897) in GitLab 16.0.
+
 Updates an existing environment's name and/or `external_url`.
 
 It returns `200` if the environment was successfully updated. In case of an error, a status code `400` is returned.
@@ -293,12 +215,11 @@ PUT /projects/:id/environments/:environments_id
 |------------------|----------------|----------|---------------------------------------------------------------------------------------------------------------------|
 | `id`             | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                                |
 | `environment_id` | integer        | yes      | The ID of the environment.                                                                                          |
-| `name`           | string         | no       | [Deprecated and will be removed in GitLab 16.0](https://gitlab.com/gitlab-org/gitlab/-/issues/338897).              |
 | `external_url`   | string         | no       | The new `external_url`.                                                                                             |
 | `tier`           | string         | no       | The tier of the new environment. Allowed values are `production`, `staging`, `testing`, `development`, and `other`. |
 
 ```shell
-curl --request PUT --data "name=staging&external_url=https://staging.gitlab.example.com" \
+curl --request PUT --data "external_url=https://staging.gitlab.example.com" \
      --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/environments/1"
 ```
 
@@ -339,7 +260,7 @@ curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://git
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/296625) in GitLab 14.2.
 
 It schedules for deletion multiple environments that have already been
-[stopped](../ci/environments/index.md#stop-an-environment) and
+[stopped](../ci/environments/index.md#stopping-an-environment) and
 are [in the review app folder](../ci/review_apps/index.md).
 The actual deletion is performed after 1 week from the time of execution.
 By default, it only deletes environments 30 days or older. You can change this default using the `before` parameter.
@@ -415,7 +336,7 @@ Example response:
 
 ## Stop stale environments
 
-Issue stop request to all environments that were last modified or deployed to before a specified date. Excludes protected environments. Returns `200` if stop request was successful and `400` if the before date is invalid. For details of exactly when the environment is stopped, see [Stop an environment](../ci/environments/index.md#stop-an-environment).
+Issue stop request to all environments that were last modified or deployed to before a specified date. Excludes protected environments. Returns `200` if stop request was successful and `400` if the before date is invalid. For details of exactly when the environment is stopped, see [Stop an environment](../ci/environments/index.md#stopping-an-environment).
 
 ```plaintext
 POST /projects/:id/environments/stop_stale

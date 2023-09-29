@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe GroupMembersFinder, '#execute', feature_category: :subgroups do
+RSpec.describe GroupMembersFinder, '#execute', feature_category: :groups_and_projects do
   let_it_be(:group)                { create(:group) }
   let_it_be(:sub_group)            { create(:group, parent: group) }
   let_it_be(:sub_sub_group)        { create(:group, parent: sub_group) }
@@ -51,8 +51,8 @@ RSpec.describe GroupMembersFinder, '#execute', feature_category: :subgroups do
         user4_sub_group: create(:group_member, :developer, group: sub_group, user: user4, expires_at: 1.day.from_now),
         user4_group: create(:group_member, :developer, group: group, user: user4, expires_at: 2.days.from_now),
         user4_public_shared_group: create(:group_member, :developer, group: public_shared_group, user: user4),
-        user4_private_shared_group: create(:group_member, :developer,  group: private_shared_group, user: user4),
-        user5_private_shared_group: create(:group_member, :developer,  group: private_shared_group, user: user5_2fa)
+        user4_private_shared_group: create(:group_member, :developer, group: private_shared_group, user: user4),
+        user5_private_shared_group: create(:group_member, :developer, group: private_shared_group, user: user5_2fa)
       }
     end
 
@@ -94,6 +94,17 @@ RSpec.describe GroupMembersFinder, '#execute', feature_category: :subgroups do
 
         expect(result.to_a).to match_array(expected_members.map { |name| members[name] })
       end
+    end
+
+    it 'returns the correct access level of the members shared through group sharing' do
+      shared_members_access = described_class
+                                .new(groups[:group])
+                                .execute(include_relations: [:shared_from_groups])
+                                .to_a
+                                .map(&:access_level)
+
+      correct_access_levels = ([Gitlab::Access::DEVELOPER] * 3) << Gitlab::Access::REPORTER
+      expect(shared_members_access).to match_array(correct_access_levels)
     end
   end
 
@@ -222,6 +233,93 @@ RSpec.describe GroupMembersFinder, '#execute', feature_category: :subgroups do
 
       it 'returns owners and maintainers' do
         expect(by_access_levels).to match_array([owner1, owner2, maintainer1, maintainer2])
+      end
+    end
+  end
+
+  context 'filter by user type' do
+    subject(:by_user_type) { described_class.new(group, user1, params: { user_type: user_type }).execute }
+
+    let_it_be(:service_account) { create(:user, :service_account) }
+    let_it_be(:project_bot) { create(:user, :project_bot) }
+
+    let_it_be(:service_account_member) { group.add_developer(service_account) }
+    let_it_be(:project_bot_member) { group.add_developer(project_bot) }
+
+    context 'when the user is an owner' do
+      before do
+        group.add_owner(user1)
+      end
+
+      context 'when filtering by project bots' do
+        let(:user_type) { 'project_bot' }
+
+        it 'returns filtered members' do
+          expect(by_user_type).to match_array([project_bot_member])
+        end
+      end
+
+      context 'when filtering by service accounts' do
+        let(:user_type) { 'service_account' }
+
+        it 'returns filtered members' do
+          expect(by_user_type).to match_array([service_account_member])
+        end
+      end
+    end
+
+    context 'when the user is a maintainer' do
+      let(:user_type) { 'service_account' }
+
+      let_it_be(:user1_member) { group.add_maintainer(user1) }
+
+      it 'returns unfiltered members' do
+        expect(by_user_type).to match_array([user1_member, service_account_member, project_bot_member])
+      end
+    end
+
+    context 'when the user is a developer' do
+      let(:user_type) { 'service_account' }
+
+      let_it_be(:user1_member) { group.add_developer(user1) }
+
+      it 'returns unfiltered members' do
+        expect(by_user_type).to match_array([user1_member, service_account_member, project_bot_member])
+      end
+    end
+  end
+
+  context 'filter by non-invite' do
+    let_it_be(:member) { group.add_maintainer(user1) }
+    let_it_be(:invited_member) do
+      create(:group_member, :invited, { user: user2, group: group })
+    end
+
+    context 'params is not passed in' do
+      subject { described_class.new(group, user1).execute }
+
+      it 'does not filter members by invite' do
+        expect(subject).to match_array([member, invited_member])
+      end
+    end
+
+    context 'params is passed in' do
+      subject { described_class.new(group, user1, params: { non_invite: non_invite_param }).execute }
+
+      context 'filtering is set to false' do
+        let(:non_invite_param) { false }
+
+        it 'does not filter members by invite' do
+          expect(subject).to match_array([member, invited_member])
+        end
+      end
+
+      context 'filtering is set to true' do
+        let(:non_invite_param) { true }
+
+        it 'filters members by invite' do
+          expect(subject).to match_array([member])
+        end
       end
     end
   end

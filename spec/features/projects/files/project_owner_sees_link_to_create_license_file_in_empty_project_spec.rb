@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe 'Projects > Files > Project owner sees a link to create a license file in empty project', :js,
-feature_category: :projects do
-  include WebIdeSpecHelpers
+  feature_category: :groups_and_projects do
+  include Features::WebIdeSpecHelpers
 
   let(:project) { create(:project_empty_repo) }
   let(:project_maintainer) { project.first_owner }

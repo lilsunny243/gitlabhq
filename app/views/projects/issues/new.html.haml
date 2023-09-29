@@ -1,8 +1,10 @@
+- add_page_specific_style 'page_bundles/merge_request'
+- add_page_specific_style 'page_bundles/labels'
 - add_to_breadcrumbs _("Issues"), project_issues_path(@project)
 - breadcrumb_title _("New")
 - page_title _("New Issue")
 
-.top-area.gl-lg-flex-direction-row.gl-border-bottom-0
+.page-title-holder
   %h1.page-title.gl-font-size-h-display= _("New Issue")
 
 = render "form"

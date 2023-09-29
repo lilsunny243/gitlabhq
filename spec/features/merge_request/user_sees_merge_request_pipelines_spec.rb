@@ -28,259 +28,50 @@ RSpec.describe 'Merge request > User sees pipelines triggered by merge request',
   let(:expected_detached_mr_tag) { 'merge request' }
 
   before do
+    # rubocop:disable RSpec/AvoidConditionalStatements
+    stub_licensed_features(merge_request_approvers: true) if Gitlab.ee?
+    # rubocop:enable RSpec/AvoidConditionalStatements
+
     stub_application_setting(auto_devops_enabled: false)
     stub_ci_pipeline_yaml_file(YAML.dump(config))
     project.add_maintainer(user)
     sign_in(user)
   end
 
-  context 'when a user created a merge request in the parent project' do
-    let!(:merge_request) do
-      create(:merge_request,
-              source_project: project,
-              target_project: project,
-              source_branch: 'feature',
-              target_branch: 'master')
-    end
-
-    let!(:push_pipeline) do
-      Ci::CreatePipelineService.new(project, user, ref: 'feature')
-        .execute(:push)
-        .payload
-    end
-
-    let!(:detached_merge_request_pipeline) do
-      Ci::CreatePipelineService.new(project, user, ref: 'feature')
-        .execute(:merge_request_event, merge_request: merge_request)
-        .payload
-    end
-
-    before do
-      visit project_merge_request_path(project, merge_request)
-
-      page.within('.merge-request-tabs') do
-        click_link('Pipelines')
-      end
-    end
-
-    it 'sees branch pipelines and detached merge request pipelines in correct order' do
-      page.within('.ci-table') do
-        expect(page).to have_selector('.ci-created', count: 2)
-        expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{detached_merge_request_pipeline.id}")
-      end
-    end
-
-    it 'sees the latest detached merge request pipeline as the head pipeline', :sidekiq_might_not_need_inline do
-      click_link "Overview"
-
-      page.within('.ci-widget-content') do
-        expect(page).to have_content("##{detached_merge_request_pipeline.id}")
-      end
-    end
-
-    context 'when a user updated a merge request in the parent project', :sidekiq_might_not_need_inline do
-      let!(:push_pipeline_2) do
-        Ci::CreatePipelineService.new(project, user, ref: 'feature')
-          .execute(:push)
-          .payload
-      end
-
-      let!(:detached_merge_request_pipeline_2) do
-        Ci::CreatePipelineService.new(project, user, ref: 'feature')
-          .execute(:merge_request_event, merge_request: merge_request)
-          .payload
-      end
-
-      before do
-        visit project_merge_request_path(project, merge_request)
-
-        page.within('.merge-request-tabs') do
-          click_link('Pipelines')
-        end
-      end
-
-      it 'sees branch pipelines and detached merge request pipelines in correct order' do
-        page.within('.ci-table') do
-          expect(page).to have_selector('.ci-pending', count: 4)
-
-          expect(all('[data-testid="pipeline-url-link"]')[0])
-            .to have_content("##{detached_merge_request_pipeline_2.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[1])
-            .to have_content("##{detached_merge_request_pipeline.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[2])
-            .to have_content("##{push_pipeline_2.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[3])
-            .to have_content("##{push_pipeline.id}")
-        end
-      end
-
-      it 'sees detached tag for detached merge request pipelines' do
-        page.within('.ci-table') do
-          expect(all('.pipeline-tags')[0])
-            .to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[1])
-            .to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[2])
-            .not_to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[3])
-            .not_to have_content(expected_detached_mr_tag)
-        end
-      end
-
-      it 'sees the latest detached merge request pipeline as the head pipeline' do
-        click_link 'Overview'
-
-        page.within('.ci-widget-content') do
-          expect(page).to have_content("##{detached_merge_request_pipeline_2.id}")
-        end
-      end
-    end
-
-    context 'when a user merges a merge request in the parent project', :sidekiq_might_not_need_inline do
-      before do
-        click_link 'Overview'
-        click_button 'Merge when pipeline succeeds'
-
-        wait_for_requests
-      end
-
-      context 'when detached merge request pipeline is pending' do
-        it 'waits the head pipeline' do
-          expect(page).to have_content('to be merged automatically when the pipeline succeeds')
-          expect(page).to have_button('Cancel auto-merge')
-        end
-      end
-
-      context 'when detached merge request pipeline succeeds' do
-        before do
-          detached_merge_request_pipeline.reload.succeed!
-
-          wait_for_requests
-        end
-
-        it 'merges the merge request' do
-          expect(page).to have_content('Merged by')
-          expect(page).to have_button('Revert')
-        end
-      end
-
-      context 'when branch pipeline succeeds' do
-        before do
-          click_link 'Overview'
-          push_pipeline.reload.succeed!
-
-          wait_for_requests
-        end
-
-        it 'waits the head pipeline' do
-          expect(page).to have_content('to be merged automatically when the pipeline succeeds')
-          expect(page).to have_button('Cancel auto-merge')
-        end
-      end
-    end
-
-    context 'when there are no `merge_requests` keyword in .gitlab-ci.yml' do
-      let(:config) do
-        {
-          build: {
-            script: 'build'
-          },
-          test: {
-            script: 'test'
-          },
-          deploy: {
-            script: 'deploy'
-          }
-        }
-      end
-
-      it 'sees a branch pipeline in pipeline tab' do
-        page.within('.ci-table') do
-          expect(page).to have_selector('.ci-created', count: 1)
-          expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{push_pipeline.id}")
-        end
-      end
-
-      it 'sees the latest branch pipeline as the head pipeline', :sidekiq_might_not_need_inline do
-        click_link 'Overview'
-
-        page.within('.ci-widget-content') do
-          expect(page).to have_content("##{push_pipeline.id}")
-        end
-      end
+  # rubocop:disable RSpec/AvoidConditionalStatements
+  def mr_widget_title
+    if Gitlab.ee?
+      'to be merged automatically when all merge checks pass'
+    else
+      'to be merged automatically when the pipeline succeeds'
     end
   end
+  # rubocop:enable RSpec/AvoidConditionalStatements
 
-  context 'when a user created a merge request from a forked project to the parent project', :sidekiq_might_not_need_inline do
-    let(:merge_request) do
-      create(:merge_request,
-              source_project: forked_project,
-              target_project: project,
-              source_branch: 'feature',
-              target_branch: 'master')
-    end
-
-    let!(:push_pipeline) do
-      Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
-        .execute(:push)
-        .payload
-    end
-
-    let!(:detached_merge_request_pipeline) do
-      Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
-        .execute(:merge_request_event, merge_request: merge_request)
-        .payload
-    end
-
-    let(:forked_project) { fork_project(project, user2, repository: true) }
-    let(:user2) { create(:user) }
-
+  context 'with feature flag `mr_pipelines_graphql turned off`' do
     before do
-      forked_project.add_maintainer(user2)
+      stub_feature_flags(mr_pipelines_graphql: false)
+    end
 
-      visit project_merge_request_path(project, merge_request)
-
-      page.within('.merge-request-tabs') do
-        click_link('Pipelines')
+    context 'when a user created a merge request in the parent project' do
+      let!(:merge_request) do
+        create(
+          :merge_request,
+          source_project: project,
+          target_project: project,
+          source_branch: 'feature',
+          target_branch: 'master'
+        )
       end
-    end
 
-    it 'sees branch pipelines and detached merge request pipelines in correct order' do
-      page.within('.ci-table') do
-        expect(page).to have_selector('.ci-pending', count: 2)
-        expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{detached_merge_request_pipeline.id}")
-      end
-    end
-
-    it 'sees the latest detached merge request pipeline as the head pipeline' do
-      click_link "Overview"
-
-      page.within('.ci-widget-content') do
-        expect(page).to have_content("##{detached_merge_request_pipeline.id}")
-      end
-    end
-
-    it 'sees pipeline list in forked project' do
-      visit project_pipelines_path(forked_project)
-
-      expect(page).to have_selector('.ci-pending', count: 2)
-    end
-
-    context 'when a user updated a merge request from a forked project to the parent project' do
-      let!(:push_pipeline_2) do
-        Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+      let!(:push_pipeline) do
+        Ci::CreatePipelineService.new(project, user, ref: 'feature')
           .execute(:push)
           .payload
       end
 
-      let!(:detached_merge_request_pipeline_2) do
-        Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+      let!(:detached_merge_request_pipeline) do
+        Ci::CreatePipelineService.new(project, user, ref: 'feature')
           .execute(:merge_request_event, merge_request: merge_request)
           .payload
       end
@@ -295,35 +86,195 @@ RSpec.describe 'Merge request > User sees pipelines triggered by merge request',
 
       it 'sees branch pipelines and detached merge request pipelines in correct order' do
         page.within('.ci-table') do
-          expect(page).to have_selector('.ci-pending', count: 4)
-
-          expect(all('[data-testid="pipeline-url-link"]')[0])
-            .to have_content("##{detached_merge_request_pipeline_2.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[1])
-            .to have_content("##{detached_merge_request_pipeline.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[2])
-            .to have_content("##{push_pipeline_2.id}")
-
-          expect(all('[data-testid="pipeline-url-link"]')[3])
-            .to have_content("##{push_pipeline.id}")
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Created', count: 2)
+          expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{detached_merge_request_pipeline.id}")
         end
       end
 
-      it 'sees detached tag for detached merge request pipelines' do
+      it 'sees the latest detached merge request pipeline as the head pipeline', :sidekiq_might_not_need_inline do
+        click_link "Overview"
+
+        page.within('.ci-widget-content') do
+          expect(page).to have_content("##{detached_merge_request_pipeline.id}")
+        end
+      end
+
+      context 'when a user updated a merge request in the parent project', :sidekiq_might_not_need_inline do
+        let!(:push_pipeline_2) do
+          Ci::CreatePipelineService.new(project, user, ref: 'feature')
+            .execute(:push)
+            .payload
+        end
+
+        let!(:detached_merge_request_pipeline_2) do
+          Ci::CreatePipelineService.new(project, user, ref: 'feature')
+            .execute(:merge_request_event, merge_request: merge_request)
+            .payload
+        end
+
+        before do
+          visit project_merge_request_path(project, merge_request)
+
+          page.within('.merge-request-tabs') do
+            click_link('Pipelines')
+          end
+        end
+
+        it 'sees branch pipelines and detached merge request pipelines in correct order' do
+          page.within('.ci-table') do
+            expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending', count: 4)
+
+            expect(all('[data-testid="pipeline-url-link"]')[0])
+              .to have_content("##{detached_merge_request_pipeline_2.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[1])
+              .to have_content("##{detached_merge_request_pipeline.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[2])
+              .to have_content("##{push_pipeline_2.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[3])
+              .to have_content("##{push_pipeline.id}")
+          end
+        end
+
+        it 'sees detached tag for detached merge request pipelines' do
+          page.within('.ci-table') do
+            expect(all('.pipeline-tags')[0])
+              .to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[1])
+              .to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[2])
+              .not_to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[3])
+              .not_to have_content(expected_detached_mr_tag)
+          end
+        end
+
+        it 'sees the latest detached merge request pipeline as the head pipeline' do
+          click_link 'Overview'
+
+          page.within('.ci-widget-content') do
+            expect(page).to have_content("##{detached_merge_request_pipeline_2.id}")
+          end
+        end
+      end
+
+      context 'when a user created a merge request in the parent project' do
+        before do
+          visit project_merge_request_path(project, merge_request)
+
+          page.within('.merge-request-tabs') do
+            click_link('Pipelines')
+          end
+        end
+
+        context 'when a user merges a merge request in the parent project', :sidekiq_might_not_need_inline do
+          before do
+            click_link 'Overview'
+            click_button 'Set to auto-merge'
+
+            wait_for_requests
+          end
+
+          context 'when detached merge request pipeline is pending' do
+            it 'waits the head pipeline' do
+              expect(page).to have_content mr_widget_title
+              expect(page).to have_button('Cancel auto-merge')
+            end
+          end
+
+          context 'when branch pipeline succeeds' do
+            before do
+              click_link 'Overview'
+              push_pipeline.reload.succeed!
+
+              wait_for_requests
+            end
+
+            it 'waits the head pipeline' do
+              expect(page).to have_content mr_widget_title
+              expect(page).to have_button('Cancel auto-merge')
+            end
+          end
+        end
+      end
+
+      context 'when there are no `merge_requests` keyword in .gitlab-ci.yml' do
+        let(:config) do
+          {
+            build: {
+              script: 'build'
+            },
+            test: {
+              script: 'test'
+            },
+            deploy: {
+              script: 'deploy'
+            }
+          }
+        end
+
+        it 'sees a branch pipeline in pipeline tab' do
+          page.within('.ci-table') do
+            expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Created', count: 1)
+            expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{push_pipeline.id}")
+          end
+        end
+
+        it 'sees the latest branch pipeline as the head pipeline', :sidekiq_might_not_need_inline do
+          click_link 'Overview'
+
+          page.within('.ci-widget-content') do
+            expect(page).to have_content("##{push_pipeline.id}")
+          end
+        end
+      end
+    end
+
+    context 'when a user created a merge request from a forked project to the parent project', :sidekiq_might_not_need_inline do
+      let(:merge_request) do
+        create(
+          :merge_request,
+          source_project: forked_project,
+          target_project: project,
+          source_branch: 'feature',
+          target_branch: 'master'
+        )
+      end
+
+      let!(:push_pipeline) do
+        Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+          .execute(:push)
+          .payload
+      end
+
+      let!(:detached_merge_request_pipeline) do
+        Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+          .execute(:merge_request_event, merge_request: merge_request)
+          .payload
+      end
+
+      let(:forked_project) { fork_project(project, user2, repository: true) }
+      let(:user2) { create(:user) }
+
+      before do
+        forked_project.add_maintainer(user2)
+
+        visit project_merge_request_path(project, merge_request)
+
+        page.within('.merge-request-tabs') do
+          click_link('Pipelines')
+        end
+      end
+
+      it 'sees branch pipelines and detached merge request pipelines in correct order' do
         page.within('.ci-table') do
-          expect(all('.pipeline-tags')[0])
-            .to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[1])
-            .to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[2])
-            .not_to have_content(expected_detached_mr_tag)
-
-          expect(all('.pipeline-tags')[3])
-            .not_to have_content(expected_detached_mr_tag)
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending', count: 2)
+          expect(first('[data-testid="pipeline-url-link"]')).to have_content("##{detached_merge_request_pipeline.id}")
         end
       end
 
@@ -331,81 +282,158 @@ RSpec.describe 'Merge request > User sees pipelines triggered by merge request',
         click_link "Overview"
 
         page.within('.ci-widget-content') do
-          expect(page).to have_content("##{detached_merge_request_pipeline_2.id}")
+          expect(page).to have_content("##{detached_merge_request_pipeline.id}")
         end
       end
 
       it 'sees pipeline list in forked project' do
         visit project_pipelines_path(forked_project)
 
-        expect(page).to have_selector('.ci-pending', count: 4)
-      end
-    end
-
-    context 'when the latest pipeline is running in the parent project' do
-      before do
-        Ci::CreatePipelineService.new(project, user, ref: 'feature')
-          .execute(:merge_request_event, merge_request: merge_request)
+        expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending', count: 2)
       end
 
-      context 'when the previous pipeline failed in the fork project' do
-        before do
-          detached_merge_request_pipeline.reload.drop!
+      context 'when a user updated a merge request from a forked project to the parent project' do
+        let!(:push_pipeline_2) do
+          Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+            .execute(:push)
+            .payload
         end
 
-        context 'when the parent project enables pipeline must succeed' do
+        let!(:detached_merge_request_pipeline_2) do
+          Ci::CreatePipelineService.new(forked_project, user2, ref: 'feature')
+            .execute(:merge_request_event, merge_request: merge_request)
+            .payload
+        end
+
+        before do
+          visit project_merge_request_path(project, merge_request)
+
+          page.within('.merge-request-tabs') do
+            click_link('Pipelines')
+          end
+        end
+
+        it 'sees branch pipelines and detached merge request pipelines in correct order' do
+          page.within('.ci-table') do
+            expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending', count: 4)
+
+            expect(all('[data-testid="pipeline-url-link"]')[0])
+              .to have_content("##{detached_merge_request_pipeline_2.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[1])
+              .to have_content("##{detached_merge_request_pipeline.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[2])
+              .to have_content("##{push_pipeline_2.id}")
+
+            expect(all('[data-testid="pipeline-url-link"]')[3])
+              .to have_content("##{push_pipeline.id}")
+          end
+        end
+
+        it 'sees detached tag for detached merge request pipelines' do
+          page.within('.ci-table') do
+            expect(all('.pipeline-tags')[0])
+              .to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[1])
+              .to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[2])
+              .not_to have_content(expected_detached_mr_tag)
+
+            expect(all('.pipeline-tags')[3])
+              .not_to have_content(expected_detached_mr_tag)
+          end
+        end
+
+        it 'sees the latest detached merge request pipeline as the head pipeline' do
+          click_link "Overview"
+
+          page.within('.ci-widget-content') do
+            expect(page).to have_content("##{detached_merge_request_pipeline_2.id}")
+          end
+        end
+
+        it 'sees pipeline list in forked project' do
+          visit project_pipelines_path(forked_project)
+
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending', count: 4)
+        end
+      end
+
+      context 'when the latest pipeline is running in the parent project' do
+        before do
+          create(:ci_pipeline,
+            source: :merge_request_event,
+            project: project,
+            ref: 'feature',
+            sha: merge_request.diff_head_sha,
+            user: user,
+            merge_request: merge_request,
+            status: :running)
+          merge_request.update_head_pipeline
+        end
+
+        context 'when the previous pipeline failed in the fork project' do
           before do
-            project.update!(only_allow_merge_if_pipeline_succeeds: true)
+            detached_merge_request_pipeline.reload.drop!
           end
 
-          it 'shows MWPS button' do
-            visit project_merge_request_path(project, merge_request)
+          context 'when the parent project enables pipeline must succeed' do
+            before do
+              project.update!(only_allow_merge_if_pipeline_succeeds: true)
+            end
 
-            expect(page).to have_button('Merge when pipeline succeeds')
+            it 'shows Set to auto-merge button' do
+              visit project_merge_request_path(project, merge_request)
+
+              expect(page).to have_button('Set to auto-merge')
+            end
           end
         end
       end
-    end
 
-    context 'when a user merges a merge request from a forked project to the parent project' do
-      before do
-        click_link("Overview")
-
-        click_button 'Merge when pipeline succeeds'
-
-        wait_for_requests
-      end
-
-      context 'when detached merge request pipeline is pending' do
-        it 'waits the head pipeline' do
-          expect(page).to have_content('to be merged automatically when the pipeline succeeds')
-          expect(page).to have_button('Cancel auto-merge')
-        end
-      end
-
-      context 'when detached merge request pipeline succeeds' do
+      context 'when a user merges a merge request from a forked project to the parent project' do
         before do
-          detached_merge_request_pipeline.reload.succeed!
+          click_link("Overview")
+
+          click_button 'Set to auto-merge'
 
           wait_for_requests
         end
 
-        it 'merges the merge request' do
-          expect(page).to have_content('Merged by')
-          expect(page).to have_button('Revert')
-        end
-      end
-
-      context 'when branch pipeline succeeds' do
-        before do
-          push_pipeline.reload.succeed!
-
-          wait_for_requests
+        context 'when detached merge request pipeline is pending' do
+          it 'waits the head pipeline' do
+            expect(page).to have_content mr_widget_title
+            expect(page).to have_button('Cancel auto-merge')
+          end
         end
 
-        it 'waits the head pipeline' do
-          expect(page).to have_content('to be merged automatically when the pipeline succeeds')
-          expect(page).to have_button('Cancel auto-merge')
+        context 'when detached merge request pipeline succeeds' do
+          before do
+            detached_merge_request_pipeline.reload.succeed!
+
+            wait_for_requests
+          end
+
+          it 'merges the merge request' do
+            expect(page).to have_content('Merged by')
+            expect(page).to have_button('Revert')
+          end
+        end
+
+        context 'when branch pipeline succeeds' do
+          before do
+            push_pipeline.reload.succeed!
+
+            wait_for_requests
+          end
+
+          it 'waits the head pipeline' do
+            expect(page).to have_content mr_widget_title
+            expect(page).to have_button('Cancel auto-merge')
+          end
         end
       end
     end

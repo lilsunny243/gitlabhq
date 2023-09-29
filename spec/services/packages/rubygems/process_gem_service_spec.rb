@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Packages::Rubygems::ProcessGemService do
+RSpec.describe Packages::Rubygems::ProcessGemService, feature_category: :package_registry do
   include ExclusiveLeaseHelpers
   include RubygemsHelpers
 
@@ -149,6 +149,15 @@ RSpec.describe Packages::Rubygems::ProcessGemService do
         expect(package.version).to eq('0.0.0')
         expect(package).to be_processing
         expect(package_file.reload.file_name).to eq('package.gem')
+      end
+    end
+
+    context 'with invalid metadata' do
+      include_context 'with invalid Rubygems metadata'
+
+      it 'raises the correct error' do
+        expect { subject }
+          .to raise_error(::Packages::Rubygems::ProcessGemService::InvalidMetadataError, 'Invalid metadata')
       end
     end
   end

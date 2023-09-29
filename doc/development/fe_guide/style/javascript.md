@@ -2,7 +2,6 @@
 stage: none
 group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-disqus_identifier: 'https://docs.gitlab.com/ee/development/fe_guide/style_guide_js.html'
 ---
 
 # JavaScript style guide
@@ -329,3 +328,40 @@ Only export the constants as a collection (array, or object) when there is a nee
   // good, if the constants need to be iterated over
   export const VARIANTS = [VARIANT_WARNING, VARIANT_ERROR];
   ```
+
+## Error handling
+
+For internal server errors when the server returns `500`, you should return a
+generic error message.
+
+When the backend returns errors, the errors should be
+suitable to display back to the user.
+
+If for some reason, it is difficult to do so, as a last resort, you can
+select particular error messages with prefixing:
+
+1. Ensure that the backend prefixes the error messages to be displayed with:
+
+   ```ruby
+   Gitlab::Utils::ErrorMessage.to_user_facing('Example user-facing error-message')
+   ```
+
+1. Use the error message utility function contained in `app/assets/javascripts/lib/utils/error_message.js`.
+
+This utility accepts two parameters: the error object received from the server response and a
+default error message. The utility examines the message in the error object for a prefix that
+indicates whether the message is meant to be user-facing or not. If the message is intended
+to be user-facing, the utility returns it as is. Otherwise, it returns the default error
+message passed as a parameter.
+
+```javascript
+import { parseErrorMessage } from '~/lib/utils/error_message';
+
+onError(error) {
+  const errorMessage = parseErrorMessage(error, genericErrorText);
+}
+```
+
+Note that this prefixing must not be used for API responses. Instead follow the
+[REST API](../../../api/rest/index.md#data-validation-and-error-reporting),
+or [GraphQL guides](../../api_graphql_styleguide.md#error-handling) on how to consume error objects.

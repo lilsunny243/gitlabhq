@@ -14,6 +14,13 @@ module Types
           null: true,
           description: 'CI related settings that apply to the entire instance.'
     field :ci_config, resolver: Resolvers::Ci::ConfigResolver, complexity: 126 # AUTHENTICATED_MAX_COMPLEXITY / 2 + 1
+
+    field :ci_pipeline_stage, ::Types::Ci::StageType,
+      null: true, description: 'Stage belonging to a CI pipeline.' do
+      argument :id, type: ::Types::GlobalIDType[::Ci::Stage],
+        required: true, description: 'Global ID of the CI stage.'
+    end
+
     field :ci_variables,
           Types::Ci::InstanceVariableType.connection_type,
           null: true,
@@ -89,6 +96,12 @@ module Types
               required: true,
               description: 'Global ID of the note.'
           end
+    field :organization,
+          Types::Organizations::OrganizationType,
+          null: true,
+          resolver: Resolvers::Organizations::OrganizationResolver,
+          description: "Find an organization.",
+          alpha: { milestone: '16.4' }
     field :package,
           description: 'Find a package. This field can only be resolved for one query in any single request. Returns `null` if a package has no `default` status.',
           resolver: Resolvers::PackageDetailsResolver
@@ -96,7 +109,7 @@ module Types
           null: true,
           resolver: Resolvers::ProjectResolver,
           description: "Find a project."
-    field :projects, Types::ProjectType.connection_type,
+    field :projects,
           null: true,
           resolver: Resolvers::ProjectsResolver,
           description: "Find projects visible to the current user."
@@ -115,7 +128,8 @@ module Types
     field :runners, Types::Ci::RunnerType.connection_type,
           null: true,
           resolver: Resolvers::Ci::RunnersResolver,
-          description: "Find runners visible to the current user."
+          description: "Get all runners in the GitLab instance (project and shared). " \
+                       "Access is restricted to users with administrator access."
     field :snippets,
           Types::SnippetType.connection_type,
           null: true,
@@ -140,7 +154,7 @@ module Types
           null: true,
           resolver: Resolvers::TopicsResolver,
           description: "Find project topics."
-    field :usage_trends_measurements, Types::Admin::Analytics::UsageTrends::MeasurementType.connection_type,
+    field :usage_trends_measurements,
           null: true,
           description: 'Get statistics on the instance.',
           resolver: Resolvers::Admin::Analytics::UsageTrends::MeasurementsResolver
@@ -157,6 +171,24 @@ module Types
           resolver: Resolvers::WorkItemResolver,
           alpha: { milestone: '15.1' },
           description: 'Find a work item.'
+
+    field :audit_event_definitions,
+          Types::AuditEvents::DefinitionType.connection_type,
+          null: false,
+          description: 'Definitions for all audit events available on the instance.',
+          resolver: Resolvers::AuditEvents::AuditEventDefinitionsResolver
+
+    field :abuse_report, ::Types::AbuseReportType,
+          null: true,
+          alpha: { milestone: '16.3' },
+          description: 'Find an abuse report.',
+          resolver: Resolvers::AbuseReportResolver
+
+    field :abuse_report_labels, ::Types::LabelType.connection_type,
+          null: true,
+          alpha: { milestone: '16.3' },
+          description: 'Abuse report labels.',
+          resolver: Resolvers::AbuseReportLabelsResolver
 
     def design_management
       DesignManagementObject.new(nil)
@@ -201,6 +233,15 @@ module Types
 
     def query_complexity
       context.query
+    end
+
+    def ci_pipeline_stage(id:)
+      stage = ::Gitlab::Graphql::Lazy.force(GitlabSchema.find_by_gid(id))
+      authorized = Ability.allowed?(current_user, :read_build, stage.project)
+
+      return unless authorized
+
+      stage
     end
   end
 end

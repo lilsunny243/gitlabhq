@@ -1,18 +1,18 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Redmine **(FREE)**
+# Redmine **(FREE ALL)**
 
 You can use [Redmine](https://www.redmine.org/) as an external issue tracker.
 To enable the Redmine integration in a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **Redmine**.
-1. Select the checkbox under **Enable integration**.
+1. Under **Enable integration**, select the **Active** checkbox.
 1. Fill in the required fields:
 
    - **Project URL**: The URL to the Redmine project to link to this GitLab project.
@@ -24,7 +24,8 @@ To enable the Redmine integration in a project:
      **This URL is not used and removal is planned in a future release.**
      For more information, see [issue 327503](https://gitlab.com/gitlab-org/gitlab/-/issues/327503).
 
-1. Select **Save changes** or optionally select **Test settings**.
+1. Optional. Select **Test settings**.
+1. Select **Save changes**.
 
 After you have configured and enabled Redmine, you see the Redmine link on the GitLab project pages,
 which takes you to your Redmine project.
@@ -37,7 +38,7 @@ For example, this is a configuration for a project named `gitlab-ci`:
 
 You can also disable [GitLab internal issue tracking](../issues/index.md) in this project.
 For more information about the steps and consequences of disabling GitLab issues, see
-[Configure project visibility, features, and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
+Configure project [visibility](../../../user/public_access.md#change-project-visibility), [features, and permissions](../settings/index.md#configure-project-features-and-permissions).
 
 ## Reference Redmine issues in GitLab
 

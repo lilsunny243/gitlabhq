@@ -4,23 +4,31 @@ import SafeHtml from '~/vue_shared/directives/safe_html';
 import axios from '~/lib/utils/axios_utils';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { __, sprintf } from '~/locale';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import ServiceDeskSetting from './service_desk_setting.vue';
 
+const CustomEmailWrapper = () => import('./custom_email_wrapper.vue');
+
 export default {
-  customEmailHelpPath: helpPagePath('/user/project/service_desk.html', {
-    anchor: 'using-a-custom-email-address',
+  serviceDeskEmailHelpPath: helpPagePath('/user/project/service_desk.html', {
+    anchor: 'use-an-additional-service-desk-alias-email',
   }),
   components: {
     GlAlert,
     GlSprintf,
     GlLink,
     ServiceDeskSetting,
+    CustomEmailWrapper,
   },
   directives: {
     SafeHtml,
   },
+  mixins: [glFeatureFlagsMixin()],
   inject: {
     initialIsEnabled: {
+      default: false,
+    },
+    isIssueTrackerEnabled: {
       default: false,
     },
     endpoint: {
@@ -29,10 +37,10 @@ export default {
     initialIncomingEmail: {
       default: '',
     },
-    customEmail: {
+    serviceDeskEmail: {
       default: '',
     },
-    customEmailEnabled: {
+    serviceDeskEmailEnabled: {
       default: false,
     },
     selectedTemplate: {
@@ -53,6 +61,9 @@ export default {
     publicProject: {
       default: false,
     },
+    customEmailEndpoint: {
+      default: '',
+    },
   },
   data() {
     return {
@@ -62,8 +73,13 @@ export default {
       alertVariant: 'danger',
       alertMessage: '',
       incomingEmail: this.initialIncomingEmail,
-      updatedCustomEmail: this.customEmail,
+      updatedServiceDeskEmail: this.serviceDeskEmail,
     };
+  },
+  computed: {
+    showCustomEmailWrapper() {
+      return this.glFeatures.serviceDeskCustomEmail && this.isEnabled && this.isIssueTrackerEnabled;
+    },
   },
   methods: {
     onEnableToggled(isChecked) {
@@ -107,7 +123,7 @@ export default {
       return axios
         .put(this.endpoint, body)
         .then(({ data }) => {
-          this.updatedCustomEmail = data?.service_desk_address;
+          this.updatedServiceDeskEmail = data?.service_desk_address;
           this.showAlert(__('Changes saved.'), 'success');
         })
         .catch((err) => {
@@ -152,7 +168,7 @@ export default {
         "
       >
         <template #link="{ content }">
-          <gl-link :href="$options.customEmailHelpPath" target="_blank">
+          <gl-link :href="$options.serviceDeskEmailHelpPath" target="_blank">
             {{ content }}
           </gl-link>
         </template>
@@ -163,9 +179,10 @@ export default {
     </gl-alert>
     <service-desk-setting
       :is-enabled="isEnabled"
+      :is-issue-tracker-enabled="isIssueTrackerEnabled"
       :incoming-email="incomingEmail"
-      :custom-email="updatedCustomEmail"
-      :custom-email-enabled="customEmailEnabled"
+      :service-desk-email="updatedServiceDeskEmail"
+      :service-desk-email-enabled="serviceDeskEmailEnabled"
       :initial-selected-template="selectedTemplate"
       :initial-selected-file-template-project-id="selectedFileTemplateProjectId"
       :initial-outgoing-name="outgoingName"
@@ -174,6 +191,11 @@ export default {
       :is-template-saving="isTemplateSaving"
       @save="onSaveTemplate"
       @toggle="onEnableToggled"
+    />
+    <custom-email-wrapper
+      v-if="showCustomEmailWrapper"
+      :incoming-email="incomingEmail"
+      :custom-email-endpoint="customEmailEndpoint"
     />
   </div>
 </template>

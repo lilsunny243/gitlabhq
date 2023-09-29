@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Get started with GitLab GraphQL API **(FREE)**
+# Run GraphQL API queries and mutations **(FREE ALL)**
 
 This guide demonstrates basic usage of the GitLab GraphQL API.
 
@@ -183,7 +183,7 @@ Mutations generally use InputTypes and variables, neither of which appear here.
 
 Mutations have:
 
-- Inputs. For example, arguments, such as which emoji you'd like to award,
+- Inputs. For example, arguments, such as which emoji reaction you'd like to add,
   and to which object.
 - Return statements. That is, what you'd like to get back when it's successful.
 - Errors. Always ask for what went wrong, just in case.
@@ -285,6 +285,24 @@ We've asked for the note details, but it doesn't exist anymore, so we get `null`
 
 More about mutations:
 [GraphQL Documentation](https://graphql.org/learn/queries/#mutations).
+
+### Update project settings
+
+You can update multiple project settings in a single GraphQL mutation.
+This example is a workaround for [the major change](../../update/deprecations.md#default-cicd-job-token-ci_job_token-scope-changed)
+in `CI_JOB_TOKEN` scoping behavior.
+
+```graphql
+mutation DisableCI_JOB_TOKENscope {
+  projectCiCdSettingsUpdate(input:{fullPath: "<namespace>/<project-name>", inboundJobTokenScopeEnabled: false, jobTokenScopeEnabled: false}) {
+    ciCdSettings {
+      inboundJobTokenScopeEnabled
+      jobTokenScopeEnabled
+    }
+    errors
+  }
+}
+```
 
 ### Introspective queries
 

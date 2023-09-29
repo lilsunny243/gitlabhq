@@ -1,13 +1,5 @@
 # frozen_string_literal: true
 
-RSpec.shared_examples 'rejects package tags access' do |status:|
-  before do
-    package.update!(name: package_name) unless package_name == 'non-existing-package'
-  end
-
-  it_behaves_like 'returning response status', status
-end
-
 RSpec.shared_examples 'accept package tags request' do |status:|
   using RSpec::Parameterized::TableSyntax
   include_context 'dependency proxy helpers context'
@@ -23,6 +15,7 @@ RSpec.shared_examples 'accept package tags request' do |status:|
     end
 
     it_behaves_like 'returning response status', status
+    it_behaves_like 'track event', :list_tags
 
     it 'returns a valid json response' do
       subject
@@ -43,18 +36,18 @@ RSpec.shared_examples 'accept package tags request' do |status:|
   end
 
   context 'with invalid package name' do
-    where(:package_name, :status) do
-      '%20' | :bad_request
-      nil   | :not_found
+    where(:package_name, :status, :error) do
+      '%20' | :bad_request | '"Package Name" not given'
+      nil   | :not_found   | %r{\A(Packages|Project) not found\z}
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
 end
 
-RSpec.shared_examples 'accept create package tag request' do |user_type|
+RSpec.shared_examples 'accept create package tag request' do |status:|
   using RSpec::Parameterized::TableSyntax
 
   context 'with valid package name' do
@@ -63,6 +56,7 @@ RSpec.shared_examples 'accept create package tag request' do |user_type|
     end
 
     it_behaves_like 'returning response status', :no_content
+    it_behaves_like 'track event', :create_tag
 
     it 'creates the package tag' do
       expect { subject }.to change { Packages::Tag.count }.by(1)
@@ -98,45 +92,55 @@ RSpec.shared_examples 'accept create package tag request' do |user_type|
         expect(response.body).to be_empty
       end
     end
+
+    context 'with ActiveRecord::RecordInvalid error' do
+      before do
+        allow_next_instance_of(Packages::Tag) do |tag|
+          allow(tag).to receive(:save!).and_raise(ActiveRecord::RecordInvalid)
+        end
+      end
+
+      it_behaves_like 'returning response status with error', status: :bad_request, error: 'Record invalid'
+    end
   end
 
   context 'with invalid package name' do
-    where(:package_name, :status) do
-      'unknown' | :not_found
-      ''        | :not_found
-      '%20'     | :bad_request
+    where(:package_name, :status, :error) do
+      'unknown' | :not_found   | %r{\A(Package|Project) not found\z}
+      ''        | :not_found   | '404 Not Found'
+      '%20'     | :bad_request | '"Package Name" not given'
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
 
   context 'with invalid tag name' do
-    where(:tag_name, :status) do
-      ''    | :not_found
-      '%20' | :bad_request
+    where(:tag_name, :status, :error) do
+      ''    | :not_found   | '404 Not Found'
+      '%20' | :bad_request | '"Tag" not given'
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
 
   context 'with invalid version' do
-    where(:version, :status) do
-      ' '   | :bad_request
-      ''    | :bad_request
-      nil   | :bad_request
+    where(:version, :status, :error) do
+      ' '   | :bad_request | '"Version" not given'
+      ''    | :bad_request | '"Version" not given'
+      nil   | :bad_request | '"Version" not given'
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
 end
 
-RSpec.shared_examples 'accept delete package tag request' do |user_type|
+RSpec.shared_examples 'accept delete package tag request' do |status:|
   using RSpec::Parameterized::TableSyntax
 
   context 'with valid package name' do
@@ -145,6 +149,7 @@ RSpec.shared_examples 'accept delete package tag request' do |user_type|
     end
 
     it_behaves_like 'returning response status', :no_content
+    it_behaves_like 'track event', :delete_tag
 
     it 'returns a valid response' do
       subject
@@ -164,29 +169,57 @@ RSpec.shared_examples 'accept delete package tag request' do |user_type|
 
       it_behaves_like 'returning response status', :not_found
     end
+
+    context 'with ActiveRecord::RecordInvalid error' do
+      before do
+        allow_next_instance_of(::Packages::RemoveTagService) do |service|
+          allow(service).to receive(:execute).and_raise(ActiveRecord::RecordInvalid)
+        end
+      end
+
+      it_behaves_like 'returning response status with error', status: :bad_request, error: 'Record invalid'
+    end
   end
 
   context 'with invalid package name' do
-    where(:package_name, :status) do
-      'unknown' | :not_found
-      ''        | :not_found
-      '%20'     | :bad_request
+    where(:package_name, :status, :error) do
+      'unknown' | :not_found   | %r{\A(Package tag|Project) not found\z}
+      ''        | :not_found   | '404 Not Found'
+      '%20'     | :bad_request | '"Package Name" not given'
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
 
   context 'with invalid tag name' do
-    where(:tag_name, :status) do
-      'unknown' | :not_found
-      ''        | :not_found
-      '%20'     | :bad_request
+    where(:tag_name, :status, :error) do
+      'unknown' | :not_found   | %r{\A(Package tag|Project) not found\z}
+      ''        | :not_found   | '404 Not Found'
+      '%20'     | :bad_request | '"Tag" not given'
     end
 
     with_them do
-      it_behaves_like 'returning response status', params[:status]
+      it_behaves_like 'returning response status with error', status: params[:status], error: params[:error]
     end
   end
+end
+
+RSpec.shared_examples 'track event' do |event_name|
+  let(:event_user) do
+    if auth == :deploy_token
+      deploy_token
+    elsif user_role
+      user
+    end
+  end
+
+  let(:snowplow_gitlab_standard_context) do
+    { project: project, namespace: project.namespace, property: 'i_package_npm_user' }.tap do |context|
+      context[:user] = event_user if event_user
+    end
+  end
+
+  it_behaves_like 'a package tracking event', described_class.name, event_name.to_s
 end

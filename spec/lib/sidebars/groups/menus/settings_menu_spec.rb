@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Groups::Menus::SettingsMenu, :with_license do
+RSpec.describe Sidebars::Groups::Menus::SettingsMenu, :with_license, feature_category: :navigation do
   let_it_be(:owner) { create(:user) }
 
   let_it_be_with_refind(:group) do
@@ -22,6 +22,12 @@ RSpec.describe Sidebars::Groups::Menus::SettingsMenu, :with_license do
       it 'returns false' do
         expect(menu.render?).to be false
       end
+    end
+  end
+
+  describe '#separated?' do
+    it 'returns true' do
+      expect(menu.separated?).to be true
     end
   end
 

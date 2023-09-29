@@ -8,6 +8,8 @@ owning-stage: "~devops::package"
 participating-stages: []
 ---
 
+<!-- vale gitlab.FutureTense = NO -->
+
 # Container Registry Metadata Database
 
 ## Usage of the GitLab Container Registry
@@ -172,7 +174,7 @@ The diagram below illustrates the architecture of the database cluster:
 
 [Rate](https://gitlab.com/gitlab-org/container-registry/-/issues/94) and [size](https://gitlab.com/gitlab-org/container-registry/-/issues/61#note_446609886) requirements for the GitLab.com database were extrapolated based on the `dev.gitlab.org` registry and are available in the linked issues.
 
-#### Self-Managed Instances
+#### Self-managed instances
 
 By default, for self-managed instances, the registry will have a separate logical database in the same PostgreSQL instance/cluster as the GitLab database. However, it will be possible to configure the registry to use a separate instance/cluster if needed.
 
@@ -264,7 +266,7 @@ The expected registry behavior will be covered with integration tests by manipul
 
 ##### Latency
 
-Excessive latency on established connections is hard to detect and debug, as these might not raise an application error or network timeout in normal circumstances but usually precede them.
+Excessive latency on established connections is hard to detect and debug, as these might not raise an application error or network timeout in typical circumstances but usually precede them.
 
 For this reason, the duration of database queries used to serve HTTP API requests should be instrumented using metrics, allowing the detection of unusual variations and trigger alarms accordingly before an excessive latency becomes a timeout or service unavailability.
 

@@ -2,18 +2,13 @@
 
 module QA
   RSpec.describe 'Verify' do
-    describe 'Pipeline with prefill variables' do
+    describe 'Pipeline with prefill variables', product_group: :pipeline_security do
       let(:prefill_variable_description1) { Faker::Lorem.sentence }
       let(:prefill_variable_value1) { Faker::Lorem.word }
       let(:prefill_variable_value5) { Faker::Lorem.word }
       let(:prefill_variable_description2) { Faker::Lorem.sentence }
       let(:prefill_variable_description5) { Faker::Lorem.sentence }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-prefill-variables'
-        end
-      end
-
+      let(:project) { create(:project, name: 'project-with-prefill-variables') }
       let!(:commit) do
         Resource::Repository::Commit.fabricate_via_api! do |commit|
           commit.project = project
@@ -52,7 +47,7 @@ module QA
         project.visit!
 
         # Navigate to Run Pipeline page
-        Page::Project::Menu.perform(&:click_ci_cd_pipelines)
+        Page::Project::Menu.perform(&:go_to_pipelines)
         Page::Project::Pipeline::Index.perform(&:click_run_pipeline_button)
       end
 

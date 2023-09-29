@@ -4,7 +4,7 @@ group: Pipeline Authoring
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Downstream pipelines **(FREE)**
+# Downstream pipelines **(FREE ALL)**
 
 A downstream pipeline is any GitLab CI/CD pipeline triggered by another pipeline.
 Downstream pipelines run independently and concurrently to the upstream pipeline
@@ -67,9 +67,6 @@ Multi-project pipelines:
   automatically canceled if a new pipeline is triggered for the same ref on the downstream project.
 - Are visible in the downstream project's pipeline list.
 - Are independent, so there are no nesting limits.
-
-For more information, see the **Cross-project Pipeline Triggering and Visualization** demo at
-[GitLab@learn](https://about.gitlab.com/learn/) in the **Continuous Integration** section.
 
 If you use a public project to trigger downstream pipelines in a private project,
 make sure there are no confidentiality problems. The upstream project's pipelines page
@@ -209,8 +206,9 @@ To trigger a child pipeline from a dynamically generated configuration file:
          - generated-config.yml
    ```
 
-1. Configure the trigger job to run after the job that generated the configuration file,
-   and set `include: artifact` to the generated artifact:
+1. Configure the trigger job to run after the job that generated the configuration file.
+   Set `include: artifact` to the generated artifact, and set `include: job` to
+   the job that created the artifact:
 
    ```yaml
    child-pipeline:
@@ -231,37 +229,43 @@ configuration for jobs that use the Windows runner, like scripts, use <code>&#92
 
 ### Run child pipelines with merge request pipelines
 
-To trigger a child pipeline as a [merge request pipeline](merge_request_pipelines.md):
+Pipelines, including child pipelines, run as branch pipelines by default when not using
+[`rules`](../yaml/index.md#rules) or [`workflow:rules`](../yaml/index.md#workflowrules).
+To configure child pipelines to run when triggered from a [merge request (parent) pipeline](merge_request_pipelines.md), use `rules` or `workflow:rules`.
+For example, using `rules`:
 
-1. Set the trigger job to run on merge requests in the parent pipeline's configuration file:
+1. Set the parent pipeline's trigger job to run on merge requests:
 
    ```yaml
-   microservice_a:
+   trigger-child-pipeline-job:
      trigger:
-       include: path/to/microservice_a.yml
+       include: path/to/child-pipeline-configuration.yml
      rules:
        - if: $CI_PIPELINE_SOURCE == "merge_request_event"
    ```
 
-1. Configure the child pipeline jobs to run in merge request pipelines with [`rules`](../yaml/index.md#rules)
-   or [`workflow:rules`](../yaml/index.md#workflowrules).
-   For example, with `rules` in a child pipeline's configuration file:
+1. Use `rules` to configure the child pipeline jobs to run when triggered by the parent pipeline:
 
    ```yaml
    job1:
-     script: echo "Child pipeline job 1"
+     script: echo "This child pipeline job runs any time the parent pipeline triggers it."
      rules:
-       - if: $CI_MERGE_REQUEST_ID
+       - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
 
    job2:
-     script: echo "Child pipeline job 2"
+     script: echo "This child pipeline job runs only when the parent pipeline is a merge request pipeline"
      rules:
        - if: $CI_MERGE_REQUEST_ID
    ```
 
-   In child pipelines, `$CI_PIPELINE_SOURCE` always has a value of `parent_pipeline`
-   and cannot be used to identify merge request pipelines. Use `$CI_MERGE_REQUEST_ID`
-   instead, which is always present in merge request pipelines.
+In child pipelines, `$CI_PIPELINE_SOURCE` always has a value of `parent_pipeline`, so:
+
+- You can use `if: $CI_PIPELINE_SOURCE == "parent_pipeline"` to ensure child pipeline jobs always run.
+- You _can't_ use `if: $CI_PIPELINE_SOURCE == "merge_request_event"` to configure child pipeline
+  jobs to run for merge request pipelines. Instead, use `if: $CI_MERGE_REQUEST_ID`
+  to set child pipeline jobs to run only when the parent pipeline is a merge request pipeline. The parent pipeline's
+  [`CI_MERGE_REQUEST_*` predefined variables](../variables/predefined_variables.md#predefined-variables-for-merge-request-pipelines)
+  are passed to the child pipeline jobs.
 
 ### Specify a branch for multi-project pipelines
 
@@ -309,18 +313,33 @@ trigger_pipeline:
 > Hover behavior for pipeline cards [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/197140/) in GitLab 13.2.
 
 In the [pipeline graph view](index.md#view-full-pipeline-graph), downstream pipelines display
-as a list of cards on the right of the graph. Hover over the pipeline's card to view
-which job triggered the downstream pipeline.
+as a list of cards on the right of the graph. From this view, you can:
 
-### Retry a downstream pipeline
+- Select a trigger job to see the triggered downstream pipeline's jobs.
+- Select **Expand jobs** **{chevron-lg-right}** on a pipeline card to expand the view
+  with the downstream pipeline's jobs. You can view one downstream pipeline at a time.
+- Hover over a pipeline card to have the job that triggered the downstream pipeline highlighted.
+
+### Retry failed and canceled jobs in a downstream pipeline
 
 > - Retry from graph view [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/354974) in GitLab 15.0 [with a flag](../../administration/feature_flags.md) named `downstream_retry_action`. Disabled by default.
 > - Retry from graph view [generally available and feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/357406) in GitLab 15.1.
 
-To retry a completed downstream pipeline, select **Retry** (**{retry}**):
+To retry failed and canceled jobs, select **Retry** (**{retry}**):
 
 - From the downstream pipeline's details page.
-- On the pipeline's card in the [pipeline graph view](index.md#view-full-pipeline-graph).
+- On the pipeline's card in the pipeline graph view.
+
+### Recreate a downstream pipeline
+
+> - Retry trigger job from graph view [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/367547) in GitLab 15.10 [with a flag](../../administration/feature_flags.md) named `ci_recreate_downstream_pipeline`. Disabled by default.
+> - [Generally available](https://gitlab.com/groups/gitlab-org/-/epics/6947) in GitLab 15.11. Feature flag `ci_recreate_downstream_pipeline` removed.
+
+You can recreate a downstream pipeline by retrying its corresponding trigger job. The newly created downstream pipeline replaces the current downstream pipeline in the pipeline graph.
+
+To recreate a downstream pipeline:
+
+- Select **Run again** (**{retry}**) on the trigger job's card in the pipeline graph view.
 
 ### Cancel a downstream pipeline
 
@@ -330,7 +349,7 @@ To retry a completed downstream pipeline, select **Retry** (**{retry}**):
 To cancel a downstream pipeline that is still running, select **Cancel** (**{cancel}**):
 
 - From the downstream pipeline's details page.
-- On the pipeline's card in the [pipeline graph view](index.md#view-full-pipeline-graph).
+- On the pipeline's card in the pipeline graph view.
 
 ### Mirror the status of a downstream pipeline in the trigger job
 
@@ -360,21 +379,21 @@ trigger_job:
 
 ::EndTabs
 
-### View multi-project pipelines in pipeline graphs **(PREMIUM)**
+### View multi-project pipelines in pipeline graphs **(PREMIUM ALL)**
 
 After you trigger a multi-project pipeline, the downstream pipeline displays
 to the right of the [pipeline graph](index.md#visualize-pipelines).
 
-![Multi-project pipeline graph](img/multi_project_pipeline_graph_v14_3.png)
-
 In [pipeline mini graphs](index.md#pipeline-mini-graphs), the downstream pipeline
 displays to the right of the mini graph.
 
-![Multi-project pipeline mini graph](img/pipeline_mini_graph_v15_0.png)
+## Fetch artifacts from an upstream pipeline **(PREMIUM ALL)**
 
-## Fetch artifacts from an upstream pipeline
+::Tabs
 
-Use [`needs:project`](../yaml/index.md#needsproject) to fetch artifacts from an
+:::TabTitle Parent-child pipeline
+
+Use [`needs:pipeline:job`](../yaml/index.md#needspipelinejob) to fetch artifacts from an
 upstream pipeline:
 
 1. In the upstream pipeline, save the artifacts in a job with the [`artifacts`](../yaml/index.md#artifacts)
@@ -391,7 +410,48 @@ upstream pipeline:
 
    deploy:
      stage: deploy
-     trigger: my/downstream_project
+     trigger:
+       include:
+         - local: path/to/child-pipeline.yml
+     variables:
+       PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+   ```
+
+1. Use `needs:pipeline:job` in a job in the downstream pipeline to fetch the artifacts.
+
+   ```yaml
+   test:
+     stage: test
+     script:
+       - cat artifact.txt
+     needs:
+       - pipeline: $PARENT_PIPELINE_ID
+         job: build_artifacts
+   ```
+
+   Set `job` to the job in the upstream pipeline that created the artifacts.
+
+:::TabTitle Multi-project pipeline
+
+Use [`needs:project`](../yaml/index.md#needsproject) to fetch artifacts from an
+upstream pipeline:
+
+1. In GitLab 15.9 and later, [add the downstream project to the job token scope allowlist](../jobs/ci_job_token.md#add-a-project-to-the-job-token-scope-allowlist) of the upstream project.
+1. In the upstream pipeline, save the artifacts in a job with the [`artifacts`](../yaml/index.md#artifacts)
+   keyword, then trigger the downstream pipeline with a trigger job:
+
+   ```yaml
+   build_artifacts:
+     stage: build
+     script:
+       - echo "This is a test artifact!" >> artifact.txt
+     artifacts:
+       paths:
+         - artifact.txt
+
+   deploy:
+     stage: deploy
+     trigger: my/downstream_project   # Path to the project to trigger a pipeline in
    ```
 
 1. Use `needs:project` in a job in the downstream pipeline to fetch the artifacts.
@@ -414,6 +474,8 @@ upstream pipeline:
    - `ref` to the branch.
    - `artifacts` to `true`.
 
+::EndTabs
+
 ### Fetch artifacts from an upstream merge request pipeline
 
 When you use `needs:project` to [pass artifacts to a downstream pipeline](#fetch-artifacts-from-an-upstream-pipeline),
@@ -427,11 +489,14 @@ because the downstream pipeline attempts to fetch artifacts from the latest bran
 To fetch the artifacts from the upstream `merge request` pipeline instead of the `branch` pipeline,
 pass `CI_MERGE_REQUEST_REF_PATH` to the downstream pipeline using [variable inheritance](#pass-yaml-defined-cicd-variables):
 
+1. In GitLab 15.9 and later, [add the downstream project to the job token scope allowlist](../jobs/ci_job_token.md#add-a-project-to-the-job-token-scope-allowlist) of the upstream project.
 1. In a job in the upstream pipeline, save the artifacts using the [`artifacts`](../yaml/index.md#artifacts) keyword.
 1. In the job that triggers the downstream pipeline, pass the `$CI_MERGE_REQUEST_REF_PATH` variable:
 
    ```yaml
    build_artifacts:
+     rules:
+       - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
      stage: build
      script:
        - echo "This is a test artifact!" >> artifact.txt
@@ -440,6 +505,8 @@ pass `CI_MERGE_REQUEST_REF_PATH` to the downstream pipeline using [variable inhe
          - artifact.txt
 
    upstream_job:
+     rules:
+       - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
      variables:
        UPSTREAM_REF: $CI_MERGE_REQUEST_REF_PATH
      trigger:
@@ -602,7 +669,7 @@ Upstream pipelines take precedence over downstream ones. If there are two
 variables with the same name defined in both upstream and downstream projects,
 the ones defined in the upstream project take precedence.
 
-### Pass dotenv variables created in a job **(PREMIUM)**
+### Pass dotenv variables created in a job **(PREMIUM ALL)**
 
 You can pass variables to a downstream job with [`dotenv` variable inheritance](../variables/index.md#pass-an-environment-variable-to-another-job)
 and [`needs:project`](../yaml/index.md#needsproject). These variables are only available in
@@ -644,6 +711,86 @@ For example, in a [multi-project pipeline](#multi-project-pipelines):
          artifacts: true
    ```
 
+### Control what type of variables to forward to downstream pipelines
+
+Use the [`trigger:forward` keyword](../yaml/index.md#triggerforward) to specify
+what type of variables to forward to the downstream pipeline. Forwarded variables
+are considered trigger variables, which have the [highest precedence](../variables/index.md#cicd-variable-precedence).
+
+## Downstream pipelines for deployments
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/369061) in GitLab 16.4.
+
+You can use the [`environment`](../yaml/index.md#environment) keyword with [`trigger`](../yaml/index.md#trigger).
+You might want to use `environment` from a trigger job if your deployment and application projects are separately managed.
+
+```yaml
+deploy:
+  trigger:
+    project: project-group/my-downstream-project
+  environment: production
+```
+
+A downstream pipeline can provision infrastructure, deploy to a designated environment, and return the deployment status
+to the upstream project.
+
+You can [view the environment and deployment](../environments/index.md#view-environments-and-deployments)
+from the upstream project.
+
+### Advanced example
+
+This example configuration has the following behaviors:
+
+- The upstream project dynamically composes an environment name based on a branch name.
+- The upstream project passes the context of the deployment to the downstream project with `UPSTREAM_*` variables.
+
+The `.gitlab-ci.yml` in an upstream project:
+
+```yaml
+stages:
+  - deploy
+  - cleanup
+
+.downstream-deployment-pipeline:
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_ENVIRONMENT_NAME: $CI_ENVIRONMENT_NAME
+    UPSTREAM_ENVIRONMENT_ACTION: $CI_ENVIRONMENT_ACTION
+  trigger:
+    project: project-group/deployment-project
+    branch: main
+    strategy: depend
+
+deploy-review:
+  stage: deploy
+  extends: .downstream-deployment-pipeline
+  environment:
+    name: review/$CI_COMMIT_REF_SLUG
+    on_stop: stop-review
+
+stop-review:
+  stage: cleanup
+  extends: .downstream-deployment-pipeline
+  environment:
+    name: review/$CI_COMMIT_REF_SLUG
+    action: stop
+  when: manual
+```
+
+The `.gitlab-ci.yml` in a downstream project:
+
+```yaml
+deploy:
+  script: echo "Deploy to ${UPSTREAM_ENVIRONMENT_NAME} for ${UPSTREAM_PROJECT_ID}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" && $UPSTREAM_ENVIRONMENT_ACTION == "start"
+
+stop:
+  script: echo "Stop ${UPSTREAM_ENVIRONMENT_NAME} for ${UPSTREAM_PROJECT_ID}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" && $UPSTREAM_ENVIRONMENT_ACTION == "stop"
+```
+
 ## Troubleshooting
 
 ### Trigger job fails and does not create multi-project pipeline
@@ -657,9 +804,25 @@ With multi-project pipelines, the trigger job fails and does not create the down
   to run pipelines against the protected branch. See [pipeline security for protected branches](index.md#pipeline-security-on-protected-branches)
   for more information.
 
+### Job in child pipeline is not created when the pipeline runs
+
+If the parent pipeline is a [merge request pipeline](merge_request_pipelines.md),
+the child pipeline must [use `workflow:rules` or `rules` to ensure the jobs run](#run-child-pipelines-with-merge-request-pipelines).
+
+If no jobs in the child pipeline can run due to missing or incorrect `rules` configuration:
+
+- The child pipeline fails to start.
+- The parent pipeline's trigger job fails with: `downstream pipeline can not be created, Pipeline will not run for the selected trigger. The rules configuration prevented any jobs from being added to the pipeline.`
+
 ### `Ref is ambiguous`
 
 You cannot trigger a multi-project pipeline with a tag when a branch exists with the same
 name. The downstream pipeline fails to create with the error: `downstream pipeline can not be created, Ref is ambiguous`.
 
 Only trigger multi-project pipelines with tag names that do not match branch names.
+
+### `403 Forbidden` error when downloading a job artifact from an upstream pipeline
+
+In GitLab 15.9 and later, CI/CD job tokens are scoped to the project that the pipeline executes under. Therefore, the job token in a downstream pipeline cannot be used to access an upstream project by default.
+
+To resolve this, [add the downstream project to the job token scope allowlist](../jobs/ci_job_token.md#add-a-project-to-the-job-token-scope-allowlist).

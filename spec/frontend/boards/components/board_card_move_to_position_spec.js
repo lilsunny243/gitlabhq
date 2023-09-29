@@ -1,5 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { GlDisclosureDropdown, GlDisclosureDropdownItem } from '@gitlab/ui';
 import {
@@ -51,9 +52,12 @@ describe('Board Card Move to position', () => {
     };
   };
 
-  const createComponent = (propsData) => {
+  const createComponent = (propsData, isApolloBoard = false) => {
     wrapper = shallowMount(BoardCardMoveToPosition, {
       store,
+      provide: {
+        isApolloBoard,
+      },
       propsData: {
         item: mockIssue2,
         list: mockList,
@@ -131,6 +135,40 @@ describe('Board Card Move to position', () => {
             allItemsLoadedInList: true,
             atIndex: itemIndex,
           });
+        },
+      );
+    });
+
+    describe('Apollo boards', () => {
+      beforeEach(() => {
+        createComponent({ index: itemIndex }, true);
+        trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+      });
+
+      afterEach(() => {
+        unmockTracking();
+      });
+
+      it.each`
+        dropdownIndex | dropdownItem          | trackLabel         | positionInList
+        ${0}          | ${dropdownOptions[0]} | ${'move_to_start'} | ${0}
+        ${1}          | ${dropdownOptions[1]} | ${'move_to_end'}   | ${-1}
+      `(
+        'on click of dropdown index $dropdownIndex with label $dropdownLabel emits moveToPosition event with tracking label $trackLabel',
+        async ({ dropdownIndex, dropdownItem, trackLabel, positionInList }) => {
+          await findMoveToPositionDropdown().vm.$emit('shown');
+
+          expect(findDropdownItemAtIndex(dropdownIndex).text()).toBe(dropdownItem.text);
+
+          await findMoveToPositionDropdown().vm.$emit('action', dropdownItem);
+
+          expect(trackingSpy).toHaveBeenCalledWith('boards:list', 'click_toggle_button', {
+            category: 'boards:list',
+            label: trackLabel,
+            property: 'type_card',
+          });
+
+          expect(wrapper.emitted('moveToPosition')).toEqual([[positionInList]]);
         },
       );
     });

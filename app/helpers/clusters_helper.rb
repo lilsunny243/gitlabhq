@@ -37,7 +37,6 @@ module ClustersHelper
       editable: can_edit.to_s,
       environment_scope: cluster.environment_scope,
       base_domain: cluster.base_domain,
-      application_ingress_external_ip: cluster.application_ingress_external_ip,
       auto_devops_help_path: help_page_path('topics/autodevops/index'),
       external_endpoint_help_path: help_page_path('user/project/clusters/gitlab_managed_clusters.md', anchor: 'base-domain')
     }
@@ -56,12 +55,8 @@ module ClustersHelper
     case tab
     when 'environments'
       render_if_exists 'clusters/clusters/environments'
-    when 'health'
-      render_if_exists 'clusters/clusters/health'
     when 'apps'
       render 'applications'
-    when 'integrations'
-      render 'integrations'
     when 'settings'
       render 'advanced_settings_container'
     else
@@ -97,7 +92,7 @@ module ClustersHelper
   end
 
   def cluster_created?(cluster)
-    !cluster.status_name.in?(%i/scheduled creating/)
+    !cluster.status_name.in?(%i[scheduled creating])
   end
 
   def can_admin_cluster?(user, cluster)

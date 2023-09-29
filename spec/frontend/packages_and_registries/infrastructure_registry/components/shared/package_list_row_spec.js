@@ -54,11 +54,6 @@ describe('packages_list_row', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   it('renders', () => {
     mountComponent();
     expect(wrapper.element).toMatchSnapshot();
@@ -143,7 +138,7 @@ describe('packages_list_row', () => {
     });
 
     it('details link is disabled', () => {
-      expect(findPackageLink().attributes('disabled')).toBe('true');
+      expect(findPackageLink().attributes('disabled')).toBeDefined();
     });
 
     it('has a warning icon', () => {

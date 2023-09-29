@@ -1,5 +1,11 @@
-import { GlFormCheckbox, GlSprintf, GlIcon, GlDropdown, GlDropdownItem } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
+import {
+  GlFormCheckbox,
+  GlSprintf,
+  GlIcon,
+  GlDisclosureDropdown,
+  GlDisclosureDropdownItem,
+} from '@gitlab/ui';
+import { shallowMount, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
@@ -37,16 +43,17 @@ describe('tags list row', () => {
   const findManifestDetail = () => wrapper.find('[data-testid="manifest-detail"]');
   const findConfigurationDetail = () => wrapper.find('[data-testid="configuration-detail"]');
   const findWarningIcon = () => wrapper.findComponent(GlIcon);
-  const findAdditionalActionsMenu = () => wrapper.findComponent(GlDropdown);
-  const findDeleteButton = () => wrapper.findComponent(GlDropdownItem);
+  const findAdditionalActionsMenu = () => wrapper.findComponent(GlDisclosureDropdown);
+  const findDeleteButton = () => wrapper.findComponent(GlDisclosureDropdownItem);
 
-  const mountComponent = (propsData = defaultProps) => {
-    wrapper = shallowMount(component, {
+  const mountComponent = (propsData = defaultProps, mountFn = shallowMount) => {
+    wrapper = mountFn(component, {
       stubs: {
         GlSprintf,
         ListItem,
         DetailsRow,
-        GlDropdown,
+        GlDisclosureDropdown,
+        GlDisclosureDropdownItem,
       },
       propsData,
       directives: {
@@ -54,11 +61,6 @@ describe('tags list row', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
 
   describe('checkbox', () => {
     it('exists', () => {
@@ -158,7 +160,7 @@ describe('tags list row', () => {
     it('is disabled when the component is disabled', () => {
       mountComponent({ ...defaultProps, disabled: true });
 
-      expect(findClipboardButton().attributes('disabled')).toBe('true');
+      expect(findClipboardButton().attributes('disabled')).toBeDefined();
     });
   });
 
@@ -279,46 +281,52 @@ describe('tags list row', () => {
 
       expect(findAdditionalActionsMenu().props()).toMatchObject({
         icon: 'ellipsis_v',
-        text: 'More actions',
+        toggleText: 'More actions',
         textSrOnly: true,
         category: 'tertiary',
-        right: true,
+        placement: 'right',
+        disabled: false,
       });
     });
 
-    it.each`
-      canDelete | digest   | disabled | buttonDisabled
-      ${true}   | ${null}  | ${true}  | ${true}
-      ${false}  | ${'foo'} | ${true}  | ${true}
-      ${false}  | ${null}  | ${true}  | ${true}
-      ${true}   | ${'foo'} | ${true}  | ${true}
-      ${true}   | ${'foo'} | ${false} | ${false}
-    `(
-      'is $visible that is visible when canDelete is $canDelete and digest is $digest and disabled is $disabled',
-      ({ canDelete, digest, disabled, buttonDisabled }) => {
-        mountComponent({ ...defaultProps, tag: { ...tag, canDelete, digest }, disabled });
+    it('has the correct classes', () => {
+      mountComponent();
 
-        expect(findAdditionalActionsMenu().props('disabled')).toBe(buttonDisabled);
-        expect(findAdditionalActionsMenu().classes('gl-opacity-0')).toBe(buttonDisabled);
-        expect(findAdditionalActionsMenu().classes('gl-pointer-events-none')).toBe(buttonDisabled);
-      },
-    );
+      expect(findAdditionalActionsMenu().classes('gl-opacity-0')).toBe(false);
+      expect(findAdditionalActionsMenu().classes('gl-pointer-events-none')).toBe(false);
+    });
+
+    it('is not rendered when tag.canDelete is false', () => {
+      mountComponent({ ...defaultProps, tag: { ...tag, canDelete: false } });
+
+      expect(findAdditionalActionsMenu().exists()).toBe(false);
+    });
+
+    it('is hidden when disabled prop is set to true', () => {
+      mountComponent({ ...defaultProps, disabled: true });
+
+      expect(findAdditionalActionsMenu().props('disabled')).toBe(true);
+      expect(findAdditionalActionsMenu().classes('gl-opacity-0')).toBe(true);
+      expect(findAdditionalActionsMenu().classes('gl-pointer-events-none')).toBe(true);
+    });
 
     describe('delete button', () => {
       it('exists and has the correct attrs', () => {
         mountComponent();
 
         expect(findDeleteButton().exists()).toBe(true);
-        expect(findDeleteButton().attributes()).toMatchObject({
-          variant: 'danger',
+        expect(findDeleteButton().props('item').extraAttrs).toMatchObject({
+          class: 'gl-text-red-500!',
+          'data-testid': 'single-delete-button',
         });
+
         expect(findDeleteButton().text()).toBe(REMOVE_TAG_BUTTON_TITLE);
       });
 
       it('delete event emits delete', () => {
-        mountComponent();
+        mountComponent(undefined, mount);
 
-        findDeleteButton().vm.$emit('click');
+        wrapper.find('[data-testid="single-delete-button"]').trigger('click');
 
         expect(wrapper.emitted('delete')).toEqual([[]]);
       });

@@ -11,10 +11,12 @@ module Gitlab
       include Migrations::ConstraintsHelpers
       include Migrations::ExtensionHelpers
       include Migrations::SidekiqHelpers
+      include Migrations::RedisHelpers
       include DynamicModelHelpers
       include RenameTableHelpers
       include AsyncIndexes::MigrationHelpers
       include AsyncConstraints::MigrationHelpers
+      include WraparoundVacuumHelpers
 
       def define_batchable_model(table_name, connection: self.connection)
         super(table_name, connection: connection)
@@ -76,63 +78,6 @@ module Gitlab
         columns = options.fetch(:columns, DEFAULT_TIMESTAMP_COLUMNS)
         columns.each do |column_name|
           remove_column(table_name, column_name)
-        end
-      end
-
-      # @deprecated Use `create_table` in V2 instead
-      #
-      # Creates a new table, optionally allowing the caller to add check constraints to the table.
-      # Aside from that addition, this method should behave identically to Rails' `create_table` method.
-      #
-      # Example:
-      #
-      #     create_table_with_constraints :some_table do |t|
-      #       t.integer :thing, null: false
-      #       t.text :other_thing
-      #
-      #       t.check_constraint :thing_is_not_null, 'thing IS NOT NULL'
-      #       t.text_limit :other_thing, 255
-      #     end
-      #
-      # See Rails' `create_table` for more info on the available arguments.
-      def create_table_with_constraints(table_name, **options, &block)
-        helper_context = self
-
-        with_lock_retries do
-          check_constraints = []
-
-          create_table(table_name, **options) do |t|
-            t.define_singleton_method(:check_constraint) do |name, definition|
-              helper_context.send(:validate_check_constraint_name!, name) # rubocop:disable GitlabSecurity/PublicSend
-
-              check_constraints << { name: name, definition: definition }
-            end
-
-            t.define_singleton_method(:text_limit) do |column_name, limit, name: nil|
-              # rubocop:disable GitlabSecurity/PublicSend
-              name = helper_context.send(:text_limit_name, table_name, column_name, name: name)
-              helper_context.send(:validate_check_constraint_name!, name)
-              # rubocop:enable GitlabSecurity/PublicSend
-
-              column_name = helper_context.quote_column_name(column_name)
-              definition = "char_length(#{column_name}) <= #{limit}"
-
-              check_constraints << { name: name, definition: definition }
-            end
-
-            t.instance_eval(&block) unless block.nil?
-          end
-
-          next if check_constraints.empty?
-
-          constraint_clauses = check_constraints.map do |constraint|
-            "ADD CONSTRAINT #{quote_table_name(constraint[:name])} CHECK (#{constraint[:definition]})"
-          end
-
-          execute(<<~SQL)
-            ALTER TABLE #{quote_table_name(table_name)}
-            #{constraint_clauses.join(",\n")}
-          SQL
         end
       end
 
@@ -292,23 +237,34 @@ module Gitlab
       #                      order of the ALTER TABLE. This can be useful in situations where the foreign
       #                      key creation could deadlock with another process.
       #
-      # rubocop: disable Metrics/ParameterLists
-      def add_concurrent_foreign_key(source, target, column:, on_delete: :cascade, on_update: nil, target_column: :id, name: nil, validate: true, reverse_lock_order: false)
+      def add_concurrent_foreign_key(source, target, column:, **options)
+        options.reverse_merge!({
+          on_delete: :cascade,
+          on_update: nil,
+          target_column: :id,
+          validate: true,
+          reverse_lock_order: false,
+          allow_partitioned: false,
+          column: column
+        })
+
         # Transactions would result in ALTER TABLE locks being held for the
         # duration of the transaction, defeating the purpose of this method.
         if transaction_open?
           raise 'add_concurrent_foreign_key can not be run inside a transaction'
         end
 
-        options = {
-          column: column,
-          on_delete: on_delete,
-          on_update: on_update,
-          name: name.presence || concurrent_foreign_key_name(source, column),
-          primary_key: target_column
-        }
+        if !options.delete(:allow_partitioned) && table_partitioned?(source)
+          raise ArgumentError, 'add_concurrent_foreign_key can not be used on a partitioned ' \
+            'table. Please use add_concurrent_partitioned_foreign_key on the partitioned table ' \
+            'as we need to create foreign keys on each partition and a FK on the parent table'
+        end
 
-        if foreign_key_exists?(source, target, **options)
+        options[:name] ||= concurrent_foreign_key_name(source, column)
+        options[:primary_key] = options[:target_column]
+        check_options = options.slice(:column, :on_delete, :on_update, :name, :primary_key)
+
+        if foreign_key_exists?(source, target, **check_options)
           warning_message = "Foreign key not created because it exists already " \
             "(this may be due to an aborted migration or similar): " \
             "source: #{source}, target: #{target}, column: #{options[:column]}, "\
@@ -317,23 +273,7 @@ module Gitlab
 
           Gitlab::AppLogger.warn warning_message
         else
-          # Using NOT VALID allows us to create a key without immediately
-          # validating it. This means we keep the ALTER TABLE lock only for a
-          # short period of time. The key _is_ enforced for any newly created
-          # data.
-
-          with_lock_retries do
-            execute("LOCK TABLE #{target}, #{source} IN SHARE ROW EXCLUSIVE MODE") if reverse_lock_order
-            execute <<-EOF.strip_heredoc
-            ALTER TABLE #{source}
-            ADD CONSTRAINT #{options[:name]}
-            FOREIGN KEY (#{multiple_columns(options[:column])})
-            REFERENCES #{target} (#{multiple_columns(target_column)})
-            #{on_update_statement(options[:on_update])}
-            #{on_delete_statement(options[:on_delete])}
-            NOT VALID;
-            EOF
-          end
+          execute_add_concurrent_foreign_key(source, target, options)
         end
 
         # Validate the existing constraint. This can potentially take a very
@@ -345,13 +285,12 @@ module Gitlab
         #
         # Note this is a no-op in case the constraint is VALID already
 
-        if validate
+        if options[:validate]
           disable_statement_timeout do
             execute("ALTER TABLE #{source} VALIDATE CONSTRAINT #{options[:name]};")
           end
         end
       end
-      # rubocop: enable Metrics/ParameterLists
 
       def validate_foreign_key(source, column, name: nil)
         fk_name = name || concurrent_foreign_key_name(source, column)
@@ -367,16 +306,23 @@ module Gitlab
 
       def foreign_key_exists?(source, target = nil, **options)
         # This if block is necessary because foreign_key_exists? is called in down migrations that may execute before
-        # the postgres_foreign_keys view had necessary columns added, or even before the view existed.
+        # the postgres_foreign_keys view had necessary columns added.
         # In that case, we revert to the previous behavior of this method.
         # The behavior in the if block has a bug: it always returns false if the fk being checked has multiple columns.
         # This can be removed after init_schema.rb passes 20221122210711_add_columns_to_postgres_foreign_keys.rb
         # Tracking issue: https://gitlab.com/gitlab-org/gitlab/-/issues/386796
-        if ActiveRecord::Migrator.current_version < 20221122210711
+        unless connection.column_exists?('postgres_foreign_keys', 'constrained_table_name')
           return foreign_keys(source).any? do |foreign_key|
             tables_match?(target.to_s, foreign_key.to_table.to_s) &&
                 options_match?(foreign_key.options, options)
           end
+        end
+
+        # Since we may be migrating in one go from a previous version without
+        # `constrained_table_name` then we may see that this column exists
+        # (as above) but the schema cache is still outdated for the model.
+        unless Gitlab::Database::PostgresForeignKey.column_names.include?('constrained_table_name')
+          Gitlab::Database::PostgresForeignKey.reset_column_information
         end
 
         fks = Gitlab::Database::PostgresForeignKey.by_constrained_table_name_or_identifier(source)
@@ -621,8 +567,8 @@ module Gitlab
       # table - The table containing the column.
       # column - The name of the column to change.
       # new_type - The new column type.
-      def cleanup_concurrent_column_type_change(table, column)
-        temp_column = "#{column}_for_type_change"
+      def cleanup_concurrent_column_type_change(table, column, temp_column: nil)
+        temp_column ||= "#{column}_for_type_change"
 
         transaction do
           # This has to be performed in a transaction as otherwise we might have
@@ -640,10 +586,10 @@ module Gitlab
       # type_cast_function - Required if the conversion back to the original type is not automatic
       # batch_column_name - option for tables without a primary key, in this case
       #            another unique integer column can be used. Example: :user_id
-      def undo_cleanup_concurrent_column_type_change(table, column, old_type, type_cast_function: nil, batch_column_name: :id, limit: nil)
+      def undo_cleanup_concurrent_column_type_change(table, column, old_type, type_cast_function: nil, batch_column_name: :id, limit: nil, temp_column: nil)
         Gitlab::Database::QueryAnalyzers::RestrictAllowedSchemas.require_ddl_mode!
 
-        temp_column = "#{column}_for_type_change"
+        temp_column ||= "#{column}_for_type_change"
 
         # Using a descriptive name that includes orinal column's name risks
         # taking us above the 63 character limit, so we use a hash
@@ -963,6 +909,11 @@ module Gitlab
 
           name = index.name.gsub(old, new)
 
+          if name.length > 63
+            digest = Digest::SHA256.hexdigest(name).first(10)
+            name = "idx_copy_#{digest}"
+          end
+
           options = {
             unique: index.unique,
             name: name,
@@ -1239,6 +1190,25 @@ into similar problems in the future (e.g. when new tables are created).
         end
       end
 
+      def table_partitioned?(table_name)
+        Gitlab::Database::PostgresPartitionedTable
+          .find_by_name_in_current_schema(table_name)
+          .present?
+      end
+
+      # While it is safe to call `change_column_default` on a column without
+      # default it would still require access exclusive lock on the table
+      # and for tables with high autovacuum(wraparound prevention) it will
+      # fail if their executions overlap.
+      #
+      def remove_column_default(table_name, column_name)
+        column = connection.columns(table_name).find { |col| col.name == column_name.to_s }
+
+        if column.default || column.default_function
+          change_column_default(table_name, column_name, to: nil)
+        end
+      end
+
       private
 
       def multiple_columns(columns, separator: ', ')
@@ -1353,6 +1323,33 @@ into similar problems in the future (e.g. when new tables are created).
           Illegal timestamp column name! Got #{column_name}.
           Must end with `_at`}
         MESSAGE
+      end
+
+      def execute_add_concurrent_foreign_key(source, target, options)
+        # Using NOT VALID allows us to create a key without immediately
+        # validating it. This means we keep the ALTER TABLE lock only for a
+        # short period of time. The key _is_ enforced for any newly created
+        # data.
+        not_valid = 'NOT VALID'
+        lock_mode = 'SHARE ROW EXCLUSIVE'
+
+        if table_partitioned?(source)
+          not_valid = ''
+          lock_mode = 'ACCESS EXCLUSIVE'
+        end
+
+        with_lock_retries do
+          execute("LOCK TABLE #{target}, #{source} IN #{lock_mode} MODE") if options[:reverse_lock_order]
+          execute(<<~SQL.squish)
+            ALTER TABLE #{source}
+            ADD CONSTRAINT #{options[:name]}
+            FOREIGN KEY (#{multiple_columns(options[:column])})
+            REFERENCES #{target} (#{multiple_columns(options[:target_column])})
+            #{on_update_statement(options[:on_update])}
+            #{on_delete_statement(options[:on_delete])}
+            #{not_valid};
+          SQL
+        end
       end
     end
   end

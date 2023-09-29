@@ -2,6 +2,7 @@ import { GlFormInput, GlModal } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import merge from 'lodash/merge';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import MetricImagesTable from '~/vue_shared/components/metric_images/metric_images_table.vue';
 import MetricImagesTab from '~/vue_shared/components/metric_images/metric_images_tab.vue';
@@ -43,13 +44,6 @@ describe('Metric images tab', () => {
 
   beforeEach(() => {
     mountComponent();
-  });
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
   });
 
   const findUploadDropzone = () => wrapper.findComponent(UploadDropzone);

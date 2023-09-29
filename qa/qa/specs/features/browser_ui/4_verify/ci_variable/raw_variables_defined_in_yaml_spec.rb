@@ -2,15 +2,10 @@
 
 module QA
   RSpec.describe 'Verify', :runner do
-    describe 'Pipeline with raw variables in YAML', product_group: :pipeline_authoring do
+    describe 'Pipeline with raw variables in YAML', product_group: :pipeline_security do
       let(:executor) { "qa-runner-#{Time.now.to_i}" }
       let(:pipeline_job_name) { 'rspec' }
-
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-raw-variable-pipeline'
-        end
-      end
+      let(:project) { create(:project, name: 'project-with-raw-variable-pipeline') }
 
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
@@ -76,7 +71,7 @@ module QA
       before do
         Flow::Login.sign_in
         project.visit!
-        Flow::Pipeline.visit_latest_pipeline(status: 'passed')
+        Flow::Pipeline.visit_latest_pipeline(status: 'Passed')
         Page::Project::Pipeline::Show.perform do |show|
           show.click_job(pipeline_job_name)
         end

@@ -2,15 +2,15 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Unsubscribe links', :sidekiq_inline, feature_category: :not_owned do
+RSpec.describe 'Unsubscribe links', :sidekiq_inline, feature_category: :shared do
   include Warden::Test::Helpers
 
   let_it_be(:project) { create(:project, :public) }
-  let_it_be(:author) { create(:user).tap { |u| project.add_reporter(u) } }
-  let_it_be(:recipient) { create(:user) }
+  let_it_be(:author) { create(:user, :no_super_sidebar).tap { |u| project.add_reporter(u) } }
+  let_it_be(:recipient) { create(:user, :no_super_sidebar) }
 
   let(:params) { { title: 'A bug!', description: 'Fix it!', assignee_ids: [recipient.id] } }
-  let(:issue) { Issues::CreateService.new(container: project, current_user: author, params: params, spam_params: nil).execute[:issue] }
+  let(:issue) { Issues::CreateService.new(container: project, current_user: author, params: params).execute[:issue] }
 
   let(:mail) { ActionMailer::Base.deliveries.last }
   let(:body) { Capybara::Node::Simple.new(mail.default_part_body.to_s) }
@@ -22,6 +22,10 @@ RSpec.describe 'Unsubscribe links', :sidekiq_inline, feature_category: :not_owne
   end
 
   context 'when logged out' do
+    before do
+      stub_feature_flags(super_sidebar_logged_out: false)
+    end
+
     context 'when visiting the link from the body' do
       it 'shows the unsubscribe confirmation page and redirects to root path when confirming' do
         visit body_link

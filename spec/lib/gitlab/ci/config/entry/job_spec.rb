@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_composition do
+  using RSpec::Parameterized::TableSyntax
+
   let(:entry) { described_class.new(config, name: :rspec) }
 
   it_behaves_like 'with inheritable CI config' do
@@ -29,7 +31,7 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
       let(:result) do
         %i[before_script script after_script hooks stage cache
            image services only except rules needs variables artifacts
-           environment coverage retry interruptible timeout release tags
+           coverage retry interruptible timeout release tags
            inherit parallel]
       end
 
@@ -261,13 +263,13 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
           end
         end
 
-        context 'when it is lower than two' do
-          let(:config) { { script: 'echo', parallel: 1 } }
+        context 'when it is lower than one' do
+          let(:config) { { script: 'echo', parallel: 0 } }
 
           it 'returns error about value too low' do
             expect(entry).not_to be_valid
             expect(entry.errors)
-              .to include 'parallel config must be greater than or equal to 2'
+              .to include 'parallel config must be greater than or equal to 1'
           end
         end
 
@@ -595,6 +597,39 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
         end
       end
     end
+
+    context 'when job is not a pages job' do
+      let(:name) { :rspec }
+
+      context 'if the config contains a publish entry' do
+        let(:entry) { described_class.new({ script: 'echo', publish: 'foo' }, name: name) }
+
+        it 'is invalid' do
+          expect(entry).not_to be_valid
+          expect(entry.errors).to include /job publish can only be used within a `pages` job/
+        end
+      end
+    end
+
+    context 'when job is a pages job' do
+      let(:name) { :pages }
+
+      context 'when it does not have a publish entry' do
+        let(:entry) { described_class.new({ script: 'echo' }, name: name) }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+
+      context 'when it has a publish entry' do
+        let(:entry) { described_class.new({ script: 'echo', publish: 'foo' }, name: name) }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+    end
   end
 
   describe '#relevant?' do
@@ -631,7 +666,13 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
 
       it 'overrides default config' do
         expect(entry[:image].value).to eq(name: 'some_image')
-        expect(entry[:cache].value).to eq([key: 'test', policy: 'pull-push', when: 'on_success', unprotect: false])
+        expect(entry[:cache].value).to match_array([
+          key: 'test',
+          policy: 'pull-push',
+          when: 'on_success',
+          unprotect: false,
+          fallback_keys: []
+        ])
       end
     end
 
@@ -646,13 +687,17 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
 
       it 'uses config from default entry' do
         expect(entry[:image].value).to eq 'specified'
-        expect(entry[:cache].value).to eq([key: 'test', policy: 'pull-push', when: 'on_success', unprotect: false])
+        expect(entry[:cache].value).to match_array([
+          key: 'test',
+          policy: 'pull-push',
+          when: 'on_success',
+          unprotect: false,
+          fallback_keys: []
+        ])
       end
     end
 
     context 'with workflow rules' do
-      using RSpec::Parameterized::TableSyntax
-
       where(:name, :has_workflow_rules?, :only, :rules, :result) do
         "uses default only"    | false | nil          | nil    | { refs: %w[branches tags] }
         "uses user only"       | false | %w[branches] | nil    | { refs: %w[branches] }
@@ -691,6 +736,20 @@ RSpec.describe Gitlab::Ci::Config::Entry::Job, feature_category: :pipeline_compo
           expect(entry).not_to be_only_defined
         end
       end
+    end
+  end
+
+  describe '#pages_job?', :aggregate_failures, feature_category: :pages do
+    where(:name, :result) do
+      :pages | true
+      :'pages:staging' | false
+      :'something:pages:else' | false
+    end
+
+    with_them do
+      subject { described_class.new({}, name: name).pages_job? }
+
+      it { is_expected.to eq(result) }
     end
   end
 

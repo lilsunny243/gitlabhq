@@ -6,6 +6,7 @@ import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import ServiceDeskRoot from '~/projects/settings_service_desk/components/service_desk_root.vue';
 import ServiceDeskSetting from '~/projects/settings_service_desk/components/service_desk_setting.vue';
+import CustomEmailWrapper from '~/projects/settings_service_desk/components/custom_email_wrapper.vue';
 
 describe('ServiceDeskRoot', () => {
   let axiosMock;
@@ -13,17 +14,22 @@ describe('ServiceDeskRoot', () => {
   let spy;
 
   const provideData = {
-    customEmail: 'custom.email@example.com',
-    customEmailEnabled: true,
+    serviceDeskEmail: 'custom.email@example.com',
+    serviceDeskEmailEnabled: true,
     endpoint: '/gitlab-org/gitlab-test/service_desk',
     initialIncomingEmail: 'servicedeskaddress@example.com',
     initialIsEnabled: true,
+    isIssueTrackerEnabled: true,
     outgoingName: 'GitLab Support Bot',
     projectKey: 'key',
     selectedTemplate: 'Bug',
     selectedFileTemplateProjectId: 42,
     templates: ['Bug', 'Documentation'],
     publicProject: false,
+    customEmailEndpoint: '/gitlab-org/gitlab-test/-/service_desk/custom_email',
+    glFeatures: {
+      serviceDeskCustomEmail: true,
+    },
   };
 
   const getAlertText = () => wrapper.findComponent(GlAlert).text();
@@ -41,7 +47,6 @@ describe('ServiceDeskRoot', () => {
 
   afterEach(() => {
     axiosMock.restore();
-    wrapper.destroy();
     if (spy) {
       spy.mockRestore();
     }
@@ -52,14 +57,15 @@ describe('ServiceDeskRoot', () => {
       wrapper = createComponent();
 
       expect(wrapper.findComponent(ServiceDeskSetting).props()).toEqual({
-        customEmail: provideData.customEmail,
-        customEmailEnabled: provideData.customEmailEnabled,
+        serviceDeskEmail: provideData.serviceDeskEmail,
+        serviceDeskEmailEnabled: provideData.serviceDeskEmailEnabled,
         incomingEmail: provideData.initialIncomingEmail,
         initialOutgoingName: provideData.outgoingName,
         initialProjectKey: provideData.projectKey,
         initialSelectedTemplate: provideData.selectedTemplate,
         initialSelectedFileTemplateProjectId: provideData.selectedFileTemplateProjectId,
         isEnabled: provideData.initialIsEnabled,
+        isIssueTrackerEnabled: provideData.isIssueTrackerEnabled,
         isTemplateSaving: false,
         templates: provideData.templates,
       });
@@ -79,7 +85,7 @@ describe('ServiceDeskRoot', () => {
       const alertBodyLink = alertEl.findComponent(GlLink);
       expect(alertBodyLink.exists()).toBe(true);
       expect(alertBodyLink.attributes('href')).toBe(
-        '/help/user/project/service_desk.html#using-a-custom-email-address',
+        '/help/user/project/service_desk.html#use-an-additional-service-desk-alias-email',
       );
       expect(alertBodyLink.text()).toBe('How do I create a custom email address?');
     });
@@ -148,7 +154,7 @@ describe('ServiceDeskRoot', () => {
           await waitForPromises();
         });
 
-        it('sends a request to update template', async () => {
+        it('sends a request to update template', () => {
           expect(spy).toHaveBeenCalledWith(provideData.endpoint, {
             issue_template_key: 'Bug',
             outgoing_name: 'GitLab Support Bot',
@@ -182,6 +188,48 @@ describe('ServiceDeskRoot', () => {
         it('shows an error message', () => {
           expect(getAlertText()).toContain('An error occurred while saving changes:');
         });
+      });
+    });
+  });
+
+  describe('CustomEmailWrapper component', () => {
+    it('is rendered', () => {
+      wrapper = createComponent();
+
+      expect(wrapper.findComponent(CustomEmailWrapper).exists()).toBe(true);
+      expect(wrapper.findComponent(CustomEmailWrapper).props()).toEqual({
+        incomingEmail: provideData.initialIncomingEmail,
+        customEmailEndpoint: provideData.customEmailEndpoint,
+      });
+    });
+
+    describe('when Service Desk is disabled', () => {
+      beforeEach(() => {
+        wrapper = createComponent({ initialIsEnabled: false });
+      });
+
+      it('is not rendered', () => {
+        expect(wrapper.findComponent(CustomEmailWrapper).exists()).toBe(false);
+      });
+    });
+
+    describe('when issue tracker is disabled', () => {
+      beforeEach(() => {
+        wrapper = createComponent({ isIssueTrackerEnabled: false });
+      });
+
+      it('is not rendered', () => {
+        expect(wrapper.findComponent(CustomEmailWrapper).exists()).toBe(false);
+      });
+    });
+
+    describe('when feature flag service_desk_custom_email is disabled', () => {
+      beforeEach(() => {
+        wrapper = createComponent({ glFeatures: { serviceDeskCustomEmail: false } });
+      });
+
+      it('is not rendered', () => {
+        expect(wrapper.findComponent(CustomEmailWrapper).exists()).toBe(false);
       });
     });
   });

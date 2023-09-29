@@ -36,7 +36,6 @@ module MergeRequests
       end
 
       handle_target_branch_change(merge_request)
-      handle_milestone_change(merge_request)
       handle_draft_status_change(merge_request, changed_fields)
 
       track_title_and_desc_edits(changed_fields)
@@ -95,7 +94,7 @@ module MergeRequests
     end
 
     def track_title_and_desc_edits(changed_fields)
-      tracked_fields = %w(title description)
+      tracked_fields = %w[title description]
 
       return unless changed_fields.any? { |field| tracked_fields.include?(field) }
 
@@ -186,6 +185,7 @@ module MergeRequests
         # email template itself, see `change_in_merge_request_draft_status_email` template.
         notify_draft_status_changed(merge_request)
         trigger_merge_request_status_updated(merge_request)
+        publish_draft_change_event(merge_request) if Feature.enabled?(:additional_merge_when_checks_ready, project)
       end
 
       if !old_title_draft && new_title_draft
@@ -197,6 +197,14 @@ module MergeRequests
       end
     end
 
+    def publish_draft_change_event(merge_request)
+      Gitlab::EventStore.publish(
+        MergeRequests::DraftStateChangeEvent.new(
+          data: { current_user_id: current_user.id, merge_request_id: merge_request.id }
+        )
+      )
+    end
+
     def notify_draft_status_changed(merge_request)
       notification_service.async.change_in_merge_request_draft_status(
         merge_request,
@@ -204,29 +212,15 @@ module MergeRequests
       )
     end
 
-    def handle_milestone_change(merge_request)
-      return if skip_milestone_email
-
-      return unless merge_request.previous_changes.include?('milestone_id')
-
-      merge_request_activity_counter.track_milestone_changed_action(user: current_user)
-
-      previous_milestone = Milestone.find_by_id(merge_request.previous_changes['milestone_id'].first)
-      delete_milestone_total_merge_requests_counter_cache(previous_milestone)
-
-      if merge_request.milestone.nil?
-        notification_service.async.removed_milestone(merge_request, current_user)
-      else
-        notification_service.async.changed_milestone(merge_request, merge_request.milestone, current_user)
-
-        delete_milestone_total_merge_requests_counter_cache(merge_request.milestone)
-      end
-    end
-
     def create_branch_change_note(issuable, branch_type, event_type, old_branch, new_branch)
       SystemNoteService.change_branch(
         issuable, issuable.project, current_user, branch_type, event_type,
         old_branch, new_branch)
+    end
+
+    override :before_update
+    def before_update(merge_request, skip_spam_check: false)
+      merge_request.check_for_spam(user: current_user, action: :update) unless skip_spam_check
     end
 
     override :handle_quick_actions
@@ -282,8 +276,6 @@ module MergeRequests
         assignees_service.execute(merge_request)
       when :spend_time
         add_time_spent_service.execute(merge_request)
-      else
-        nil
       end
     end
 

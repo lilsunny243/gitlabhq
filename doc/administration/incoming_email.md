@@ -16,7 +16,7 @@ GitLab has several features based on receiving incoming email messages:
 - [New merge request by email](../user/project/merge_requests/creating_merge_requests.md#by-sending-an-email):
   allow GitLab users to create a new merge request by sending an email to a
   user-specific email address.
-- [Service Desk](../user/project/service_desk.md): provide email support to
+- [Service Desk](../user/project/service_desk/index.md): provide email support to
   your customers through GitLab.
 
 ## Requirements
@@ -68,8 +68,7 @@ this method only supports replies, and not the other features of [incoming email
 
 ## Accepted headers
 
-> - Accepting `Received` headers [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/81489) in GitLab 14.9 [with a flag](feature_flags.md) named `use_received_header_for_incoming_emails`. Enabled by default.
-> - Accepting `Received` headers: [feature flag](feature_flags.md) named `use_received_header_for_incoming_emails` [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/362596) in GitLab 14.1.
+> Accepting `Received` headers [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/81489) in GitLab 14.9.
 
 Email is processed correctly when a configured email address is present in one of the following headers
 (sorted in the order they are checked):
@@ -81,7 +80,7 @@ Email is processed correctly when a configured email address is present in one o
 
 The `References` header is also accepted, however it is used specifically to relate email responses to existing discussion threads. It is not used for creating issues by email.
 
-In GitLab 14.6 and later, [Service Desk](../user/project/service_desk.md)
+In GitLab 14.6 and later, [Service Desk](../user/project/service_desk/index.md)
 also checks accepted headers.
 
 Usually, the "To" field contains the email address of the primary receiver.
@@ -157,7 +156,7 @@ If the sender's address is spoofed, the reject notice is delivered to the spoofe
 `FROM` address, which can cause the mail server's IP or domain to appear on a block
 list.
 
-### Omnibus package installations
+### Linux package installations
 
 1. Find the `incoming_email` section in `/etc/gitlab/gitlab.rb`, enable the feature
     and fill in the details for your specific IMAP server and email account (see [examples](#configuration-examples) below).
@@ -180,7 +179,7 @@ list.
 
 Reply by email should now be working.
 
-### Installations from source
+### Self-compiled installations
 
 1. Go to the GitLab installation directory:
 
@@ -271,7 +270,7 @@ Reply by email should now be working.
 
 Example configuration for Postfix mail server. Assumes mailbox `incoming@gitlab.example.com`.
 
-Example for Omnibus installs:
+Example for Linux package installations:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -313,7 +312,7 @@ gitlab_rails['incoming_email_delete_after_delivery'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-Example for source installs:
+Example for self-compiled installations:
 
 ```yaml
 incoming_email:
@@ -363,7 +362,7 @@ Example configuration for Gmail/Google Workspace. Assumes mailbox `gitlab-incomi
 NOTE:
 `incoming_email_email` cannot be a Gmail alias account.
 
-Example for Omnibus installs:
+Example for Linux package installations:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -405,7 +404,7 @@ gitlab_rails['incoming_email_delete_after_delivery'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-Example for source installs:
+Example for self-compiled installations:
 
 ```yaml
 incoming_email:
@@ -460,7 +459,7 @@ Exchange does not support sub-addressing, only two options exist:
 
 Assumes the catch-all mailbox `incoming@exchange.example.com`.
 
-Example for Omnibus installs:
+Example for Linux package installations:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -491,7 +490,7 @@ gitlab_rails['incoming_email_ssl'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-Example for source installs:
+Example for self-compiled installations:
 
 ```yaml
 incoming_email:
@@ -530,11 +529,11 @@ incoming_email:
 
 NOTE:
 Supports [Reply by Email](reply_by_email.md) only.
-Cannot support [Service Desk](../user/project/service_desk.md).
+Cannot support [Service Desk](../user/project/service_desk/index.md).
 
 Assumes the dedicated email address `incoming@exchange.example.com`.
 
-Example for Omnibus installs:
+Example for Linux package installations:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -559,7 +558,7 @@ gitlab_rails['incoming_email_ssl'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-Example for source installs:
+Example for self-compiled installations:
 
 ```yaml
 incoming_email:
@@ -618,7 +617,7 @@ To enable sub-addressing:
    Disconnect-ExchangeOnline
    ```
 
-This example for Omnibus GitLab assumes the mailbox `incoming@office365.example.com`:
+This example for Linux package installations assumes the mailbox `incoming@office365.example.com`:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -647,7 +646,7 @@ gitlab_rails['incoming_email_ssl'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-This example for source installs assumes the mailbox `incoming@office365.example.com`:
+This example for self-compiled installations assumes the mailbox `incoming@office365.example.com`:
 
 ```yaml
 incoming_email:
@@ -679,7 +678,7 @@ incoming_email:
 
 ##### Catch-all mailbox
 
-This example for Omnibus installs assumes the catch-all mailbox `incoming@office365.example.com`:
+This example for Linux package installations assumes the catch-all mailbox `incoming@office365.example.com`:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -708,7 +707,7 @@ gitlab_rails['incoming_email_ssl'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-This example for source installs assumes the catch-all mailbox `incoming@office365.example.com`:
+This example for self-compiled installations assumes the catch-all mailbox `incoming@office365.example.com`:
 
 ```yaml
 incoming_email:
@@ -742,9 +741,9 @@ incoming_email:
 
 NOTE:
 Supports [Reply by Email](reply_by_email.md) only.
-Cannot support [Service Desk](../user/project/service_desk.md).
+Cannot support [Service Desk](../user/project/service_desk/index.md).
 
-This example for Omnibus installs assumes the dedicated email address `incoming@office365.example.com`:
+This example for Linux package installations assumes the dedicated email address `incoming@office365.example.com`:
 
 ```ruby
 gitlab_rails['incoming_email_enabled'] = true
@@ -768,7 +767,7 @@ gitlab_rails['incoming_email_ssl'] = true
 gitlab_rails['incoming_email_expunge_deleted'] = true
 ```
 
-This example for source installs assumes the dedicated email address `incoming@office365.example.com`:
+This example for self-compiled installations assumes the dedicated email address `incoming@office365.example.com`:
 
 ```yaml
 incoming_email:
@@ -822,7 +821,7 @@ To mitigate security concerns, we recommend configuring an application access
 policy which limits the mailbox access for all accounts, as described in
 [Microsoft documentation](https://learn.microsoft.com/en-us/graph/auth-limit-mailbox-access).
 
-This example for Omnibus GitLab assumes you're using the following mailbox: `incoming@example.onmicrosoft.com`:
+This example for Linux package installations assumes you're using the following mailbox: `incoming@example.onmicrosoft.com`:
 
 ##### Configure Microsoft Graph
 
@@ -866,7 +865,7 @@ gitlab_rails['incoming_email_inbox_options'] = {
 }
 ```
 
-The Microsoft Graph API is not yet supported in source installations. See [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/326169) for more details.
+The Microsoft Graph API is not yet supported in self-compiled installations. See [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/326169) for more details.
 
 ### Use encrypted credentials
 

@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User find project file', feature_category: :projects do
+RSpec.describe 'User find project file', feature_category: :groups_and_projects do
   include ListboxHelpers
 
-  let(:user)    { create :user }
+  let(:user)    { create :user, :no_super_sidebar }
   let(:project) { create :project, :repository }
 
   before do

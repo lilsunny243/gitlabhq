@@ -38,19 +38,7 @@ module MetricsDashboardHelpers
     ::Gitlab::Config::Loader::Yaml.new(data).load_raw!
   end
 
-  def system_dashboard_path
-    Metrics::Dashboard::SystemDashboardService::DASHBOARD_PATH
-  end
-
-  def pod_dashboard_path
-    Metrics::Dashboard::PodDashboardService::DASHBOARD_PATH
-  end
-
   def business_metric_title
     Enums::PrometheusMetric.group_details[:business][:group_title]
-  end
-
-  def self_monitoring_dashboard_path
-    Metrics::Dashboard::SelfMonitoringDashboardService::DASHBOARD_PATH
   end
 end

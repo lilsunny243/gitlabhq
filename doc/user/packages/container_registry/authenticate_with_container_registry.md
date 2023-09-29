@@ -4,11 +4,11 @@ group: Container Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Authenticate with the Container Registry **(FREE)**
+# Authenticate with the Container Registry **(FREE ALL)**
 
 <!--- start_remove The following content will be removed on remove_date: '2023-11-22' -->
 WARNING:
-[External authorization](../../admin_area/settings/external_authorization.md) will be enabled by default in GitLab 16.0. External authorization prevents personal access tokens and deploy tokens from accessing container and package registries and affects all users who use these tokens to access the registries. You can disable external authorization if you want to use personal access tokens and deploy tokens with the container or package registries.
+In GitLab 16.0 and later, [external authorization](../../admin_area/settings/external_authorization.md) prevents personal access tokens and deploy tokens from accessing container and package registries and affects all users who use these tokens to access the registries. You can disable external authorization if you want to use personal access tokens and deploy tokens with the container or package registries.
 <!--- end_remove -->
 
 To authenticate with the Container Registry, you can use a:
@@ -21,7 +21,7 @@ To authenticate with the Container Registry, you can use a:
 All of these authentication methods require the minimum scope:
 
 - For read (pull) access, to be `read_registry`.
-- For write (push) access, to be`write_registry` and `read_registry`.
+- For write (push) access, to be `write_registry` and `read_registry`.
 
 To authenticate, run the `docker login` command. For example:
 

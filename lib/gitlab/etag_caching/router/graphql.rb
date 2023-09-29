@@ -9,19 +9,24 @@ module Gitlab
 
         ROUTES = [
           [
-            %r(\Apipelines/id/\d+\z),
+            %r{\Apipelines/id/\d+\z},
             'pipelines_graph',
             'continuous_integration'
           ],
           [
-            %r(\Apipelines/sha/\w{7,40}\z),
+            %r(\Apipelines/sha/\w{#{Gitlab::Git::Commit::MIN_SHA_LENGTH},#{Gitlab::Git::Commit::MAX_SHA_LENGTH}}\z)o,
             'ci_editor',
             'pipeline_composition'
           ],
           [
-            %r(\Aon_demand_scan/counts/),
+            %r{\Aon_demand_scan/counts/},
             'on_demand_scans',
             'dynamic_application_security_testing'
+          ],
+          [
+            %r{\A/projects/.+/-/environments.json\z},
+            'environment_details',
+            'continuous_delivery'
           ]
         ].map { |attrs| build_graphql_route(*attrs) }.freeze
 

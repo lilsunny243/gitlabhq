@@ -1,5 +1,8 @@
 import Vue from 'vue';
+import VueApollo from 'vue-apollo';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState, mapGetters } from 'vuex';
+import { apolloProvider } from '~/graphql_shared/issuable_client';
 import { getCookie, parseBoolean, removeCookie } from '~/lib/utils/common_utils';
 import notesStore from '~/mr_notes/stores';
 
@@ -7,40 +10,35 @@ import eventHub from '../notes/event_hub';
 import DiffsApp from './components/app.vue';
 
 import { TREE_LIST_STORAGE_KEY, DIFF_WHITESPACE_COOKIE_NAME } from './constants';
-import { getReviewsForMergeRequest } from './utils/file_reviews';
-import { getDerivedMergeRequestInformation } from './utils/merge_request';
 
 export default function initDiffsApp(store = notesStore) {
+  const el = document.getElementById('js-diffs-app');
+  const { dataset } = el;
+
+  Vue.use(VueApollo);
+
   const vm = new Vue({
-    el: '#js-diffs-app',
+    el,
     name: 'MergeRequestDiffs',
     components: {
       DiffsApp,
     },
     store,
+    apolloProvider,
+    provide: {
+      newCommentTemplatePath: dataset.newCommentTemplatePath,
+      showGenerateTestFileButton: parseBoolean(dataset.showGenerateTestFileButton),
+    },
     data() {
-      const { dataset } = document.querySelector(this.$options.el);
-
       return {
-        endpoint: dataset.endpoint,
-        endpointMetadata: dataset.endpointMetadata || '',
-        endpointBatch: dataset.endpointBatch || '',
         endpointCoverage: dataset.endpointCoverage || '',
         endpointCodequality: dataset.endpointCodequality || '',
-        endpointUpdateUser: dataset.updateCurrentUserPath,
-        projectPath: dataset.projectPath,
+        endpointSast: dataset.endpointSast || '',
         helpPagePath: dataset.helpPagePath,
         currentUser: JSON.parse(dataset.currentUserData) || {},
         changesEmptyStateIllustration: dataset.changesEmptyStateIllustration,
-        isFluidLayout: parseBoolean(dataset.isFluidLayout),
         dismissEndpoint: dataset.dismissEndpoint,
-        showSuggestPopover: parseBoolean(dataset.showSuggestPopover),
         showWhitespaceDefault: parseBoolean(dataset.showWhitespaceDefault),
-        viewDiffsFileByFile: parseBoolean(dataset.fileByFileDefault),
-        defaultSuggestionCommitMessage: dataset.defaultSuggestionCommitMessage,
-        sourceProjectDefaultUrl: dataset.sourceProjectDefaultUrl,
-        sourceProjectFullPath: dataset.sourceProjectFullPath,
-        isForked: parseBoolean(dataset.isForked),
       };
     },
     computed: {
@@ -79,30 +77,15 @@ export default function initDiffsApp(store = notesStore) {
       ...mapActions('diffs', ['setRenderTreeList', 'setShowWhitespace']),
     },
     render(createElement) {
-      const { mrPath } = getDerivedMergeRequestInformation({ endpoint: this.endpoint });
-
       return createElement('diffs-app', {
         props: {
-          endpoint: this.endpoint,
-          endpointMetadata: this.endpointMetadata,
-          endpointBatch: this.endpointBatch,
           endpointCoverage: this.endpointCoverage,
           endpointCodequality: this.endpointCodequality,
-          endpointUpdateUser: this.endpointUpdateUser,
+          endpointSast: this.endpointSast,
           currentUser: this.currentUser,
-          projectPath: this.projectPath,
           helpPagePath: this.helpPagePath,
           shouldShow: this.activeTab === 'diffs',
           changesEmptyStateIllustration: this.changesEmptyStateIllustration,
-          isFluidLayout: this.isFluidLayout,
-          dismissEndpoint: this.dismissEndpoint,
-          showSuggestPopover: this.showSuggestPopover,
-          fileByFileUserPreference: this.viewDiffsFileByFile,
-          defaultSuggestionCommitMessage: this.defaultSuggestionCommitMessage,
-          rehydratedMrReviews: getReviewsForMergeRequest(mrPath),
-          sourceProjectDefaultUrl: this.sourceProjectDefaultUrl,
-          sourceProjectFullPath: this.sourceProjectFullPath,
-          isForked: this.isForked,
         },
       });
     },

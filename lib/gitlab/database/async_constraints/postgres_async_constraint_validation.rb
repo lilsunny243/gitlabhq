@@ -14,13 +14,20 @@ module Gitlab
         validates :name, presence: true, uniqueness: { scope: :table_name }, length: { maximum: MAX_IDENTIFIER_LENGTH }
         validates :table_name, presence: true, length: { maximum: MAX_IDENTIFIER_LENGTH }
 
-        enum constraint_type: { foreign_key: 0 }
+        enum constraint_type: { foreign_key: 0, check_constraint: 1 }
 
         scope :ordered, -> { order(attempts: :asc, id: :asc) }
-        scope :foreign_key_type, -> { columns_hash.key?('constraint_type') ? foreign_key : all }
+        scope :foreign_key_type, -> { constraint_type_exists? ? foreign_key : all }
+        scope :check_constraint_type, -> { check_constraint }
 
-        def self.table_available?
-          connection.table_exists?(table_name)
+        class << self
+          def table_available?
+            connection.table_exists?(table_name)
+          end
+
+          def constraint_type_exists?
+            connection.column_exists?(table_name, :constraint_type)
+          end
         end
       end
     end

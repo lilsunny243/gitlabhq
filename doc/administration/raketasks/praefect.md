@@ -18,14 +18,16 @@ Rake tasks are available for projects that have been created on Praefect storage
 - The primary Gitaly node.
 - Secondary internal Gitaly nodes.
 
-**Omnibus Installation**
+Run this Rake task on the node that GitLab is installed and not on the node that Praefect is installed.
 
-```shell
-sudo gitlab-rake "gitlab:praefect:replicas[project_id]"
-```
+- Linux package installations:
 
-**Source Installation**
+  ```shell
+  sudo gitlab-rake "gitlab:praefect:replicas[project_id]"
+  ```
 
-```shell
-sudo -u git -H bundle exec rake "gitlab:praefect:replicas[project_id]" RAILS_ENV=production
-```
+- Self-compiled installations:
+
+  ```shell
+  sudo -u git -H bundle exec rake "gitlab:praefect:replicas[project_id]" RAILS_ENV=production
+  ```

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > User renames a project', feature_category: :projects do
+RSpec.describe 'Projects > Settings > User renames a project', feature_category: :groups_and_projects do
   let(:user) { create(:user) }
   let(:project) { create(:project, namespace: user.namespace, path: 'gitlab', name: 'sample') }
 
@@ -37,7 +37,7 @@ RSpec.describe 'Projects > Settings > User renames a project', feature_category:
     it 'shows errors for invalid project path' do
       change_path(project, 'foo&bar')
 
-      expect(page).to have_field 'Path', with: 'gitlab'
+      expect(page).to have_field 'Path', with: project.path
       expect(page).to have_content "Path can contain only letters, digits, '_', '-' and '.'. Cannot start with '-', end in '.git' or end in '.atom'"
     end
   end
@@ -61,13 +61,13 @@ RSpec.describe 'Projects > Settings > User renames a project', feature_category:
       it 'shows error for invalid project name' do
         change_name(project, '🧮 foo bar ☁️')
         expect(page).to have_field 'Project name', with: '🧮 foo bar ☁️'
-        expect(page).not_to have_content "Name can contain only letters, digits, emojis '_', '.', dash and space. It must start with letter, digit, emoji or '_'."
+        expect(page).not_to have_content "Name can contain only letters, digits, emoji '_', '.', dash and space. It must start with letter, digit, emoji or '_'."
       end
     end
   end
 
   context 'when changing project path' do
-    let(:project) { create(:project, :repository, namespace: user.namespace, name: 'gitlabhq') }
+    let(:project) { create(:project, :repository, namespace: user.namespace, path: 'gitlabhq') }
 
     before(:context) do
       TestEnv.clean_test_path

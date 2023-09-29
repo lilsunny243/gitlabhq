@@ -1,6 +1,7 @@
 import { GlModal, GlSprintf } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+import { stubComponent } from 'helpers/stub_component';
 import DeleteApplication from '~/admin/applications/components/delete_application.vue';
 
 const path = 'application/path/1';
@@ -14,13 +15,18 @@ describe('DeleteApplication', () => {
   const createComponent = () => {
     wrapper = shallowMount(DeleteApplication, {
       stubs: {
+        GlModal: stubComponent(GlModal, {
+          methods: {
+            show: jest.fn(),
+          },
+        }),
         GlSprintf,
       },
     });
   };
 
   const findModal = () => wrapper.findComponent(GlModal);
-  const findForm = () => wrapper.find('form');
+  const findForm = () => wrapper.findComponent({ ref: 'deleteForm' });
 
   beforeEach(() => {
     setHTMLFixture(`
@@ -31,13 +37,11 @@ describe('DeleteApplication', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     resetHTMLFixture();
   });
 
   describe('the modal component', () => {
     beforeEach(() => {
-      wrapper.vm.$refs.deleteModal.show = jest.fn();
       document.querySelector('.js-application-delete-button').click();
     });
 
@@ -58,7 +62,7 @@ describe('DeleteApplication', () => {
         let formSubmitSpy;
 
         beforeEach(() => {
-          formSubmitSpy = jest.spyOn(wrapper.vm.$refs.deleteForm, 'submit');
+          formSubmitSpy = jest.spyOn(findForm().element, 'submit');
           findModal().vm.$emit('primary');
         });
 

@@ -1,6 +1,6 @@
 <script>
 import { GlSkeletonLoader, GlTable } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { convertNodeIdsFromGraphQLIds } from '~/graphql_shared/utils';
 import { thWidthPercent } from '~/lib/utils/table_utility';
 import { s__, __ } from '~/locale';
@@ -109,7 +109,7 @@ export default {
       :empty-text="s__('AdminUsers|No users found')"
       show-empty
       stacked="md"
-      :tbody-tr-attr="{ 'data-qa-selector': 'user_row_content' }"
+      :tbody-tr-attr="{ 'data-testid': 'user-row-content' }"
     >
       <template #cell(name)="{ item: user }">
         <user-avatar :user="user" :admin-user-path="paths.adminUser" />
@@ -135,7 +135,7 @@ export default {
       </template>
 
       <template #cell(settings)="{ item: user }">
-        <user-actions :user="user" :paths="paths" />
+        <user-actions :user="user" :paths="paths" :show-button-labels="true" />
       </template>
     </gl-table>
   </div>

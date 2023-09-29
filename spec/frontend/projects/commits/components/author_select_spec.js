@@ -1,11 +1,18 @@
-import { GlDropdown, GlDropdownSectionHeader, GlSearchBoxByType, GlDropdownItem } from '@gitlab/ui';
+import { GlCollapsibleListbox, GlListboxItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
-import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
-import * as urlUtility from '~/lib/utils/url_utility';
+import { resetHTMLFixture, setHTMLFixture } from 'helpers/fixtures';
+import setWindowLocation from 'helpers/set_window_location_helper';
 import AuthorSelect from '~/projects/commits/components/author_select.vue';
 import { createStore } from '~/projects/commits/store';
+import { visitUrl } from '~/lib/utils/url_utility';
+
+jest.mock('~/lib/utils/url_utility', () => ({
+  ...jest.requireActual('~/lib/utils/url_utility'),
+  visitUrl: jest.fn(),
+}));
 
 Vue.use(Vuex);
 
@@ -43,6 +50,10 @@ describe('Author Select', () => {
       propsData: {
         projectCommitsEl: document.querySelector('.js-project-commits-show'),
       },
+      stubs: {
+        GlCollapsibleListbox,
+        GlListboxItem,
+      },
     });
   };
 
@@ -54,142 +65,104 @@ describe('Author Select', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     resetHTMLFixture();
   });
 
-  const findDropdownContainer = () => wrapper.findComponent({ ref: 'dropdownContainer' });
-  const findDropdown = () => wrapper.findComponent(GlDropdown);
-  const findDropdownHeader = () => wrapper.findComponent(GlDropdownSectionHeader);
-  const findSearchBox = () => wrapper.findComponent(GlSearchBoxByType);
-  const findDropdownItems = () => wrapper.findAllComponents(GlDropdownItem);
+  const findListboxContainer = () => wrapper.findComponent({ ref: 'listboxContainer' });
+  const findListbox = () => wrapper.findComponent(GlCollapsibleListbox);
+  const findListboxItems = () => wrapper.findAllComponents(GlListboxItem);
 
   describe('user is searching via "filter by commit message"', () => {
-    it('disables dropdown container', async () => {
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ hasSearchParam: true });
-
-      await nextTick();
-      expect(findDropdownContainer().attributes('disabled')).toBeUndefined();
+    beforeEach(() => {
+      setWindowLocation(`?search=foo`);
+      createComponent();
     });
 
-    it('has correct tooltip message', async () => {
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ hasSearchParam: true });
+    it('does not disable listbox container', () => {
+      expect(findListboxContainer().attributes('disabled')).toBeUndefined();
+    });
 
-      await nextTick();
-      expect(findDropdownContainer().attributes('title')).toBe(
+    it('has correct tooltip message', () => {
+      expect(findListboxContainer().attributes('title')).toBe(
         'Searching by both author and message is currently not supported.',
       );
     });
 
-    it('disables dropdown', async () => {
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ hasSearchParam: false });
-
-      await nextTick();
-      expect(findDropdown().attributes('disabled')).toBeUndefined();
-    });
-
-    it('hasSearchParam if user types a truthy string', () => {
-      wrapper.vm.setSearchParam('false');
-
-      expect(wrapper.vm.hasSearchParam).toBe(true);
+    it('disables listbox', () => {
+      expect(findListbox().attributes('disabled')).toBeDefined();
     });
   });
 
-  describe('dropdown', () => {
+  describe('listbox', () => {
+    beforeEach(() => {
+      store.state.commitsPath = commitsPath;
+    });
+
     it('displays correct default text', () => {
-      expect(findDropdown().attributes('text')).toBe('Author');
+      expect(findListbox().props('toggleText')).toBe('Author');
     });
 
     it('displays the current selected author', async () => {
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ currentAuthor });
+      setWindowLocation(`?author=${currentAuthor}`);
+      createComponent();
 
       await nextTick();
-      expect(findDropdown().attributes('text')).toBe(currentAuthor);
+      expect(findListbox().props('toggleText')).toBe(currentAuthor);
     });
 
     it('displays correct header text', () => {
-      expect(findDropdownHeader().text()).toBe('Search by author');
+      expect(findListbox().props('headerText')).toBe('Search by author');
     });
 
     it('does not have popover text by default', () => {
       expect(wrapper.attributes('title')).toBeUndefined();
     });
+
+    it('passes selected author to redirectPath', () => {
+      const redirectPath = `${commitsPath}?author=${currentAuthor}`;
+
+      findListbox().vm.$emit('select', currentAuthor);
+
+      expect(visitUrl).toHaveBeenCalledWith(redirectPath);
+    });
+
+    it('does not pass any author to redirectPath', () => {
+      const redirectPath = commitsPath;
+
+      findListbox().vm.$emit('select', '');
+
+      expect(visitUrl).toHaveBeenCalledWith(redirectPath);
+    });
   });
 
-  describe('dropdown search box', () => {
+  describe('listbox search box', () => {
     it('has correct placeholder', () => {
-      expect(findSearchBox().attributes('placeholder')).toBe('Search');
+      expect(findListbox().props('searchPlaceholder')).toBe('Search');
     });
 
     it('fetch authors on input change', () => {
       const authorName = 'lorem';
-      findSearchBox().vm.$emit('input', authorName);
+      findListbox().vm.$emit('search', authorName);
 
       expect(store.actions.fetchAuthors).toHaveBeenCalledWith(expect.anything(), authorName);
     });
   });
 
-  describe('dropdown list', () => {
+  describe('listbox list', () => {
     beforeEach(() => {
       store.state.commitsAuthors = authors;
-      store.state.commitsPath = commitsPath;
     });
 
     it('has a "Any Author" as the first list item', () => {
-      expect(findDropdownItems().at(0).text()).toBe('Any Author');
+      expect(findListboxItems().at(0).text()).toBe('Any Author');
     });
 
-    it('displays the project authors', async () => {
-      await nextTick();
-      expect(findDropdownItems()).toHaveLength(authors.length + 1);
+    it('displays the project authors', () => {
+      expect(findListboxItems()).toHaveLength(authors.length + 1);
     });
 
-    it('has the correct props', async () => {
-      const [{ avatar_url: avatarUrl, username }] = authors;
-      const result = {
-        avatarUrl,
-        secondaryText: username,
-        isChecked: true,
-      };
-
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ currentAuthor });
-
-      await nextTick();
-      expect(findDropdownItems().at(1).props()).toEqual(expect.objectContaining(result));
-    });
-
-    it("display the author's name", async () => {
-      await nextTick();
-      expect(findDropdownItems().at(1).text()).toBe(currentAuthor);
-    });
-
-    it('passes selected author to redirectPath', () => {
-      const redirectToUrl = `${commitsPath}?author=${currentAuthor}`;
-      const spy = jest.spyOn(urlUtility, 'redirectTo');
-      spy.mockImplementation(() => 'mock');
-
-      findDropdownItems().at(1).vm.$emit('click');
-
-      expect(spy).toHaveBeenCalledWith(redirectToUrl);
-    });
-
-    it('does not pass any author to redirectPath', () => {
-      const redirectToUrl = commitsPath;
-      const spy = jest.spyOn(urlUtility, 'redirectTo');
-      spy.mockImplementation();
-
-      findDropdownItems().at(0).vm.$emit('click');
-      expect(spy).toHaveBeenCalledWith(redirectToUrl);
+    it("display the author's name", () => {
+      expect(findListboxItems().at(1).text()).toContain(currentAuthor);
     });
   });
 });

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/api"
@@ -74,9 +74,9 @@ func uploadTestServer(t *testing.T, allowedHashFunctions []string, authorizeTest
 			var err error
 
 			if len(allowedHashFunctions) == 0 {
-				_, err = fmt.Fprintf(w, `{"TempPath":"%s"}`, scratchDir)
+				_, err = fmt.Fprintf(w, `{"TempPath":"%s"}`, t.TempDir())
 			} else {
-				_, err = fmt.Fprintf(w, `{"TempPath":"%s", "UploadHashFunctions": ["%s"]}`, scratchDir, strings.Join(allowedHashFunctions, `","`))
+				_, err = fmt.Fprintf(w, `{"TempPath":"%s", "UploadHashFunctions": ["%s"]}`, t.TempDir(), strings.Join(allowedHashFunctions, `","`))
 			}
 
 			require.NoError(t, err)
@@ -159,6 +159,9 @@ func TestAcceleratedUpload(t *testing.T) {
 		{"PUT", "/api/v4/projects/9001/packages/nuget/v1/files", true},
 		{"PUT", "/api/v4/projects/group%2Fproject/packages/nuget/v1/files", true},
 		{"PUT", "/api/v4/projects/group%2Fsubgroup%2Fproject/packages/nuget/v1/files", true},
+		{"PUT", "/api/v4/projects/9001/packages/nuget/v2/files", true},
+		{"PUT", "/api/v4/projects/group%2Fproject/packages/nuget/v2/files", true},
+		{"PUT", "/api/v4/projects/group%2Fsubgroup%2Fproject/packages/nuget/v2/files", true},
 		{"POST", `/api/v4/groups/import`, true},
 		{"POST", `/api/v4/groups/import/`, true},
 		{"POST", `/api/v4/projects/import`, true},
@@ -176,6 +179,8 @@ func TestAcceleratedUpload(t *testing.T) {
 		{"POST", `/api/v4/projects/group%2Fsubgroup%2Fproject/issues/30/metric_images`, true},
 		{"POST", `/my/project/-/requirements_management/requirements/import_csv`, true},
 		{"POST", `/my/project/-/requirements_management/requirements/import_csv/`, true},
+		{"POST", `/my/project/-/work_items/import_csv`, true},
+		{"POST", `/my/project/-/work_items/import_csv/`, true},
 		{"POST", "/api/v4/projects/2412/packages/helm/api/stable/charts", true},
 		{"POST", "/api/v4/projects/group%2Fproject/packages/helm/api/stable/charts", true},
 		{"POST", "/api/v4/projects/group%2Fsubgroup%2Fproject/packages/helm/api/stable/charts", true},
@@ -287,6 +292,8 @@ func TestUnacceleratedUploads(t *testing.T) {
 		{"POST", `/api/v4/projects/group/project/wikis/attachments`},
 		{"PUT", "/api/v4/projects/group/subgroup/project/packages/nuget/v1/files"},
 		{"PUT", "/api/v4/projects/group/project/packages/nuget/v1/files"},
+		{"POST", "/api/v4/projects/group/subgroup/project/packages/nuget/v2/files"},
+		{"POST", "/api/v4/projects/group/project/packages/nuget/v2/files"},
 		{"POST", `/api/v4/projects/group/subgroup/project/packages/pypi`},
 		{"POST", `/api/v4/projects/group/project/packages/pypi`},
 		{"POST", `/api/v4/projects/group/subgroup/project/packages/pypi`},
@@ -379,7 +386,7 @@ func TestLfsUpload(t *testing.T) {
 
 	lfsApiResponse := fmt.Sprintf(
 		`{"TempPath":%q, "LfsOid":%q, "LfsSize": %d}`,
-		scratchDir, oid, len(reqBody),
+		t.TempDir(), oid, len(reqBody),
 	)
 
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, r *http.Request) {
@@ -505,7 +512,7 @@ func packageUploadTestServer(t *testing.T, method string, resource string, reqBo
 	return testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, method)
 		apiResponse := fmt.Sprintf(
-			`{"TempPath":%q, "Size": %d}`, scratchDir, len(reqBody),
+			`{"TempPath":%q, "Size": %d}`, t.TempDir(), len(reqBody),
 		)
 		switch r.RequestURI {
 		case resource + "/authorize":
@@ -578,6 +585,7 @@ func TestPackageFilesUpload(t *testing.T) {
 		{"PUT", "/api/v4/projects/group%2Fproject/packages/conan/v1/files"},
 		{"PUT", "/api/v4/projects/group%2Fproject/packages/maven/v1/files"},
 		{"PUT", "/api/v4/projects/group%2Fproject/packages/generic/mypackage/0.0.1/myfile.tar.gz"},
+		{"PUT", "/api/v4/projects/group%2Fproject/packages/ml_models/mymodel/0.0.1/myfile.tar.gz"},
 		{"PUT", "/api/v4/projects/group%2Fproject/packages/debian/libsample0_1.2.3~alpha2-1_amd64.deb"},
 		{"POST", "/api/v4/projects/group%2Fproject/packages/rubygems/api/v1/gems/sample.gem"},
 		{"POST", "/api/v4/projects/group%2Fproject/packages/rpm/sample-4.23.fc21.x86_64.rpm"},

@@ -32,7 +32,7 @@ RSpec.describe Gitlab::Ci::ProjectConfig::Repository, feature_category: :continu
 
     context 'when Gitaly raises error' do
       before do
-        allow(project.repository).to receive(:gitlab_ci_yml_for).and_raise(GRPC::Internal)
+        allow(project.repository).to receive(:blob_at).and_raise(GRPC::Internal)
       end
 
       it { is_expected.to be_nil }
@@ -45,8 +45,8 @@ RSpec.describe Gitlab::Ci::ProjectConfig::Repository, feature_category: :continu
     it { is_expected.to eq(:repository_source) }
   end
 
-  describe '#contains_internal_include?' do
-    subject { config.contains_internal_include? }
+  describe '#internal_include_prepended?' do
+    subject { config.internal_include_prepended? }
 
     it { is_expected.to eq(true) }
   end

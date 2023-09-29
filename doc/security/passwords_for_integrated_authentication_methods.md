@@ -1,11 +1,11 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
-# Generated passwords for users created through integrated authentication **(FREE)**
+# Generated passwords for users created through integrated authentication **(FREE ALL)**
 
 GitLab allows users to set up accounts through integration with external [authentication and authorization providers](../administration/auth/index.md).
 

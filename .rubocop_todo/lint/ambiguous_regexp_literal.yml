@@ -1,7 +1,6 @@
 ---
 # Cop supports --autocorrect.
 Lint/AmbiguousRegexpLiteral:
-  Details: grace period
   Exclude:
     - 'ee/lib/ee/gitlab/auth/ldap/group.rb'
     - 'ee/spec/controllers/groups/sso_controller_spec.rb'
@@ -62,14 +61,11 @@ Lint/AmbiguousRegexpLiteral:
     - 'spec/lib/gitlab/database/partitioning_spec.rb'
     - 'spec/lib/gitlab/database/query_analyzers/prevent_cross_database_modification_spec.rb'
     - 'spec/lib/gitlab/gitaly_client/with_feature_flag_actors_spec.rb'
-    - 'spec/lib/gitlab/kubernetes/helm/v2/base_command_spec.rb'
-    - 'spec/lib/gitlab/kubernetes/helm/v3/base_command_spec.rb'
     - 'spec/lib/gitlab/pagination/keyset/in_operator_optimization/array_scope_columns_spec.rb'
     - 'spec/lib/gitlab/pagination/keyset/in_operator_optimization/query_builder_spec.rb'
     - 'spec/lib/gitlab/pagination/keyset/iterator_spec.rb'
     - 'spec/lib/gitlab/sidekiq_middleware/duplicate_jobs/duplicate_job_spec.rb'
     - 'spec/lib/gitlab/usage/metrics/aggregates/sources/postgres_hll_spec.rb'
-    - 'spec/lib/gitlab/utils/strong_memoize_spec.rb'
     - 'spec/lib/gitlab/web_ide/config/entry/global_spec.rb'
     - 'spec/lib/gitlab/web_ide/config/entry/terminal_spec.rb'
     - 'spec/lib/object_storage/direct_upload_spec.rb'

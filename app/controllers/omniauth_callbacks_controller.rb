@@ -7,24 +7,36 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
   include InitializesCurrentUserMode
   include KnownSignIn
   include AcceptsPendingInvitations
+  include Onboarding::Redirectable
 
   after_action :verify_known_sign_in
 
-  protect_from_forgery except: [:cas3, :failure] + AuthHelper.saml_providers, with: :exception, prepend: true
+  protect_from_forgery except: [:failure] + AuthHelper.saml_providers, with: :exception, prepend: true
 
-  feature_category :authentication_and_authorization
+  feature_category :system_access
 
   def handle_omniauth
-    omniauth_flow(Gitlab::Auth::OAuth)
+    if ::AuthHelper.saml_providers.include?(oauth['provider'].to_sym)
+      saml
+    else
+      omniauth_flow(Gitlab::Auth::OAuth)
+    end
   end
 
   AuthHelper.providers_for_base_controller.each do |provider|
     alias_method provider, :handle_omniauth
   end
 
+  # overridden in EE
+  def openid_connect
+    handle_omniauth
+  end
+
   # Extend the standard implementation to also increment
   # the number of failed sign in attempts
   def failure
+    update_login_counter_metric(failed_strategy.name, 'failed')
+
     if params[:username].present? && AuthHelper.form_based_provider?(failed_strategy.name)
       user = User.find_by_login(params[:username])
 
@@ -52,15 +64,6 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     redirect_unverified_saml_initiation
   end
 
-  def cas3
-    ticket = params['ticket']
-    if ticket
-      handle_service_ticket oauth['provider'], ticket
-    end
-
-    handle_omniauth
-  end
-
   def auth0
     if oauth['uid'].blank?
       fail_auth0_login
@@ -83,6 +86,21 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
 
   private
 
+  def track_event(user, provider, status)
+    log_audit_event(user, with: provider)
+    update_login_counter_metric(provider, status)
+  end
+
+  def update_login_counter_metric(provider, status)
+    omniauth_login_counter.increment(omniauth_provider: provider, status: status)
+  end
+
+  def omniauth_login_counter
+    @counter ||= Gitlab::Metrics.counter(
+      :gitlab_omniauth_login_total,
+      'Counter of OmniAuth login attempts')
+  end
+
   def log_failed_login(user, provider)
     # overridden in EE
   end
@@ -103,7 +121,7 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     if current_user
       return render_403 unless link_provider_allowed?(oauth['provider'])
 
-      log_audit_event(current_user, with: oauth['provider'])
+      track_event(current_user, oauth['provider'], 'succeeded')
 
       if Gitlab::CurrentSettings.admin_mode
         return admin_mode_flow(auth_module::User) if current_user_mode.admin_mode_requested?
@@ -112,6 +130,8 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
       identity_linker ||= auth_module::IdentityLinker.new(current_user, oauth, session)
       link_identity(identity_linker)
       set_remember_me(current_user)
+
+      store_idp_two_factor_status(build_auth_user(auth_module::User).bypass_two_factor?)
 
       if identity_linker.changed?
         redirect_identity_linked
@@ -141,47 +161,47 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     redirect_to profile_account_path, notice: _('Authentication method updated')
   end
 
-  def handle_service_ticket(provider, ticket)
-    Gitlab::Auth::OAuth::Session.create provider, ticket
-    session[:service_tickets] ||= {}
-    session[:service_tickets][provider] = ticket
-  end
-
   def build_auth_user(auth_user_class)
-    auth_user_class.new(oauth)
+    strong_memoize_with(:build_auth_user, auth_user_class) do
+      auth_user_class.new(oauth)
+    end
   end
 
   def sign_in_user_flow(auth_user_class)
     auth_user = build_auth_user(auth_user_class)
     new_user = auth_user.new?
-    user = auth_user.find_and_update!
+    @user = auth_user.find_and_update!
 
     if auth_user.valid_sign_in?
       # In this case the `#current_user` would not be set. So we can't fetch it
       # from that in `#context_user`. Pushing it manually here makes the information
       # available in the logs for this request.
-      Gitlab::ApplicationContext.push(user: user)
-      log_audit_event(user, with: oauth['provider'])
-      Gitlab::Tracking.event(self.class.name, "#{oauth['provider']}_sso", user: user) if new_user
+      Gitlab::ApplicationContext.push(user: @user)
+      track_event(@user, oauth['provider'], 'succeeded')
+      Gitlab::Tracking.event(self.class.name, "#{oauth['provider']}_sso", user: @user) if new_user
 
-      set_remember_me(user)
+      set_remember_me(@user)
 
-      if user.two_factor_enabled? && !auth_user.bypass_two_factor?
-        prompt_for_two_factor(user)
+      if @user.two_factor_enabled? && !auth_user.bypass_two_factor?
+        prompt_for_two_factor(@user)
+        store_idp_two_factor_status(false)
       else
-        if user.deactivated?
-          user.activate
+        if @user.deactivated?
+          @user.activate
           flash[:notice] = _('Welcome back! Your account had been deactivated due to inactivity but is now reactivated.')
         end
 
-        accept_pending_invitations(user: user) if new_user
-        persist_accepted_terms_if_required(user) if new_user
+        # session variable for storing bypass two-factor request from IDP
+        store_idp_two_factor_status(true)
 
-        store_after_sign_up_path_for_user if intent_to_register?
-        sign_in_and_redirect_or_confirm_identity(user, auth_user, new_user)
+        accept_pending_invitations(user: @user) if new_user
+        persist_accepted_terms_if_required(@user) if new_user
+
+        perform_registration_tasks(@user, oauth['provider']) if new_user
+        sign_in_and_redirect_or_verify_identity(@user, auth_user, new_user)
       end
     else
-      fail_login(user)
+      fail_login(@user)
     end
   rescue Gitlab::Auth::OAuth::User::SigninDisabledForProviderError
     handle_disabled_provider
@@ -259,11 +279,6 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     (request_params['remember_me'] == '1') if request_params.present?
   end
 
-  def intent_to_register?
-    request_params = request.env['omniauth.params']
-    (request_params['intent'] == 'register') if request_params.present?
-  end
-
   def store_redirect_fragment(redirect_fragment)
     key = stored_location_key_for(:user)
     location = session[key]
@@ -305,13 +320,26 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     Users::RespondToTermsService.new(user, terms).execute(accepted: true)
   end
 
-  def store_after_sign_up_path_for_user
-    store_location_for(:user, users_sign_up_welcome_path)
+  def perform_registration_tasks(_user, _provider)
+    store_location_for(:user, after_sign_up_path)
   end
 
+  def onboarding_status
+    Onboarding::Status.new(params.to_unsafe_h.deep_symbolize_keys, session, @user)
+  end
+  strong_memoize_attr :onboarding_status
+
   # overridden in EE
-  def sign_in_and_redirect_or_confirm_identity(user, _, _)
+  def sign_in_and_redirect_or_verify_identity(user, _, _)
     sign_in_and_redirect(user, event: :authentication)
+  end
+
+  def store_idp_two_factor_status(bypass_2fa)
+    if Feature.enabled?(:by_pass_two_factor_for_current_session)
+      session[:provider_2FA] = true if bypass_2fa
+    else
+      session.delete(:provider_2FA)
+    end
   end
 end
 

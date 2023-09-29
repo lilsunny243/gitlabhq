@@ -4,25 +4,51 @@ group: Compliance
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Compliance frameworks **(PREMIUM)**
+# Compliance frameworks **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/276221) in GitLab 13.9.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/287779) in GitLab 13.12.
 
 You can create a compliance framework that is a label to identify that your project has certain compliance
 requirements or needs additional oversight. The label can optionally enforce
-[compliance pipeline configuration](#compliance-pipelines) to the projects on which it is
-[applied](../project/settings/index.md#add-a-compliance-framework-to-a-project).
+[compliance pipeline configuration](#compliance-pipelines) to the projects on which it is applied.
 
 Compliance frameworks are created on top-level groups. Group owners can create, edit, and delete compliance frameworks:
 
-1. On the top bar, select **Main menu > Groups > View all groups** and find your group.
-1. On the left sidebar, select **Settings** > **General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings** > **General**.
 1. Expand the **Compliance frameworks** section.
 1. Create, edit, or delete compliance frameworks.
 
 Subgroups and projects have access to all compliance frameworks created on their top-level group. However, compliance frameworks cannot be created, edited,
 or deleted at the subgroup or project level. Project owners can choose a framework to apply to their projects.
+
+## Add a compliance framework to a project
+
+Prerequisite:
+
+- The group to which the project belongs must have a compliance framework.
+
+To assign a compliance framework to a project:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings** > **General**.
+1. Expand **Compliance frameworks**.
+1. Select a compliance framework.
+1. Select **Save changes**.
+
+NOTE:
+Frameworks cannot be added to projects in personal namespaces.
+
+### GraphQL API
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/333249) in GitLab 14.2.
+
+You can use the [GraphQL API](../../api/graphql/reference/index.md#mutationprojectsetcomplianceframework) to add a
+compliance framework to a project.
+
+If you create compliance frameworks on subgroups with GraphQL, the framework is created on the root ancestor if the user
+has the correct permissions. The GitLab UI presents a read-only view to discourage this behavior.
 
 ## Default compliance frameworks
 
@@ -40,8 +66,8 @@ A compliance framework that is set to default has a **default** label.
 
 Group owners can set a compliance framework as default (or remove the setting):
 
-1. On the top bar, select **Main menu > Groups > View all groups** and find your group.
-1. On the left sidebar, select **Settings > General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Compliance frameworks** section and locate the compliance framework to set (or remove) as default.
 1. Select the vertical ellipsis (**{ellipsis_v}**) for the compliance frame and then select **Set default** (or
    **Remove default**).
@@ -87,14 +113,15 @@ mutation {
 }
 ```
 
-## Compliance pipelines **(ULTIMATE)**
+## Compliance pipelines **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/3156) in GitLab 13.9, disabled behind `ff_evaluate_group_level_compliance_pipeline` [feature flag](../../administration/feature_flags.md).
 > - [Enabled by default](https://gitlab.com/gitlab-org/gitlab/-/issues/300324) in GitLab 13.11.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/331231) in GitLab 14.2.
 
 Group owners can configure a compliance pipeline in a project separate to other projects. By default, the compliance
-pipeline configuration (`.gitlab-ci.yml` file) is run instead of the pipeline configuration of labeled projects.
+pipeline configuration (for example, `.compliance-gitlab-ci.yml`) is run instead of the pipeline configuration (for example, `.gitlab-ci.yml`) of labeled
+projects.
 
 However, the compliance pipeline configuration can reference the `.gitlab-ci.yml` file of the labeled projects so that:
 
@@ -103,8 +130,15 @@ However, the compliance pipeline configuration can reference the `.gitlab-ci.yml
 - Jobs and variables defined in the compliance pipeline can't be changed by variables in the labeled project's
   `.gitlab-ci.yml` file.
 
-See [example configuration](#example-configuration) for help configuring a compliance pipeline that runs jobs from
-labeled project pipeline configuration.
+NOTE:
+Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/414004), project pipelines must be included first at the top of compliance pipeline configuration
+to prevent projects overriding settings downstream.
+
+For more information, see:
+
+- [Example configuration](#example-configuration) for help configuring a compliance pipeline that runs jobs from
+  labeled project pipeline configuration.
+- The [Create a compliance pipeline](../../tutorials/compliance_pipeline/index.md) tutorial.
 
 ### Effect on labeled projects
 
@@ -121,8 +155,8 @@ Therefore, communicate with project users about compliance pipeline configuratio
 
 To configure a compliance pipeline:
 
-1. On the top bar, select **Main menu > Groups > View all groups** and find your group.
-1. On the left sidebar, select **Settings** > **General**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings** > **General**.
 1. Expand the **Compliance frameworks** section.
 1. In **Compliance pipeline configuration (optional)**, add the path to the compliance framework configuration. Use the
    `path/file.y[a]ml@group-name/project-name` format. For example:
@@ -131,7 +165,7 @@ To configure a compliance pipeline:
    - `.compliance-ci.yaml@gitlab-org/gitlab`.
 
 This configuration is inherited by projects where the compliance framework label is
-[applied](../project/settings/index.md#add-a-compliance-framework-to-a-project). In projects with the applied compliance
+[applied](../project/working_with_projects.md#add-a-compliance-framework-to-a-project). In projects with the applied compliance
 framework label, the compliance pipeline configuration is run instead of the labeled project's own pipeline configuration.
 
 The user running the pipeline in the labeled project must at least have the Reporter role on the compliance project.
@@ -147,6 +181,13 @@ The following example `.compliance-gitlab-ci.yml` includes the `include` keyword
 configuration is also executed.
 
 ```yaml
+include:  # Execute individual project's configuration (if project contains .gitlab-ci.yml)
+  - project: '$CI_PROJECT_PATH'
+    file: '$CI_CONFIG_PATH'
+    ref: '$CI_COMMIT_SHA' # Must be defined or MR pipelines always use the use default branch
+    rules:
+      - if: $CI_PROJECT_PATH != "my-group/project-1" # Must be the hardcoded path to the project that hosts this configuration.
+
 # Allows compliance team to control the ordering and interweaving of stages/jobs.
 # Stages without jobs defined will remain hidden.
 stages:
@@ -206,17 +247,41 @@ audit trail:
     - echo "running $FOO"
   after_script:
     - "# No after scripts."
-
-include:  # Execute individual project's configuration (if project contains .gitlab-ci.yml)
-  - project: '$CI_PROJECT_PATH'
-    file: '$CI_CONFIG_PATH'
-    ref: '$CI_COMMIT_SHA' # Must be defined or MR pipelines always use the use default branch
-    rules:
-      - if: $CI_PROJECT_PATH != "my-group/project-1" # Must be the hardcoded path to the project that hosts this configuration.
 ```
 
 The `rules` configuration in the `include` definition avoids circular inclusion in case the compliance pipeline must be able to run in the host project itself.
 You can leave it out if your compliance pipeline only ever runs in labeled projects.
+
+#### Compliance pipelines and custom pipeline configuration hosted externally
+
+The example above assumes that all projects host their pipeline configuration in the same project.
+If any projects use [configuration hosted externally to the project](../../ci/pipelines/settings.md#specify-a-custom-cicd-configuration-file):
+
+- The `include` section in the example compliance pipeline configuration must be adjusted.
+  For example, using [`include:rules`](../../ci/yaml/includes.md#use-rules-with-include):
+
+  ```yaml
+  include:
+    # If the custom path variables are defined, include the project's external config file.
+    - project: '$PROTECTED_PIPELINE_CI_PROJECT_PATH'
+      file: '$PROTECTED_PIPELINE_CI_CONFIG_PATH'
+      ref: '$PROTECTED_PIPELINE_CI_REF'
+      rules:
+        - if: $PROTECTED_PIPELINE_CI_PROJECT_PATH && $PROTECTED_PIPELINE_CI_CONFIG_PATH && $PROTECTED_PIPELINE_CI_REF
+    # If any custom path variable is not defined, include the project's internal config file as normal.
+    - project: '$CI_PROJECT_PATH'
+      file: '$CI_CONFIG_PATH'
+      ref: '$CI_COMMIT_SHA'
+      rules:
+        - if: $PROTECTED_PIPELINE_CI_PROJECT_PATH == null || $PROTECTED_PIPELINE_CI_CONFIG_PATH == null || $PROTECTED_PIPELINE_CI_REF == null
+  ```
+
+- [CI/CD variables](../../ci/variables/index.md) must be added to projects with external
+  pipeline configuration. In this example:
+
+  - `PROTECTED_PIPELINE_CI_PROJECT_PATH`: The path to the project hosting the configuration file, for example `group/subgroup/project`.
+  - `PROTECTED_PIPELINE_CI_CONFIG_PATH`: The path to the configuration file in the project, for example `path/to/.gitlab-ci.yml`.
+  - `PROTECTED_PIPELINE_CI_REF`: The ref to use when retrieving the configuration file, for example `main`.
 
 #### Compliance pipelines in merge requests originating in project forks
 
@@ -299,16 +364,71 @@ This alternative ensures the compliance pipeline does not re-start the parent pi
 
 ## Troubleshooting
 
-### Cannot remove compliance framework from a project
+### Compliance jobs are overwritten by target repository
 
-Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/390626), if you move a project, its compliance
-framework becomes orphaned and can't be removed. To manually remove a compliance framework from a project, run the
-following GraphQL mutation with your project's ID:
+If you use the `extends` statement in a compliance pipeline configuration, compliance jobs are overwritten by the target repository job. For example,
+you could have the following `.compliance-gitlab-ci.yml` configuration:
 
-```graphql
-mutation {
-  projectSetComplianceFramework(input: {projectId: "gid://gitlab/Project/1234567", complianceFrameworkId: null}) {
-    errors
-  }
-}
+```yaml
+"compliance job":
+  extends:
+    - .compliance_template
+  stage: build
+
+.compliance_template:
+  script:
+    - echo "take compliance action"
+```
+
+You could also have the following `.gitlab-ci.yml` configuration:
+
+```yaml
+"compliance job":
+  stage: test
+  script:
+    - echo "overwriting compliance action"
+```
+
+This configuration results in the target repository pipeline overwriting the compliance pipeline, and you get the following message:
+`overwriting compliance action`.
+
+To avoid overwriting a compliance job, don't use the `extends` keyword in compliance pipeline configuration. For example,
+you could have the following `.compliance-gitlab-ci.yml` configuration:
+
+```yaml
+"compliance job":
+  stage: build
+  script:
+    - echo "take compliance action"
+```
+
+You could also have the following `.gitlab-ci.yml` configuration:
+
+```yaml
+"compliance job":
+  stage: test
+  script:
+    - echo "overwriting compliance action"
+```
+
+This configuration doesn't overwrite the compliance pipeline and you get the following message:
+`take compliance action`.
+
+### Prefilled variables are not shown
+
+Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/382857),
+compliance pipelines in GitLab 15.3 and later can prevent
+[prefilled variables](../../ci/pipelines/index.md#prefill-variables-in-manual-pipelines)
+from appearing when manually starting a pipeline.
+
+To workaround this issue, use `ref: '$CI_COMMIT_SHA'` instead of `ref: '$CI_COMMIT_REF_NAME'`
+in the `include:` statement that executes the individual project's configuration.
+
+The [example configuration](#example-configuration) has been updated with this change:
+
+```yaml
+include:
+  - project: '$CI_PROJECT_PATH'
+    file: '$CI_CONFIG_PATH'
+    ref: '$CI_COMMIT_SHA'
 ```

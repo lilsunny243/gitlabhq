@@ -9,12 +9,14 @@ RSpec.shared_examples 'resource access tokens missing access rights' do
 end
 
 RSpec.shared_examples 'resource access tokens creation' do |resource_type|
-  include Spec::Support::Helpers::AccessTokenHelpers
+  include Features::AccessTokenHelpers
 
   it 'allows creation of an access token', :aggregate_failures do
     name = 'My access token'
 
     visit resource_settings_access_tokens_path
+
+    click_button 'Add new token'
     fill_in 'Token name', with: name
 
     # Set date to 1st of next month

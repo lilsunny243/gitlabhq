@@ -1,10 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Protected environments **(PREMIUM)**
+# Protected environments **(PREMIUM ALL)**
 
 [Environments](../environments/index.md) can be used for both testing and
 production reasons.
@@ -30,9 +30,10 @@ Prerequisites:
 
 To protect an environment:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > CI/CD**.
 1. Expand **Protected environments**.
+1. Select **Protect an environment**.
 1. From the **Environment** list, select the environment you want to protect.
 1. In the **Allowed to deploy** list, select the role, users, or groups you
    want to give deploy access to. Keep in mind that:
@@ -42,9 +43,22 @@ To protect an environment:
    - You can select groups that are already associated with the project only.
    - Users must have at least the Developer role to appear in
      the **Allowed to deploy** list.
-1. In the **Required approvals** list, select the number of approvals required to deploy to this environment.
-   - Ensure that this number is less than the number of users allowed to deploy.
+1. In the **Approvers** list, select the role, users, or groups you
+   want to give deploy access to. Keep in mind that:
+
+   - There are two roles to choose from:
+     - **Maintainers**: Allows access to all of the project's users with the Maintainer role.
+     - **Developers**: Allows access to all of the project's users with the Maintainer and Developer role.
+   - You can select groups that are already associated with the project only.
+   - Users must have at least the Developer role to appear in
+     the **Approvers** list.
+
+1. In the **Approval rules** section:
+
+   - Ensure that this number is less than or equal to the number of members in
+     the rule.
    - See [Deployment Approvals](deployment_approvals.md) for more information about this feature.
+
 1. Select **Protect**.
 
 The protected environment now appears in the list of protected environments.
@@ -74,7 +88,7 @@ Alternatively, you can use the API to protect an environment:
        name: ${CI_JOB_NAME}
    ```
 
-1. Use the UI to [create a new group](../../user/group/manage.md#create-a-group).
+1. Use the UI to [create a new group](../../user/group/index.md#create-a-group).
    For example, this group is called `protected-access-group` and has the group ID `9899826`. Note
    that the rest of the examples in these steps use this group.
 
@@ -124,7 +138,7 @@ access to a protected environment through any of these methods:
 If the user also has push or merge access to the branch deployed on production,
 they have the following privileges:
 
-- [Stop an environment](index.md#stop-an-environment).
+- [Stop an environment](index.md#stopping-an-environment).
 - [Delete an environment](index.md#delete-an-environment).
 - [Create an environment terminal](index.md#web-terminals-deprecated).
 
@@ -242,8 +256,8 @@ To protect a group-level environment, make sure your environments have the corre
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325249) in GitLab 15.1.
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > CI/CD**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Settings > CI/CD**.
 1. Expand **Protected environments**.
 1. From the **Environment** list, select the [deployment tier of environments](index.md#deployment-tier-of-environments) you want to protect.
 1. In the **Allowed to deploy** list, select the [subgroups](../../user/group/subgroups/index.md) you want to give deploy access to.

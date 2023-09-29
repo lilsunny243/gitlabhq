@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Issue links API **(FREE)**
+# Issue links API **(FREE ALL)**
 
 > The simple "relates to" relationship [moved](https://gitlab.com/gitlab-org/gitlab/-/issues/212329) to GitLab Free in 13.4.
 
@@ -77,9 +77,9 @@ Supported attributes:
 
 | Attribute       | Type           | Required               | Description                                                                 |
 |-----------------|----------------|------------------------|-----------------------------------------------------------------------------|
-| `id`            | integer/string | **{check-circle}** Yes | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
-| `issue_iid`     | integer        | **{check-circle}** Yes | Internal ID of a project's issue.                                           |
-| `issue_link_id` | integer/string | **{check-circle}** Yes | ID of an issue relationship.                                                |
+| `id`            | integer/string | Yes | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `issue_iid`     | integer        | Yes | Internal ID of a project's issue.                                           |
+| `issue_link_id` | integer/string | Yes | ID of an issue relationship.                                                |
 
 Response body attributes:
 

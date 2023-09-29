@@ -16,30 +16,11 @@ module Sidebars
         add_menu(Sidebars::Groups::Menus::PackagesRegistriesMenu.new(context))
         add_menu(Sidebars::Groups::Menus::CustomerRelationsMenu.new(context))
         add_menu(Sidebars::Groups::Menus::SettingsMenu.new(context))
-        add_invite_members_menu
       end
 
       override :aria_label
       def aria_label
         context.group.subgroup? ? _('Subgroup navigation') : _('Group navigation')
-      end
-
-      override :super_sidebar_context_header
-      def super_sidebar_context_header
-        @super_sidebar_context_header ||= {
-          title: context.group.name,
-          avatar: context.group.avatar_url,
-          id: context.group.id
-        }
-      end
-
-      private
-
-      def add_invite_members_menu
-        experiment(:invite_members_in_side_nav, group: context.group) do |e|
-          e.control {}
-          e.candidate { add_menu(Sidebars::Groups::Menus::InviteTeamMembersMenu.new(context)) }
-        end
       end
     end
   end

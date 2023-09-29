@@ -1,20 +1,13 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :skip_live_env, :orchestrated, :packages, :object_storage, :reliable, product_group: :package_registry do
-    describe 'NuGet group level endpoint' do
+  RSpec.describe 'Package', :object_storage, product_group: :package_registry do
+    describe 'NuGet group level endpoint', :external_api_calls do
       using RSpec::Parameterized::TableSyntax
       include Runtime::Fixtures
       include Support::Helpers::MaskToken
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'nuget-package-project'
-          project.template_name = 'dotnetcore'
-          project.visibility = :private
-        end
-      end
-
+      let(:project) { create(:project, :private, name: 'nuget-package-project', template_name: 'dotnetcore') }
       let(:personal_access_token) do
         unless Page::Main::Menu.perform(&:signed_in?)
           Flow::Login.sign_in
@@ -42,11 +35,18 @@ module QA
         end
       end
 
-      let(:another_project) do
-        Resource::Project.fabricate_via_api! do |another_project|
-          another_project.name = 'nuget-package-install-project'
-          another_project.template_name = 'dotnetcore'
-          another_project.group = project.group
+      let(:another_project) { create(:project, name: 'nuget-package-install-project', template_name: 'dotnetcore', group: project.group) }
+      let(:package_project_inbound_job_token_disabled) do
+        Resource::CICDSettings.fabricate_via_api! do |settings|
+          settings.project_path = project.full_path
+          settings.inbound_job_token_scope_enabled = false
+        end
+      end
+
+      let(:client_project_inbound_job_token_disabled) do
+        Resource::CICDSettings.fabricate_via_api! do |settings|
+          settings.project_path = another_project.full_path
+          settings.inbound_job_token_scope_enabled = false
         end
       end
 
@@ -79,6 +79,8 @@ module QA
             use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token.token, project: project)
             use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token.token, project: another_project)
           when :ci_job_token
+            package_project_inbound_job_token_disabled
+            client_project_inbound_job_token_disabled
             '${CI_JOB_TOKEN}'
           when :group_deploy_token
             use_ci_variable(name: 'GROUP_DEPLOY_TOKEN', value: group_deploy_token.token, project: project)
@@ -97,10 +99,7 @@ module QA
           end
         end
 
-        it 'publishes a nuget package at the project endpoint and installs it from the group endpoint', testcase: params[:testcase], quarantine: {
-          type: :stale,
-          issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391648'
-        } do
+        it 'publishes a nuget package at the project endpoint and installs it from the group endpoint', testcase: params[:testcase] do
           Flow::Login.sign_in
 
           Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
@@ -164,7 +163,7 @@ module QA
 
           project.group.visit!
 
-          Page::Group::Menu.perform(&:go_to_group_packages)
+          Page::Group::Menu.perform(&:go_to_package_registry)
 
           Page::Project::Packages::Index.perform do |index|
             expect(index).to have_package(package.name)

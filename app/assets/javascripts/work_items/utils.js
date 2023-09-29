@@ -1,19 +1,31 @@
-import { WIDGET_TYPE_HIERARCHY } from '~/work_items/constants';
-import workItemQuery from './graphql/work_item.query.graphql';
-import workItemByIidQuery from './graphql/work_item_by_iid.query.graphql';
-import workItemNotesIdQuery from './graphql/notes/work_item_notes.query.graphql';
-import workItemNotesByIidQuery from './graphql/notes/work_item_notes_by_iid.query.graphql';
+import { joinPaths } from '~/lib/utils/url_utility';
+import {
+  WIDGET_TYPE_ASSIGNEES,
+  WIDGET_TYPE_HEALTH_STATUS,
+  WIDGET_TYPE_HIERARCHY,
+  WIDGET_TYPE_LABELS,
+  WIDGET_TYPE_MILESTONE,
+  WIDGET_TYPE_START_AND_DUE_DATE,
+  WIDGET_TYPE_WEIGHT,
+} from './constants';
 
-export function getWorkItemQuery(isFetchedByIid) {
-  return isFetchedByIid ? workItemByIidQuery : workItemQuery;
-}
+export const isAssigneesWidget = (widget) => widget.type === WIDGET_TYPE_ASSIGNEES;
 
-export function getWorkItemNotesQuery(isFetchedByIid) {
-  return isFetchedByIid ? workItemNotesByIidQuery : workItemNotesIdQuery;
-}
+export const isHealthStatusWidget = (widget) => widget.type === WIDGET_TYPE_HEALTH_STATUS;
+
+export const isLabelsWidget = (widget) => widget.type === WIDGET_TYPE_LABELS;
+
+export const isMilestoneWidget = (widget) => widget.type === WIDGET_TYPE_MILESTONE;
+
+export const isStartAndDueDateWidget = (widget) => widget.type === WIDGET_TYPE_START_AND_DUE_DATE;
+
+export const isWeightWidget = (widget) => widget.type === WIDGET_TYPE_WEIGHT;
+
+export const findHierarchyWidgets = (widgets) =>
+  widgets?.find((widget) => widget.type === WIDGET_TYPE_HIERARCHY);
 
 export const findHierarchyWidgetChildren = (workItem) =>
-  workItem.widgets.find((widget) => widget.type === WIDGET_TYPE_HIERARCHY).children.nodes;
+  findHierarchyWidgets(workItem?.widgets)?.children?.nodes || [];
 
 const autocompleteSourcesPath = (autocompleteType, fullPath, workItemIid) => {
   return `${
@@ -31,3 +43,7 @@ export const markdownPreviewPath = (fullPath, iid) =>
   `${
     gon.relative_url_root || ''
   }/${fullPath}/preview_markdown?target_type=WorkItem&target_id=${iid}`;
+
+export const workItemPath = (fullPath, workItemIid) => {
+  return joinPaths(gon?.relative_url_root || '/', fullPath, '-', 'work_items', workItemIid);
+};

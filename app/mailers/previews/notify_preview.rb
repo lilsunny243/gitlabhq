@@ -17,6 +17,10 @@ class NotifyPreview < ActionMailer::Preview
     end
   end
 
+  def new_user_email
+    Notify.new_user_email(user.id).message
+  end
+
   def note_merge_request_email_for_discussion
     note_email(:note_merge_request_email) do
       note = <<-MD.strip_heredoc
@@ -58,6 +62,28 @@ class NotifyPreview < ActionMailer::Preview
 
       create_note(noteable_type: 'merge_request', noteable_id: merge_request.id, type: 'DiffNote', position: position, note: note)
     end
+  end
+
+  def resource_access_token_about_to_expire_email
+    Notify.resource_access_tokens_about_to_expire_email(user, group, ['token_name'])
+  end
+
+  def access_token_created_email
+    Notify.access_token_created_email(user, 'token_name').message
+  end
+
+  def access_token_expired_email
+    token_names = []
+    Notify.access_token_expired_email(user, token_names).message
+  end
+
+  def access_token_revoked_email
+    Notify.access_token_revoked_email(user, 'token_name').message
+  end
+
+  def ssh_key_expired_email
+    fingerprints = []
+    Notify.ssh_key_expired_email(user, fingerprints).message
   end
 
   def new_mention_in_merge_request_email
@@ -153,6 +179,13 @@ class NotifyPreview < ActionMailer::Preview
     Notify.member_invited_email('project', member.id, '1234').message
   end
 
+  def member_about_to_expire_email
+    cleanup do
+      member = project.add_member(user, Gitlab::Access::GUEST, expires_at: 7.days.from_now.to_date)
+      Notify.member_about_to_expire_email('project', member.id).message
+    end
+  end
+
   def pages_domain_enabled_email
     cleanup do
       pages_domain = PagesDomain.new(domain: 'my.example.com', project: project, verified_at: Time.now, enabled_until: 1.week.from_now)
@@ -205,6 +238,52 @@ class NotifyPreview < ActionMailer::Preview
     Notify.service_desk_thank_you_email(issue.id).message
   end
 
+  def service_desk_custom_email_verification_email
+    cleanup do
+      setup_service_desk_custom_email_objects
+
+      Notify.service_desk_custom_email_verification_email(service_desk_setting).message
+    end
+  end
+
+  def service_desk_verification_triggered_email
+    cleanup do
+      setup_service_desk_custom_email_objects
+
+      Notify.service_desk_verification_triggered_email(service_desk_setting, 'owner@example.com').message
+    end
+  end
+
+  def service_desk_verification_result_email_for_verified_state
+    cleanup do
+      setup_service_desk_custom_email_objects
+
+      custom_email_verification.mark_as_finished!
+
+      Notify.service_desk_verification_result_email(service_desk_setting, 'owner@example.com').message
+    end
+  end
+
+  def service_desk_verification_result_email_for_incorrect_token_error
+    service_desk_verification_result_email_for_error_state(error: :incorrect_token)
+  end
+
+  def service_desk_verification_result_email_for_incorrect_from_error
+    service_desk_verification_result_email_for_error_state(error: :incorrect_from)
+  end
+
+  def service_desk_verification_result_email_for_mail_not_received_within_timeframe_error
+    service_desk_verification_result_email_for_error_state(error: :mail_not_received_within_timeframe)
+  end
+
+  def service_desk_verification_result_email_for_invalid_credentials_error
+    service_desk_verification_result_email_for_error_state(error: :invalid_credentials)
+  end
+
+  def service_desk_verification_result_email_for_smtp_host_issue_error
+    service_desk_verification_result_email_for_error_state(error: :smtp_host_issue)
+  end
+
   def merge_when_pipeline_succeeds_email
     Notify.merge_when_pipeline_succeeds_email(user.id, merge_request.id, user.id).message
   end
@@ -225,6 +304,13 @@ class NotifyPreview < ActionMailer::Preview
     Notify.request_review_merge_request_email(user.id, merge_request.id, user.id).message
   end
 
+  def new_review_email
+    review = Review.last
+    mr_author = review.merge_request.author
+
+    Notify.new_review_email(mr_author.id, review.id).message
+  end
+
   def project_was_moved_email
     Notify.project_was_moved_email(project.id, user.id, "gitlab/gitlab").message
   end
@@ -237,6 +323,53 @@ class NotifyPreview < ActionMailer::Preview
 
   def project
     @project ||= Project.first
+  end
+
+  def service_desk_verification_result_email_for_error_state(error:)
+    cleanup do
+      setup_service_desk_custom_email_objects
+
+      custom_email_verification.mark_as_failed!(error)
+
+      Notify.service_desk_verification_result_email(service_desk_setting, 'owner@example.com').message
+    end
+  end
+
+  def setup_service_desk_custom_email_objects
+    # Call accessors to ensure objects have been created
+    custom_email_credential
+    custom_email_verification
+
+    # Update associations in projects, because we access
+    # custom_email_credential and custom_email_verification via project
+    project.reset
+  end
+
+  def custom_email_verification
+    @custom_email_verification ||= project.service_desk_custom_email_verification || ServiceDesk::CustomEmailVerification.create!(
+      project: project,
+      token: 'XXXXXXXXXXXX',
+      triggerer: user,
+      triggered_at: Time.current,
+      state: 'started'
+    )
+  end
+
+  def custom_email_credential
+    @custom_email_credential ||= project.service_desk_custom_email_credential || ServiceDesk::CustomEmailCredential.create!(
+      project: project,
+      smtp_address: 'smtp.gmail.com', # Use gmail, because Gitlab::UrlBlocker resolves DNS
+      smtp_port: 587,
+      smtp_username: 'user@gmail.com',
+      smtp_password: 'supersecret'
+    )
+  end
+
+  def service_desk_setting
+    @service_desk_setting ||= project.service_desk_setting || ServiceDeskSetting.create!(
+      project: project,
+      custom_email: 'user@gmail.com'
+    )
   end
 
   def issue

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectsFinder do
+RSpec.describe ProjectsFinder, feature_category: :groups_and_projects do
   include AdminModeHelper
 
   describe '#execute' do
@@ -14,7 +14,7 @@ RSpec.describe ProjectsFinder do
     end
 
     let_it_be(:internal_project) do
-      create(:project, :internal, :merge_requests_disabled, group: group, name: 'B', path: 'B')
+      create(:project, :internal, :merge_requests_disabled, group: group, name: 'B', path: 'B', updated_at: 4.days.ago)
     end
 
     let_it_be(:public_project) do
@@ -23,6 +23,12 @@ RSpec.describe ProjectsFinder do
 
     let_it_be(:shared_project) do
       create(:project, :private, name: 'D', path: 'D')
+    end
+
+    let_it_be(:banned_user_project) do
+      create(:project, :public, name: 'Project created by a banned user', creator: create(:user, :banned)).tap do |p|
+        create(:project_authorization, :owner, user: p.creator, project: p)
+      end
     end
 
     let(:params) { {} }
@@ -130,6 +136,52 @@ RSpec.describe ProjectsFinder do
           let(:params) { { visibility_level: Gitlab::VisibilityLevel::INTERNAL.to_s } }
 
           it { is_expected.to eq([internal_project]) }
+        end
+      end
+
+      describe 'filter by updated_at' do
+        context 'when updated_before is present' do
+          let(:params) { { updated_before: 2.days.ago } }
+
+          it { is_expected.to contain_exactly(internal_project) }
+        end
+
+        context 'when updated_after is present' do
+          let(:params) { { updated_after: 2.days.ago } }
+
+          it { is_expected.not_to include(internal_project) }
+        end
+
+        context 'when both updated_before and updated_after are present' do
+          let(:params) { { updated_before: 2.days.ago, updated_after: 6.days.ago } }
+
+          it { is_expected.to contain_exactly(internal_project) }
+
+          context 'when updated_after > updated_before' do
+            let(:params) { { updated_after: 2.days.ago, updated_before: 6.days.ago } }
+
+            it { is_expected.to be_empty }
+
+            it 'does not query the DB' do
+              expect { subject.to_a }.to make_queries(0)
+            end
+          end
+
+          context 'when updated_after equals updated_before', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408387' do
+            let(:params) { { updated_after: internal_project.updated_at, updated_before: internal_project.updated_at } }
+
+            it 'allows an exact match' do
+              expect(subject).to contain_exactly(internal_project)
+            end
+          end
+
+          context 'when arguments are invalid datetimes' do
+            let(:params) { { updated_after: 'invalid', updated_before: 'inavlid' } }
+
+            it 'does not filter by updated_at' do
+              expect(subject).to contain_exactly(internal_project, public_project)
+            end
+          end
         end
       end
 
@@ -442,27 +494,43 @@ RSpec.describe ProjectsFinder do
       describe 'with admin user' do
         let(:user) { create(:admin) }
 
-        context 'admin mode enabled' do
+        context 'with admin mode enabled' do
           before do
             enable_admin_mode!(current_user)
           end
 
-          it { is_expected.to match_array([public_project, internal_project, private_project, shared_project]) }
+          it do
+            is_expected.to match_array([
+              public_project,
+              internal_project,
+              private_project,
+              shared_project,
+              banned_user_project
+            ])
+          end
         end
 
-        context 'admin mode disabled' do
+        context 'with admin mode disabled' do
           it { is_expected.to match_array([public_project, internal_project]) }
+
+          context 'when hide_projects_of_banned_users FF is disabled' do
+            before do
+              stub_feature_flags(hide_projects_of_banned_users: false)
+            end
+
+            it { is_expected.to match_array([public_project, internal_project, banned_user_project]) }
+          end
         end
       end
     end
 
-    describe 'without CTE flag enabled' do
+    describe 'without CTE flag enabled', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408387' do
       let(:use_cte) { false }
 
       it_behaves_like 'ProjectFinder#execute examples'
     end
 
-    describe 'with CTE flag enabled' do
+    describe 'with CTE flag enabled', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408387' do
       let(:use_cte) { true }
 
       it_behaves_like 'ProjectFinder#execute examples'

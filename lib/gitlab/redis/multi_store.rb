@@ -6,31 +6,52 @@ module Gitlab
       include Gitlab::Utils::StrongMemoize
 
       class PipelinedDiffError < StandardError
-        def initialize(result_primary, result_secondary)
-          @result_primary = result_primary
-          @result_secondary = result_secondary
+        def initialize(non_default_store_result, default_store_result)
+          @non_default_store_result = non_default_store_result
+          @default_store_result = default_store_result
         end
 
         def message
           "Pipelined command executed on both stores successfully but results differ between them. " \
-            "Result from the primary: #{@result_primary.inspect}. " \
-            "Result from the secondary: #{@result_secondary.inspect}."
+            "Result from the non-default store: #{@non_default_store_result.inspect}. " \
+            "Result from the default store: #{@default_store_result.inspect}."
         end
       end
 
       class MethodMissingError < StandardError
+        def initialize(cmd)
+          @cmd = cmd
+        end
+
         def message
-          'Method missing. Falling back to execute method on the redis default store in Rails.env.production.'
+          "Method missing #{@cmd}. Falling back to execute method on the redis default store in Rails.env.production."
+        end
+      end
+
+      class NestedReadonlyPipelineError < StandardError
+        def message
+          'Nested use of with_readonly_pipeline is detected.'
         end
       end
 
       attr_reader :primary_store, :secondary_store, :instance_name
 
       FAILED_TO_READ_ERROR_MESSAGE = 'Failed to read from the redis default_store.'
-      FAILED_TO_WRITE_ERROR_MESSAGE = 'Failed to write to the redis primary_store.'
-      FAILED_TO_RUN_PIPELINE = 'Failed to execute pipeline on the redis primary_store.'
+      FAILED_TO_WRITE_ERROR_MESSAGE = 'Failed to write to the redis non_default_store.'
+      FAILED_TO_RUN_PIPELINE = 'Failed to execute pipeline on the redis non_default_store.'
 
       SKIP_LOG_METHOD_MISSING_FOR_COMMANDS = %i[info].freeze
+
+      # _client and without_reconnect are Redis::Client methods which may be called through multistore
+      REDIS_CLIENT_COMMANDS = %i[
+        _client
+        without_reconnect
+      ].freeze
+
+      PUBSUB_SUBSCRIBE_COMMANDS = %i[
+        subscribe
+        unsubscribe
+      ].freeze
 
       READ_COMMANDS = %i[
         exists
@@ -44,6 +65,7 @@ module Gitlab
         hscan_each
         mapped_hmget
         mget
+        scan
         scan_each
         scard
         sismember
@@ -64,13 +86,17 @@ module Gitlab
         incr
         incrby
         mapped_hmset
+        publish
         rpush
         sadd
+        sadd?
         set
         setex
         setnx
         srem
         unlink
+
+        memory
       ].freeze
 
       PIPELINED_COMMANDS = %i[
@@ -96,8 +122,27 @@ module Gitlab
         validate_stores!
       end
 
+      # Pipelines are sent to both instances by default since
+      # they could execute both read and write commands.
+      #
+      # But for pipelines that only consists of read commands, this method
+      # can be used to scope the pipeline and send it only to the default store.
+      def with_readonly_pipeline
+        raise NestedReadonlyPipelineError if readonly_pipeline?
+
+        Thread.current[:readonly_pipeline] = true
+
+        yield
+      ensure
+        Thread.current[:readonly_pipeline] = false
+      end
+
+      def readonly_pipeline?
+        Thread.current[:readonly_pipeline].present?
+      end
+
       # rubocop:disable GitlabSecurity/PublicSend
-      READ_COMMANDS.each do |name|
+      (READ_COMMANDS + REDIS_CLIENT_COMMANDS + PUBSUB_SUBSCRIBE_COMMANDS).each do |name|
         define_method(name) do |*args, **kwargs, &block|
           if use_primary_and_secondary_stores?
             read_command(name, *args, **kwargs, &block)
@@ -119,10 +164,10 @@ module Gitlab
 
       PIPELINED_COMMANDS.each do |name|
         define_method(name) do |*args, **kwargs, &block|
-          if use_primary_and_secondary_stores?
+          if use_primary_and_secondary_stores? && !readonly_pipeline?
             pipelined_both(name, *args, **kwargs, &block)
           else
-            default_store.send(name, *args, **kwargs, &block)
+            send_command(default_store, name, *args, **kwargs, &block)
           end
         end
       end
@@ -188,7 +233,7 @@ module Gitlab
         use_primary_store_as_default? ? primary_store : secondary_store
       end
 
-      def fallback_store
+      def non_default_store
         use_primary_store_as_default? ? secondary_store : primary_store
       end
 
@@ -200,6 +245,19 @@ module Gitlab
           [primary_store, secondary_store].map { |store| store.ping(message) }.first
         else
           default_store.ping(message)
+        end
+      end
+
+      # connection_pool gem calls `#close` method:
+      #
+      # https://github.com/mperham/connection_pool/blob/v2.4.1/lib/connection_pool.rb#L63
+      #
+      # Let's define it explicitly instead of propagating it to method_missing
+      def close
+        if use_primary_and_secondary_stores?
+          [primary_store, secondary_store].map(&:close).first
+        else
+          default_store.close
         end
       end
 
@@ -217,9 +275,9 @@ module Gitlab
       def log_method_missing(command_name, *_args)
         return if SKIP_LOG_METHOD_MISSING_FOR_COMMANDS.include?(command_name)
 
-        raise MethodMissingError if Rails.env.test? || Rails.env.development?
+        raise MethodMissingError, command_name if Rails.env.test? || Rails.env.development?
 
-        log_error(MethodMissingError.new, command_name)
+        log_error(MethodMissingError.new(command_name), command_name)
         increment_method_missing_count(command_name)
       end
 
@@ -248,36 +306,39 @@ module Gitlab
       end
 
       def write_both(command_name, *args, **kwargs, &block)
+        result = send_command(default_store, command_name, *args, **kwargs, &block)
+
+        # write to the non-default store only if write on default store is successful
         begin
-          send_command(primary_store, command_name, *args, **kwargs, &block)
+          send_command(non_default_store, command_name, *args, **kwargs, &block)
         rescue StandardError => e
           log_error(e, command_name,
             multi_store_error_message: FAILED_TO_WRITE_ERROR_MESSAGE)
         end
 
-        send_command(secondary_store, command_name, *args, **kwargs, &block)
+        result
       end
 
       # Run the entire pipeline on both stores. We assume that `&block` is idempotent.
       def pipelined_both(command_name, *args, **kwargs, &block)
+        result_default = send_command(default_store, command_name, *args, **kwargs, &block)
+
         begin
-          result_primary = send_command(primary_store, command_name, *args, **kwargs, &block)
+          result_non_default = send_command(non_default_store, command_name, *args, **kwargs, &block)
         rescue StandardError => e
           log_error(e, command_name, multi_store_error_message: FAILED_TO_RUN_PIPELINE)
         end
 
-        result_secondary = send_command(secondary_store, command_name, *args, **kwargs, &block)
-
         # Pipelined commands return an array with all results. If they differ, log an error
-        if result_primary && result_primary != result_secondary
-          error = PipelinedDiffError.new(result_primary, result_secondary)
+        if result_non_default && result_non_default != result_default
+          error = PipelinedDiffError.new(result_non_default, result_default)
           error.set_backtrace(Thread.current.backtrace[1..]) # Manually set backtrace, since the error is not `raise`d
 
           log_error(error, command_name)
           increment_pipelined_command_error_count(command_name)
         end
 
-        result_secondary
+        result_default
       end
 
       def same_redis_store?
@@ -289,6 +350,16 @@ module Gitlab
 
       # rubocop:disable GitlabSecurity/PublicSend
       def send_command(redis_instance, command_name, *args, **kwargs, &block)
+        # Run wrapped pipeline for each instance individually so that the fan-out is distinct.
+        # If both primary and secondary are Redis Clusters, the slot-node distribution could
+        # be different.
+        #
+        # We ignore args and kwargs since `pipelined` does not accept arguments
+        # See https://github.com/redis/redis-rb/blob/v4.8.0/lib/redis.rb#L164
+        if command_name.to_s == 'pipelined' && redis_instance._client.instance_of?(::Redis::Cluster)
+          return Gitlab::Redis::CrossSlot::Pipeline.new(redis_instance).pipelined(&block)
+        end
+
         if block
           # Make sure that block is wrapped and executed only on the redis instance that is executing the block
           redis_instance.send(command_name, *args, **kwargs) do |*params|

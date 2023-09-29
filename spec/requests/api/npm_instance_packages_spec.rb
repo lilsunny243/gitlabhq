@@ -11,8 +11,20 @@ RSpec.describe API::NpmInstancePackages, feature_category: :package_registry do
   include_context 'npm api setup'
 
   describe 'GET /api/v4/packages/npm/*package_name' do
-    it_behaves_like 'handling get metadata requests', scope: :instance do
-      let(:url) { api("/packages/npm/#{package_name}") }
+    let(:url) { api("/packages/npm/#{package_name}") }
+
+    subject { get(url) }
+
+    it_behaves_like 'handling get metadata requests', scope: :instance
+    it_behaves_like 'rejects invalid package names'
+    it_behaves_like 'handling get metadata requests for packages in multiple projects'
+
+    context 'when metadata cache exists' do
+      let_it_be(:npm_metadata_cache) { create(:npm_metadata_cache, package_name: package.name, project_id: project.id) }
+
+      subject { get(url) }
+
+      it_behaves_like 'generates metadata response "on-the-fly"'
     end
   end
 
@@ -26,11 +38,30 @@ RSpec.describe API::NpmInstancePackages, feature_category: :package_registry do
     it_behaves_like 'handling create dist tag requests', scope: :instance do
       let(:url) { api("/packages/npm/-/package/#{package_name}/dist-tags/#{tag_name}") }
     end
+
+    it_behaves_like 'enqueue a worker to sync a metadata cache' do
+      let(:tag_name) { 'test' }
+      let(:url) { api("/packages/npm/-/package/#{package_name}/dist-tags/#{tag_name}") }
+      let(:env) { { 'api.request.body': package.version } }
+      let(:headers) { build_token_auth_header(personal_access_token.token) }
+
+      subject { put(url, env: env, headers: headers) }
+    end
   end
 
   describe 'DELETE /api/v4/packages/npm/-/package/*package_name/dist-tags/:tag' do
     it_behaves_like 'handling delete dist tag requests', scope: :instance do
       let(:url) { api("/packages/npm/-/package/#{package_name}/dist-tags/#{tag_name}") }
+    end
+
+    it_behaves_like 'enqueue a worker to sync a metadata cache' do
+      let_it_be(:package_tag) { create(:packages_tag, package: package) }
+
+      let(:tag_name) { package_tag.name }
+      let(:url) { api("/packages/npm/-/package/#{package_name}/dist-tags/#{tag_name}") }
+      let(:headers) { build_token_auth_header(personal_access_token.token) }
+
+      subject { delete(url, headers: headers) }
     end
   end
 

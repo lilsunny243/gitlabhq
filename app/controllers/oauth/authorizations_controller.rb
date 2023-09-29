@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
 class Oauth::AuthorizationsController < Doorkeeper::AuthorizationsController
+  include Gitlab::GonHelper
   include InitializesCurrentUserMode
   include Gitlab::Utils::StrongMemoize
 
+  before_action :add_gon_variables
   before_action :verify_confirmed_email!, :verify_admin_allowed!
 
   layout 'profile'
@@ -12,7 +14,7 @@ class Oauth::AuthorizationsController < Doorkeeper::AuthorizationsController
   # include the call to session.delete
   def new
     if pre_auth.authorizable?
-      if skip_authorization? || matching_token?
+      if skip_authorization? || (matching_token? && pre_auth.client.application.confidential?)
         auth = authorization.authorize
         parsed_redirect_uri = URI.parse(auth.redirect_uri)
         session.delete(:user_return_to)
@@ -108,8 +110,10 @@ class Oauth::AuthorizationsController < Doorkeeper::AuthorizationsController
   end
 
   def dangerous_scopes?
-    doorkeeper_application&.includes_scope?(*::Gitlab::Auth::API_SCOPE, *::Gitlab::Auth::READ_API_SCOPE,
-                                             *::Gitlab::Auth::ADMIN_SCOPES, *::Gitlab::Auth::REPOSITORY_SCOPES,
-                                             *::Gitlab::Auth::REGISTRY_SCOPES) && !doorkeeper_application&.trusted?
+    doorkeeper_application&.includes_scope?(
+      *::Gitlab::Auth::API_SCOPE, *::Gitlab::Auth::READ_API_SCOPE,
+      *::Gitlab::Auth::ADMIN_SCOPES, *::Gitlab::Auth::REPOSITORY_SCOPES,
+      *::Gitlab::Auth::REGISTRY_SCOPES
+    ) && !doorkeeper_application&.trusted?
   end
 end

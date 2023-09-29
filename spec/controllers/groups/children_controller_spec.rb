@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::ChildrenController, feature_category: :subgroups do
+RSpec.describe Groups::ChildrenController, feature_category: :groups_and_projects do
   include ExternalAuthorizationServiceHelpers
 
   let(:group) { create(:group, :public) }
@@ -222,13 +222,13 @@ RSpec.describe Groups::ChildrenController, feature_category: :subgroups do
           control = ActiveRecord::QueryRecorder.new { get_list }
           _new_project = create(:project, :public, namespace: group)
 
-          expect { get_list }.not_to exceed_query_limit(control).with_threshold(expected_queries_per_project)
+          expect { get_list }.not_to exceed_query_limit(control).with_threshold(expected_queries_per_project + 1)
         end
 
         context 'when rendering hierarchies' do
           # When loading hierarchies we load the all the ancestors for matched projects
-          # in 2 separate queries
-          let(:extra_queries_for_hierarchies) { 2 }
+          # in 3 separate queries
+          let(:extra_queries_for_hierarchies) { 3 }
 
           def get_filtered_list
             get :index, params: { group_id: group.to_param, filter: 'filter' }, format: :json
@@ -273,6 +273,18 @@ RSpec.describe Groups::ChildrenController, feature_category: :subgroups do
 
       before do
         allow(Kaminari.config).to receive(:default_per_page).and_return(per_page)
+      end
+
+      it 'rejects negative per_page parameter' do
+        get :index, params: { group_id: group.to_param, per_page: -1 }, format: :json
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+      end
+
+      it 'rejects non-numeric per_page parameter' do
+        get :index, params: { group_id: group.to_param, per_page: 'abc' }, format: :json
+
+        expect(response).to have_gitlab_http_status(:bad_request)
       end
 
       context 'with only projects' do

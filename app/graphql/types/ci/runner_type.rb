@@ -6,7 +6,7 @@ module Types
       graphql_name 'CiRunner'
 
       edge_type_class(RunnerWebUrlEdge)
-      connection_type_class(RunnerCountableConnectionType)
+      connection_type_class RunnerCountableConnectionType
 
       authorize :read_runner
       present_using ::Ci::RunnerPresenter
@@ -24,38 +24,50 @@ module Types
       field :admin_url, GraphQL::Types::String, null: true,
                                                 description: 'Admin URL of the runner. Only available for administrators.'
       field :architecture_name, GraphQL::Types::String, null: true,
-                                                        description: 'Architecture provided by the the runner.',
-                                                        method: :architecture
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'Architecture provided by the the runner.',
+            method: :architecture
       field :contacted_at, Types::TimeType, null: true,
                                             description: 'Timestamp of last contact from this runner.',
                                             method: :contacted_at
       field :created_at, Types::TimeType, null: true,
                                           description: 'Timestamp of creation of this runner.'
+      field :created_by, Types::UserType, null: true,
+                                          description: 'User that created this runner.',
+                                          method: :creator
       field :description, GraphQL::Types::String, null: true,
                                                   description: 'Description of the runner.'
       field :edit_admin_url, GraphQL::Types::String, null: true,
                                                      description: 'Admin form URL of the runner. Only available for administrators.'
       field :ephemeral_authentication_token, GraphQL::Types::String, null: true,
-            description: 'Ephemeral authentication token used for runner machine registration. Only available for the creator of the runner for a limited time during registration.',
+            description: 'Ephemeral authentication token used for runner manager registration. Only available for the creator of the runner for a limited time during registration.',
             authorize: :read_ephemeral_token,
             alpha: { milestone: '15.9' }
+      field :ephemeral_register_url, GraphQL::Types::String, null: true,
+            description: 'URL of the registration page of the runner manager. Only available for the creator of the runner for a limited time during registration.',
+            alpha: { milestone: '15.11' }
       field :executor_name, GraphQL::Types::String, null: true,
-                                                    description: 'Executor last advertised by the runner.',
-                                                    method: :executor_name
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'Executor last advertised by the runner.',
+            method: :executor_name
       field :groups, null: true,
                      resolver: ::Resolvers::Ci::RunnerGroupsResolver,
                      description: 'Groups the runner is associated with. For group runners only.'
       field :id, ::Types::GlobalIDType[::Ci::Runner], null: false,
                                                       description: 'ID of the runner.'
       field :ip_address, GraphQL::Types::String, null: true,
-                                                 description: 'IP address of the runner.'
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'IP address of the runner.'
       field :job_count, GraphQL::Types::Int, null: true,
-                                             description: "Number of jobs processed by the runner (limited to #{JOB_COUNT_LIMIT}, plus one to indicate that more items exist)."
+            description: "Number of jobs processed by the runner (limited to #{JOB_COUNT_LIMIT}, plus one to " \
+                         "indicate that more items exist).\n`jobCount` is an optimized version of `jobs { count }`, " \
+                         "and can be requested for multiple runners on the same request.",
+            resolver: ::Resolvers::Ci::RunnerJobCountResolver
       field :job_execution_status,
             Types::Ci::RunnerJobExecutionStatusEnum,
             null: true,
             description: 'Job execution status of the runner.',
-            deprecated: { milestone: '15.7', reason: :alpha }
+            alpha: { milestone: '15.7' }
       field :jobs, ::Types::Ci::JobType.connection_type, null: true,
                                                          description: 'Jobs assigned to the runner. This field can only be resolved for one runner in any single request.',
                                                          authorize: :read_builds,
@@ -64,6 +76,9 @@ module Types
                                               description: 'Indicates the runner is locked.'
       field :maintenance_note, GraphQL::Types::String, null: true,
                                                        description: 'Runner\'s maintenance notes.'
+      field :managers, ::Types::Ci::RunnerManagerType.connection_type, null: true,
+            description: 'Machines associated with the runner configuration.',
+            alpha: { milestone: '15.10' }
       field :maximum_timeout, GraphQL::Types::Int, null: true,
                                                    description: 'Maximum timeout (in seconds) for jobs processed by the runner.'
       field :owner_project, ::Types::ProjectType, null: true,
@@ -72,8 +87,9 @@ module Types
       field :paused, GraphQL::Types::Boolean, null: false,
                                               description: 'Indicates the runner is paused and not available to run jobs.'
       field :platform_name, GraphQL::Types::String, null: true,
-                                                    description: 'Platform provided by the runner.',
-                                                    method: :platform
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'Platform provided by the runner.',
+            method: :platform
       field :project_count, GraphQL::Types::Int, null: true,
                                                  description: 'Number of projects that the runner is associated with.'
       field :projects,
@@ -84,7 +100,8 @@ module Types
       field :register_admin_url, GraphQL::Types::String, null: true,
                                                          description: 'URL of the temporary registration page of the runner. Only available before the runner is registered. Only available for administrators.'
       field :revision, GraphQL::Types::String, null: true,
-                                               description: 'Revision of the runner.'
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'Revision of the runner.'
       field :run_untagged, GraphQL::Types::Boolean, null: false,
                                                     description: 'Indicates the runner is able to run untagged jobs.'
       field :runner_type, ::Types::Ci::RunnerTypeEnum, null: false,
@@ -102,34 +119,13 @@ module Types
                                                 description: 'Runner token expiration time.',
                                                 method: :token_expires_at
       field :version, GraphQL::Types::String, null: true,
-                                              description: 'Version of the runner.'
+            deprecated: { reason: "Use field in `manager` object instead", milestone: '16.2' },
+            description: 'Version of the runner.'
 
       markdown_field :maintenance_note_html, null: true
 
       def maintenance_note_html_resolver
         ::MarkupHelper.markdown(object.maintenance_note, context.to_h.dup)
-      end
-
-      def job_count
-        BatchLoader::GraphQL.for(runner.id).batch(key: :job_count) do |runner_ids, loader, _args|
-          # rubocop: disable CodeReuse/ActiveRecord
-          # We limit to 1 above the JOB_COUNT_LIMIT to indicate that more items exist after JOB_COUNT_LIMIT
-          builds_tbl = ::Ci::Build.arel_table
-          runners_tbl = ::Ci::Runner.arel_table
-          lateral_query = ::Ci::Build.select(1)
-                                     .where(builds_tbl['runner_id'].eq(runners_tbl['id']))
-                                     .limit(JOB_COUNT_LIMIT + 1)
-          counts = ::Ci::Runner.joins("JOIN LATERAL (#{lateral_query.to_sql}) builds_with_limit ON true")
-                               .id_in(runner_ids)
-                               .select(:id, Arel.star.count.as('count'))
-                               .group(:id)
-                               .index_by(&:id)
-          # rubocop: enable CodeReuse/ActiveRecord
-
-          runner_ids.each do |runner_id|
-            loader.call(runner_id, counts[runner_id]&.count || 0)
-          end
-        end
       end
 
       def admin_url
@@ -138,6 +134,19 @@ module Types
 
       def edit_admin_url
         Gitlab::Routing.url_helpers.edit_admin_runner_url(runner) if can_admin_runners?
+      end
+
+      def ephemeral_register_url
+        return unless context[:current_user]&.can?(:read_ephemeral_token, runner) && runner.registration_available?
+
+        case runner.runner_type
+        when 'instance_type'
+          Gitlab::Routing.url_helpers.register_admin_runner_url(runner)
+        when 'group_type'
+          Gitlab::Routing.url_helpers.register_group_runner_url(runner.groups[0], runner)
+        when 'project_type'
+          Gitlab::Routing.url_helpers.register_project_runner_url(runner.projects[0], runner)
+        end
       end
 
       def register_admin_url
@@ -161,6 +170,18 @@ module Types
 
           ids.each do |id|
             loader.call(id, counts[id]&.count)
+          end
+        end
+      end
+
+      def managers
+        BatchLoader::GraphQL.for(runner.id).batch(key: :runner_managers) do |runner_ids, loader|
+          runner_managers_by_runner_id =
+            ::Ci::RunnerManager.for_runner(runner_ids).order_id_desc.group_by(&:runner_id)
+
+          runner_ids.each do |runner_id|
+            runner_managers = Array.wrap(runner_managers_by_runner_id[runner_id])
+            loader.call(runner_id, runner_managers)
           end
         end
       end

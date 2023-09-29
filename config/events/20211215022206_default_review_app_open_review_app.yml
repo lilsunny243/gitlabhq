@@ -8,8 +8,7 @@ extra_properties:
 identifiers:
 product_section: ops
 product_stage: verify
-product_group: group::pipeline insights
-product_category:
+product_group: group::pipeline execution
 milestone: "12.6"
 introduced_by_url: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/18141
 distributions:

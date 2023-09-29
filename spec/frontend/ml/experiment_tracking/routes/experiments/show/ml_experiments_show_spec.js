@@ -1,12 +1,13 @@
-import { GlAlert, GlTable, GlLink } from '@gitlab/ui';
-import { nextTick } from 'vue';
-import { mountExtended } from 'helpers/vue_test_utils_helper';
+import { GlTableLite, GlLink, GlEmptyState, GlButton } from '@gitlab/ui';
+import { mount } from '@vue/test-utils';
 import MlExperimentsShow from '~/ml/experiment_tracking/routes/experiments/show/ml_experiments_show.vue';
+import DeleteButton from '~/ml/experiment_tracking/components/delete_button.vue';
+import ModelExperimentsHeader from '~/ml/experiment_tracking/components/model_experiments_header.vue';
 import RegistrySearch from '~/vue_shared/components/registry/registry_search.vue';
 import Pagination from '~/vue_shared/components/incubation/pagination.vue';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import * as urlHelpers from '~/lib/utils/url_utility';
-import { MOCK_START_CURSOR, MOCK_PAGE_INFO, MOCK_CANDIDATES } from './mock_data';
+import { MOCK_START_CURSOR, MOCK_PAGE_INFO, MOCK_CANDIDATES, MOCK_EXPERIMENT } from './mock_data';
 
 describe('MlExperimentsShow', () => {
   let wrapper;
@@ -16,9 +17,11 @@ describe('MlExperimentsShow', () => {
     metricNames = [],
     paramNames = [],
     pageInfo = MOCK_PAGE_INFO,
+    experiment = MOCK_EXPERIMENT,
+    emptyStateSvgPath = 'path',
   ) => {
-    wrapper = mountExtended(MlExperimentsShow, {
-      propsData: { candidates, metricNames, paramNames, pageInfo },
+    wrapper = mount(MlExperimentsShow, {
+      propsData: { experiment, candidates, metricNames, paramNames, pageInfo, emptyStateSvgPath },
     });
   };
 
@@ -26,29 +29,26 @@ describe('MlExperimentsShow', () => {
     createWrapper(MOCK_CANDIDATES, ['rmse', 'auc', 'mae'], ['l1_ratio'], pageInfo);
   };
 
-  const findAlert = () => wrapper.findComponent(GlAlert);
   const findPagination = () => wrapper.findComponent(Pagination);
-  const findEmptyState = () => wrapper.findByText('No candidates to display');
+  const findEmptyState = () => wrapper.findComponent(GlEmptyState);
   const findRegistrySearch = () => wrapper.findComponent(RegistrySearch);
-  const findTable = () => wrapper.findComponent(GlTable);
+  const findTable = () => wrapper.findComponent(GlTableLite);
   const findTableHeaders = () => findTable().findAll('th');
   const findTableRows = () => findTable().findAll('tbody > tr');
   const findNthTableRow = (idx) => findTableRows().at(idx);
   const findColumnInRow = (row, col) => findNthTableRow(row).findAll('td').at(col);
+  const findExperimentHeader = () => wrapper.findComponent(ModelExperimentsHeader);
+  const findDeleteButton = () => wrapper.findComponent(DeleteButton);
+  const findDownloadButton = () => findExperimentHeader().findComponent(GlButton);
+
   const hrefInRowAndColumn = (row, col) =>
     findColumnInRow(row, col).findComponent(GlLink).attributes().href;
-
-  it('shows incubation warning', () => {
-    createWrapper();
-
-    expect(findAlert().exists()).toBe(true);
-  });
+  const linkTextInRowAndColumn = (row, col) =>
+    findColumnInRow(row, col).findComponent(GlLink).text();
 
   describe('default inputs', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       createWrapper();
-
-      await nextTick();
     });
 
     it('shows empty state', () => {
@@ -59,8 +59,16 @@ describe('MlExperimentsShow', () => {
       expect(findPagination().exists()).toBe(false);
     });
 
-    it('there are no columns', () => {
-      expect(findTable().findAll('th')).toHaveLength(0);
+    it('shows experiment header', () => {
+      expect(findExperimentHeader().exists()).toBe(true);
+    });
+
+    it('passes the correct title to experiment header', () => {
+      expect(findExperimentHeader().props('pageTitle')).toBe(MOCK_EXPERIMENT.name);
+    });
+
+    it('does not show table', () => {
+      expect(findTable().exists()).toBe(false);
     });
 
     it('initializes sorting correctly', () => {
@@ -72,6 +80,40 @@ describe('MlExperimentsShow', () => {
 
     it('initializes filters correctly', () => {
       expect(findRegistrySearch().props('filters')).toMatchObject([{ value: { data: '' } }]);
+    });
+  });
+
+  describe('Delete', () => {
+    beforeEach(() => {
+      createWrapper();
+    });
+
+    it('shows delete button', () => {
+      expect(findDeleteButton().exists()).toBe(true);
+    });
+
+    it('passes the right props', () => {
+      expect(findDeleteButton().props('deletePath')).toBe(MOCK_EXPERIMENT.path);
+    });
+  });
+
+  describe('CSV download', () => {
+    beforeEach(() => {
+      createWrapper();
+    });
+
+    it('shows download CSV button', () => {
+      expect(findDownloadButton().exists()).toBe(true);
+    });
+
+    it('calls the action to download the CSV', () => {
+      setWindowLocation('https://blah.com/something/1?name=query&orderBy=name');
+      jest.spyOn(urlHelpers, 'visitUrl').mockImplementation(() => {});
+
+      findDownloadButton().vm.$emit('click');
+
+      expect(urlHelpers.visitUrl).toHaveBeenCalledTimes(1);
+      expect(urlHelpers.visitUrl).toHaveBeenCalledWith('/something/1.csv?name=query&orderBy=name');
     });
   });
 
@@ -197,13 +239,13 @@ describe('MlExperimentsShow', () => {
       const expectedColumnNames = [
         'Name',
         'Created at',
-        'User',
+        'Author',
         'L1 Ratio',
         'Rmse',
         'Auc',
         'Mae',
-        '',
-        '',
+        'CI Job',
+        'Artifacts',
       ];
 
       expect(findTableHeaders().wrappers.map((h) => h.text())).toEqual(expectedColumnNames);
@@ -219,7 +261,29 @@ describe('MlExperimentsShow', () => {
       });
 
       it('shows empty state when no artifact', () => {
-        expect(findColumnInRow(secondCandidateIndex, artifactColumnIndex).text()).toBe('-');
+        expect(findColumnInRow(secondCandidateIndex, artifactColumnIndex).text()).toBe(
+          'No artifacts',
+        );
+      });
+    });
+
+    describe('CI Job column', () => {
+      const jobColumnIndex = -2;
+
+      it('has a link to the job', () => {
+        expect(hrefInRowAndColumn(firstCandidateIndex, jobColumnIndex)).toBe(
+          firstCandidate.ci_job.path,
+        );
+      });
+
+      it('shows the name of the job', () => {
+        expect(linkTextInRowAndColumn(firstCandidateIndex, jobColumnIndex)).toBe(
+          firstCandidate.ci_job.name,
+        );
+      });
+
+      it('shows empty state when there is no job', () => {
+        expect(findColumnInRow(secondCandidateIndex, jobColumnIndex).text()).toBe('-');
       });
     });
 
@@ -250,15 +314,7 @@ describe('MlExperimentsShow', () => {
       });
 
       it('when there is no user shows nothing', () => {
-        expect(findColumnInRow(secondCandidateIndex, nameColumnIndex).text()).toBe('');
-      });
-    });
-
-    describe('Detail column', () => {
-      const detailColumn = -2;
-
-      it('is a link to details', () => {
-        expect(hrefInRowAndColumn(firstCandidateIndex, detailColumn)).toBe(firstCandidate.details);
+        expect(findColumnInRow(secondCandidateIndex, nameColumnIndex).text()).toBe('No name');
       });
     });
   });

@@ -4,13 +4,9 @@ module QA
   RSpec.describe 'Manage' do
     include Support::API
 
-    describe 'Jira integration', :jira, :orchestrated, :requires_admin, product_group: :integrations do
+    describe 'Jira integration', :jira, :orchestrated, :requires_admin, product_group: :import_and_integrate do
       let(:jira_project_key) { 'JITP' }
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = "project_with_jira_integration"
-        end
-      end
+      let(:project) { create(:project, name: 'project_with_jira_integration') }
 
       before do
         page.visit Vendor::Jira::JiraAPI.perform(&:base_url)
@@ -38,7 +34,7 @@ module QA
       end
 
       it 'closes an issue via pushing a commit',
-         testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347794' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347794' do
         issue_key = Vendor::Jira::JiraAPI.perform do |jira_api|
           jira_api.create_issue(jira_project_key)
         end
@@ -49,7 +45,7 @@ module QA
       end
 
       it 'closes an issue via a merge request',
-         testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347795' do
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347795' do
         issue_key = Vendor::Jira::JiraAPI.perform do |jira_api|
           jira_api.create_issue(jira_project_key)
         end

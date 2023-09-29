@@ -11,10 +11,6 @@ describe('Code Block Highlighted', () => {
     wrapper = shallowMount(CodeBlock, { propsData });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('renders highlighted code if language is supported', async () => {
     createComponent({ code, language: 'javascript' });
 
@@ -32,7 +28,7 @@ describe('Code Block Highlighted', () => {
           >
             const
           </span>
-           foo = 
+          foo =
           <span
             class="hljs-number"
           >
@@ -61,5 +57,12 @@ describe('Code Block Highlighted', () => {
         </span>
       </code-block-stub>
     `);
+  });
+
+  it('renders content as plain text language is not supported', () => {
+    const content = '<script>alert("xss")</script>';
+    createComponent({ code: content, language: 'foobar' });
+
+    expect(wrapper.text()).toContain(content);
   });
 });

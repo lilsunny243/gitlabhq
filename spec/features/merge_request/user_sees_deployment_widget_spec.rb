@@ -39,7 +39,7 @@ RSpec.describe 'Merge request > User sees deployment widget', :js, feature_categ
         wait_for_requests
 
         assert_env_widget("Deployed to", environment.name)
-        expect(find('.js-deploy-time')['title']).to eq(deployment.created_at.to_time.in_time_zone.to_s(:medium))
+        expect(find('.js-deploy-time')['title']).to eq(deployment.created_at.to_time.in_time_zone.to_fs(:medium))
       end
 
       context 'when a user created a new merge request with the same SHA' do
@@ -115,8 +115,7 @@ RSpec.describe 'Merge request > User sees deployment widget', :js, feature_categ
 
     context 'with stop action' do
       let(:manual) do
-        create(:ci_build, :manual, pipeline: pipeline,
-                                   name: 'close_app', environment: environment.name)
+        create(:ci_build, :manual, pipeline: pipeline, name: 'close_app', environment: environment.name)
       end
 
       before do
@@ -126,12 +125,12 @@ RSpec.describe 'Merge request > User sees deployment widget', :js, feature_categ
         wait_for_requests
       end
 
-      it 'does start build when stop button clicked' do
+      it 'displays the re-deploy button' do
         accept_gl_confirm(button_text: 'Stop environment') do
           find('.js-stop-env').click
         end
 
-        expect(page).to have_content('close_app')
+        expect(page).to have_selector('.js-redeploy-action')
       end
 
       context 'for reporter' do
@@ -140,6 +139,25 @@ RSpec.describe 'Merge request > User sees deployment widget', :js, feature_categ
         it 'does not show stop button' do
           expect(page).not_to have_selector('.js-stop-env')
         end
+      end
+    end
+
+    context 'with redeploy action' do
+      before do
+        build.success!
+        environment.update!(state: 'stopped')
+        visit project_merge_request_path(project, merge_request)
+        wait_for_requests
+      end
+
+      it 'begins redeploying the deployment' do
+        accept_gl_confirm(button_text: 'Re-deploy') do
+          find('.js-redeploy-action').click
+        end
+
+        wait_for_requests
+
+        expect(page).to have_content('Will deploy to')
       end
     end
   end

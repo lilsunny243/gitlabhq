@@ -26,6 +26,10 @@ RSpec.describe FinalizeBackfillUserDetailsFields, :migration, feature_category: 
     end
 
     context 'when migration is missing' do
+      before do
+        batched_migrations.where(job_class_name: migration).delete_all
+      end
+
       it 'warns migration not found' do
         expect(Gitlab::AppLogger)
           .to receive(:warn).with(/Could not find batched background migration for the given configuration:/)
@@ -53,6 +57,22 @@ RSpec.describe FinalizeBackfillUserDetailsFields, :migration, feature_category: 
       end
 
       context 'when migration finished successfully' do
+        it 'does not raise exception' do
+          expect { migrate! }.not_to raise_error
+        end
+      end
+
+      context 'when users.linkedin column has already been dropped' do
+        before do
+          table(:users).create!(id: 1, email: 'author@example.com', username: 'author', projects_limit: 10)
+          ActiveRecord::Base.connection.execute("ALTER TABLE users DROP COLUMN linkedin")
+          migration_record.update_column(:status, 1)
+        end
+
+        after do
+          ActiveRecord::Base.connection.execute("ALTER TABLE users ADD COLUMN linkedin text DEFAULT '' NOT NULL")
+        end
+
         it 'does not raise exception' do
           expect { migrate! }.not_to raise_error
         end

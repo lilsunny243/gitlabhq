@@ -4,6 +4,7 @@ module Analytics
   module CycleAnalytics
     class IssueStageEvent < ApplicationRecord
       include StageEventModel
+      include Awardable
       extend SuppressCompositePrimaryKeyWarning
 
       validates(*%i[stage_event_hash_id issue_id group_id project_id start_event_timestamp], presence: true)
@@ -11,18 +12,50 @@ module Analytics
       alias_attribute :state, :state_id
       enum state: Issue.available_states, _suffix: true
 
+      has_one :epic_issue, primary_key: 'issue_id', foreign_key: 'issue_id' # rubocop: disable Rails/InverseOf
+
       scope :assigned_to, ->(user) do
         assignees_class = IssueAssignee
         condition = assignees_class.where(user_id: user).where(arel_table[:issue_id].eq(assignees_class.arel_table[:issue_id]))
         where(condition.arel.exists)
       end
 
-      def self.issuable_id_column
-        :issue_id
-      end
+      class << self
+        def project_column
+          :project_id
+        end
 
-      def self.issuable_model
-        ::Issue
+        def issuable_id_column
+          :issue_id
+        end
+
+        def issuable_model
+          ::Issue
+        end
+
+        def select_columns
+          [
+            *super,
+            issuable_model.arel_table[:weight],
+            issuable_model.arel_table[:sprint_id]
+          ]
+        end
+
+        def column_list
+          [
+            *super,
+            :weight,
+            :sprint_id
+          ]
+        end
+
+        def insert_column_list
+          [
+            *super,
+            :weight,
+            :sprint_id
+          ]
+        end
       end
     end
   end

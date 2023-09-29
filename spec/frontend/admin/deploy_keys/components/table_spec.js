@@ -1,5 +1,5 @@
 import { merge } from 'lodash';
-import { GlLoadingIcon, GlEmptyState, GlPagination, GlModal } from '@gitlab/ui';
+import { GlCard, GlLoadingIcon, GlEmptyState, GlPagination, GlModal } from '@gitlab/ui';
 import { nextTick } from 'vue';
 
 import responseBody from 'test_fixtures/api/deploy_keys/index.json';
@@ -9,10 +9,10 @@ import { stubComponent } from 'helpers/stub_component';
 import DeployKeysTable from '~/admin/deploy_keys/components/table.vue';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import Api, { DEFAULT_PER_PAGE } from '~/api';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 
 jest.mock('~/api');
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/lib/utils/csrf', () => ({ token: 'mock-csrf-token' }));
 
 describe('DeployKeysTable', () => {
@@ -45,6 +45,8 @@ describe('DeployKeysTable', () => {
     });
   };
 
+  const findCard = () => wrapper.findComponent(GlCard);
+  const findCardTitle = () => findCard().find('.gl-new-card-title-wrapper');
   const findEditButton = (index) =>
     wrapper.findAllByLabelText(DeployKeysTable.i18n.edit, { selector: 'a' }).at(index);
   const findRemoveButton = (index) =>
@@ -60,7 +62,7 @@ describe('DeployKeysTable', () => {
     expect(wrapper.findByText(expectedDeployKey.title).exists()).toBe(true);
 
     expect(
-      wrapper.findByText(expectedDeployKey.fingerprint_sha256, { selector: 'span' }).exists(),
+      wrapper.findByText(expectedDeployKey.fingerprint_sha256, { selector: 'div' }).exists(),
     ).toBe(true);
     expect(timeAgoTooltip.exists()).toBe(true);
     expect(timeAgoTooltip.props('time')).toBe(expectedDeployKey.created_at);
@@ -70,7 +72,7 @@ describe('DeployKeysTable', () => {
   };
 
   const expectDeployKeyWithFingerprintIsRendered = (expectedDeployKey, expectedRowIndex) => {
-    expect(wrapper.findByText(expectedDeployKey.fingerprint, { selector: 'span' }).exists()).toBe(
+    expect(wrapper.findByText(expectedDeployKey.fingerprint, { selector: 'div' }).exists()).toBe(
       true,
     );
     expectDeployKeyIsRendered(expectedDeployKey, expectedRowIndex);
@@ -85,15 +87,9 @@ describe('DeployKeysTable', () => {
         svgPath: defaultProvide.emptyStateSvgPath,
         title: DeployKeysTable.i18n.emptyStateTitle,
         description: DeployKeysTable.i18n.emptyStateDescription,
-        primaryButtonText: DeployKeysTable.i18n.newDeployKeyButtonText,
-        primaryButtonLink: defaultProvide.createPath,
       });
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('renders page title', () => {
     createComponent();
@@ -133,6 +129,16 @@ describe('DeployKeysTable', () => {
         });
 
         createComponent();
+      });
+
+      it('renders card with the deploy keys', () => {
+        expect(findCard().exists()).toBe(true);
+      });
+
+      it('shows the correct number of deploy keys', () => {
+        expect(findCardTitle().text()).toMatchInterpolatedText(
+          `Public deploy keys ${responseBody.length}`,
+        );
       });
 
       it('renders deploy keys in table', () => {
@@ -242,7 +248,7 @@ describe('DeployKeysTable', () => {
 
     itRendersTheEmptyState();
 
-    it('displays flash', () => {
+    it('displays alert', () => {
       expect(createAlert).toHaveBeenCalledWith({
         message: DeployKeysTable.i18n.apiErrorMessage,
         captureError: true,

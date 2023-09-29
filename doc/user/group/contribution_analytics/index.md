@@ -4,7 +4,7 @@ stage: Plan
 group: Optimize
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
-# Contribution analytics **(PREMIUM)**
+# Contribution analytics **(PREMIUM ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/3090) in GitLab 12.2 for subgroups.
 
@@ -20,8 +20,8 @@ Use contribution analytics data visualizations to:
 
 To view contribution analytics:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Analytics > Contribution**.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Analyze > Contribution analytics**.
 
 Three bar charts and a table illustrate the number of contributions made by each group member:
 

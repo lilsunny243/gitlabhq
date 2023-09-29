@@ -17,17 +17,22 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
       wait_for_requests
 
-      expect(page).to have_button 'Merge'
+      page.within('.mr-state-widget') do
+        expect(page).to have_button 'Merge'
+      end
     end
   end
 
   context 'when project has CI enabled' do
     let!(:pipeline) do
-      create(:ci_empty_pipeline,
-      project: project,
-      sha: merge_request.diff_head_sha,
-      ref: merge_request.source_branch,
-      status: status, head_pipeline_of: merge_request)
+      create(
+        :ci_empty_pipeline,
+        project: project,
+        sha: merge_request.diff_head_sha,
+        ref: merge_request.source_branch,
+        status: status,
+        head_pipeline_of: merge_request
+      )
     end
 
     context 'when merge requests can only be merged if the pipeline succeeds' do
@@ -43,7 +48,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).to have_button 'Merge when pipeline succeeds'
+          expect(page).to have_button 'Set to auto-merge'
           expect(page).not_to have_button '.js-merge-moment'
         end
       end
@@ -56,7 +61,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).not_to have_button('Merge')
+          expect(page).not_to have_button('Merge', exact: true)
           expect(page).to have_content('Merge blocked: pipeline must succeed. Push a commit that fixes the failure or learn about other solutions.')
         end
       end
@@ -69,7 +74,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).not_to have_button 'Merge'
+          expect(page).not_to have_button('Merge', exact: true)
           expect(page).to have_content('Merge blocked: pipeline must succeed. Push a commit that fixes the failure or learn about other solutions.')
         end
       end
@@ -82,7 +87,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).to have_button 'Merge'
+          expect(page).to have_button('Merge', exact: true)
         end
       end
 
@@ -94,7 +99,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).not_to have_button 'Merge'
+          expect(page).not_to have_button('Merge', exact: true)
         end
       end
     end
@@ -112,7 +117,7 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).to have_button 'Merge when pipeline succeeds'
+          expect(page).to have_button 'Set to auto-merge'
 
           page.find('.js-merge-moment').click
           expect(page).to have_content 'Merge immediately'
@@ -126,8 +131,9 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
           visit project_merge_request_path(project, merge_request)
 
           wait_for_requests
-
-          expect(page).to have_button 'Merge'
+          page.within('.mr-state-widget') do
+            expect(page).to have_button 'Merge'
+          end
         end
       end
 
@@ -139,7 +145,9 @@ RSpec.describe 'Merge request > User merges only if pipeline succeeds', :js, fea
 
           wait_for_requests
 
-          expect(page).to have_button 'Merge'
+          page.within('.mr-state-widget') do
+            expect(page).to have_button 'Merge'
+          end
         end
       end
     end

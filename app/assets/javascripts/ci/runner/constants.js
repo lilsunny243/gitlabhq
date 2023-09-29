@@ -1,4 +1,5 @@
 import { __, s__ } from '~/locale';
+import { DOCS_URL } from 'jh_else_ce/lib/utils/url_utility';
 
 export const RUNNER_TYPENAME = 'CiRunner'; // __typename
 
@@ -9,10 +10,12 @@ export const RUNNER_DETAILS_PROJECTS_PAGE_SIZE = 5;
 export const RUNNER_DETAILS_JOBS_PAGE_SIZE = 30;
 
 export const I18N_FETCH_ERROR = s__('Runners|Something went wrong while fetching runner data.');
-export const I18N_DETAILS_TITLE = s__('Runners|Runner #%{runner_id}');
+export const I18N_CREATE_ERROR = s__(
+  'Runners|An error occurred while creating the runner. Please try again.',
+);
 
 export const FILTER_CSS_CLASSES =
-  'gl-bg-gray-10 gl-p-5 gl-border-solid gl-border-gray-100 gl-border-0 gl-border-t-1 gl-border-b-1';
+  'gl-bg-gray-10 gl-p-5 gl-border-solid gl-border-gray-100 gl-border-0 gl-border-t-1';
 
 // Type
 
@@ -71,6 +74,12 @@ export const I18N_STALE_NEVER_CONTACTED_TOOLTIP = s__(
   'Runners|Runner is stale; it has never contacted this instance',
 );
 
+// Registration dropdown
+export const I18N_REGISTER_INSTANCE_TYPE = s__('Runners|Register an instance runner');
+export const I18N_REGISTER_GROUP_TYPE = s__('Runners|Register a group runner');
+export const I18N_REGISTER_PROJECT_TYPE = s__('Runners|Register a project runner');
+export const I18N_REGISTER_RUNNER = s__('Runners|Register a runner');
+
 // Actions
 export const I18N_EDIT = __('Edit');
 
@@ -82,19 +91,37 @@ export const I18N_PAUSED_DESCRIPTION = s__('Runners|Not accepting jobs');
 export const I18N_RESUME = __('Resume');
 export const I18N_RESUME_TOOLTIP = s__('Runners|Resume accepting jobs');
 
+export const I18N_DELETE = s__('Runners|Delete');
 export const I18N_DELETE_RUNNER = s__('Runners|Delete runner');
 export const I18N_DELETED_TOAST = s__('Runners|Runner %{name} was deleted');
 
 // List
-export const I18N_NO_DESCRIPTION = s__('Runners|No description');
 export const I18N_LOCKED_RUNNER_DESCRIPTION = s__(
   'Runners|Runner is locked and available for currently assigned projects only. Only administrators can change the assigned projects.',
 );
 export const I18N_VERSION_LABEL = s__('Runners|Version %{version}');
 export const I18N_LAST_CONTACT_LABEL = s__('Runners|Last contact: %{timeAgo}');
 export const I18N_CREATED_AT_LABEL = s__('Runners|Created %{timeAgo}');
+export const I18N_CREATED_AT_BY_LABEL = s__('Runners|Created %{timeAgo} by %{avatar}');
 export const I18N_SHOW_ONLY_INHERITED = s__('Runners|Show only inherited');
 export const I18N_ADMIN = s__('Runners|Administrator');
+
+// No runners registered
+export const I18N_GET_STARTED = s__('Runners|Get started with runners');
+export const I18N_RUNNERS_ARE_AGENTS = s__(
+  'Runners|Runners are the agents that run your CI/CD jobs.',
+);
+export const I18N_CREATE_RUNNER_LINK = s__(
+  'Runners|%{linkStart}Create a new runner%{linkEnd} to get started.',
+);
+export const I18N_STILL_USING_REGISTRATION_TOKENS = s__('Runners|Still using registration tokens?');
+export const I18N_CONTACT_ADMIN_TO_REGISTER = s__(
+  'Runners|To register new runners, contact your administrator.',
+);
+
+// No runners found
+export const I18N_NO_RESULTS = s__('Runners|No results found');
+export const I18N_EDIT_YOUR_SEARCH = s__('Runners|Edit your search and try again');
 
 // Runner details
 
@@ -105,9 +132,14 @@ export const I18N_JOBS = s__('Runners|Jobs');
 export const I18N_ASSIGNED_PROJECTS = s__('Runners|Assigned Projects (%{projectCount})');
 export const I18N_FILTER_PROJECTS = s__('Runners|Filter projects');
 export const I18N_CLEAR_FILTER_PROJECTS = __('Clear');
-export const I18N_NONE = __('None');
 export const I18N_NO_JOBS_FOUND = s__('Runners|This runner has not run any jobs.');
 export const I18N_NO_PROJECTS_FOUND = __('No projects found');
+
+// Runner registration
+
+export const I18N_REGISTRATION_SUCCESS = s__("Runners|You've created a new runner!");
+
+export const RUNNER_REGISTRATION_POLLING_INTERVAL_MS = 2000;
 
 // Styles
 
@@ -136,6 +168,7 @@ export const PARAM_KEY_PLATFORM = 'platform';
 export const INSTANCE_TYPE = 'INSTANCE_TYPE';
 export const GROUP_TYPE = 'GROUP_TYPE';
 export const PROJECT_TYPE = 'PROJECT_TYPE';
+export const RUNNER_TYPES = [INSTANCE_TYPE, GROUP_TYPE, PROJECT_TYPE];
 
 // CiRunnerStatus
 
@@ -182,15 +215,64 @@ export const GROUP_FILTERED_SEARCH_NAMESPACE = 'group_runners';
 export const LINUX_PLATFORM = 'linux';
 export const MACOS_PLATFORM = 'osx';
 export const WINDOWS_PLATFORM = 'windows';
-export const AWS_PLATFORM = 'aws';
+
+export const DOWNLOAD_LOCATIONS = {
+  [LINUX_PLATFORM]: [
+    {
+      arch: 'amd64',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64',
+    },
+    {
+      arch: '386',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-386',
+    },
+    {
+      arch: 'arm',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-arm',
+    },
+    {
+      arch: 'arm64',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-arm64',
+    },
+  ],
+  [MACOS_PLATFORM]: [
+    {
+      arch: 'amd64',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-darwin-amd64',
+    },
+    {
+      arch: 'arm64',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-darwin-arm64',
+    },
+  ],
+  [WINDOWS_PLATFORM]: [
+    {
+      arch: 'amd64',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-windows-amd64.exe',
+    },
+    {
+      arch: '386',
+      url:
+        'https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-windows-386.exe',
+    },
+  ],
+};
 
 export const DEFAULT_PLATFORM = LINUX_PLATFORM;
 
 // Runner docs are in a separate repository and are not shipped with GitLab
 // they are rendered as external URLs.
-export const INSTALL_HELP_URL = 'https://docs.gitlab.com/runner/install';
-export const EXECUTORS_HELP_URL = 'https://docs.gitlab.com/runner/executors/';
-export const SERVICE_COMMANDS_HELP_URL =
-  'https://docs.gitlab.com/runner/commands/#service-related-commands';
-export const DOCKER_HELP_URL = 'https://docs.gitlab.com/runner/install/docker.html';
-export const KUBERNETES_HELP_URL = 'https://docs.gitlab.com/runner/install/kubernetes.html';
+export const INSTALL_HELP_URL = `${DOCS_URL}/runner/install`;
+export const EXECUTORS_HELP_URL = `${DOCS_URL}/runner/executors/`;
+export const SERVICE_COMMANDS_HELP_URL = `${DOCS_URL}/runner/commands/#service-related-commands`;
+export const CHANGELOG_URL = `https://gitlab.com/gitlab-org/gitlab-runner/blob/main/CHANGELOG.md`;
+export const DOCKER_HELP_URL = `${DOCS_URL}/runner/install/docker.html`;
+export const KUBERNETES_HELP_URL = `${DOCS_URL}/runner/install/kubernetes.html`;
+export const RUNNER_MANAGERS_HELP_URL = `${DOCS_URL}/runner/fleet_scaling/#workers-executors-and-autoscaling-capabilities`;

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database do
+RSpec.describe Gitlab::Database, feature_category: :database do
   before do
     stub_const('MigrationTest', Class.new { include Gitlab::Database })
   end
@@ -12,6 +12,68 @@ RSpec.describe Gitlab::Database do
       described_class::EXTRA_SCHEMAS.each do |schema|
         expect(schema.to_s).to start_with('gitlab_')
       end
+    end
+  end
+
+  describe '.all_database_connections' do
+    it 'the first entry is always main' do
+      expect(described_class.all_database_connections.keys).to start_with('main')
+    end
+
+    it 'contains as many entries as YAML files' do
+      expect(described_class.all_database_connections.values.map(&:file_path))
+        .to contain_exactly(*described_class.all_database_connection_files)
+    end
+  end
+
+  describe '.database_base_models' do
+    subject { described_class.database_base_models }
+
+    it 'contains "main"' do
+      is_expected.to include("main" => ActiveRecord::Base)
+    end
+
+    it 'does not contain "ci" when not running CI database' do
+      skip_if_multiple_databases_are_setup(:ci)
+
+      is_expected.not_to include("ci")
+    end
+
+    it 'contains "ci" pointing to Ci::ApplicationRecord when running CI database' do
+      skip_if_multiple_databases_not_setup(:ci)
+
+      is_expected.to include("ci" => Ci::ApplicationRecord)
+    end
+  end
+
+  describe '.all_gitlab_schemas' do
+    it 'contains as many entries as YAML files' do
+      expect(described_class.all_gitlab_schemas.values.map(&:file_path))
+        .to contain_exactly(*described_class.all_gitlab_schema_files)
+    end
+  end
+
+  describe '.schemas_to_base_models' do
+    subject { described_class.schemas_to_base_models }
+
+    it 'contains gitlab_main' do
+      is_expected.to include(gitlab_main: [ActiveRecord::Base])
+    end
+
+    it 'contains gitlab_shared' do
+      is_expected.to include(gitlab_main: include(ActiveRecord::Base))
+    end
+
+    it 'contains gitlab_ci pointing to ActiveRecord::Base when not running CI database' do
+      skip_if_multiple_databases_are_setup(:ci)
+
+      is_expected.to include(gitlab_ci: [ActiveRecord::Base])
+    end
+
+    it 'contains gitlab_ci pointing to Ci::ApplicationRecord when running CI database' do
+      skip_if_multiple_databases_not_setup(:ci)
+
+      is_expected.to include(gitlab_ci: [Ci::ApplicationRecord])
     end
   end
 
@@ -41,7 +103,7 @@ RSpec.describe Gitlab::Database do
         before do
           # CI config might not be configured
           allow(ActiveRecord::Base.configurations).to receive(:configs_for)
-            .with(env_name: 'test', name: 'ci', include_replicas: true)
+            .with(env_name: 'test', name: 'ci', include_hidden: true)
             .and_return(ci_db_config)
         end
 
@@ -62,6 +124,48 @@ RSpec.describe Gitlab::Database do
 
       it 'returns false for non-existent' do
         expect(described_class.has_config?(:nonexistent)).to eq(false)
+      end
+    end
+  end
+
+  describe '.has_database?' do
+    context 'three tier database config' do
+      it 'returns true for main' do
+        expect(described_class.has_database?(:main)).to eq(true)
+      end
+
+      it 'returns false for shared database' do
+        skip_if_multiple_databases_not_setup(:ci)
+        skip_if_database_exists(:ci)
+
+        expect(described_class.has_database?(:ci)).to eq(false)
+      end
+
+      it 'returns false for non-existent' do
+        expect(described_class.has_database?(:nonexistent)).to eq(false)
+      end
+    end
+  end
+
+  describe '.database_mode' do
+    context 'three tier database config' do
+      it 'returns single-database if ci is not configured' do
+        skip_if_multiple_databases_are_setup(:ci)
+
+        expect(described_class.database_mode).to eq(::Gitlab::Database::MODE_SINGLE_DATABASE)
+      end
+
+      it 'returns single-database-ci-connection if ci is shared with main database' do
+        skip_if_multiple_databases_not_setup(:ci)
+        skip_if_database_exists(:ci)
+
+        expect(described_class.database_mode).to eq(::Gitlab::Database::MODE_SINGLE_DATABASE_CI_CONNECTION)
+      end
+
+      it 'returns multiple-database if ci has its own database' do
+        skip_if_shared_database(:ci)
+
+        expect(described_class.database_mode).to eq(::Gitlab::Database::MODE_MULTIPLE_DATABASES)
       end
     end
   end
@@ -91,59 +195,6 @@ RSpec.describe Gitlab::Database do
       allow(Gitlab::Database::PgUser).to receive(:find_by).with('usename = CURRENT_USER').and_raise(ActiveRecord::StatementInvalid)
 
       expect { subject }.to raise_error('User CURRENT_USER not found')
-    end
-  end
-
-  describe '.check_postgres_version_and_print_warning' do
-    let(:reflect) { instance_spy(Gitlab::Database::Reflection) }
-
-    subject { described_class.check_postgres_version_and_print_warning }
-
-    before do
-      allow(Gitlab::Database::Reflection)
-        .to receive(:new)
-        .and_return(reflect)
-    end
-
-    it 'prints a warning if not compliant with minimum postgres version' do
-      allow(reflect).to receive(:postgresql_minimum_supported_version?).and_return(false)
-
-      expect(Kernel)
-        .to receive(:warn)
-        .with(/You are using PostgreSQL/)
-        .exactly(Gitlab::Database.database_base_models.length)
-        .times
-
-      subject
-    end
-
-    it 'doesnt print a warning if compliant with minimum postgres version' do
-      allow(reflect).to receive(:postgresql_minimum_supported_version?).and_return(true)
-
-      expect(Kernel).not_to receive(:warn).with(/You are using PostgreSQL/)
-
-      subject
-    end
-
-    it 'doesnt print a warning in Rails runner environment' do
-      allow(reflect).to receive(:postgresql_minimum_supported_version?).and_return(false)
-      allow(Gitlab::Runtime).to receive(:rails_runner?).and_return(true)
-
-      expect(Kernel).not_to receive(:warn).with(/You are using PostgreSQL/)
-
-      subject
-    end
-
-    it 'ignores ActiveRecord errors' do
-      allow(reflect).to receive(:postgresql_minimum_supported_version?).and_raise(ActiveRecord::ActiveRecordError)
-
-      expect { subject }.not_to raise_error
-    end
-
-    it 'ignores Postgres errors' do
-      allow(reflect).to receive(:postgresql_minimum_supported_version?).and_raise(PG::Error)
-
-      expect { subject }.not_to raise_error
     end
   end
 
@@ -208,22 +259,62 @@ RSpec.describe Gitlab::Database do
   end
 
   describe '.db_config_names' do
-    let(:expected) { %w[foo bar] }
+    using RSpec::Parameterized::TableSyntax
 
-    it 'includes only main by default' do
-      allow(::ActiveRecord::Base).to receive(:configurations).and_return(
-        double(configs_for: %w[foo bar].map { |x| double(name: x) })
-      )
-
-      expect(described_class.db_config_names).to eq(expected)
+    where(:configs_for, :gitlab_schema, :expected_main, :expected_main_ci) do
+      %i[main] | :gitlab_shared | %i[main] | %i[main]
+      %i[main ci] | :gitlab_shared | %i[main] | %i[main ci]
+      %i[main ci] | :gitlab_ci | %i[main] | %i[ci]
     end
 
-    it 'excludes geo when that is included' do
-      allow(::ActiveRecord::Base).to receive(:configurations).and_return(
-        double(configs_for: %w[foo bar geo].map { |x| double(name: x) })
-      )
+    with_them do
+      before do
+        hash_configs = configs_for.map do |x|
+          instance_double(ActiveRecord::DatabaseConfigurations::HashConfig, name: x)
+        end
+        allow(::ActiveRecord::Base).to receive(:configurations).and_return(
+          instance_double(ActiveRecord::DatabaseConfigurations, configs_for: hash_configs)
+        )
+      end
 
-      expect(described_class.db_config_names).to eq(expected)
+      if ::Gitlab::Database.has_config?(:ci)
+        it 'when main and CI database are configured' do
+          expect(described_class.db_config_names(with_schema: gitlab_schema))
+            .to eq(expected_main_ci)
+        end
+      else
+        it 'when only main database is configured' do
+          expect(described_class.db_config_names(with_schema: gitlab_schema))
+            .to eq(expected_main)
+        end
+      end
+    end
+  end
+
+  describe '.db_config_share_with' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:db_config_name, :db_config_attributes, :expected_db_config_share_with) do
+      'main'             | { database_tasks: true }  | nil
+      'main'             | { database_tasks: false } | nil
+      'ci'               | { database_tasks: true }  | nil
+      'ci'               | { database_tasks: false } | 'main'
+      'main_clusterwide' | { database_tasks: true }  | nil
+      'main_clusterwide' | { database_tasks: false } | 'main'
+      '_test_unknown'    | { database_tasks: true }  | nil
+      '_test_unknown'    | { database_tasks: false } | 'main'
+    end
+
+    with_them do
+      it 'returns the expected result' do
+        db_config = ActiveRecord::DatabaseConfigurations::HashConfig.new(
+          Rails.env,
+          db_config_name,
+          db_config_attributes
+        )
+
+        expect(described_class.db_config_share_with(db_config)).to eq(expected_db_config_share_with)
+      end
     end
   end
 
@@ -315,21 +406,21 @@ RSpec.describe Gitlab::Database do
 
   describe '.database_base_models_with_gitlab_shared' do
     before do
-      Gitlab::Database.instance_variable_set(:@database_base_models_with_gitlab_shared, nil)
+      described_class.instance_variable_set(:@database_base_models_with_gitlab_shared, nil)
     end
 
     it 'memoizes the models' do
-      expect { Gitlab::Database.database_base_models_with_gitlab_shared }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_with_gitlab_shared) }.from(nil)
+      expect { described_class.database_base_models_with_gitlab_shared }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_with_gitlab_shared) }.from(nil)
     end
   end
 
   describe '.database_base_models_using_load_balancing' do
     before do
-      Gitlab::Database.instance_variable_set(:@database_base_models_using_load_balancing, nil)
+      described_class.instance_variable_set(:@database_base_models_using_load_balancing, nil)
     end
 
     it 'memoizes the models' do
-      expect { Gitlab::Database.database_base_models_using_load_balancing }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_using_load_balancing) }.from(nil)
+      expect { described_class.database_base_models_using_load_balancing }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_using_load_balancing) }.from(nil)
     end
   end
 

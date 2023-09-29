@@ -1,5 +1,5 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
@@ -20,9 +20,10 @@ The user's new password must meet all [password requirements](../user/profile/us
 
 To reset a user's password in the UI:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Overview > Users**.
-1. For the user whose password you want to update, select **Edit** (**{pencil-square}**).
+1. For the user whose password you want to update, select **Edit**.
 1. In the **Password** area, type a password and password confirmation.
 1. Select **Save changes**.
 
@@ -32,36 +33,44 @@ A confirmation is displayed.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/52347) in GitLab 13.9.
 
-Use the following Rake task to reset a user's password:
+Use the following Rake task to reset a user's password.
 
-- **For Omnibus installations**
+::Tabs
 
-  ```shell
-  sudo gitlab-rake "gitlab:password:reset"
-  ```
+:::TabTitle Linux package (Omnibus)
 
-- **For installations from source**
+```shell
+sudo gitlab-rake "gitlab:password:reset"
+```
 
-  ```shell
-  bundle exec rake "gitlab:password:reset"
-  ```
+:::TabTitle Self-compiled (source)
+
+```shell
+bundle exec rake "gitlab:password:reset"
+```
+
+::EndTabs
 
 GitLab requests a username, a password, and confirmation of the password. When complete, the user's password is updated.
 
 The Rake task can take a username as an argument. For example, to reset the password for the user with username
 `sidneyjones`:
 
-- **For Omnibus installations**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
   ```shell
   sudo gitlab-rake "gitlab:password:reset[sidneyjones]"
   ```
 
-- **For installations from source**
+:::TabTitle Self-compiled (source)
 
   ```shell
   bundle exec rake "gitlab:password:reset[sidneyjones]"
   ```
+
+::EndTabs
 
 ## Use a Rails console
 
@@ -96,7 +105,7 @@ If you know the username, user ID, or email address, you can use the Rails conso
    user.password = new_password
    user.password_confirmation = new_password
    ```
-  
+
    To set a specific value for the new password:
 
    ```ruby
@@ -113,9 +122,9 @@ If you know the username, user ID, or email address, you can use the Rails conso
 
 1. Save the changes:
 
-    ```ruby
-    user.save!
-    ```
+   ```ruby
+   user.save!
+   ```
 
 1. Exit the console:
 
@@ -145,10 +154,10 @@ attempt to fix this issue in a Rails console. For example, if a new `root` passw
 1. Start a [Rails console](../administration/operations/rails_console.md).
 1. Find the user and skip reconfirmation:
 
-    ```ruby
-    user = User.find(1)
-    user.skip_reconfirmation!
-    ```
+   ```ruby
+   user = User.find(1)
+   user.skip_reconfirmation!
+   ```
 
 1. Attempt to sign in again.
 

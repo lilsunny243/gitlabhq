@@ -1,13 +1,13 @@
 ---
-stage: Analytics
-group: Product Intelligence
+stage: Analyze
+group: Analytics Instrumentation
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, api
 ---
 
 # Service Data API **(FREE SELF)**
 
-The Service Data API is associated with [Service Ping](../development/service_ping/index.md).
+The Service Data API is associated with [Service Ping](../development/internal_analytics/service_ping/index.md).
 
 ## Export metric definitions as a single YAML file
 
@@ -35,7 +35,6 @@ Example response:
   product_section: enablement
   product_stage: enablement
   product_group: global_search
-  product_category: global_search
   value_type: number
   status: active
   time_frame: 28d

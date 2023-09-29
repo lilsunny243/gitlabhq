@@ -70,27 +70,19 @@ module Gitlab
                                         .merge({
                                                    # Define the Kroki server URL from the settings.
                                                    # This attribute cannot be overridden from the AsciiDoc document.
-                                                   'kroki-server-url' => Gitlab::CurrentSettings.kroki_url
+                                                   'kroki-server-url' => Gitlab::CurrentSettings.kroki_url,
+                                                   'allow-uri-read' => Gitlab::CurrentSettings.wiki_asciidoc_allow_uri_includes
                                                }),
                         extensions: extensions }
 
       context[:pipeline] = :ascii_doc
       context[:max_includes] = [MAX_INCLUDES, context[:max_includes]].compact.min
 
-      plantuml_setup
+      Gitlab::Plantuml.configure
 
       html = ::Asciidoctor.convert(input, asciidoc_opts)
       html = Banzai.render(html, context)
       html.html_safe
-    end
-
-    def self.plantuml_setup
-      Asciidoctor::PlantUml.configure do |conf|
-        conf.url = Gitlab::CurrentSettings.plantuml_url
-        conf.svg_enable = Gitlab::CurrentSettings.plantuml_enabled
-        conf.png_enable = Gitlab::CurrentSettings.plantuml_enabled
-        conf.txt_enable = false
-      end
     end
   end
 end

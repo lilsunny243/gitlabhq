@@ -140,6 +140,7 @@ describe('DiffsStoreUtils', () => {
         old_line: options.noteTargetLine.old_line,
         new_line: options.noteTargetLine.new_line,
         line_range: options.lineRange,
+        ignore_whitespace_change: true,
       });
 
       const postData = {
@@ -198,6 +199,7 @@ describe('DiffsStoreUtils', () => {
         position_type: TEXT_DIFF_POSITION_TYPE,
         old_line: options.noteTargetLine.old_line,
         new_line: options.noteTargetLine.new_line,
+        ignore_whitespace_change: true,
       });
 
       const postData = {
@@ -435,7 +437,7 @@ describe('DiffsStoreUtils', () => {
         });
       });
 
-      it('sets the renderIt and collapsed attribute on files', () => {
+      it('sets the collapsed attribute on files', () => {
         const checkLine = preparedDiff.diff_files[0][INLINE_DIFF_LINES_KEY][0];
 
         expect(checkLine.discussions.length).toBe(0);
@@ -446,7 +448,6 @@ describe('DiffsStoreUtils', () => {
         expect(firstChar).not.toBe('+');
         expect(firstChar).not.toBe('-');
 
-        expect(preparedDiff.diff_files[0].renderIt).toBe(true);
         expect(preparedDiff.diff_files[0].collapsed).toBe(false);
       });
 
@@ -527,8 +528,7 @@ describe('DiffsStoreUtils', () => {
         preparedDiffFiles = utils.prepareDiffData({ diff: mock, meta: true });
       });
 
-      it('sets the renderIt and collapsed attribute on files', () => {
-        expect(preparedDiffFiles[0].renderIt).toBe(true);
+      it('sets the collapsed attribute on files', () => {
         expect(preparedDiffFiles[0].collapsed).toBeUndefined();
       });
 
@@ -713,6 +713,14 @@ describe('DiffsStoreUtils', () => {
       ).toBe('mode_changed');
     });
 
+    it('returns no_preview if key has no match', () => {
+      expect(
+        utils.getDiffMode({
+          viewer: { name: 'no_preview' },
+        }),
+      ).toBe('no_preview');
+    });
+
     it('defaults to replaced', () => {
       expect(utils.getDiffMode({})).toBe('replaced');
     });
@@ -890,6 +898,63 @@ describe('DiffsStoreUtils', () => {
       expect(files[5].right).toBeNull();
       expect(files[6].left).toMatchObject(file.parallel_diff_lines[5].right);
       expect(files[6].right).toBeNull();
+    });
+  });
+
+  describe('isUrlHashNoteLink', () => {
+    it.each`
+      input            | bool
+      ${'#note_12345'} | ${true}
+      ${'#12345'}      | ${false}
+      ${'note_12345'}  | ${true}
+      ${'12345'}       | ${false}
+    `('returns $bool for $input', ({ bool, input }) => {
+      expect(utils.isUrlHashNoteLink(input)).toBe(bool);
+    });
+  });
+
+  describe('isUrlHashFileHeader', () => {
+    it.each`
+      input                    | bool
+      ${'#diff-content-12345'} | ${true}
+      ${'#12345'}              | ${false}
+      ${'diff-content-12345'}  | ${true}
+      ${'12345'}               | ${false}
+    `('returns $bool for $input', ({ bool, input }) => {
+      expect(utils.isUrlHashFileHeader(input)).toBe(bool);
+    });
+  });
+
+  describe('parseUrlHashAsFileHash', () => {
+    it.each`
+      input                                          | currentDiffId | resultId
+      ${'#note_12345'}                               | ${'1A2B3C'}   | ${'1A2B3C'}
+      ${'note_12345'}                                | ${'1A2B3C'}   | ${'1A2B3C'}
+      ${'#note_12345'}                               | ${undefined}  | ${null}
+      ${'note_12345'}                                | ${undefined}  | ${null}
+      ${'#diff-content-12345'}                       | ${undefined}  | ${'12345'}
+      ${'diff-content-12345'}                        | ${undefined}  | ${'12345'}
+      ${'#diff-content-12345'}                       | ${'98765'}    | ${'12345'}
+      ${'diff-content-12345'}                        | ${'98765'}    | ${'12345'}
+      ${'#e334a2a10f036c00151a04cea7938a5d4213a818'} | ${undefined}  | ${'e334a2a10f036c00151a04cea7938a5d4213a818'}
+      ${'e334a2a10f036c00151a04cea7938a5d4213a818'}  | ${undefined}  | ${'e334a2a10f036c00151a04cea7938a5d4213a818'}
+      ${'#Z334a2a10f036c00151a04cea7938a5d4213a818'} | ${undefined}  | ${null}
+      ${'Z334a2a10f036c00151a04cea7938a5d4213a818'}  | ${undefined}  | ${null}
+    `('returns $resultId for $input and $currentDiffId', ({ input, currentDiffId, resultId }) => {
+      expect(utils.parseUrlHashAsFileHash(input, currentDiffId)).toBe(resultId);
+    });
+  });
+
+  describe('markTreeEntriesLoaded', () => {
+    it.each`
+      desc                                                               | entries                                            | loaded                   | outcome
+      ${'marks an existing entry as loaded'}                             | ${{ abc: {} }}                                     | ${[{ new_path: 'abc' }]} | ${{ abc: { diffLoaded: true, diffLoading: false } }}
+      ${'does nothing if the new file is not found in the tree entries'} | ${{ abc: {} }}                                     | ${[{ new_path: 'def' }]} | ${{ abc: {} }}
+      ${'leaves entries unmodified if they are not in the loaded files'} | ${{ abc: {}, def: { diffLoaded: true }, ghi: {} }} | ${[{ new_path: 'ghi' }]} | ${{ abc: {}, def: { diffLoaded: true }, ghi: { diffLoaded: true, diffLoading: false } }}
+    `('$desc', ({ entries, loaded, outcome }) => {
+      expect(utils.markTreeEntriesLoaded({ priorEntries: entries, loadedFiles: loaded })).toEqual(
+        outcome,
+      );
     });
   });
 });

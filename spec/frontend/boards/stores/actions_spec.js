@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/browser';
 import { cloneDeep } from 'lodash';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { inactiveId, ISSUABLE, ListType, DraggableItemTypes } from 'ee_else_ce/boards/constants';
 import issueMoveListMutation from 'ee_else_ce/boards/graphql/issue_move_list.mutation.graphql';
@@ -43,7 +44,7 @@ import {
   mockMilestones,
 } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 // We need this helper to make sure projectPath is including
 // subgroups when the movIssue action is called.
@@ -401,7 +402,7 @@ describe('fetchMilestones', () => {
     },
   );
 
-  it('sets milestonesLoading to true', async () => {
+  it('sets milestonesLoading to true', () => {
     jest.spyOn(gqlClient, 'query').mockResolvedValue(queryResponse);
 
     const store = createStore();
@@ -1340,8 +1341,8 @@ describe('updateIssueOrder', () => {
     };
     jest.spyOn(gqlClient, 'mutate').mockResolvedValue({
       data: {
-        issueMoveList: {
-          issue: rawIssue,
+        issuableMoveList: {
+          issuable: rawIssue,
           errors: [],
         },
       },
@@ -1355,8 +1356,8 @@ describe('updateIssueOrder', () => {
   it('should commit MUTATE_ISSUE_SUCCESS mutation when successful', () => {
     jest.spyOn(gqlClient, 'mutate').mockResolvedValue({
       data: {
-        issueMoveList: {
-          issue: rawIssue,
+        issuableMoveList: {
+          issuable: rawIssue,
           errors: [],
         },
       },
@@ -1387,8 +1388,8 @@ describe('updateIssueOrder', () => {
   it('should commit SET_ERROR and dispatch undoMoveIssueCard', () => {
     jest.spyOn(gqlClient, 'mutate').mockResolvedValue({
       data: {
-        issueMoveList: {
-          issue: {},
+        issuableMoveList: {
+          issuable: {},
           errors: [{ foo: 'bar' }],
         },
       },
@@ -1541,8 +1542,8 @@ describe('addListNewIssue', () => {
   it('should add board scope to the issue being created', async () => {
     jest.spyOn(gqlClient, 'mutate').mockResolvedValue({
       data: {
-        createIssue: {
-          issue: mockIssue,
+        createIssuable: {
+          issuable: mockIssue,
           errors: [],
         },
       },
@@ -1600,8 +1601,8 @@ describe('addListNewIssue', () => {
     it('dispatches a correct set of mutations', () => {
       jest.spyOn(gqlClient, 'mutate').mockResolvedValue({
         data: {
-          createIssue: {
-            issue: mockIssue,
+          createIssuable: {
+            issuable: mockIssue,
             errors: [],
           },
         },

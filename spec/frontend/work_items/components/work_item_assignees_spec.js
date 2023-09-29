@@ -8,9 +8,7 @@ import { mockTracking } from 'helpers/tracking_helper';
 import { DEFAULT_DEBOUNCE_AND_THROTTLE_MS } from '~/lib/utils/constants';
 import userSearchQuery from '~/graphql_shared/queries/users_search.query.graphql';
 import currentUserQuery from '~/graphql_shared/queries/current_user.query.graphql';
-import { config } from '~/graphql_shared/issuable_client';
 import InviteMembersTrigger from '~/invite_members/components/invite_members_trigger.vue';
-import workItemQuery from '~/work_items/graphql/work_item.query.graphql';
 import updateWorkItemMutation from '~/work_items/graphql/update_work_item.mutation.graphql';
 import WorkItemAssignees from '~/work_items/components/work_item_assignees.vue';
 import {
@@ -22,13 +20,13 @@ import {
 import {
   projectMembersResponseWithCurrentUser,
   mockAssignees,
-  workItemQueryResponse,
   currentUserResponse,
   currentUserNullResponse,
   projectMembersResponseWithoutCurrentUser,
   updateWorkItemMutationResponse,
   projectMembersResponseWithCurrentUserWithNextPage,
   projectMembersResponseWithNoMatchingUsers,
+  projectMembersResponseWithDuplicates,
 } from '../mock_data';
 
 Vue.use(VueApollo);
@@ -78,27 +76,16 @@ describe('WorkItemAssignees component', () => {
     canInviteMembers = false,
     canUpdate = true,
   } = {}) => {
-    const apolloProvider = createMockApollo(
-      [
-        [userSearchQuery, searchQueryHandler],
-        [currentUserQuery, currentUserQueryHandler],
-        [updateWorkItemMutation, updateWorkItemMutationHandler],
-      ],
-      {},
-      {
-        typePolicies: config.cacheConfig.typePolicies,
-      },
-    );
-
-    apolloProvider.clients.defaultClient.writeQuery({
-      query: workItemQuery,
-      variables: {
-        id: workItemId,
-      },
-      data: workItemQueryResponse.data,
-    });
+    const apolloProvider = createMockApollo([
+      [userSearchQuery, searchQueryHandler],
+      [currentUserQuery, currentUserQueryHandler],
+      [updateWorkItemMutation, updateWorkItemMutationHandler],
+    ]);
 
     wrapper = mountExtended(WorkItemAssignees, {
+      provide: {
+        fullPath: 'test-project-path',
+      },
       propsData: {
         assignees,
         workItemId,
@@ -106,16 +93,11 @@ describe('WorkItemAssignees component', () => {
         workItemType: TASK_TYPE_NAME,
         canUpdate,
         canInviteMembers,
-        fullPath: 'test-project-path',
       },
       attachTo: document.body,
       apolloProvider,
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('passes the correct data-user-id attribute', () => {
     createComponent();
@@ -125,7 +107,7 @@ describe('WorkItemAssignees component', () => {
 
   it('container does not have shadow by default', () => {
     createComponent();
-    expect(findTokenSelector().props('containerClass')).toBe('gl-shadow-none!');
+    expect(findTokenSelector().props('containerClass')).toContain('gl-shadow-none!');
   });
 
   it('container has shadow after focusing token selector', async () => {
@@ -292,14 +274,14 @@ describe('WorkItemAssignees component', () => {
   });
 
   describe('when assigning to current user', () => {
-    it('does not show `Assign myself` button if current user is loading', () => {
+    it('does not show `Assign yourself` button if current user is loading', () => {
       createComponent();
       findTokenSelector().trigger('mouseover');
 
       expect(findAssignSelfButton().exists()).toBe(false);
     });
 
-    it('does not show `Assign myself` button if work item has assignees', async () => {
+    it('does not show `Assign yourself` button if work item has assignees', async () => {
       createComponent();
       await waitForPromises();
       findTokenSelector().trigger('mouseover');
@@ -307,7 +289,7 @@ describe('WorkItemAssignees component', () => {
       expect(findAssignSelfButton().exists()).toBe(false);
     });
 
-    it('does now show `Assign myself` button if user is not logged in', async () => {
+    it('does now show `Assign yourself` button if user is not logged in', async () => {
       createComponent({ currentUserQueryHandler: noCurrentUserQueryHandler, assignees: [] });
       await waitForPromises();
       findTokenSelector().trigger('mouseover');
@@ -322,7 +304,7 @@ describe('WorkItemAssignees component', () => {
       return waitForPromises();
     });
 
-    it('renders `Assign myself` button', async () => {
+    it('renders `Assign yourself` button', () => {
       findTokenSelector().trigger('mouseover');
       expect(findAssignSelfButton().exists()).toBe(true);
     });
@@ -433,7 +415,7 @@ describe('WorkItemAssignees component', () => {
       findTokenSelector().vm.$emit('input', dropdownItems);
       await nextTick();
 
-      expect(findTokenSelector().props('containerClass')).toBe('gl-shadow-none!');
+      expect(findTokenSelector().props('containerClass')).toContain('gl-shadow-none!');
     });
 
     it('calls the mutation for updating assignees with the correct input', async () => {
@@ -547,5 +529,15 @@ describe('WorkItemAssignees component', () => {
         fullPath: 'test-project-path',
       });
     });
+  });
+
+  it('filters out the users with the same ID from the list of project members', async () => {
+    createComponent({
+      searchQueryHandler: jest.fn().mockResolvedValue(projectMembersResponseWithDuplicates),
+    });
+    findTokenSelector().vm.$emit('focus');
+    await waitForPromises();
+
+    expect(findTokenSelector().props('dropdownItems')).toHaveLength(2);
   });
 });

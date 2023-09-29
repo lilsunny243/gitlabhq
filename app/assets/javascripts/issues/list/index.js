@@ -6,7 +6,7 @@ import { parseBoolean } from '~/lib/utils/common_utils';
 import JiraIssuesImportStatusApp from './components/jira_issues_import_status_app.vue';
 import { gqlClient } from './graphql';
 
-export function mountJiraIssuesListApp() {
+export async function mountJiraIssuesListApp() {
   const el = document.querySelector('.js-jira-issues-import-status-root');
 
   if (!el) {
@@ -27,7 +27,7 @@ export function mountJiraIssuesListApp() {
     el,
     name: 'JiraIssuesImportStatusRoot',
     apolloProvider: new VueApollo({
-      defaultClient: gqlClient,
+      defaultClient: await gqlClient(),
     }),
     render(createComponent) {
       return createComponent(JiraIssuesImportStatusApp, {
@@ -42,7 +42,7 @@ export function mountJiraIssuesListApp() {
   });
 }
 
-export function mountIssuesListApp() {
+export async function mountIssuesListApp() {
   const el = document.querySelector('.js-issues-list-root');
 
   if (!el) {
@@ -71,6 +71,7 @@ export function mountIssuesListApp() {
     hasAnyProjects,
     hasBlockedIssuesFeature,
     hasIssuableHealthStatusFeature,
+    hasIssueDateFilterFeature,
     hasIssueWeightsFeature,
     hasIterationsFeature,
     hasScopedLabelsFeature,
@@ -94,13 +95,16 @@ export function mountIssuesListApp() {
     rssPath,
     showNewIssueLink,
     signInPath,
+    groupId = '',
+    reportAbusePath,
+    registerPath,
   } = el.dataset;
 
   return new Vue({
     el,
     name: 'IssuesListRoot',
     apolloProvider: new VueApollo({
-      defaultClient: gqlClient,
+      defaultClient: await gqlClient(),
     }),
     router: new VueRouter({
       base: window.location.pathname,
@@ -116,11 +120,15 @@ export function mountIssuesListApp() {
       canReadCrmOrganization: parseBoolean(canReadCrmOrganization),
       emptyStateSvgPath,
       fullPath,
+      projectPath: fullPath,
       groupPath,
+      reportAbusePath,
+      registerPath,
       hasAnyIssues: parseBoolean(hasAnyIssues),
       hasAnyProjects: parseBoolean(hasAnyProjects),
       hasBlockedIssuesFeature: parseBoolean(hasBlockedIssuesFeature),
       hasIssuableHealthStatusFeature: parseBoolean(hasIssuableHealthStatusFeature),
+      hasIssueDateFilterFeature: parseBoolean(hasIssueDateFilterFeature),
       hasIssueWeightsFeature: parseBoolean(hasIssueWeightsFeature),
       hasIterationsFeature: parseBoolean(hasIterationsFeature),
       hasScopedLabelsFeature: parseBoolean(hasScopedLabelsFeature),
@@ -153,6 +161,7 @@ export function mountIssuesListApp() {
       markdownHelpPath,
       quickActionsHelpPath,
       resetPath,
+      groupId,
     },
     render: (createComponent) => createComponent(IssuesListApp),
   });

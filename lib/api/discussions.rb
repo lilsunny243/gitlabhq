@@ -76,7 +76,7 @@ module API
               requires :base_sha, type: String, desc: 'Base commit SHA in the source branch'
               requires :start_sha, type: String, desc: 'SHA referencing commit in target branch'
               requires :head_sha, type: String, desc: 'SHA referencing HEAD of this merge request'
-              requires :position_type, type: String, desc: 'Type of the position reference', values: %w(text image)
+              requires :position_type, type: String, desc: 'Type of the position reference', values: %w[text image file]
               optional :new_path, type: String, desc: 'File path after change'
               optional :new_line, type: Integer, desc: 'Line number after change'
               optional :old_path, type: String, desc: 'File path before change'
@@ -122,7 +122,7 @@ module API
 
           note = create_note(noteable, opts)
 
-          if note.valid?
+          if note.persisted?
             present note.discussion, with: Entities::Discussion
           else
             bad_request!("Note #{note.errors.messages}")
@@ -175,7 +175,7 @@ module API
           }
           note = create_note(noteable, opts)
 
-          if note.valid?
+          if note.persisted?
             present note, with: Entities::Note
           else
             bad_request!("Note #{note.errors.messages}")

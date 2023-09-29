@@ -2,6 +2,7 @@ import { GlLink, GlModal } from '@gitlab/ui';
 import { shallowMount, mount } from '@vue/test-utils';
 import Vue from 'vue';
 import merge from 'lodash/merge';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import createStore from '~/vue_shared/components/metric_images/store';
 import MetricsImageTable from '~/vue_shared/components/metric_images/metric_images_table.vue';
@@ -38,13 +39,6 @@ describe('Metrics upload item', () => {
       ),
     );
   };
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-      wrapper = null;
-    }
-  });
 
   const findImageLink = () => wrapper.findComponent(GlLink);
   const findLabelTextSpan = () => wrapper.find('[data-testid="metric-image-label-span"]');

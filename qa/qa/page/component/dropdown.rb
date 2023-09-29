@@ -4,8 +4,18 @@ module QA
   module Page
     module Component
       module Dropdown
-        def select_item(item_text)
-          find('li.gl-new-dropdown-item', text: item_text, match: :prefer_exact).click
+        # Find and click item using css selector and matching text
+        # If item_text is not provided, select the first item that matches the given css selector
+        #
+        # @param [String] item_text
+        # @param [String] css - css selector of the item
+        # @return [void]
+        def select_item(item_text, css: 'li.gl-new-dropdown-item')
+          if item_text
+            find(css, text: item_text, match: :prefer_exact).click
+          else
+            find(css, match: :first).click
+          end
         end
 
         def has_item?(item_text)
@@ -23,12 +33,13 @@ module QA
 
         def clear_current_selection_if_present
           expand_select_list unless dropdown_open?
+          Support::WaitForRequests.wait_for_requests
 
-          if has_css?('button[data-testid="listbox-reset-button"]')
+          if has_css?('button[data-testid="listbox-reset-button"]', wait: 0)
             find('button[data-testid="listbox-reset-button"]').click
-          elsif dropdown_open?
-            expand_select_list
           end
+
+          expand_select_list if dropdown_open?
         end
 
         def search_item(item_text)
@@ -65,8 +76,8 @@ module QA
           find('li.gl-new-dropdown-item span:nth-child(2)', text: item_text, exact_text: true).click
         end
 
-        def expand_select_list
-          find('.gl-new-dropdown-toggle').click
+        def expand_select_list(css: '.gl-new-dropdown-toggle')
+          find(css).click
         end
 
         def wait_for_search_to_complete

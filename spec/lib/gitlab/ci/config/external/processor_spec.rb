@@ -221,7 +221,7 @@ RSpec.describe Gitlab::Ci::Config::External::Processor, feature_category: :pipel
       it 'raises an error' do
         expect { processor.perform }.to raise_error(
           described_class::IncludeError,
-          "Included file `lib/gitlab/ci/templates/template.yml` does not have valid YAML syntax!"
+          '`lib/gitlab/ci/templates/template.yml`: Invalid configuration format'
         )
       end
     end
@@ -425,17 +425,6 @@ RSpec.describe Gitlab::Ci::Config::External::Processor, feature_category: :pipel
         output = processor.perform
         expect(output.keys).to match_array([:image, :component_x_job])
       end
-
-      context 'when feature flag ci_include_components is disabled' do
-        before do
-          stub_feature_flags(ci_include_components: false)
-        end
-
-        it 'returns an error' do
-          expect { processor.perform }
-            .to raise_error(described_class::IncludeError, /does not have a valid subkey for include./)
-        end
-      end
     end
 
     context 'when a valid project file is defined' do
@@ -568,11 +557,11 @@ RSpec.describe Gitlab::Ci::Config::External::Processor, feature_category: :pipel
     context 'when rules defined' do
       context 'when a rule is invalid' do
         let(:values) do
-          { include: [{ local: 'builds.yml', rules: [{ changes: ['$MY_VAR'] }] }] }
+          { include: [{ local: 'builds.yml', rules: [{ allow_failure: ['$MY_VAR'] }] }] }
         end
 
         it 'raises IncludeError' do
-          expect { subject }.to raise_error(described_class::IncludeError, /invalid include rule/)
+          expect { subject }.to raise_error(described_class::IncludeError, /contains unknown keys: allow_failure/)
         end
       end
     end

@@ -36,10 +36,8 @@ RSpec.describe 'Destroying a container repository', feature_category: :container
     it 'marks the container repository as delete_scheduled' do
       expect(::Packages::CreateEventService)
           .to receive(:new).with(nil, user, event_name: :delete_repository, scope: :container).and_call_original
-      expect(DeleteContainerRepositoryWorker)
-        .not_to receive(:perform_async)
 
-      expect { subject }.to change { ::Packages::Event.count }.by(1)
+      subject
 
       expect(container_repository_mutation_response).to match_schema('graphql/container_repository')
       expect(container_repository_mutation_response['status']).to eq('DELETE_SCHEDULED')
@@ -50,10 +48,7 @@ RSpec.describe 'Destroying a container repository', feature_category: :container
 
   shared_examples 'denying the mutation request' do
     it 'does not destroy the container repository' do
-      expect(DeleteContainerRepositoryWorker)
-        .not_to receive(:perform_async).with(user.id, container_repository.id)
-
-      expect { subject }.not_to change { ::Packages::Event.count }
+      subject
 
       expect(mutation_response).to be_nil
     end

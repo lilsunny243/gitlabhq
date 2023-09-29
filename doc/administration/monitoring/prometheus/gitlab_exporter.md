@@ -9,12 +9,12 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 > Renamed from `GitLab monitor exporter` to `GitLab exporter` in [GitLab 12.3](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/16511).
 
 The [GitLab exporter](https://gitlab.com/gitlab-org/gitlab-exporter) enables you to
-measure various GitLab metrics pulled from Redis and the database in Omnibus GitLab
+measure various GitLab metrics pulled from Redis and the database in Linux package
 instances.
 
-For installations from source you must install and configure it yourself.
+For self-compiled installations, you must install and configure it yourself.
 
-To enable the GitLab exporter in an Omnibus GitLab instance:
+To enable the GitLab exporter in a Linux package instance:
 
 1. [Enable Prometheus](index.md#configuring-prometheus).
 1. Edit `/etc/gitlab/gitlab.rb`.
@@ -24,7 +24,7 @@ To enable the GitLab exporter in an Omnibus GitLab instance:
    gitlab_exporter['enable'] = true
    ```
 
-1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
    for the changes to take effect.
 
 Prometheus automatically begins collecting performance data from
@@ -32,7 +32,7 @@ the GitLab exporter exposed at `localhost:9168`.
 
 ## Use a different Rack server
 
-> - Introduced in [Omnibus GitLab 13.8](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/4896).
+> - Introduced in [GitLab 13.8](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/4896).
 > - WEBrick is now the default Rack server instead of Puma.
 
 By default, the GitLab exporter runs on [WEBrick](https://github.com/ruby/webrick), a single-threaded Ruby web server.
@@ -49,7 +49,7 @@ To change the Rack server to Puma:
    gitlab_exporter['server_name'] = 'puma'
    ```
 
-1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure)
+1. Save the file and [reconfigure GitLab](../../restart_gitlab.md#reconfigure-a-linux-package-installation)
    for the changes to take effect.
 
 The supported Rack servers are `webrick` and `puma`.

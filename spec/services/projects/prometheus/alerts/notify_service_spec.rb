@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::Prometheus::Alerts::NotifyService do
+RSpec.describe Projects::Prometheus::Alerts::NotifyService, feature_category: :incident_management do
   include PrometheusHelpers
   using RSpec::Parameterized::TableSyntax
 
@@ -17,90 +17,11 @@ RSpec.describe Projects::Prometheus::Alerts::NotifyService do
   subject { service.execute(token_input) }
 
   context 'with valid payload' do
-    let_it_be(:alert_firing) { create(:prometheus_alert, project: project) }
-    let_it_be(:alert_resolved) { create(:prometheus_alert, project: project) }
-    let_it_be(:cluster, reload: true) { create(:cluster, :provided_by_user, projects: [project]) }
-
-    let(:payload_raw) { prometheus_alert_payload(firing: [alert_firing], resolved: [alert_resolved]) }
+    let(:payload_raw) { prometheus_alert_payload(firing: ['Alert A'], resolved: ['Alert B']) }
     let(:payload) { ActionController::Parameters.new(payload_raw).permit! }
     let(:payload_alert_firing) { payload_raw['alerts'].first }
     let(:token) { 'token' }
     let(:source) { 'Prometheus' }
-
-    context 'with environment specific clusters' do
-      let(:prd_cluster) do
-        cluster
-      end
-
-      let(:stg_cluster) do
-        create(:cluster, :provided_by_user, projects: [project], enabled: true, environment_scope: 'stg/*')
-      end
-
-      let(:stg_environment) do
-        create(:environment, project: project, name: 'stg/1')
-      end
-
-      let(:alert_firing) do
-        create(:prometheus_alert, project: project, environment: stg_environment)
-      end
-
-      before do
-        create(:clusters_integrations_prometheus,
-               cluster: prd_cluster, alert_manager_token: token)
-        create(:clusters_integrations_prometheus,
-               cluster: stg_cluster, alert_manager_token: nil)
-      end
-
-      context 'without token' do
-        let(:token_input) { nil }
-
-        include_examples 'processes one firing and one resolved prometheus alerts'
-      end
-
-      context 'with token' do
-        it_behaves_like 'alerts service responds with an error and takes no actions', :unauthorized
-      end
-    end
-
-    context 'with project specific cluster using prometheus integration' do
-      where(:cluster_enabled, :integration_enabled, :configured_token, :token_input, :result) do
-        true  | true  | token | token | :success
-        true  | true  | nil   | nil   | :success
-        true  | true  | token | 'x'   | :failure
-        true  | true  | token | nil   | :failure
-        true  | false | token | token | :failure
-        false | true  | token | token | :failure
-        false | nil   | nil   | token | :failure
-      end
-
-      with_them do
-        before do
-          cluster.update!(enabled: cluster_enabled)
-
-          unless integration_enabled.nil?
-            create(:clusters_integrations_prometheus,
-                   cluster: cluster,
-                   enabled: integration_enabled,
-                   alert_manager_token: configured_token)
-          end
-        end
-
-        case result = params[:result]
-        when :success
-          include_examples 'processes one firing and one resolved prometheus alerts'
-        when :failure
-          it_behaves_like 'alerts service responds with an error and takes no actions', :unauthorized
-        else
-          raise "invalid result: #{result.inspect}"
-        end
-      end
-    end
-
-    context 'without project specific cluster' do
-      let_it_be(:cluster) { create(:cluster, enabled: true) }
-
-      it_behaves_like 'alerts service responds with an error and takes no actions', :unauthorized
-    end
 
     context 'with manual prometheus installation' do
       where(:alerting_setting, :configured_token, :token_input, :result) do
@@ -118,9 +39,11 @@ RSpec.describe Projects::Prometheus::Alerts::NotifyService do
           create(:prometheus_integration, project: project)
 
           if alerting_setting
-            create(:project_alerting_setting,
-                   project: project,
-                   token: configured_token)
+            create(
+              :project_alerting_setting,
+              project: project,
+              token: configured_token
+            )
           end
         end
 
@@ -159,6 +82,24 @@ RSpec.describe Projects::Prometheus::Alerts::NotifyService do
           it_behaves_like 'alerts service responds with an error and takes no actions', :unauthorized
         else
           raise "invalid result: #{result.inspect}"
+        end
+      end
+
+      context 'with simultaneous manual configuration' do
+        let_it_be(:alerting_setting) { create(:project_alerting_setting, :with_http_integration, project: project) }
+        let_it_be(:old_prometheus_integration) { create(:prometheus_integration, project: project) }
+        let_it_be(:integration) { project.alert_management_http_integrations.last! }
+
+        subject { service.execute(integration.token, integration) }
+
+        it_behaves_like 'processes one firing and one resolved prometheus alerts'
+
+        context 'when HTTP integration is inactive' do
+          before do
+            integration.update!(active: false)
+          end
+
+          it_behaves_like 'alerts service responds with an error and takes no actions', :unauthorized
         end
       end
     end
@@ -204,22 +145,19 @@ RSpec.describe Projects::Prometheus::Alerts::NotifyService do
     end
 
     context 'process Alert Management alerts' do
-      let(:process_service) { instance_double(AlertManagement::ProcessPrometheusAlertService) }
+      let(:integration) { build_stubbed(:alert_management_http_integration, project: project, token: token) }
 
-      before do
-        create(:prometheus_integration, project: project)
-        create(:project_alerting_setting, project: project, token: token)
-      end
+      subject { service.execute(token_input, integration) }
 
       context 'with multiple firing alerts and resolving alerts' do
         let(:payload_raw) do
-          prometheus_alert_payload(firing: [alert_firing, alert_firing], resolved: [alert_resolved])
+          prometheus_alert_payload(firing: ['Alert A', 'Alert A'], resolved: ['Alert B'])
         end
 
         it 'processes Prometheus alerts' do
           expect(AlertManagement::ProcessPrometheusAlertService)
             .to receive(:new)
-            .with(project, kind_of(Hash))
+            .with(project, kind_of(Hash), integration: integration)
             .exactly(3).times
             .and_call_original
 
@@ -231,7 +169,7 @@ RSpec.describe Projects::Prometheus::Alerts::NotifyService do
     context 'when payload exceeds max amount of processable alerts' do
       # We are defining 2 alerts in payload_raw above
       let(:max_alerts) { 1 }
-      let(:fingerprint) { prometheus_alert_payload_fingerprint(alert_resolved) }
+      let(:fingerprint) { prometheus_alert_payload_fingerprint('Alert A') }
 
       before do
         stub_const("#{described_class}::PROCESS_MAX_ALERTS", max_alerts)

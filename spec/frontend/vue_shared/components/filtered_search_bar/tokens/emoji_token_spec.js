@@ -8,7 +8,7 @@ import { mount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import { nextTick } from 'vue';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 
 import {
@@ -21,7 +21,7 @@ import BaseToken from '~/vue_shared/components/filtered_search_bar/tokens/base_t
 
 import { mockReactionEmojiToken, mockEmojis } from '../mock_data';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 const GlEmoji = { template: '<img/>' };
 const defaultStubs = {
   Portal: true,
@@ -52,6 +52,7 @@ function createComponent(options = {}) {
       portalName: 'fake target',
       alignSuggestions: function fakeAlignSuggestions() {},
       suggestionsListClass: () => 'custom-class',
+      termsAsTokens: () => false,
     },
     stubs,
   });
@@ -91,7 +92,7 @@ describe('EmojiToken', () => {
       describe('when request is successful', () => {
         const searchTerm = 'foo';
 
-        beforeEach(async () => {
+        beforeEach(() => {
           wrapper = createComponent({
             config: {
               fetchEmojis: jest.fn().mockResolvedValue({ data: mockEmojis }),
@@ -119,9 +120,9 @@ describe('EmojiToken', () => {
           return triggerFetchEmojis();
         });
 
-        it('calls `createAlert` with flash error message', () => {
+        it('calls `createAlert`', () => {
           expect(createAlert).toHaveBeenCalledWith({
-            message: 'There was a problem fetching emojis.',
+            message: 'There was a problem fetching emoji.',
           });
         });
 
@@ -135,7 +136,7 @@ describe('EmojiToken', () => {
   describe('template', () => {
     const defaultEmojis = OPTIONS_NONE_ANY;
 
-    beforeEach(async () => {
+    beforeEach(() => {
       wrapper = createComponent({
         value: { data: `"${mockEmojis[0].name}"` },
         config: {

@@ -11,6 +11,7 @@ module Banzai
       # The GFM-to-HTML-to-GFM cycle is tested in spec/features/copy_as_gfm_spec.rb.
       def self.filters
         @filters ||= FilterArray[
+          Filter::CodeLanguageFilter,
           Filter::PlantumlFilter,
           # Must always be before the SanitizationFilter to prevent XSS attacks
           Filter::SpacedLinkFilter,
@@ -25,29 +26,20 @@ module Banzai
           Filter::AudioLinkFilter,
           Filter::ImageLazyLoadFilter,
           Filter::ImageLinkFilter,
-          *metrics_filters,
           Filter::TableOfContentsFilter,
           Filter::TableOfContentsTagFilter,
           Filter::AutolinkFilter,
           Filter::ExternalLinkFilter,
           Filter::SuggestionFilter,
           Filter::FootnoteFilter,
+          Filter::InlineDiffFilter,
           *reference_filters,
           Filter::EmojiFilter,
           Filter::CustomEmojiFilter,
           Filter::TaskListFilter,
-          Filter::InlineDiffFilter,
           Filter::InlineObservabilityFilter,
           Filter::SetDirectionFilter,
           Filter::SyntaxHighlightFilter # this filter should remain at the end
-        ]
-      end
-
-      def self.metrics_filters
-        [
-          Filter::InlineMetricsFilter,
-          Filter::InlineGrafanaMetricsFilter,
-          Filter::InlineClusterMetricsFilter
         ]
       end
 
@@ -57,6 +49,7 @@ module Banzai
           Filter::References::ProjectReferenceFilter,
           Filter::References::DesignReferenceFilter,
           Filter::References::IssueReferenceFilter,
+          Filter::References::WorkItemReferenceFilter,
           Filter::References::ExternalIssueReferenceFilter,
           Filter::References::MergeRequestReferenceFilter,
           Filter::References::SnippetReferenceFilter,

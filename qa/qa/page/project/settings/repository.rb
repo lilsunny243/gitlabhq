@@ -20,11 +20,15 @@ module QA
           end
 
           view 'app/views/shared/deploy_keys/_index.html.haml' do
-            element :deploy_keys_settings_content
+            element 'deploy-keys-settings-content'
           end
 
           view 'app/views/projects/protected_tags/shared/_index.html.haml' do
             element :protected_tag_settings_content
+          end
+
+          view 'app/views/projects/branch_rules/_show.html.haml' do
+            element :branch_rules_content
           end
 
           def expand_deploy_tokens(&block)
@@ -34,7 +38,7 @@ module QA
           end
 
           def expand_deploy_keys(&block)
-            expand_content(:deploy_keys_settings_content) do
+            expand_content('deploy-keys-settings-content') do
               Settings::DeployKeys.perform(&block)
             end
           end
@@ -55,6 +59,10 @@ module QA
             expand_content(:protected_tag_settings_content) do
               ProtectedTags.perform(&block)
             end
+          end
+
+          def expand_branch_rules
+            expand_content(:branch_rules_content)
           end
 
           def expand_default_branch(&block)

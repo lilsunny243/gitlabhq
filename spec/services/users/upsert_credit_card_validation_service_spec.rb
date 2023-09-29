@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Users::UpsertCreditCardValidationService do
-  let_it_be(:user) { create(:user, requires_credit_card_verification: true) }
+RSpec.describe Users::UpsertCreditCardValidationService, feature_category: :user_profile do
+  let_it_be(:user) { create(:user) }
 
   let(:user_id) { user.id }
   let(:credit_card_validated_time) { Time.utc(2020, 1, 1) }
@@ -21,7 +21,7 @@ RSpec.describe Users::UpsertCreditCardValidationService do
   end
 
   describe '#execute' do
-    subject(:service) { described_class.new(params, user) }
+    subject(:service) { described_class.new(params) }
 
     context 'successfully set credit card validation record for the user' do
       context 'when user does not have credit card validation record' do
@@ -41,10 +41,6 @@ RSpec.describe Users::UpsertCreditCardValidationService do
             last_digits: 1111,
             expiration_date: Date.new(expiration_year, 1, 31)
           )
-        end
-
-        it 'sets the requires_credit_card_verification attribute on the user to false' do
-          expect { service.execute }.to change { user.reload.requires_credit_card_verification }.to(false)
         end
       end
 
@@ -105,6 +101,14 @@ RSpec.describe Users::UpsertCreditCardValidationService do
     end
 
     context 'when unexpected exception happen' do
+      let(:exception) { StandardError.new }
+
+      before do
+        allow_next_instance_of(::Users::CreditCardValidation) do |instance|
+          allow(instance).to receive(:save).and_raise(exception)
+        end
+      end
+
       it 'tracks the exception and returns an error' do
         logged_params = {
           credit_card_validated_at: credit_card_validated_time,
@@ -115,8 +119,7 @@ RSpec.describe Users::UpsertCreditCardValidationService do
           user_id: user_id
         }
 
-        expect(::Users::CreditCardValidation).to receive(:upsert).and_raise(e = StandardError.new('My exception!'))
-        expect(Gitlab::ErrorTracking).to receive(:track_exception).with(e, class: described_class.to_s, params: logged_params)
+        expect(Gitlab::ErrorTracking).to receive(:track_exception).with(exception, class: described_class.to_s, params: logged_params)
 
         result = service.execute
 

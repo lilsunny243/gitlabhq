@@ -1,15 +1,4 @@
-export const mockBranches = {
-  Branches: ['main', 'branch-1', 'branch-2'],
-};
-
-export const mockTags = {
-  Tags: ['1.0.0', '1.1.0', '1.2.0'],
-};
-
-export const mockRefs = {
-  ...mockBranches,
-  ...mockTags,
-};
+import { DOCS_URL_IN_EE_DIR } from 'jh_else_ce/lib/utils/url_utility';
 
 export const mockFilteredRefs = {
   Branches: ['branch-1'],
@@ -41,9 +30,9 @@ export const mockError = {
     'test job: chosen stage does not exist; available stages are .pre, build, test, deploy, .post',
   ],
   warnings: [
-    'jobs:build1 may allow multiple pipelines to run for a single action due to `rules:when` clause with no `workflow:rules` - read more: https://docs.gitlab.com/ee/ci/troubleshooting.html#pipeline-warnings',
-    'jobs:build2 may allow multiple pipelines to run for a single action due to `rules:when` clause with no `workflow:rules` - read more: https://docs.gitlab.com/ee/ci/troubleshooting.html#pipeline-warnings',
-    'jobs:build3 may allow multiple pipelines to run for a single action due to `rules:when` clause with no `workflow:rules` - read more: https://docs.gitlab.com/ee/ci/troubleshooting.html#pipeline-warnings',
+    `jobs:build1 may allow multiple pipelines to run for a single action due to \`rules:when\` clause with no \`workflow:rules\` - read more: ${DOCS_URL_IN_EE_DIR}/ci/troubleshooting.html#pipeline-warnings`,
+    `jobs:build2 may allow multiple pipelines to run for a single action due to \`rules:when\` clause with no \`workflow:rules\` - read more: ${DOCS_URL_IN_EE_DIR}/ci/troubleshooting.html#pipeline-warnings`,
+    `jobs:build3 may allow multiple pipelines to run for a single action due to \`rules:when\` clause with no \`workflow:rules\` - read more: ${DOCS_URL_IN_EE_DIR}/ci/troubleshooting.html#pipeline-warnings`,
   ],
   total_warnings: 7,
 };
@@ -133,3 +122,5 @@ export const mockCiConfigVariablesResponseWithoutDesc = mockCiConfigVariablesQue
   mockYamlVariablesWithoutDesc,
 );
 export const mockNoCachedCiConfigVariablesResponse = mockCiConfigVariablesQueryResponse(null);
+
+export const mockPipelineConfigButtonText = 'Go to the pipeline editor';

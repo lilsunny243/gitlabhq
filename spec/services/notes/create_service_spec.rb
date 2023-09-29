@@ -30,6 +30,24 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
         expect(note).to be_persisted
       end
 
+      it 'checks for spam' do
+        expect_next_instance_of(Note) do |instance|
+          expect(instance).to receive(:check_for_spam).with(action: :create, user: user)
+        end
+
+        note
+      end
+
+      it 'does not persist when spam' do
+        expect_next_instance_of(Note) do |instance|
+          expect(instance).to receive(:check_for_spam).with(action: :create, user: user) do
+            instance.spam!
+          end
+        end
+
+        expect(note).not_to be_persisted
+      end
+
       context 'with internal parameter' do
         context 'when confidential' do
           let(:opts) { base_opts.merge(internal: true) }
@@ -136,7 +154,6 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
           let(:action) { 'create_commit_comment' }
           let(:label) { 'counts.commit_comment' }
           let(:namespace) { project.namespace }
-          let(:feature_flag_name) { :route_hll_to_snowplow_phase4 }
         end
       end
 
@@ -152,7 +169,9 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
                                                                              .and_call_original
           expect do
             execute_create_service
-          end.to change { counter.unique_events(event_names: event, start_date: 1.day.ago, end_date: 1.day.from_now) }.by(1)
+          end.to change {
+                   counter.unique_events(event_names: event, start_date: Date.today.beginning_of_week, end_date: 1.week.from_now)
+                 }.by(1)
         end
 
         it 'does not track merge request usage data' do
@@ -161,8 +180,9 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
           execute_create_service
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_COMMENT_ADDED }
+        it_behaves_like 'internal event tracking' do
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_COMMENT_ADDED }
+          let(:namespace) { project.namespace }
           subject(:service_action) { execute_create_service }
         end
       end
@@ -173,22 +193,45 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
           create(:merge_request, source_project: project_with_repo, target_project: project_with_repo)
         end
 
+        let(:new_opts) { opts.merge(noteable_type: 'MergeRequest', noteable_id: merge_request.id) }
+
+        it 'calls MergeRequests::MarkReviewerReviewedService service' do
+          expect_next_instance_of(
+            MergeRequests::MarkReviewerReviewedService,
+            project: project_with_repo, current_user: user
+          ) do |service|
+            expect(service).to receive(:execute).with(merge_request)
+          end
+
+          described_class.new(project_with_repo, user, new_opts).execute
+        end
+
+        it 'does not call MergeRequests::MarkReviewerReviewedService service when skip_set_reviewed is true' do
+          expect(MergeRequests::MarkReviewerReviewedService).not_to receive(:new)
+
+          described_class.new(project_with_repo, user, new_opts).execute(skip_set_reviewed: true)
+        end
+
         context 'noteable highlight cache clearing' do
           let(:position) do
-            Gitlab::Diff::Position.new(old_path: "files/ruby/popen.rb",
-                                       new_path: "files/ruby/popen.rb",
-                                       old_line: nil,
-                                       new_line: 14,
-                                       diff_refs: merge_request.diff_refs)
+            Gitlab::Diff::Position.new(
+              old_path: "files/ruby/popen.rb",
+              new_path: "files/ruby/popen.rb",
+              old_line: nil,
+              new_line: 14,
+              diff_refs: merge_request.diff_refs
+            )
           end
 
           let(:new_opts) do
-            opts.merge(in_reply_to_discussion_id: nil,
-                       type: 'DiffNote',
-                       noteable_type: 'MergeRequest',
-                       noteable_id: merge_request.id,
-                       position: position.to_h,
-                       confidential: false)
+            opts.merge(
+              in_reply_to_discussion_id: nil,
+              type: 'DiffNote',
+              noteable_type: 'MergeRequest',
+              noteable_id: merge_request.id,
+              position: position.to_h,
+              confidential: false
+            )
           end
 
           before do
@@ -218,12 +261,14 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
             prev_note =
               create(:diff_note_on_merge_request, noteable: merge_request, project: project_with_repo)
             reply_opts =
-              opts.merge(in_reply_to_discussion_id: prev_note.discussion_id,
-                         type: 'DiffNote',
-                         noteable_type: 'MergeRequest',
-                         noteable_id: merge_request.id,
-                         position: position.to_h,
-                         confidential: false)
+              opts.merge(
+                in_reply_to_discussion_id: prev_note.discussion_id,
+                type: 'DiffNote',
+                noteable_type: 'MergeRequest',
+                noteable_id: merge_request.id,
+                position: position.to_h,
+                confidential: false
+              )
 
             expect(merge_request).not_to receive(:diffs)
 
@@ -234,11 +279,13 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
         context 'note diff file' do
           let(:line_number) { 14 }
           let(:position) do
-            Gitlab::Diff::Position.new(old_path: "files/ruby/popen.rb",
-                                       new_path: "files/ruby/popen.rb",
-                                       old_line: nil,
-                                       new_line: line_number,
-                                       diff_refs: merge_request.diff_refs)
+            Gitlab::Diff::Position.new(
+              old_path: "files/ruby/popen.rb",
+              new_path: "files/ruby/popen.rb",
+              old_line: nil,
+              new_line: line_number,
+              diff_refs: merge_request.diff_refs
+            )
           end
 
           let(:previous_note) do
@@ -250,12 +297,14 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
           end
           context 'when eligible to have a note diff file' do
             let(:new_opts) do
-              opts.merge(in_reply_to_discussion_id: nil,
-                         type: 'DiffNote',
-                         noteable_type: 'MergeRequest',
-                         noteable_id: merge_request.id,
-                         position: position.to_h,
-                         confidential: false)
+              opts.merge(
+                in_reply_to_discussion_id: nil,
+                type: 'DiffNote',
+                noteable_type: 'MergeRequest',
+                noteable_id: merge_request.id,
+                position: position.to_h,
+                confidential: false
+              )
             end
 
             it_behaves_like 'triggers GraphQL subscription mergeRequestMergeStatusUpdated' do
@@ -326,12 +375,14 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
 
           context 'when DiffNote is a reply' do
             let(:new_opts) do
-              opts.merge(in_reply_to_discussion_id: previous_note.discussion_id,
-                         type: 'DiffNote',
-                         noteable_type: 'MergeRequest',
-                         noteable_id: merge_request.id,
-                         position: position.to_h,
-                         confidential: false)
+              opts.merge(
+                in_reply_to_discussion_id: previous_note.discussion_id,
+                type: 'DiffNote',
+                noteable_type: 'MergeRequest',
+                noteable_id: merge_request.id,
+                position: position.to_h,
+                confidential: false
+              )
             end
 
             it 'note is not associated with a note diff file' do
@@ -345,23 +396,27 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
 
             context 'when DiffNote from an image' do
               let(:image_position) do
-                Gitlab::Diff::Position.new(old_path: "files/images/6049019_460s.jpg",
-                                           new_path: "files/images/6049019_460s.jpg",
-                                           width: 100,
-                                           height: 100,
-                                           x: 1,
-                                           y: 100,
-                                           diff_refs: merge_request.diff_refs,
-                                           position_type: 'image')
+                Gitlab::Diff::Position.new(
+                  old_path: "files/images/6049019_460s.jpg",
+                  new_path: "files/images/6049019_460s.jpg",
+                  width: 100,
+                  height: 100,
+                  x: 1,
+                  y: 100,
+                  diff_refs: merge_request.diff_refs,
+                  position_type: 'image'
+                )
               end
 
               let(:new_opts) do
-                opts.merge(in_reply_to_discussion_id: nil,
-                           type: 'DiffNote',
-                           noteable_type: 'MergeRequest',
-                           noteable_id: merge_request.id,
-                           position: image_position.to_h,
-                           confidential: false)
+                opts.merge(
+                  in_reply_to_discussion_id: nil,
+                  type: 'DiffNote',
+                  noteable_type: 'MergeRequest',
+                  noteable_id: merge_request.id,
+                  position: image_position.to_h,
+                  confidential: false
+                )
               end
 
               it 'note is not associated with a note diff file' do
@@ -446,7 +501,7 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
                   expect(noteable.target_branch == "fix").to eq(can_use_quick_action)
                 }
               ),
-              # Set WIP status
+              # Set Draft status
               QuickAction.new(
                 action_text: "/draft",
                 before_action: -> {
@@ -475,7 +530,7 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
         end
       end
 
-      context 'when note only have commands' do
+      context 'when note only has commands' do
         it 'adds commands applied message to note errors' do
           note_text = %(/close)
           service = double(:service)
@@ -503,6 +558,28 @@ RSpec.describe Notes::CreateService, feature_category: :team_planning do
           note = described_class.new(project, user, opts.merge(note: note_text)).execute
 
           expect(note.errors[:commands_only]).to contain_exactly('Closed this issue. Could not apply reopen command.')
+        end
+
+        it 'does not check for spam' do
+          expect_next_instance_of(Note) do |instance|
+            expect(instance).not_to receive(:check_for_spam).with(action: :create, user: user)
+          end
+
+          note_text = %(/close)
+          described_class.new(project, user, opts.merge(note: note_text)).execute
+        end
+
+        it 'generates failed update error messages' do
+          note_text = %(/confidential)
+          service = double(:service)
+          issue.errors.add(:confidential, 'an error occurred')
+          allow(Issues::UpdateService).to receive(:new).and_return(service)
+          allow_next_instance_of(Issues::UpdateService) do |service_instance|
+            allow(service_instance).to receive(:execute).and_return(issue)
+          end
+
+          note = described_class.new(project, user, opts.merge(note: note_text)).execute
+          expect(note.errors[:commands_only]).to contain_exactly('Confidential an error occurred')
         end
       end
     end

@@ -94,7 +94,9 @@ module MergeRequests
       )
 
       merge_requests.each do |merge_request|
-        merge_request.merge_commit_sha = analyzer.get_merge_commit(merge_request.diff_head_sha)
+        sha = analyzer.get_merge_commit(merge_request.diff_head_sha)
+        merge_request.merge_commit_sha = sha
+        merge_request.merged_commit_sha = sha
 
         MergeRequests::PostMergeService
           .new(project: merge_request.target_project, current_user: @current_user)
@@ -127,16 +129,23 @@ module MergeRequests
 
       merge_requests_array = merge_requests.to_a + merge_requests_from_forks.to_a
       filter_merge_requests(merge_requests_array).each do |merge_request|
+        skip_merge_status_trigger = true
+
         if branch_and_project_match?(merge_request) || @push.force_push?
           merge_request.reload_diff(current_user)
           # Clear existing merge error if the push were directed at the
           # source branch. Clearing the error when the target branch
           # changes will hide the error from the user.
           merge_request.merge_error = nil
+
+          # Don't skip trigger since we to update the MR's merge status in real-time
+          # when the push if for the MR's source branch and project.
+          skip_merge_status_trigger = false
         elsif merge_request.merge_request_diff.includes_any_commits?(push_commit_ids)
           merge_request.reload_diff(current_user)
         end
 
+        merge_request.skip_merge_status_trigger = skip_merge_status_trigger
         merge_request.mark_as_unchecked
       end
 
@@ -162,7 +171,13 @@ module MergeRequests
       @outdate_service ||= Suggestions::OutdateService.new
     end
 
+    def abort_auto_merges?(merge_request)
+      merge_request.merge_params.with_indifferent_access[:sha] != @push.newrev
+    end
+
     def abort_auto_merges(merge_request)
+      return unless abort_auto_merges?(merge_request)
+
       abort_auto_merge(merge_request, 'source branch was updated')
     end
 
@@ -240,9 +255,11 @@ module MergeRequests
         mr_commit_ids.include?(commit.id)
       end
 
-      SystemNoteService.add_commits(merge_request, merge_request.project,
-                                    @current_user, new_commits,
-                                    existing_commits, @push.oldrev)
+      SystemNoteService.add_commits(
+        merge_request, merge_request.project,
+        @current_user, new_commits,
+        existing_commits, @push.oldrev
+      )
 
       notification_service.push_to_merge_request(merge_request, @current_user, new_commits: new_commits, existing_commits: existing_commits)
     end

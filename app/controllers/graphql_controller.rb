@@ -12,6 +12,10 @@ class GraphqlController < ApplicationController
   # Max size of the query text in characters
   MAX_QUERY_SIZE = 10_000
 
+  # The query string of a standard IntrospectionQuery, used to compare incoming requests for caching
+  CACHED_INTROSPECTION_QUERY_STRING = CachedIntrospectionQuery.query_string
+  INTROSPECTION_QUERY_OPERATION_NAME = 'IntrospectionQuery'
+
   # If a user is using their session to access GraphQL, we need to have session
   # storage, since the admin-mode check is session wide.
   # We can't enable this for anonymous users because that would cause users using
@@ -32,7 +36,10 @@ class GraphqlController < ApplicationController
   before_action :set_user_last_activity
   before_action :track_vs_code_usage
   before_action :track_jetbrains_usage
+  before_action :track_jetbrains_bundled_usage
   before_action :track_gitlab_cli_usage
+  before_action :track_visual_studio_usage
+  before_action :track_neovim_plugin_usage
   before_action :disable_query_limiting
   before_action :limit_query_size
 
@@ -54,7 +61,12 @@ class GraphqlController < ApplicationController
   urgency :low, [:execute]
 
   def execute
-    result = multiplex? ? execute_multiplex : execute_query
+    result = if introspection_query?
+               execute_introspection_query
+             else
+               multiplex? ? execute_multiplex : execute_query
+             end
+
     render json: result
   end
 
@@ -74,6 +86,13 @@ class GraphqlController < ApplicationController
     log_exception(exception)
 
     render_error(exception.message, status: :forbidden)
+  end
+
+  rescue_from Gitlab::Git::ResourceExhaustedError do |exception|
+    log_exception(exception)
+
+    response.headers.merge!(exception.headers)
+    render_error(exception.message, status: :service_unavailable)
   end
 
   rescue_from Gitlab::Graphql::Variables::Invalid do |exception|
@@ -102,6 +121,10 @@ class GraphqlController < ApplicationController
 
   private
 
+  def permitted_multiplex_params
+    params.permit(_json: [:query, :operationName, { variables: {} }])
+  end
+
   def disallow_mutations_for_get
     return unless request.get? || request.head?
     return unless any_mutating_query?
@@ -111,7 +134,7 @@ class GraphqlController < ApplicationController
 
   def limit_query_size
     total_size = if multiplex?
-                   params[:_json].sum { _1[:query].size }
+                   multiplex_param.sum { _1[:query].size }
                  else
                    query.size
                  end
@@ -158,6 +181,21 @@ class GraphqlController < ApplicationController
       .track_api_request_when_trackable(user_agent: request.user_agent, user: current_user)
   end
 
+  def track_jetbrains_bundled_usage
+    Gitlab::UsageDataCounters::JetBrainsBundledPluginActivityUniqueCounter
+      .track_api_request_when_trackable(user_agent: request.user_agent, user: current_user)
+  end
+
+  def track_visual_studio_usage
+    Gitlab::UsageDataCounters::VisualStudioExtensionActivityUniqueCounter
+      .track_api_request_when_trackable(user_agent: request.user_agent, user: current_user)
+  end
+
+  def track_neovim_plugin_usage
+    Gitlab::UsageDataCounters::NeovimPluginActivityUniqueCounter
+      .track_api_request_when_trackable(user_agent: request.user_agent, user: current_user)
+  end
+
   def track_gitlab_cli_usage
     Gitlab::UsageDataCounters::GitLabCliActivityUniqueCounter
       .track_api_request_when_trackable(user_agent: request.user_agent, user: current_user)
@@ -178,8 +216,12 @@ class GraphqlController < ApplicationController
     params.fetch(:query, '')
   end
 
+  def multiplex_param
+    permitted_multiplex_params[:_json]
+  end
+
   def multiplex_queries
-    params[:_json].map do |single_query_info|
+    multiplex_param.map do |single_query_info|
       {
         query: single_query_info[:query],
         variables: build_variables(single_query_info[:variables]),
@@ -206,8 +248,10 @@ class GraphqlController < ApplicationController
     Gitlab::Graphql::Variables.new(variable_info).to_h
   end
 
+  # We support Apollo-style query batching where an array of queries will be in the `_json:` key.
+  # https://graphql-ruby.org/queries/multiplex.html#apollo-query-batching
   def multiplex?
-    params[:_json].present?
+    params[:_json].is_a?(Array)
   end
 
   def authorize_access_api!
@@ -241,5 +285,45 @@ class GraphqlController < ApplicationController
 
   def logs
     RequestStore.store[:graphql_logs].to_a
+  end
+
+  def execute_introspection_query
+    if introspection_query_can_use_cache?
+      # Context for caching: https://gitlab.com/gitlab-org/gitlab/-/issues/409448
+      Rails.cache.fetch(
+        introspection_query_cache_key,
+        expires_in: 1.day) do
+          execute_query.to_json
+        end
+    else
+      execute_query
+    end
+  end
+
+  def introspection_query_can_use_cache?
+    return false if Gitlab.dev_or_test_env?
+
+    CACHED_INTROSPECTION_QUERY_STRING == graphql_query_object.query_string.squish
+  end
+
+  def introspection_query_cache_key
+    # We use context[:remove_deprecated] here as an introspection query result can differ based on the
+    # visibility of schema items. Visibility can be affected by the remove_deprecated param. For more context, see:
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/409448#note_1377558096
+    ['introspection-query-cache', Gitlab.revision, context[:remove_deprecated]]
+  end
+
+  def introspection_query?
+    if params.key?(:operationName)
+      params[:operationName] == INTROSPECTION_QUERY_OPERATION_NAME
+    else
+      # If we don't provide operationName param, we infer it from the query
+      graphql_query_object.selected_operation_name == INTROSPECTION_QUERY_OPERATION_NAME
+    end
+  end
+
+  def graphql_query_object
+    @graphql_query_object ||= GraphQL::Query.new(GitlabSchema, query: query,
+      variables: build_variables(params[:variables]))
   end
 end

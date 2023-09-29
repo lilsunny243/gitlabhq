@@ -3,11 +3,13 @@ import * as Sentry from '@sentry/browser';
 import { shallowMountExtended, mountExtended } from 'helpers/vue_test_utils_helper';
 import HelpPopover from '~/vue_shared/components/help_popover.vue';
 import waitForPromises from 'helpers/wait_for_promises';
+import { assertProps } from 'helpers/assert_props';
 import StatusIcon from '~/vue_merge_request_widget/components/extensions/status_icon.vue';
 import ActionButtons from '~/vue_merge_request_widget/components/widget/action_buttons.vue';
 import Widget from '~/vue_merge_request_widget/components/widget/widget.vue';
 import WidgetContentRow from '~/vue_merge_request_widget/components/widget/widget_content_row.vue';
 import * as logger from '~/lib/logger';
+import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 
 jest.mock('~/vue_merge_request_widget/components/extensions/telemetry', () => ({
@@ -28,7 +30,7 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
   const findHelpPopover = () => wrapper.findComponent(HelpPopover);
   const findDynamicScroller = () => wrapper.findByTestId('dynamic-content-scroller');
 
-  const createComponent = ({ propsData, slots, mountFn = shallowMountExtended } = {}) => {
+  const createComponent = async ({ propsData, slots, mountFn = shallowMountExtended } = {}) => {
     wrapper = mountFn(Widget, {
       propsData: {
         isCollapsible: false,
@@ -48,11 +50,9 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
         ContentRow: WidgetContentRow,
       },
     });
-  };
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
+    await axios.waitForAll();
+  };
 
   describe('on mount', () => {
     it('fetches collapsed', async () => {
@@ -108,29 +108,28 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
         },
       });
 
-      expect(wrapper.text()).not.toContain('Loading');
-      await nextTick();
       expect(wrapper.text()).toContain('Loading');
+      await axios.waitForAll();
+      expect(wrapper.text()).not.toContain('Loading');
     });
 
     it('validates widget name', () => {
       expect(() => {
-        createComponent({
-          propsData: { widgetName: 'InvalidWidgetName' },
-        });
+        assertProps(Widget, { widgetName: 'InvalidWidgetName' });
       }).toThrow();
     });
   });
 
   describe('fetch', () => {
-    it('sets the data.collapsed property after a successfull call - multiPolling: false', async () => {
+    it('calls fetchCollapsedData properly when multiPolling is false', async () => {
       const mockData = { headers: {}, status: HTTP_STATUS_OK, data: { vulnerabilities: [] } };
-      createComponent({ propsData: { fetchCollapsedData: async () => mockData } });
+      const fetchCollapsedData = jest.fn().mockResolvedValue(mockData);
+      createComponent({ propsData: { fetchCollapsedData } });
       await waitForPromises();
-      expect(wrapper.emitted('input')[0][0]).toEqual({ collapsed: mockData.data, expanded: null });
+      expect(fetchCollapsedData).toHaveBeenCalledTimes(1);
     });
 
-    it('sets the data.collapsed property after a successfull call - multiPolling: true', async () => {
+    it('calls fetchCollapsedData properly when multiPolling is true', async () => {
       const mockData1 = {
         headers: {},
         status: HTTP_STATUS_OK,
@@ -142,22 +141,22 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
         data: { vulnerabilities: [{ vuln: 2 }] },
       };
 
+      const fetchCollapsedData = [
+        jest.fn().mockResolvedValue(mockData1),
+        jest.fn().mockResolvedValue(mockData2),
+      ];
+
       createComponent({
         propsData: {
           multiPolling: true,
-          fetchCollapsedData: () => [
-            () => Promise.resolve(mockData1),
-            () => Promise.resolve(mockData2),
-          ],
+          fetchCollapsedData: () => fetchCollapsedData,
         },
       });
 
       await waitForPromises();
 
-      expect(wrapper.emitted('input')[0][0]).toEqual({
-        collapsed: [mockData1.data, mockData2.data],
-        expanded: null,
-      });
+      expect(fetchCollapsedData[0]).toHaveBeenCalledTimes(1);
+      expect(fetchCollapsedData[1]).toHaveBeenCalledTimes(1);
     });
 
     it('throws an error when the handler does not include headers or status objects', async () => {
@@ -190,10 +189,10 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
   });
 
   describe('content', () => {
-    it('displays summary property when summary slot is not provided', () => {
-      createComponent({
+    it('displays summary property when summary slot is not provided', async () => {
+      await createComponent({
         propsData: {
-          summary: 'Hello world',
+          summary: { title: 'Hello world' },
         },
       });
 
@@ -261,8 +260,8 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
   });
 
   describe('handle collapse toggle', () => {
-    it('displays the toggle button correctly', () => {
-      createComponent({
+    it('displays the toggle button correctly', async () => {
+      await createComponent({
         propsData: {
           isCollapsible: true,
         },
@@ -276,7 +275,7 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
     });
 
     it('does not display the content slot until toggle is clicked', async () => {
-      createComponent({
+      await createComponent({
         propsData: {
           isCollapsible: true,
         },
@@ -291,8 +290,23 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
       expect(findExpandedSection().text()).toBe('More complex content');
     });
 
-    it('does not display the toggle button if isCollapsible is false', () => {
-      createComponent({
+    it('emits a toggle even when button is toggled', async () => {
+      await createComponent({
+        propsData: {
+          isCollapsible: true,
+        },
+        slots: {
+          content: '<b>More complex content</b>',
+        },
+      });
+
+      expect(findExpandedSection().exists()).toBe(false);
+      findToggleButton().vm.$emit('click');
+      expect(wrapper.emitted('toggle')).toEqual([[{ expanded: true }]]);
+    });
+
+    it('does not display the toggle button if isCollapsible is false', async () => {
+      await createComponent({
         propsData: {
           isCollapsible: false,
         },
@@ -315,11 +329,12 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
       };
 
       const fetchExpandedData = jest.fn().mockResolvedValue(mockDataExpanded);
+      const fetchCollapsedData = jest.fn().mockResolvedValue(mockDataCollapsed);
 
-      createComponent({
+      await createComponent({
         propsData: {
           isCollapsible: true,
-          fetchCollapsedData: () => Promise.resolve(mockDataCollapsed),
+          fetchCollapsedData,
           fetchExpandedData,
         },
       });
@@ -327,17 +342,8 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
       findToggleButton().vm.$emit('click');
       await waitForPromises();
 
-      // First fetches the collapsed data
-      expect(wrapper.emitted('input')[0][0]).toEqual({
-        collapsed: mockDataCollapsed.data,
-        expanded: null,
-      });
-
-      // Then fetches the expanded data
-      expect(wrapper.emitted('input')[1][0]).toEqual({
-        collapsed: null,
-        expanded: mockDataExpanded.data,
-      });
+      expect(fetchCollapsedData).toHaveBeenCalledTimes(1);
+      expect(fetchExpandedData).toHaveBeenCalledTimes(1);
 
       // Triggering a click does not call the expanded data again
       findToggleButton().vm.$emit('click');
@@ -348,7 +354,7 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
     it('allows refetching when fetch expanded data returns an error', async () => {
       const fetchExpandedData = jest.fn().mockRejectedValue({ error: true });
 
-      createComponent({
+      await createComponent({
         propsData: {
           isCollapsible: true,
           fetchExpandedData,
@@ -358,14 +364,7 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
       findToggleButton().vm.$emit('click');
       await waitForPromises();
 
-      // First fetches the collapsed data
-      expect(wrapper.emitted('input')[0][0]).toEqual({
-        collapsed: undefined,
-        expanded: null,
-      });
-
       expect(fetchExpandedData).toHaveBeenCalledTimes(1);
-      expect(wrapper.emitted('input')).toHaveLength(1); // Should not an emit an input call because request failed
 
       findToggleButton().vm.$emit('click');
       await waitForPromises();
@@ -375,7 +374,7 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
     it('resets the error message when another request is fetched', async () => {
       const fetchExpandedData = jest.fn().mockRejectedValue({ error: true });
 
-      createComponent({
+      await createComponent({
         propsData: {
           isCollapsible: true,
           fetchExpandedData,
@@ -455,8 +454,8 @@ describe('~/vue_merge_request_widget/components/widget/widget.vue', () => {
       },
     ];
 
-    beforeEach(() => {
-      createComponent({
+    beforeEach(async () => {
+      await createComponent({
         mountFn: mountExtended,
         propsData: {
           isCollapsible: true,

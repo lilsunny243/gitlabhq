@@ -13,7 +13,7 @@ class InvitesController < ApplicationController
 
   respond_to :html
 
-  feature_category :authentication_and_authorization
+  feature_category :system_access
 
   def show
     accept if skip_invitation_prompt?
@@ -83,8 +83,6 @@ class InvitesController < ApplicationController
   def authenticate_user!
     return if current_user
 
-    store_location_for(:user, invite_landing_url) if member
-
     if user_sign_up?
       set_session_invite_params
 
@@ -118,10 +116,6 @@ class InvitesController < ApplicationController
     else
       _("To accept this invitation, sign in.")
     end
-  end
-
-  def invite_landing_url
-    root_url + invite_details[:path]
   end
 
   def invite_details

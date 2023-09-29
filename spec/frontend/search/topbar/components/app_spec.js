@@ -1,8 +1,10 @@
 import { GlSearchBoxByClick, GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { MOCK_QUERY } from 'jest/search/mock_data';
+import { stubComponent } from 'helpers/stub_component';
 import GlobalSearchTopbar from '~/search/topbar/components/app.vue';
 import GroupFilter from '~/search/topbar/components/group_filter.vue';
 import ProjectFilter from '~/search/topbar/components/project_filter.vue';
@@ -35,10 +37,6 @@ describe('GlobalSearchTopbar', () => {
       stubs,
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   const findGlSearchBox = () => wrapper.findComponent(GlSearchBoxByClick);
   const findGroupFilter = () => wrapper.findComponent(GroupFilter);
@@ -97,11 +95,20 @@ describe('GlobalSearchTopbar', () => {
         });
 
         it('dispatched correct click action', () => {
-          const draweToggleSpy = jest.fn();
-          wrapper.vm.$refs.markdownDrawer.toggleDrawer = draweToggleSpy;
+          const drawerToggleSpy = jest.fn();
+
+          createComponent(
+            { query: { repository_ref: '' } },
+            { elasticsearchEnabled: true, defaultBranchName: '' },
+            {
+              MarkdownDrawer: stubComponent(MarkdownDrawer, {
+                methods: { toggleDrawer: drawerToggleSpy },
+              }),
+            },
+          );
 
           findSyntaxOptionButton().vm.$emit('click');
-          expect(draweToggleSpy).toHaveBeenCalled();
+          expect(drawerToggleSpy).toHaveBeenCalled();
         });
       });
 

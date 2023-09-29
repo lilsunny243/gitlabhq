@@ -1,13 +1,15 @@
 import { GlButton } from '@gitlab/ui';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { parseBoolean } from '~/lib/utils/common_utils';
-import { escapeFileUrl, visitUrl } from '~/lib/utils/url_utility';
+import { joinPaths, escapeFileUrl, visitUrl } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
 import initWebIdeLink from '~/pages/projects/shared/web_ide_link';
 import PerformancePlugin from '~/performance/vue_performance_plugin';
 import createStore from '~/code_navigation/store';
 import RefSelector from '~/ref/components/ref_selector.vue';
+import HighlightWorker from '~/vue_shared/components/source_viewer/workers/highlight_worker?worker';
 import App from './components/app.vue';
 import Breadcrumbs from './components/breadcrumbs.vue';
 import DirectoryDownloadLinks from './components/directory_download_links.vue';
@@ -32,7 +34,16 @@ Vue.use(PerformancePlugin, {
 export default function setupVueRepositoryList() {
   const el = document.getElementById('js-tree-list');
   const { dataset } = el;
-  const { projectPath, projectShortPath, ref, escapedRef, fullName } = dataset;
+  const {
+    projectPath,
+    projectShortPath,
+    ref,
+    escapedRef,
+    fullName,
+    resourceId,
+    userId,
+    explainCodeAvailable,
+  } = dataset;
   const router = createRouter(projectPath, escapedRef);
 
   apolloProvider.clients.defaultClient.cache.writeQuery({
@@ -69,19 +80,33 @@ export default function setupVueRepositoryList() {
     if (!forkEl) {
       return null;
     }
-    const { sourceName, sourcePath, aheadComparePath, behindComparePath } = forkEl.dataset;
+    const {
+      selectedBranch,
+      sourceName,
+      sourcePath,
+      sourceDefaultBranch,
+      createMrPath,
+      viewMrPath,
+      canSyncBranch,
+      aheadComparePath,
+      behindComparePath,
+    } = forkEl.dataset;
     return new Vue({
       el: forkEl,
       apolloProvider,
       render(h) {
         return h(ForkInfo, {
           props: {
+            canSyncBranch: parseBoolean(canSyncBranch),
             projectPath,
-            selectedBranch: ref,
+            selectedBranch,
             sourceName,
             sourcePath,
+            sourceDefaultBranch,
             aheadComparePath,
             behindComparePath,
+            createMrPath,
+            viewMrPath,
           },
         });
       },
@@ -97,6 +122,7 @@ export default function setupVueRepositoryList() {
         return h(LastCommit, {
           props: {
             currentPath: this.$route.params.path,
+            refType: this.$route.meta.refType || this.$route.query.ref_type,
           },
         });
       },
@@ -121,7 +147,7 @@ export default function setupVueRepositoryList() {
 
     if (!refSwitcherEl) return false;
 
-    const { projectId, projectRootPath } = refSwitcherEl.dataset;
+    const { projectId, projectRootPath, refType } = refSwitcherEl.dataset;
 
     return new Vue({
       el: refSwitcherEl,
@@ -129,7 +155,9 @@ export default function setupVueRepositoryList() {
         return createElement(RefSelector, {
           props: {
             projectId,
-            value: ref,
+            value: refType ? joinPaths('refs', refType, ref) : ref,
+            useSymbolicRefNames: true,
+            queryParams: { sort: 'updated_desc' },
           },
           on: {
             input(selectedRef) {
@@ -143,8 +171,8 @@ export default function setupVueRepositoryList() {
 
   initLastCommitApp();
   initBlobControlsApp();
-  initForkInfo();
   initRefSwitcher();
+  initForkInfo();
 
   router.afterEach(({ params: { path } }) => {
     setTitle(path, ref, fullName);
@@ -181,6 +209,7 @@ export default function setupVueRepositoryList() {
         return h(Breadcrumbs, {
           props: {
             currentPath: this.$route.params.path,
+            refType: this.$route.query.ref_type,
             canCollaborate: parseBoolean(canCollaborate),
             canEditTree: parseBoolean(canEditTree),
             canPushCode: parseBoolean(canPushCode),
@@ -202,20 +231,12 @@ export default function setupVueRepositoryList() {
 
   const treeHistoryLinkEl = document.getElementById('js-tree-history-link');
   const { historyLink } = treeHistoryLinkEl.dataset;
-  let { isProjectOverview } = treeHistoryLinkEl.dataset;
-
-  const isProjectOverviewAfterEach = router.afterEach(() => {
-    isProjectOverview = false;
-    isProjectOverviewAfterEach();
-  });
 
   // eslint-disable-next-line no-new
   new Vue({
     el: treeHistoryLinkEl,
     router,
     render(h) {
-      if (parseBoolean(isProjectOverview) && !this.$route.params.path) return null;
-
       return h(
         GlButton,
         {
@@ -265,6 +286,12 @@ export default function setupVueRepositoryList() {
     store: createStore(),
     router,
     apolloProvider,
+    provide: {
+      resourceId,
+      userId,
+      explainCodeAvailable: parseBoolean(explainCodeAvailable),
+      highlightWorker: gon.features.highlightJsWorker ? new HighlightWorker() : null,
+    },
     render(h) {
       return h(App);
     },

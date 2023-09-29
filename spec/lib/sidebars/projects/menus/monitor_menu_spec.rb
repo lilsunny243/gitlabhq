@@ -2,12 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Projects::Menus::MonitorMenu do
+RSpec.describe Sidebars::Projects::Menus::MonitorMenu, feature_category: :navigation do
   let_it_be_with_refind(:project) { create(:project) }
 
   let(:user) { project.first_owner }
   let(:show_cluster_hint) { true }
-  let(:context) { Sidebars::Projects::Context.new(current_user: user, container: project, show_cluster_hint: show_cluster_hint) }
+  let(:context) do
+    Sidebars::Projects::Context.new(current_user: user, container: project, show_cluster_hint: show_cluster_hint)
+  end
 
   subject { described_class.new(context) }
 
@@ -67,12 +69,6 @@ RSpec.describe Sidebars::Projects::Menus::MonitorMenu do
 
         specify { is_expected.to be_nil }
       end
-    end
-
-    describe 'Metrics Dashboard' do
-      let(:item_id) { :metrics }
-
-      it_behaves_like 'access rights checks'
     end
 
     describe 'Error Tracking' do

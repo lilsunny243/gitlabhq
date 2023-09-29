@@ -3,7 +3,7 @@
 require 'gon'
 require 'fogbugz'
 
-class ApplicationController < ActionController::Base
+class ApplicationController < BaseActionController
   include Gitlab::GonHelper
   include Gitlab::NoCacheHeaders
   include GitlabRoutingHelper
@@ -29,7 +29,6 @@ class ApplicationController < ActionController::Base
   before_action :limit_session_time, if: -> { !current_user }
   before_action :authenticate_user!, except: [:route_not_found]
   before_action :enforce_terms!, if: :should_enforce_terms?
-  before_action :validate_user_service_ticket!
   before_action :check_password_expiration, if: :html_request?
   before_action :ldap_security_check
   before_action :default_headers
@@ -39,7 +38,6 @@ class ApplicationController < ActionController::Base
   before_action :active_user_check, unless: :devise_controller?
   before_action :set_usage_stats_consent_flag
   before_action :check_impersonation_availability
-  before_action :required_signup_info
 
   # Make sure the `auth_user` is memoized so it can be logged, we do this after
   # all other before filters that could have set the user.
@@ -60,12 +58,10 @@ class ApplicationController < ActionController::Base
   helper_method :can?
   helper_method :import_sources_enabled?, :github_import_enabled?,
     :gitea_import_enabled?, :github_import_configured?,
-    :gitlab_import_enabled?, :gitlab_import_configured?,
     :bitbucket_import_enabled?, :bitbucket_import_configured?,
     :bitbucket_server_import_enabled?, :fogbugz_import_enabled?,
     :git_import_enabled?, :gitlab_project_import_enabled?,
-    :manifest_import_enabled?, :phabricator_import_enabled?,
-    :masked_page_url
+    :manifest_import_enabled?, :masked_page_url
 
   def self.endpoint_id_for_action(action_name)
     "#{name}##{action_name}"
@@ -89,7 +85,7 @@ class ApplicationController < ActionController::Base
     render_403
   end
 
-  rescue_from Gitlab::Auth::IpBlacklisted do
+  rescue_from Gitlab::Auth::IpBlocked do
     Gitlab::AuthLogger.error(
       message: 'Rack_Attack',
       env: :blocklist,
@@ -111,8 +107,31 @@ class ApplicationController < ActionController::Base
     render plain: e.message, status: :too_many_requests
   end
 
+  rescue_from Gitlab::Git::ResourceExhaustedError do |e|
+    response.headers.merge!(e.headers)
+    render plain: e.message, status: :service_unavailable
+  end
+
   content_security_policy do |p|
     next if p.directives.blank?
+
+    if Rails.env.development? && Feature.enabled?(:vite)
+      vite_host = ViteRuby.instance.config.host
+      vite_port = ViteRuby.instance.config.port
+      vite_origin = "#{vite_host}:#{vite_port}"
+      http_origin = "http://#{vite_origin}"
+      ws_origin = "ws://#{vite_origin}"
+      wss_origin = "wss://#{vite_origin}"
+      gitlab_ws_origin = Gitlab::Utils.append_path(Gitlab.config.gitlab.url, 'vite-dev/')
+      http_path = Gitlab::Utils.append_path(http_origin, 'vite-dev/')
+
+      connect_sources = p.directives['connect-src']
+      p.connect_src(*(Array.wrap(connect_sources) | [ws_origin, wss_origin, http_path]))
+
+      worker_sources = p.directives['worker-src']
+      p.worker_src(*(Array.wrap(worker_sources) | [gitlab_ws_origin, http_path]))
+    end
+
     next unless Gitlab::CurrentSettings.snowplow_enabled? && !Gitlab::CurrentSettings.snowplow_collector_hostname.blank?
 
     default_connect_src = p.directives['connect-src'] || p.directives['default-src']
@@ -323,24 +342,13 @@ class ApplicationController < ActionController::Base
     headers['Content-Disposition'] = "attachment; filename=\"#{csv_filename}\""
   end
 
-  def validate_user_service_ticket!
-    return unless signed_in? && session[:service_tickets]
-
-    valid = session[:service_tickets].all? do |provider, ticket|
-      Gitlab::Auth::OAuth::Session.valid?(provider, ticket)
-    end
-
-    unless valid
-      session[:service_tickets] = nil
-      sign_out current_user
-      redirect_to new_user_session_path
-    end
-  end
-
   def check_password_expiration
-    return if session[:impersonator_id] || !current_user&.allow_password_authentication?
+    return if session[:impersonator_id]
+    return if current_user.nil?
 
-    redirect_to new_profile_password_path if current_user&.password_expired?
+    if current_user.password_expired? && current_user.allow_password_authentication?
+      redirect_to new_profile_password_path
+    end
   end
 
   def active_user_check
@@ -444,14 +452,6 @@ class ApplicationController < ActionController::Base
     Gitlab::Auth::OAuth::Provider.enabled?(:github)
   end
 
-  def gitlab_import_enabled?
-    request.host != 'gitlab.com' && Gitlab::CurrentSettings.import_sources.include?('gitlab')
-  end
-
-  def gitlab_import_configured?
-    Gitlab::Auth::OAuth::Provider.enabled?(:gitlab)
-  end
-
   def bitbucket_import_enabled?
     Gitlab::CurrentSettings.import_sources.include?('bitbucket')
   end
@@ -474,10 +474,6 @@ class ApplicationController < ActionController::Base
 
   def manifest_import_enabled?
     Gitlab::CurrentSettings.import_sources.include?('manifest')
-  end
-
-  def phabricator_import_enabled?
-    Gitlab::PhabricatorImport.available?
   end
 
   # U2F (universal 2nd factor) devices need a unique identifier for the application
@@ -578,15 +574,6 @@ class ApplicationController < ActionController::Base
   # `auth_user` again would also trigger the Warden callbacks again
   def context_user
     auth_user if strong_memoized?(:auth_user)
-  end
-
-  def required_signup_info
-    return unless current_user
-    return unless current_user.role_required?
-
-    store_location_for :user, request.fullpath
-
-    redirect_to users_sign_up_welcome_path
   end
 end
 

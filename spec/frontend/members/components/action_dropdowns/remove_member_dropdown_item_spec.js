@@ -1,6 +1,7 @@
-import { GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdownItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import { modalData } from 'jest/members/mock_data';
 import RemoveMemberDropdownItem from '~/members/components/action_dropdowns/remove_member_dropdown_item.vue';
@@ -52,14 +53,10 @@ describe('RemoveMemberDropdownItem', () => {
     });
   };
 
-  const findDropdownItem = () => wrapper.findComponent(GlDropdownItem);
+  const findDropdownItem = () => wrapper.findComponent(GlDisclosureDropdownItem);
 
   beforeEach(() => {
     createComponent();
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
   });
 
   it('renders a slot with red text', () => {
@@ -67,7 +64,7 @@ describe('RemoveMemberDropdownItem', () => {
   });
 
   it('calls Vuex action to show `remove member` modal when clicked', () => {
-    findDropdownItem().vm.$emit('click');
+    findDropdownItem().vm.$emit('action');
 
     expect(actions.showRemoveMemberModal).toHaveBeenCalledWith(expect.any(Object), {
       ...modalData,

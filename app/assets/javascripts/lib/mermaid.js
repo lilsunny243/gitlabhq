@@ -1,22 +1,32 @@
 import mermaid from 'mermaid';
 import { getParameterByName } from '~/lib/utils/url_utility';
+import { resetServiceWorkersPublicPath } from '~/lib/utils/webpack';
 
+const resetWebpackPublicPath = () => {
+  window.gon = { relative_url_root: getParameterByName('relativeRootPath') };
+  resetServiceWorkersPublicPath();
+};
+
+resetWebpackPublicPath();
 const setIframeRenderedSize = (h, w) => {
   const { origin } = window.location;
   window.parent.postMessage({ h, w }, origin);
 };
 
-const drawDiagram = (source) => {
+const drawDiagram = async (source) => {
   const element = document.getElementById('app');
   const insertSvg = (svgCode) => {
     // eslint-disable-next-line no-unsanitized/property
     element.innerHTML = svgCode;
 
-    const height = parseInt(element.firstElementChild.getAttribute('height'), 10);
-    const width = parseInt(element.firstElementChild.style.maxWidth, 10);
+    element.firstElementChild.removeAttribute('height');
+    const { height, width } = element.firstElementChild.getBoundingClientRect();
+
     setIframeRenderedSize(height, width);
   };
-  mermaid.mermaidAPI.render('mermaid', source, insertSvg);
+
+  const { svg } = await mermaid.mermaidAPI.render('mermaid', source);
+  insertSvg(svg);
 };
 
 const darkModeEnabled = () => getParameterByName('darkMode') === 'true';

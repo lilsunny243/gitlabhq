@@ -28,19 +28,6 @@ RSpec.describe 'projects/commit/show.html.haml', feature_category: :source_code_
     allow(view).to receive(:pagination_params).and_return({})
   end
 
-  context 'inline diff view' do
-    before do
-      allow(view).to receive(:diff_view).and_return(:inline)
-      allow(view).to receive(:diff_view).and_return(:inline)
-
-      render
-    end
-
-    it 'has limited width' do
-      expect(rendered).to have_selector('.limit-container-width')
-    end
-  end
-
   context 'parallel diff view' do
     before do
       allow(view).to receive(:diff_view).and_return(:parallel)
@@ -84,14 +71,12 @@ RSpec.describe 'projects/commit/show.html.haml', feature_category: :source_code_
     let(:title) { badge_attributes['data-title'].value }
     let(:content) { badge_attributes['data-content'].value }
 
-    before do
-      render
-    end
-
     context 'with GPG' do
       let(:commit) { project.commit(GpgHelpers::SIGNED_COMMIT_SHA) }
 
       it 'renders unverified badge' do
+        render
+
         expect(title).to include('This commit was signed with an unverified signature.')
         expect(content).to include(commit.signature.gpg_key_primary_keyid)
       end
@@ -101,8 +86,25 @@ RSpec.describe 'projects/commit/show.html.haml', feature_category: :source_code_
       let(:commit) { project.commit('7b5160f9bb23a3d58a0accdbe89da13b96b1ece9') }
 
       it 'renders unverified badge' do
+        render
+
         expect(title).to include('This commit was signed with an unverified signature.')
         expect(content).to match(/SSH key fingerprint:[\s\S].+#{commit.signature.key_fingerprint_sha256}/)
+      end
+
+      context 'when the commit has been signed by GitLab' do
+        it 'renders verified badge' do
+          allow_next_instance_of(Gitlab::Ssh::Commit) do |instance|
+            allow(instance).to receive(:signer).and_return(:SIGNER_SYSTEM)
+          end
+
+          render
+
+          expect(content).to match(/SSH key fingerprint:[\s\S].+#{commit.signature.key_fingerprint_sha256}/)
+          expect(title).to include(
+            'This commit was created in the GitLab UI, and signed with a GitLab-verified signature.'
+          )
+        end
       end
     end
 
@@ -110,6 +112,8 @@ RSpec.describe 'projects/commit/show.html.haml', feature_category: :source_code_
       let(:commit) { project.commit('189a6c924013fc3fe40d6f1ec1dc20214183bc97') }
 
       it 'renders unverified badge' do
+        render
+
         expect(title).to include('This commit was signed with an <strong>unverified</strong> signature.')
         expect(content).to include(commit.signature.x509_certificate.subject_key_identifier.tr(":", " "))
       end

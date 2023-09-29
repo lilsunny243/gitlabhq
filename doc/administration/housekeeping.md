@@ -76,7 +76,8 @@ frequently.
 
 You can change how often Gitaly is asked to optimize a repository.
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Repository maintenance**.
 1. In the **Housekeeping** section, configure the housekeeping options.
@@ -108,7 +109,7 @@ housekeeping tasks. The manual trigger can be useful when either:
 
 To trigger housekeeping tasks manually:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Advanced**.
 1. Select **Run housekeeping**.
@@ -135,7 +136,7 @@ reduce the likelihood of such race conditions.
 
 To trigger a manual prune of unreachable objects:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Search or go to** and find your project.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Advanced**.
 1. Select **Run housekeeping**.
@@ -166,6 +167,10 @@ You can change this default in Gitaly configuration. The following snippet
 enables daily background repository maintenance starting at 23:00 for 1 hour
 for the `default` storage:
 
+::Tabs
+
+:::TabTitle Self-compiled (source)
+
 ```toml
 [daily_maintenance]
 start_hour = 23
@@ -181,6 +186,33 @@ maintenance:
 [daily_maintenance]
 disabled = true
 ```
+
+:::TabTitle Linux package (Omnibus)
+
+```ruby
+gitaly['configuration'] = {
+  daily_maintenance: {
+    disabled: false,
+    start_hour: 23,
+    start_minute: 00,
+    duration: '1h',
+    storages: ['default'],
+  },
+}
+```
+
+Use the following snippet to completely disable background repository
+maintenance:
+
+```ruby
+gitaly['configuration'] = {
+  daily_maintenance: {
+    disabled: true,
+  },
+}
+```
+
+::EndTabs
 
 ## Object pool repositories
 

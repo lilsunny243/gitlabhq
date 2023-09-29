@@ -10,11 +10,15 @@ module Gitlab
       }.freeze
 
       def validate!
+        # git-notes stores notes history as commits in refs/notes/commits (by
+        # default but is configurable) so we restrict the diff checks to tag
+        # and branch refs
+        return unless tag_ref? || branch_ref?
         return if deletion?
         return unless should_run_validations?
         return if commits.empty?
 
-        paths = project.repository.find_changed_paths(commits.map(&:sha))
+        paths = project.repository.find_changed_paths(treeish_objects, merge_commit_diff_mode: :all_parents)
         paths.each do |path|
           validate_path(path)
         end
@@ -23,6 +27,29 @@ module Gitlab
       end
 
       private
+
+      def treeish_objects
+        objects = commits
+
+        return objects unless project.repository.empty? &&
+          Feature.enabled?(:verify_push_rules_for_first_commit, project)
+
+        # It's a special case for the push to the empty repository
+        #
+        # Git doesn't display a diff of the initial commit of the repository
+        # if we just provide a commit sha.
+        #
+        # To fix that we can use TreeRequest to check the difference
+        # between empty tree sha and the tree sha of the initial commit
+        #
+        # `commits` are sorted in reverse order, the initial commit is the last one.
+        init_commit = objects.last
+
+        diff_tree = Gitlab::Git::DiffTree.from_commit(init_commit)
+        return [diff_tree] + objects if diff_tree
+
+        objects
+      end
 
       def validate_lfs_file_locks?
         strong_memoize(:validate_lfs_file_locks) do
@@ -67,7 +94,7 @@ module Gitlab
           lfs_lock = project.lfs_file_locks.where(path: paths).where.not(user_id: user_access.user.id).take
 
           if lfs_lock
-            return "The path '#{lfs_lock.path}' is locked in Git LFS by #{lfs_lock.user.name}"
+            return "The path '#{lfs_lock.path}' is locked in Git LFS by #{lfs_lock.user.username}"
           end
         end
       end

@@ -17,9 +17,10 @@ module Mutations
             description: 'Updated work item.'
 
       def resolve(id:, **attributes)
+        Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/408575')
+
         work_item = authorized_find!(id: id)
 
-        spam_params = ::Spam::SpamParams.new_from_request(request: context[:request])
         widget_params = extract_widget_params!(work_item.work_item_type, attributes)
 
         interpret_quick_actions!(work_item, current_user, widget_params, attributes)
@@ -29,7 +30,7 @@ module Mutations
           current_user: current_user,
           params: attributes,
           widget_params: widget_params,
-          spam_params: spam_params
+          perform_spam_check: true
         ).execute(work_item)
 
         check_spam_action_response!(work_item)
@@ -41,10 +42,6 @@ module Mutations
       end
 
       private
-
-      def find_object(id:)
-        GitlabSchema.find_by_gid(id)
-      end
 
       def interpret_quick_actions!(work_item, current_user, widget_params, attributes = {})
         return unless work_item.work_item_type.widgets.include?(::WorkItems::Widgets::Description)
@@ -60,21 +57,10 @@ module Mutations
 
         description_param[:description] = description if description && description != original_description
 
-        # Widgets have a set of quick action params that they must process.
-        # Map them to widget_params so they can be picked up by widget services.
-        work_item.work_item_type.widgets
-          .filter { |widget| widget.respond_to?(:quick_action_params) }
-          .each do |widget|
-            widget.quick_action_params
-              .filter { |param_name| command_params.key?(param_name) }
-              .each do |param_name|
-                widget_params[widget.api_symbol] ||= {}
-                widget_params[widget.api_symbol][param_name] = command_params.delete(param_name)
-              end
-          end
+        parsed_params = work_item.transform_quick_action_params(command_params)
 
-        # The command_params not processed by widgets (e.g. title) should be placed in 'attributes'.
-        attributes.merge!(command_params || {})
+        widget_params.merge!(parsed_params[:widgets])
+        attributes.merge!(parsed_params[:common])
       end
     end
   end

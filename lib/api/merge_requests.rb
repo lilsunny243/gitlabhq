@@ -3,10 +3,15 @@
 module API
   class MergeRequests < ::API::Base
     include PaginationParams
+    include Helpers::Unidiff
 
     CONTEXT_COMMITS_POST_LIMIT = 20
 
     before { authenticate_non_get! }
+
+    rescue_from ActiveRecord::QueryCanceled do |_e|
+      render_api_error!({ error: 'Request timed out' }, 408)
+    end
 
     helpers Helpers::MergeRequestsHelpers
 
@@ -64,7 +69,7 @@ module API
         args[:scope] = args[:scope].underscore if args[:scope]
 
         merge_requests = MergeRequestsFinder.new(current_user, args).execute
-                           .reorder(order_options_with_tie_breaker)
+                           .reorder(order_options_with_tie_breaker(override_created_at: false))
         merge_requests = paginate(merge_requests)
                            .preload(:source_project, :target_project)
 
@@ -114,7 +119,13 @@ module API
       end
 
       def recheck_mergeability_of(merge_requests:)
+        return unless can?(current_user, :update_merge_request, user_project)
+
         merge_requests.each { |mr| mr.check_mergeability(async: true) }
+      end
+
+      def batch_process_mergeability_checks(merge_requests)
+        ::MergeRequests::MergeabilityCheckBatchService.new(merge_requests, current_user).execute
       end
 
       params :merge_requests_params do
@@ -170,8 +181,16 @@ module API
       get ":id/merge_requests", feature_category: :code_review_workflow, urgency: :low do
         validate_search_rate_limit! if declared_params[:search].present?
         merge_requests = find_merge_requests(group_id: user_group.id, include_subgroups: true)
+        options = serializer_options_for(merge_requests).merge(group: user_group)
 
-        present merge_requests, serializer_options_for(merge_requests).merge(group: user_group)
+        unless options[:skip_merge_status_recheck]
+          batch_process_mergeability_checks(merge_requests)
+
+          # NOTE: skipping individual mergeability checks in the presenter
+          options[:skip_merge_status_recheck] = true
+        end
+
+        present merge_requests, options
       end
     end
 
@@ -487,6 +506,9 @@ module API
         ]
         tags %w[merge_requests]
       end
+      params do
+        use :with_unidiff
+      end
       get ':id/merge_requests/:merge_request_iid/changes', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
@@ -494,7 +516,8 @@ module API
           with: Entities::MergeRequestChanges,
           current_user: current_user,
           project: user_project,
-          access_raw_diffs: to_boolean(params.fetch(:access_raw_diffs, false))
+          access_raw_diffs: to_boolean(params.fetch(:access_raw_diffs, false)),
+          enable_unidiff: declared_params[:unidiff]
       end
 
       desc 'Get the merge request diffs' do
@@ -508,11 +531,12 @@ module API
       end
       params do
         use :pagination
+        use :with_unidiff
       end
       get ':id/merge_requests/:merge_request_iid/diffs', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
-        present paginate(merge_request.merge_request_diff.paginated_diffs(params[:page], params[:per_page])).diffs, with: Entities::Diff
+        present paginate(merge_request.merge_request_diff.paginated_diffs(params[:page], params[:per_page])).diffs, with: Entities::Diff, enable_unidiff: declared_params[:unidiff]
       end
 
       desc 'Get single merge request pipelines' do

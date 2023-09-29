@@ -14,6 +14,7 @@ module BulkImports
     belongs_to :group, optional: true
 
     has_one :upload, class_name: 'BulkImports::ExportUpload'
+    has_many :batches, class_name: 'BulkImports::ExportBatch'
 
     validates :project, presence: true, unless: :group
     validates :group, presence: true, unless: :project
@@ -31,8 +32,7 @@ module BulkImports
       end
 
       event :finish do
-        transition started: :finished
-        transition failed: :failed
+        transition any => :finished
       end
 
       event :fail_op do
@@ -60,6 +60,13 @@ module BulkImports
       strong_memoize(:config) do
         FileTransfer.config_for(portable)
       end
+    end
+
+    def remove_existing_upload!
+      return unless upload&.export_file&.file
+
+      upload.remove_export_file!
+      upload.save!
     end
   end
 end

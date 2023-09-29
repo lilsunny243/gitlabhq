@@ -1,7 +1,7 @@
 <script>
 import { GlButton, GlLink, GlModal, GlSkeletonLoader } from '@gitlab/ui';
 import { helpPagePath } from '~/helpers/help_page_helper';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __, s__ } from '~/locale';
 import toast from '~/vue_shared/plugins/global_toast';
 import simplePoll from '~/lib/utils/simple_poll';
@@ -195,11 +195,17 @@ export default {
 </script>
 <template>
   <div>
-    <state-container :mr="mr" :status="status" :is-loading="isLoading">
+    <state-container
+      :status="status"
+      :is-loading="isLoading"
+      is-collapsible
+      :collapsed="mr.mergeDetailsCollapsed"
+      @toggle="() => mr.toggleMergeDetails()"
+    >
       <template #loading>
-        <gl-skeleton-loader :width="334" :height="30">
-          <rect x="0" y="3" width="24" height="24" rx="4" />
-          <rect x="32" y="5" width="302" height="20" rx="4" />
+        <gl-skeleton-loader :width="334" :height="24">
+          <rect x="0" y="0" width="24" height="24" rx="4" />
+          <rect x="32" y="2" width="302" height="20" rx="4" />
         </gl-skeleton-loader>
       </template>
       <template v-if="!isLoading">

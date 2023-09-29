@@ -26,25 +26,21 @@ For a full list of reference architectures, see
 | PostgreSQL<sup>1</sup>     | 1     | 2 vCPU, 7.5 GB memory  | `n1-standard-2` | `m5.large`   | `D2s v3` |
 | Redis<sup>2</sup>          | 1     | 1 vCPU, 3.75 GB memory | `n1-standard-1` | `m5.large`   | `D2s v3` |
 | Gitaly<sup>5</sup>         | 1     | 4 vCPU, 15 GB memory   | `n1-standard-4` | `m5.xlarge`  | `D4s v3` |
-| GitLab Rails               | 2     | 8 vCPU, 7.2 GB memory  | `n1-highcpu-8`  | `c5.2xlarge` | `F8s v2` |
+| GitLab Rails<sup>6</sup>   | 2     | 8 vCPU, 7.2 GB memory  | `n1-highcpu-8`  | `c5.2xlarge` | `F8s v2` |
 | Monitoring node            | 1     | 2 vCPU, 1.8 GB memory  | `n1-highcpu-2`  | `c5.large`   | `F2s v2` |
 | Object storage<sup>4</sup> | -     | -                      | -               | -            | -        |
 
 <!-- markdownlint-disable MD029 -->
-1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
-    - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work.
-    - [Google AlloyDB](https://cloud.google.com/alloydb) and [Amazon RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html) have not been tested and are not recommended. Both solutions are specifically not expected to work with GitLab Geo.
-      - Note that [Amazon RDS Multi-AZ DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html) is a separate product and is supported.
-    - [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and [Azure Database for PostgreSQL](https://azure.microsoft.com/en-gb/products/postgresql/#overview) is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61).
-    - Consul is primarily used for Omnibus PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
-2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
-    - [Google Memorystore](https://cloud.google.com/memorystore) and [Amazon ElastiCache](https://aws.amazon.com/elasticache/) are known to work.
+1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Provide your own PostgreSQL instance](#provide-your-own-postgresql-instance) and [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Provide your own Redis instance](#provide-your-own-redis-instance) and [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
 3. Can be optionally run on reputable third-party load balancing services (LB PaaS). See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
-    - [Google Cloud Load Balancing](https://cloud.google.com/load-balancing) and [Amazon Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/) are known to work.
+4. Should be run on reputable Cloud Provider or Self Managed solutions. See [Configure the object storage](#configure-the-object-storage) for more information.
 4. Should be run on reputable Cloud Provider or Self Managed solutions. More information can be found in the [Configure the object storage](#configure-the-object-storage) section.
 5. Gitaly has been designed and tested with repositories of varying sizes that follow best practices. However, large
    repositories or monorepos that don't follow these practices can significantly impact Gitaly requirements. Refer to
    [Large repositories](index.md#large-repositories) for more information.
+6. Can be placed in Auto Scaling Groups (ASGs) as the component doesn't store any [stateful data](index.md#autoscaling-of-stateful-nodes).
+   However, for GitLab Rails certain processes like [migrations](#gitlab-rails-post-configuration) and [Mailroom](../incoming_email.md) should be run on only one node.
 <!-- markdownlint-enable MD029 -->
 
 NOTE:
@@ -57,7 +53,7 @@ skinparam linetype ortho
 card "**External Load Balancer**" as elb #6a9be7
 
 collections "**GitLab Rails** x3" as gitlab #32CD32
-card "**Prometheus + Grafana**" as monitor #7FFFD4
+card "**Prometheus**" as monitor #7FFFD4
 card "**Gitaly**" as gitaly #FF8C00
 card "**PostgreSQL**" as postgres #4EA7FF
 card "**Redis**" as redis #FF6347
@@ -101,7 +97,7 @@ To set up GitLab and its components to accommodate up to 2,000 users:
    environment.
 1. [Configure the object storage](#configure-the-object-storage) used for
    shared data objects.
-1. [Configure Advanced Search](#configure-advanced-search) (optional) for faster,
+1. [Configure advanced search](#configure-advanced-search) (optional) for faster,
    more advanced code search across your entire GitLab instance.
 
 ## Configure the external load balancer
@@ -138,7 +134,7 @@ spread connections equally in practice.
 ### Readiness checks
 
 Ensure the external load balancer only routes to working services with built
-in monitoring endpoints. The [readiness checks](../../user/admin_area/monitoring/health_check.md)
+in monitoring endpoints. The [readiness checks](../monitoring/health_check.md)
 all require [additional configuration](../monitoring/ip_allowlist.md)
 on the nodes being checked, otherwise, the external load balancer will not be able to
 connect.
@@ -211,7 +207,7 @@ Configure your load balancer to pass connections on port 443 as `TCP` rather
 than `HTTP(S)` protocol. This will pass the connection to the application node's
 NGINX service untouched. NGINX will have the SSL certificate and listen on port 443.
 
-See the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+See the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html)
 for details on managing SSL certificates and configuring NGINX.
 
 #### Load balancer terminates SSL without backend SSL
@@ -222,7 +218,7 @@ terminating SSL.
 
 Since communication between the load balancer and GitLab will not be secure,
 there is some additional configuration needed. See the
-[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination)
+[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination)
 for details.
 
 #### Load balancer terminates SSL with backend SSL
@@ -235,7 +231,7 @@ Traffic will also be secure between the load balancers and NGINX in this
 scenario. There is no need to add configuration for proxied SSL since the
 connection will be secure all the way. However, configuration will need to be
 added to GitLab to configure SSL certificates. See
-the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html)
 for details on managing SSL certificates and configuring NGINX.
 
 <div align="right">
@@ -251,27 +247,24 @@ to be used with GitLab.
 
 ### Provide your own PostgreSQL instance
 
-If you're hosting GitLab on a cloud provider, you can optionally use a
-managed service for PostgreSQL.
+You can optionally use a [third party external service for PostgreSQL](../../administration/postgresql/external.md).
 
-A reputable provider or solution should be used for this. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and Azure Database for PostgreSQL is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61). See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+A reputable provider or solution should be used for this. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default from [14.4.0](../../update/versions/gitlab_14_changes.md#1440). See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
 
-If you use a cloud-managed service, or provide your own PostgreSQL:
+If you use a third party external service:
 
+1. Note that the HA Linux package PostgreSQL setup encompasses PostgreSQL, PgBouncer and Consul. All of these components would no longer be required when using a third party external service.
 1. Set up PostgreSQL according to the
    [database requirements document](../../install/requirements.md#database).
-1. Create a `gitlab` username with a password of your choice. The `gitlab` user
+1. Set up a `gitlab` username with a password of your choice. The `gitlab` user
    needs privileges to create the `gitlabhq_production` database.
 1. Configure the GitLab application servers with the appropriate details.
    This step is covered in [Configuring the GitLab Rails application](#configure-gitlab-rails).
 
-See [Configure GitLab using an external PostgreSQL service](../postgresql/external.md) for
-further configuration steps.
-
-### Standalone PostgreSQL using Omnibus GitLab
+### Standalone PostgreSQL using the Linux package
 
 1. SSH in to the PostgreSQL server.
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page.
 1. Generate a password hash for PostgreSQL. This assumes you will use the default
@@ -315,10 +308,10 @@ further configuration steps.
    gitlab_rails['auto_migrate'] = false
    ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Omnibus node you configured and add or replace
-   the file of the same name on this server. If this is the first Omnibus node you are configuring then you can skip this step.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Linux package node you configured and add or replace
+   the file of the same name on this server. If this is the first Linux package you are configuring then you can skip this step.
 
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 1. Note the PostgreSQL node's IP address or hostname, port, and
    plain text password. These will be necessary when configuring the
    [GitLab application server](#configure-gitlab-rails) later.
@@ -339,29 +332,18 @@ to be used with GitLab.
 
 ### Provide your own Redis instance
 
-Redis version 5.0 or higher is required, as this is what ships with
-Omnibus GitLab packages starting with GitLab 13.0. Older Redis versions
-do not support an optional count argument to SPOP which is now required for
-[Merge Trains](../../ci/pipelines/merge_trains.md).
+You can optionally use a third party external service for Redis as long as it meets the [requirements](../../install/requirements.md#redis).
 
-In addition, GitLab makes use of certain commands like `UNLINK` and `USAGE` which
-were introduced only in Redis 4.
+A reputable provider or solution should be used for this. [Google Memorystore](https://cloud.google.com/memorystore/docs/redis/redis-overview) and [AWS ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/WhatIs.html) are known to work. However, note that the Redis Cluster mode specifically isn't supported by GitLab. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
 
-Managed Redis from cloud providers such as AWS ElastiCache will work. If these
-services support high availability, be sure it is not the Redis Cluster type.
+### Standalone Redis using the Linux package
 
-Note the Redis node's IP address or hostname, port, and password (if required).
-These will be necessary when configuring the
-[GitLab application servers](#configure-gitlab-rails) later.
-
-### Standalone Redis using Omnibus GitLab
-
-The Omnibus GitLab package can be used to configure a standalone Redis server.
+The Linux package can be used to configure a standalone Redis server.
 The steps below are the minimum necessary to configure a Redis server with
-Omnibus:
+the Linux package:
 
 1. SSH in to the Redis server.
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page.
 1. Edit `/etc/gitlab/gitlab.rb` and add the contents:
@@ -385,10 +367,10 @@ Omnibus:
    }
    ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Omnibus node you configured and add or replace
-   the file of the same name on this server. If this is the first Omnibus node you are configuring then you can skip this step.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Linux package node you configured and add or replace
+   the file of the same name on this server. If this is the first Linux package node you are configuring then you can skip this step.
 
-1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 1. Note the Redis node's IP address or hostname, port, and
    Redis password. These will be necessary when
@@ -423,9 +405,7 @@ Due to Gitaly having notable input and output requirements, we strongly
 recommend that all Gitaly nodes use solid-state drives (SSDs). These SSDs
 should have a throughput of at least 8,000
 input/output operations per second (IOPS) for read operations and 2,000 IOPS
-for write operations. These IOPS values are initial recommendations, and may be
-adjusted to greater or lesser values depending on the scale of your
-environment's workload. If you're running the environment on a Cloud provider,
+for write operations. If you're running the environment on a Cloud provider,
 refer to their documentation about how to configure IOPS correctly.
 
 Be sure to note the following items:
@@ -452,14 +432,14 @@ installation has two repository storages: `default` and `storage1`.
 
 To configure the Gitaly server, on the server node you want to use for Gitaly:
 
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux package
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page, and _do not_ provide the `EXTERNAL_URL` value.
 1. Edit the Gitaly server node's `/etc/gitlab/gitlab.rb` file to configure
    storage paths, enable the network listener, and to configure the token:
 
    NOTE:
-   You can't remove the `default` entry from `git_data_dirs` because [GitLab requires it](../gitaly/configure_gitaly.md#gitlab-requires-a-default-repository-storage).
+   You can't remove the `default` entry from `gitaly['configuration'][:storage]` because [GitLab requires it](../gitaly/configure_gitaly.md#gitlab-requires-a-default-repository-storage).
 
 <!--
 Updates to example must be made at:
@@ -478,7 +458,6 @@ Updates to example must be made at:
    gitlab_workhorse['enable'] = false
    prometheus['enable'] = false
    alertmanager['enable'] = false
-   grafana['enable'] = false
    gitlab_exporter['enable'] = false
    gitlab_kas['enable'] = false
 
@@ -493,36 +472,54 @@ Updates to example must be made at:
    # Gitaly
    gitaly['enable'] = true
 
-   # Make Gitaly accept connections on all network interfaces. You must use
-   # firewalls to restrict access to this address/port.
-   # Comment out following line if you only want to support TLS connections
-   gitaly['listen_addr'] = "0.0.0.0:8075"
-   gitaly['prometheus_listen_addr'] = "0.0.0.0:9236"
-
-   # Gitaly and GitLab use two shared secrets for authentication, one to authenticate gRPC requests
-   # to Gitaly, and a second for authentication callbacks from GitLab-Shell to the GitLab internal API.
-   # The following two values must be the same as their respective values
-   # of the GitLab Rails application setup
-   gitaly['auth_token'] = 'gitalysecret'
+   # The secret token is used for authentication callbacks from Gitaly to the GitLab internal API.
+   # This must match the respective value in GitLab Rails application setup.
    gitlab_shell['secret_token'] = 'shellsecret'
 
    # Set the network addresses that the exporters used for monitoring will listen on
    node_exporter['listen_address'] = '0.0.0.0:9100'
 
-   git_data_dirs({
-     'default' => {
-       'path' => '/var/opt/gitlab/git-data'
-     },
-     'storage1' => {
-       'path' => '/mnt/gitlab/git-data'
-     },
-   })
+   gitaly['configuration'] = {
+      # ...
+      #
+      # Make Gitaly accept connections on all network interfaces. You must use
+      # firewalls to restrict access to this address/port.
+      # Comment out following line if you only want to support TLS connections
+      listen_addr: '0.0.0.0:8075',
+      prometheus_listen_addr: '0.0.0.0:9236',
+      # Gitaly Auth Token
+      # Should be the same as praefect_internal_token
+      auth: {
+         # ...
+         #
+         # Gitaly's authentication token is used to authenticate gRPC requests to Gitaly. This must match
+         # the respective value in GitLab Rails application setup.
+         token: 'gitalysecret',
+      },
+      # Gitaly Pack-objects cache
+      # Recommended to be enabled for improved performance but can notably increase disk I/O
+      # Refer to https://docs.gitlab.com/ee/administration/gitaly/configure_gitaly.html#pack-objects-cache for more info
+      pack_objects_cache: {
+         # ...
+         enabled: true,
+      },
+      storage: [
+         {
+            name: 'default',
+            path: '/var/opt/gitlab/git-data',
+         },
+         {
+            name: 'storage1',
+            path: '/mnt/gitlab/git-data',
+         },
+      ],
+   }
    ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Omnibus node you configured and add or replace
-   the file of the same name on this server. If this is the first Omnibus node you are configuring then you can skip this step.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Linux package node you configured and add or replace
+   the file of the same name on this server. If this is the first Linux package node you are configuring then you can skip this step.
 
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 
 1. Confirm that Gitaly can perform callbacks to the internal API:
    - For GitLab 15.3 and later, run `sudo /opt/gitlab/embedded/bin/gitaly check /var/opt/gitlab/gitaly/config.toml`.
@@ -538,7 +535,7 @@ You will need to bring your own certificates as this isn't provided automaticall
 The certificate, or its certificate authority, must be installed on all Gitaly
 nodes (including the Gitaly node using the certificate) and on all client nodes
 that communicate with it following the procedure described in
-[GitLab custom certificate configuration](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates).
+[GitLab custom certificate configuration](https://docs.gitlab.com/omnibus/settings/ssl/index.html#install-custom-public-certificates).
 
 NOTE:
 The self-signed certificate must specify the address you use to access the
@@ -574,13 +571,18 @@ To configure Gitaly with TLS:
    <!-- Updates to following example must also be made at https://gitlab.com/gitlab-org/charts/gitlab/blob/master/doc/advanced/external-gitaly/external-omnibus-gitaly.md#configure-omnibus-gitlab -->
 
    ```ruby
-   gitaly['tls_listen_addr'] = "0.0.0.0:9999"
-   gitaly['certificate_path'] = "/etc/gitlab/ssl/cert.pem"
-   gitaly['key_path'] = "/etc/gitlab/ssl/key.pem"
+   gitaly['configuration'] = {
+      # ...
+      tls_listen_addr: '0.0.0.0:9999',
+      tls: {
+         certificate_path: '/etc/gitlab/ssl/cert.pem',
+         key_path: '/etc/gitlab/ssl/key.pem',
+      },
+   }
    ```
 
 1. Delete `gitaly['listen_addr']` to allow only encrypted connections.
-1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
 
 <div align="right">
   <a type="button" class="btn btn-default" href="#setup-components">
@@ -600,7 +602,7 @@ but this is dependent on workload.
 
 On each node perform the following:
 
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page.
 1. Create or edit `/etc/gitlab/gitlab.rb` and use the following configuration.
@@ -714,8 +716,8 @@ On each node perform the following:
       sudo cp cert.pem /etc/gitlab/trusted-certs/
       ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Omnibus node you configured and add or replace
-   the file of the same name on this server. If this is the first Omnibus node you are configuring then you can skip this step.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the first Linux package node you configured and add or replace
+   the file of the same name on this server. If this is the first Linux package node you are configuring then you can skip this step.
 
 1. To ensure database migrations are only run during reconfigure and not automatically on upgrade, run:
 
@@ -726,7 +728,7 @@ On each node perform the following:
    Only a single designated node should handle migrations as detailed in the
    [GitLab Rails post-configuration](#gitlab-rails-post-configuration) section.
 
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. [Reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation) for the changes to take effect.
 1. [Enable incremental logging](#enable-incremental-logging).
 1. Run `sudo gitlab-rake gitlab:gitaly:check` to confirm the node can connect to Gitaly.
 
@@ -739,7 +741,7 @@ On each node perform the following:
 When you specify `https` in the `external_url`, as in the previous example,
 GitLab expects that the SSL certificates are in `/etc/gitlab/ssl/`. If the
 certificates aren't present, NGINX will fail to start. For more information, see
-the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html).
+the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl/index.html).
 
 ### GitLab Rails post-configuration
 
@@ -751,11 +753,9 @@ the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html).
    sudo gitlab-rake gitlab:db:configure
    ```
 
-   If you encounter a `rake aborted!` error message stating that PgBouncer is
-   failing to connect to PostgreSQL, it may be that your PgBouncer node's IP
-   address is missing from PostgreSQL's `trust_auth_cidr_addresses` in `gitlab.rb`
-   on your database nodes. Before proceeding, see
-   [PgBouncer error `ERROR:  pgbouncer cannot connect to server`](../postgresql/replication_and_failover.md#pgbouncer-error-error-pgbouncer-cannot-connect-to-server).
+   Note that this requires the Rails node to be configured to connect to the primary database
+   directly, [bypassing PgBouncer](../postgresql/pgbouncer.md#procedure-for-bypassing-pgbouncer).
+   After migrations have completed, you must configure the node to pass through PgBouncer again.
 
 1. [Configure fast lookup of authorized SSH keys in the database](../operations/fast_ssh_key_lookup.md).
 
@@ -767,32 +767,24 @@ the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html).
 
 ## Configure Prometheus
 
-The Omnibus GitLab package can be used to configure a standalone Monitoring node
-running [Prometheus](../monitoring/prometheus/index.md) and
-[Grafana](../monitoring/performance/grafana_configuration.md):
+The Linux package can be used to configure a standalone Monitoring node
+running [Prometheus](../monitoring/prometheus/index.md):
 
 1. SSH in to the Monitoring node.
-1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
+1. [Download and install](https://about.gitlab.com/install/) the Linux
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page.
 1. Edit `/etc/gitlab/gitlab.rb` and add the contents:
 
    ```ruby
    roles(['monitoring_role'])
+   nginx['enable'] = false
 
    external_url 'http://gitlab.example.com'
 
    # Prometheus
    prometheus['listen_address'] = '0.0.0.0:9090'
    prometheus['monitor_kubernetes'] = false
-
-   # Grafana
-   grafana['enable'] = true
-   grafana['admin_password'] = '<grafana_password>'
-   grafana['disable_login_form'] = false
-
-   # Nginx - For Grafana access
-   nginx['enable'] = true
    ```
 
 1. Prometheus also needs some scrape configurations to pull all the data from the various
@@ -862,9 +854,7 @@ running [Prometheus](../monitoring/prometheus/index.md) and
    ]
    ```
 
-1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-1. In the GitLab UI, set `admin/application_settings/metrics_and_profiling` > Metrics - Grafana to `/-/grafana` to
-`http[s]://<MONITOR NODE>/-/grafana`
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
 
 <div align="right">
   <a type="button" class="btn btn-default" href="#setup-components">
@@ -877,19 +867,19 @@ running [Prometheus](../monitoring/prometheus/index.md) and
 GitLab supports using an [object storage](../object_storage.md) service for holding numerous types of data.
 It's recommended over [NFS](../nfs.md) for data objects and in general it's better
 in larger setups as object storage is typically much more performant, reliable,
-and scalable.
+and scalable. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
 
 There are two ways of specifying object storage configuration in GitLab:
 
-- [Consolidated form](../object_storage.md#consolidated-object-storage-configuration): A single credential is
+- [Consolidated form](../object_storage.md#configure-a-single-storage-connection-for-all-object-types-consolidated-form): A single credential is
   shared by all supported object types.
-- [Storage-specific form](../object_storage.md#storage-specific-configuration): Every object defines its
-  own object storage [connection and configuration](../object_storage.md#connection-settings).
+- [Storage-specific form](../object_storage.md#configure-each-object-type-to-define-its-own-storage-connection-storage-specific-form): Every object defines its
+  own object storage [connection and configuration](../object_storage.md#configure-the-connection-settings).
 
 The consolidated form is used in the following examples when available.
 
 NOTE:
-When using the [storage-specific form](../object_storage.md#storage-specific-configuration)
+When using the [storage-specific form](../object_storage.md#configure-each-object-type-to-define-its-own-storage-connection-storage-specific-form)
 in GitLab 14.x and earlier, you should enable [direct upload mode](../../development/uploads/index.md#direct-upload).
 The previous [background upload](../../development/uploads/index.md#direct-upload) mode,
 which was deprecated in 14.9, requires shared storage such as NFS.
@@ -907,13 +897,13 @@ in the future.
 
 ### Enable incremental logging
 
-GitLab Runner returns job logs in chunks which Omnibus GitLab caches temporarily on disk in `/var/opt/gitlab/gitlab-ci/builds` by default, even when using consolidated object storage. With default configuration, this directory needs to be shared through NFS on any GitLab Rails and Sidekiq nodes.
+GitLab Runner returns job logs in chunks which the Linux package caches temporarily on disk in `/var/opt/gitlab/gitlab-ci/builds` by default, even when using consolidated object storage. With default configuration, this directory needs to be shared through NFS on any GitLab Rails and Sidekiq nodes.
 
 While sharing the job logs through NFS is supported, it's recommended to avoid the need to use NFS by enabling [incremental logging](../job_logs.md#incremental-logging-architecture) (required when no NFS node has been deployed). Incremental logging uses Redis instead of disk space for temporary caching of job logs.
 
-## Configure Advanced Search **(PREMIUM SELF)**
+## Configure advanced search **(PREMIUM SELF)**
 
-You can leverage Elasticsearch and [enable Advanced Search](../../integration/advanced_search/elasticsearch.md)
+You can leverage Elasticsearch and [enable advanced search](../../integration/advanced_search/elasticsearch.md)
 for faster, more advanced code search across your entire GitLab instance.
 
 Elasticsearch cluster design and requirements are dependent on your specific
@@ -934,12 +924,12 @@ in Kubernetes via our official [Helm Charts](https://docs.gitlab.com/charts/).
 In this setup, we support running the equivalent of GitLab Rails and Sidekiq nodes
 in a Kubernetes cluster, named Webservice and Sidekiq respectively. In addition,
 the following other supporting services are supported: NGINX, Task Runner, Migrations,
-Prometheus, and Grafana.
+Prometheus.
 
 Hybrid installations leverage the benefits of both cloud native and traditional
 compute deployments. With this, _stateless_ components can benefit from cloud native
 workload management benefits while _stateful_ components are deployed in compute VMs
-with Omnibus to benefit from increased permanence.
+with Linux package installations to benefit from increased permanence.
 
 Refer to the Helm charts [Advanced configuration](https://docs.gitlab.com/charts/advanced/)
 documentation for setup instructions including guidance on what GitLab secrets to sync
@@ -962,7 +952,7 @@ Refer to [epic 6127](https://gitlab.com/groups/gitlab-org/-/epics/6127) for more
 ### Cluster topology
 
 The following tables and diagram detail the hybrid environment using the same formats
-as the normal environment above.
+as the typical environment above.
 
 First are the components that run in Kubernetes. These run across several node groups, although you can change
 the overall makeup as desired as long as the minimum CPU and Memory requirements are observed.
@@ -978,7 +968,7 @@ the overall makeup as desired as long as the minimum CPU and Memory requirements
 - Nodes configuration is shown as it is forced to ensure pod vCPU / memory ratios and avoid scaling during **performance testing**.
   - In production deployments, there is no need to assign pods to specific nodes. A minimum of three nodes per node group in three different availability zones is strongly recommended to align with resilient cloud architecture practices.
 
-Next are the backend components that run on static compute VMs via Omnibus (or External PaaS
+Next are the backend components that run on static compute VMs using the Linux package (or External PaaS
 services where applicable):
 
 | Service                    | Nodes | Configuration          | GCP             | AWS         |
@@ -990,15 +980,9 @@ services where applicable):
 
 <!-- Disable ordered list rule https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md029---ordered-list-item-prefix -->
 <!-- markdownlint-disable MD029 -->
-1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
-    - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work.
-    - [Google AlloyDB](https://cloud.google.com/alloydb) and [Amazon RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html) have not been tested and are not recommended. Both solutions are specifically not expected to work with GitLab Geo.
-      - Note that [Amazon RDS Multi-AZ DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html) is a separate product and is supported.
-    - [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and [Azure Database for PostgreSQL](https://azure.microsoft.com/en-gb/products/postgresql/#overview) is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61).
-    - Consul is primarily used for Omnibus PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
-2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
-    - [Google Memorystore](https://cloud.google.com/memorystore) and [Amazon ElastiCache](https://aws.amazon.com/elasticache/) are known to work.
-3. Should be run on reputable Cloud Provider or Self Managed solutions. More information can be found in the [Configure the object storage](#configure-the-object-storage) section.
+1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Provide your own PostgreSQL instance](#provide-your-own-postgresql-instance) and [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Provide your own Redis instance](#provide-your-own-redis-instance) and [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+3. Should be run on reputable Cloud Provider or Self Managed solutions. See [Configure the object storage](#configure-the-object-storage) for more information.
 <!-- markdownlint-enable MD029 -->
 
 NOTE:

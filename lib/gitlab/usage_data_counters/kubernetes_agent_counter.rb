@@ -4,7 +4,14 @@ module Gitlab
   module UsageDataCounters
     class KubernetesAgentCounter < BaseCounter
       PREFIX = 'kubernetes_agent'
-      KNOWN_EVENTS = %w[gitops_sync k8s_api_proxy_request].freeze
+      KNOWN_EVENTS = %w[
+        gitops_sync
+        k8s_api_proxy_request
+        flux_git_push_notifications_total
+        k8s_api_proxy_requests_via_ci_access
+        k8s_api_proxy_requests_via_user_access
+        k8s_api_proxy_requests_via_pat_access
+      ].freeze
 
       class << self
         def increment_event_counts(events)

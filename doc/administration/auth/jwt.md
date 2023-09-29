@@ -1,36 +1,36 @@
 ---
 type: reference
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# JWT OmniAuth provider **(FREE SELF)**
+# Use JWT as an OAuth 2.0 authentication provider **(FREE SELF)**
 
 To enable the JWT OmniAuth provider, you must register your application with JWT.
 JWT provides you with a secret key for you to use.
 
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    cd /home/git/gitlab
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](../../integration/omniauth.md#configure-common-settings)
+1. Configure the [common settings](../../integration/omniauth.md#configure-common-settings)
    to add `jwt` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 1. Add the provider configuration.
 
-   For Omnibus GitLab:
+   For Linux package installations:
 
    ```ruby
    gitlab_rails['omniauth_providers'] = [
@@ -49,7 +49,7 @@ JWT provides you with a secret key for you to use.
    ]
    ```
 
-   For installation from source:
+   For self-compiled installations:
 
    ```yaml
    - { name: 'jwt',
@@ -70,11 +70,14 @@ JWT provides you with a secret key for you to use.
    For more information on each configuration option refer to
    the [OmniAuth JWT usage documentation](https://github.com/mbleigh/omniauth-jwt#usage).
 
+   WARNING:
+   Incorrectly configuring these settings can result in an insecure instance.
+
 1. Change `YOUR_APP_SECRET` to the client secret and set `auth_url` to your redirect URL.
 1. Save the configuration file.
-1. For the changes to take effect:
-   - If you installed via Omnibus, [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - If you installed from source, [restart GitLab](../restart_gitlab.md#installations-from-source).
+1. For changes to take effect, if you:
+   - Used the Linux package to install GitLab, [reconfigure GitLab](../restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - Self-compiled your GitLab installation, [restart GitLab](../restart_gitlab.md#self-compiled-installations).
 
 On the sign in page there should now be a JWT icon below the regular sign in form.
 Select the icon to begin the authentication process. JWT asks the user to

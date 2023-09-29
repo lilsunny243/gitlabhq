@@ -3,8 +3,12 @@ import VueApollo from 'vue-apollo';
 import VueRouter from 'vue-router';
 import { convertObjectPropsToCamelCase } from '~/lib/utils/common_utils';
 import EnvironmentsDetailHeader from './components/environments_detail_header.vue';
-import { apolloProvider } from './graphql/client';
+import { apolloProvider as createApolloProvider } from './graphql/client';
 import environmentsMixin from './mixins/environments_mixin';
+
+Vue.use(VueApollo);
+
+const apolloProvider = createApolloProvider();
 
 export const initHeader = () => {
   const el = document.getElementById('environments-detail-view-header');
@@ -13,7 +17,11 @@ export const initHeader = () => {
 
   return new Vue({
     el,
+    apolloProvider,
     mixins: [environmentsMixin],
+    provide: {
+      projectFullPath: dataset.projectFullPath,
+    },
     data() {
       const environment = {
         name: dataset.name,
@@ -43,7 +51,6 @@ export const initHeader = () => {
           canAdminEnvironment: dataset.canAdminEnvironment,
           cancelAutoStopPath: dataset.environmentCancelAutoStopPath,
           terminalPath: dataset.environmentTerminalPath,
-          metricsPath: dataset.environmentMetricsPath,
           updatePath: dataset.environmentEditPath,
         },
       });
@@ -52,15 +59,11 @@ export const initHeader = () => {
 };
 
 export const initPage = async () => {
-  if (!gon.features.environmentDetailsVue) {
-    return null;
-  }
   const EnvironmentsDetailPageModule = await import('./environment_details/index.vue');
   const EnvironmentsDetailPage = EnvironmentsDetailPageModule.default;
   const dataElement = document.getElementById('environments-detail-view');
   const dataSet = convertObjectPropsToCamelCase(JSON.parse(dataElement.dataset.details));
 
-  Vue.use(VueApollo);
   Vue.use(VueRouter);
   const el = document.getElementById('environment_details_page');
 
@@ -90,9 +93,12 @@ export const initPage = async () => {
 
   return new Vue({
     el,
-    apolloProvider: apolloProvider(),
+    apolloProvider,
     router,
-    provide: {},
+    provide: {
+      projectPath: dataSet.projectFullPath,
+      graphqlEtagKey: dataSet.graphqlEtagKey,
+    },
     render(createElement) {
       return createElement('router-view');
     },

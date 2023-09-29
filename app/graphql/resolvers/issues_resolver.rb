@@ -2,14 +2,19 @@
 
 module Resolvers
   class IssuesResolver < Issues::BaseResolver
+    extend ::Gitlab::Utils::Override
     prepend ::Issues::LookAheadPreloads
     include ::Issues::SortArguments
 
-    NON_FILTER_ARGUMENTS = %i[sort lookahead].freeze
+    NON_FILTER_ARGUMENTS = %i[sort lookahead include_archived].freeze
 
+    argument :include_archived, GraphQL::Types::Boolean,
+      required: false,
+      default_value: false,
+      description: 'Whether to include issues from archived projects. Defaults to `false`.'
     argument :state, Types::IssuableStateEnum,
-              required: false,
-              description: 'Current state of this issue.'
+      required: false,
+      description: 'Current state of this issue.'
 
     # see app/graphql/types/issue_connection.rb
     type 'Types::IssueConnection', null: true
@@ -18,6 +23,11 @@ module Resolvers
       projects = nodes.map(&:project)
       ::Preloaders::UserMaxAccessLevelInProjectsPreloader.new(projects, current_user).execute
       ::Preloaders::GroupPolicyPreloader.new(projects.filter_map(&:group), current_user).execute
+      ActiveRecord::Associations::Preloader.new(records: projects, associations: project_associations).call
+    end
+
+    def self.project_associations
+      [:namespace]
     end
 
     def ready?(**args)
@@ -44,8 +54,17 @@ module Resolvers
 
     private
 
+    override :prepare_finder_params
+    def prepare_finder_params(args)
+      super.tap do |prepared|
+        prepared[:non_archived] = !prepared.delete(:include_archived)
+      end
+    end
+
     def filter_provided?(args)
       args.except(*NON_FILTER_ARGUMENTS).values.any?(&:present?)
     end
   end
 end
+
+Resolvers::IssuesResolver.prepend_mod

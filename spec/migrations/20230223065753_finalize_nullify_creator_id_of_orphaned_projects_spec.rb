@@ -4,7 +4,7 @@ require 'spec_helper'
 
 require_migration!
 
-RSpec.describe FinalizeNullifyCreatorIdOfOrphanedProjects, :migration, feature_category: :projects do
+RSpec.describe FinalizeNullifyCreatorIdOfOrphanedProjects, :migration, feature_category: :groups_and_projects do
   let(:batched_migrations) { table(:batched_background_migrations) }
   let(:batch_failed_status) { 2 }
   let(:batch_finalized_status) { 3 }
@@ -26,6 +26,10 @@ RSpec.describe FinalizeNullifyCreatorIdOfOrphanedProjects, :migration, feature_c
     end
 
     context 'when migration is missing' do
+      before do
+        batched_migrations.where(job_class_name: migration).delete_all
+      end
+
       it 'warns migration not found' do
         expect(Gitlab::AppLogger)
           .to receive(:warn).with(/Could not find batched background migration for the given configuration:/)
@@ -37,7 +41,7 @@ RSpec.describe FinalizeNullifyCreatorIdOfOrphanedProjects, :migration, feature_c
     context 'with migration present' do
       let!(:migration_record) do
         batched_migrations.create!(
-          job_class_name: 'NullifyCreatorIdColumnOfOrphanedProjects',
+          job_class_name: migration,
           table_name: :projects,
           column_name: :id,
           job_arguments: [],

@@ -25,6 +25,7 @@ import {
   AWS_TOKEN_CONSTANTS,
   ADD_CI_VARIABLE_MODAL_ID,
   AWS_TIP_DISMISSED_COOKIE_NAME,
+  AWS_TIP_TITLE,
   AWS_TIP_MESSAGE,
   CONTAINS_VARIABLE_REFERENCE_MESSAGE,
   defaultVariableState,
@@ -62,10 +63,6 @@ export default {
   },
   mixins: [glFeatureFlagsMixin(), trackingMixin],
   inject: [
-    'awsLogoSvgPath',
-    'awsTipCommandsLink',
-    'awsTipDeployLink',
-    'awsTipLearnLink',
     'containsVariableReferenceLink',
     'environmentScopeLink',
     'isProtectedByDefault',
@@ -74,6 +71,10 @@ export default {
     'maskableRegex',
   ],
   props: {
+    areEnvironmentsLoading: {
+      type: Boolean,
+      required: true,
+    },
     areScopedVariablesAvailable: {
       type: Boolean,
       required: false,
@@ -88,6 +89,10 @@ export default {
       type: Boolean,
       required: false,
       default: false,
+    },
+    hasEnvScopeQuery: {
+      type: Boolean,
+      required: true,
     },
     mode: {
       type: String,
@@ -121,7 +126,7 @@ export default {
       return regex.test(this.variable.value);
     },
     canSubmit() {
-      return this.variableValidationState && this.variable.key !== '' && this.variable.value !== '';
+      return this.variableValidationState && this.variable.key !== '';
     },
     containsVariableReference() {
       const regex = /\$/;
@@ -142,11 +147,17 @@ export default {
     isTipVisible() {
       return !this.isTipDismissed && AWS_TOKEN_CONSTANTS.includes(this.variable.key);
     },
-    joinedEnvironments() {
+    environmentsList() {
+      if (this.hasEnvScopeQuery) {
+        return this.environments;
+      }
+
       return createJoinedEnvironments(this.variables, this.environments, this.newEnvironments);
     },
     maskedFeedback() {
-      return this.displayMaskedError ? __('This variable can not be masked.') : '';
+      return this.displayMaskedError
+        ? __('This variable value does not meet the masking requirements.')
+        : '';
     },
     maskedState() {
       if (this.displayMaskedError) {
@@ -181,6 +192,11 @@ export default {
     },
     variableValidationState() {
       return this.variable.value === '' || (this.tokenValidationState && this.maskedState);
+    },
+    variableValueHelpText() {
+      return this.variable.masked
+        ? __('Value must meet regular expression requirements to be masked.')
+        : '';
     },
   },
   watch: {
@@ -222,7 +238,7 @@ export default {
       this.resetVariableData();
       this.resetValidationErrorEvents();
 
-      this.$emit('hideModal');
+      this.$emit('close-form');
     },
     resetVariableData() {
       this.variable = { ...defaultVariableState };
@@ -276,6 +292,7 @@ export default {
     },
   },
   i18n: {
+    awsTipTitle: AWS_TIP_TITLE,
     awsTipMessage: AWS_TIP_MESSAGE,
     containsVariableReferenceMessage: CONTAINS_VARIABLE_REFERENCE_MESSAGE,
     defaultScope: allEnvironments.text,
@@ -285,6 +302,9 @@ export default {
   },
   flagLink: helpPagePath('ci/variables/index', {
     anchor: 'define-a-cicd-variable-in-the-ui',
+  }),
+  oidcLink: helpPagePath('ci/cloud_services/index', {
+    anchor: 'oidc-authorization-with-your-cloud-provider',
   }),
   modalId: ADD_CI_VARIABLE_MODAL_ID,
   tokens: awsTokens,
@@ -303,6 +323,23 @@ export default {
     @hidden="resetModalHandler"
     @shown="onShow"
   >
+    <gl-collapse :visible="isTipVisible">
+      <gl-alert
+        :title="$options.i18n.awsTipTitle"
+        variant="warning"
+        class="gl-mb-5"
+        data-testid="aws-guidance-tip"
+        @dismiss="dismissTip"
+      >
+        <gl-sprintf :message="$options.i18n.awsTipMessage">
+          <template #link="{ content }">
+            <gl-link :href="$options.oidcLink">
+              {{ content }}
+            </gl-link>
+          </template>
+        </gl-sprintf>
+      </gl-alert>
+    </gl-collapse>
     <form>
       <gl-form-combobox
         v-model="variable.key"
@@ -316,6 +353,7 @@ export default {
         :label="__('Value')"
         label-for="ci-variable-value"
         :state="variableValidationState"
+        :description="variableValueHelpText"
         :invalid-feedback="variableValidationFeedback"
       >
         <gl-form-textarea
@@ -368,10 +406,13 @@ export default {
             </template>
             <ci-environments-dropdown
               v-if="areScopedVariablesAvailable"
+              :are-environments-loading="areEnvironmentsLoading"
+              :has-env-scope-query="hasEnvScopeQuery"
               :selected-environment-scope="variable.environmentScope"
-              :environments="joinedEnvironments"
+              :environments="environmentsList"
               @select-environment="setEnvironmentScope"
               @create-environment-scope="createEnvironmentScope"
+              @search-environment-scope="$emit('search-environment-scope', $event)"
             />
 
             <gl-form-input v-else :value="$options.i18n.defaultScope" class="gl-w-full" readonly />
@@ -413,17 +454,19 @@ export default {
         >
           {{ __('Mask variable') }}
           <p class="gl-mt-2 text-secondary">
-            {{ __('Variable will be masked in job logs.') }}
-            <span
-              :class="{
-                'bold text-plain': displayMaskedError,
-              }"
+            <gl-sprintf
+              :message="
+                __(
+                  'Mask this variable in job logs if it meets %{linkStart}regular expression requirements%{linkEnd}.',
+                )
+              "
             >
-              {{ __('Requires values to meet regular expression requirements.') }}</span
-            >
-            <gl-link target="_blank" :href="maskedEnvironmentVariablesLink">{{
-              __('Learn more.')
-            }}</gl-link>
+              <template #link="{ content }"
+                ><gl-link target="_blank" :href="maskedEnvironmentVariablesLink">{{
+                  content
+                }}</gl-link>
+              </template>
+            </gl-sprintf>
           </p>
         </gl-form-checkbox>
         <gl-form-checkbox
@@ -443,45 +486,7 @@ export default {
         </gl-form-checkbox>
       </gl-form-group>
     </form>
-    <gl-collapse :visible="isTipVisible">
-      <gl-alert
-        :title="__('Deploying to AWS is easy with GitLab')"
-        variant="tip"
-        data-testid="aws-guidance-tip"
-        @dismiss="dismissTip"
-      >
-        <div class="gl-display-flex gl-flex-direction-row gl-md-flex-wrap-nowraps gl-gap-3">
-          <div>
-            <p>
-              <gl-sprintf :message="$options.i18n.awsTipMessage">
-                <template #deployLink="{ content }">
-                  <gl-link :href="awsTipDeployLink" target="_blank">{{ content }}</gl-link>
-                </template>
-                <template #commandsLink="{ content }">
-                  <gl-link :href="awsTipCommandsLink" target="_blank">{{ content }}</gl-link>
-                </template>
-              </gl-sprintf>
-            </p>
-            <p>
-              <gl-button
-                :href="awsTipLearnLink"
-                target="_blank"
-                category="secondary"
-                variant="confirm"
-                class="gl-overflow-wrap-break"
-                >{{ __('Learn more about deploying to AWS') }}</gl-button
-              >
-            </p>
-          </div>
-          <img
-            class="gl-mt-3"
-            :alt="__('Amazon Web Services Logo')"
-            :src="awsLogoSvgPath"
-            height="32"
-          />
-        </div>
-      </gl-alert>
-    </gl-collapse>
+
     <gl-alert
       v-if="containsVariableReference"
       :title="__('Value might contain a variable reference')"
@@ -505,7 +510,6 @@ export default {
         ref="deleteCiVariable"
         variant="danger"
         category="secondary"
-        data-qa-selector="ci_variable_delete_button"
         @click="deleteVarAndClose"
         >{{ __('Delete variable') }}</gl-button
       >

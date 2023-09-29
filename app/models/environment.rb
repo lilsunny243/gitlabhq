@@ -15,17 +15,16 @@ class Environment < ApplicationRecord
 
   belongs_to :project, optional: false
   belongs_to :merge_request, optional: true
+  belongs_to :cluster_agent, class_name: 'Clusters::Agent', optional: true, inverse_of: :environments
 
   use_fast_destroy :all_deployments
-  nullify_if_blank :external_url
+  nullify_if_blank :external_url, :kubernetes_namespace, :flux_resource_path
 
   has_many :all_deployments, class_name: 'Deployment'
   has_many :deployments, -> { visible }
   has_many :successful_deployments, -> { success }, class_name: 'Deployment'
   has_many :active_deployments, -> { active }, class_name: 'Deployment'
   has_many :prometheus_alerts, inverse_of: :environment
-  has_many :metrics_dashboard_annotations, class_name: 'Metrics::Dashboard::Annotation', inverse_of: :environment
-  has_many :self_managed_prometheus_alert_events, inverse_of: :environment
   has_many :alert_management_alerts, class_name: 'AlertManagement::Alert', inverse_of: :environment
 
   # NOTE: If you preload multiple last deployments of environments, use Preloaders::Environments::DeploymentPreloader.
@@ -35,12 +34,12 @@ class Environment < ApplicationRecord
 
   Deployment::FINISHED_STATUSES.each do |status|
     has_one :"last_#{status}_deployment", -> { where(status: status).ordered },
-            class_name: 'Deployment', inverse_of: :environment
+      class_name: 'Deployment', inverse_of: :environment
   end
 
   Deployment::UPCOMING_STATUSES.each do |status|
     has_one :"last_#{status}_deployment", -> { where(status: status).ordered_as_upcoming },
-            class_name: 'Deployment', inverse_of: :environment
+      class_name: 'Deployment', inverse_of: :environment
   end
 
   has_one :latest_opened_most_severe_alert, -> { order_severity_with_open_prometheus_alert }, class_name: 'AlertManagement::Alert', inverse_of: :environment
@@ -52,30 +51,36 @@ class Environment < ApplicationRecord
   after_save :clear_reactive_cache!
 
   validates :name,
-            presence: true,
-            uniqueness: { scope: :project_id },
-            length: { maximum: 255 },
-            format: { with: Gitlab::Regex.environment_name_regex,
-                      message: Gitlab::Regex.environment_name_regex_message }
+    presence: true,
+    uniqueness: { scope: :project_id },
+    length: { maximum: 255 },
+    format: { with: Gitlab::Regex.environment_name_regex,
+              message: Gitlab::Regex.environment_name_regex_message }
 
   validates :slug,
-            presence: true,
-            uniqueness: { scope: :project_id },
-            length: { maximum: 24 },
-            format: { with: Gitlab::Regex.environment_slug_regex,
-                      message: Gitlab::Regex.environment_slug_regex_message }
+    presence: true,
+    uniqueness: { scope: :project_id },
+    length: { maximum: 24 },
+    format: { with: Gitlab::Regex.environment_slug_regex,
+              message: Gitlab::Regex.environment_slug_regex_message }
 
   validates :external_url,
-            length: { maximum: 255 },
-            allow_nil: true
+    length: { maximum: 255 },
+    allow_nil: true
 
-  # Currently, the tier presence is validaed for newly created environments.
-  # After the `BackfillEnvironmentTiers` background migration has been completed, we should remove `on: :create`.
-  # See https://gitlab.com/gitlab-org/gitlab/-/issues/385253.
-  # Todo: Remove along with FF `validate_environment_tier_presence`.
-  validates :tier, presence: true, on: :create, unless: :validate_environment_tier_present?
+  validates :kubernetes_namespace,
+    allow_nil: true,
+    length: 1..63,
+    format: {
+      with: Gitlab::Regex.kubernetes_namespace_regex,
+      message: Gitlab::Regex.kubernetes_namespace_regex_message
+    }
 
-  validates :tier, presence: true, if: :validate_environment_tier_present?
+  validates :flux_resource_path,
+    length: { maximum: 255 },
+    allow_nil: true
+
+  validates :tier, presence: true
 
   validate :safe_external_url
   validate :merge_request_not_changed
@@ -102,11 +107,11 @@ class Environment < ApplicationRecord
 
   scope :deployed_and_updated_before, -> (project_id, before) do
     # this query joins deployments and filters out any environment that has recent deployments
-    joins = %{
+    joins = %(
     LEFT JOIN "deployments" on "deployments".environment_id = "environments".id
         AND "deployments".project_id = #{project_id}
         AND "deployments".updated_at >= #{connection.quote(before)}
-    }
+    )
     Environment.joins(joins)
                .where(project_id: project_id, updated_at: ...before)
                .group('id', 'deployments.id')
@@ -187,7 +192,7 @@ class Environment < ApplicationRecord
     end
 
     event :stop_complete do
-      transition %i(available stopping) => :stopped
+      transition %i[available stopping] => :stopped
     end
 
     state :available
@@ -236,8 +241,7 @@ class Environment < ApplicationRecord
 
   def self.nested
     group('COALESCE(environment_type, id::text)', 'COALESCE(environment_type, name)')
-      .select('COALESCE(environment_type, id::text), COALESCE(environment_type, name) AS name',
-              'COUNT(*) AS size', 'MAX(id) AS last_id')
+      .select('COALESCE(environment_type, id::text), COALESCE(environment_type, name) AS name', 'COUNT(*) AS size', 'MAX(id) AS last_id')
       .order('name ASC')
   end
 
@@ -329,9 +333,9 @@ class Environment < ApplicationRecord
   end
 
   def cancel_deployment_jobs!
-    active_deployments.builds.each do |build|
-      Gitlab::OptimisticLocking.retry_lock(build, name: 'environment_cancel_deployment_jobs') do |build|
-        build.cancel! if build&.cancelable?
+    active_deployments.jobs.each do |job|
+      Gitlab::OptimisticLocking.retry_lock(job, name: 'environment_cancel_deployment_jobs') do |job|
+        job.cancel! if job&.cancelable?
       end
     rescue StandardError => e
       Gitlab::ErrorTracking.track_exception(e, environment_id: id, deployment_id: deployment.id)
@@ -353,8 +357,12 @@ class Environment < ApplicationRecord
       Gitlab::OptimisticLocking.retry_lock(
         stop_action,
         name: 'environment_stop_with_actions'
-      ) do |build|
-        actions << build.play(current_user)
+      ) do |job|
+        actions << job.play(current_user)
+      rescue StateMachines::InvalidTransition
+        # Ci::PlayBuildService rescues an error of StateMachines::InvalidTransition and fall back to retry. However,
+        # Ci::PlayBridgeService doesn't rescue it, so we're ignoring the error if it's not playable.
+        # We should fix this inconsistency in https://gitlab.com/gitlab-org/gitlab/-/issues/420855.
       end
     end
 
@@ -601,10 +609,6 @@ class Environment < ApplicationRecord
     else
       self.class.tiers[:other]
     end
-  end
-
-  def validate_environment_tier_present?
-    Feature.enabled?(:validate_environment_tier_presence, self.project)
   end
 end
 

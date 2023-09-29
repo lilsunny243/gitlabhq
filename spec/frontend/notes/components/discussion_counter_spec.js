@@ -1,11 +1,12 @@
-import { GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdown, GlDisclosureDropdownItem } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import DiscussionCounter from '~/notes/components/discussion_counter.vue';
 import notesModule from '~/notes/stores/modules';
 import * as types from '~/notes/stores/mutation_types';
-import { noteableDataMock, discussionMock, notesDataMock, userDataMock } from '../mock_data';
+import { discussionMock, noteableDataMock, notesDataMock, userDataMock } from '../mock_data';
 
 describe('DiscussionCounter component', () => {
   let store;
@@ -40,7 +41,6 @@ describe('DiscussionCounter component', () => {
 
   afterEach(() => {
     wrapper.vm.$destroy();
-    wrapper = null;
   });
 
   describe('has no discussions', () => {
@@ -102,9 +102,24 @@ describe('DiscussionCounter component', () => {
     `('renders correctly if $title', async ({ resolved, groupLength }) => {
       updateStore({ resolvable: true, resolved });
       wrapper = mount(DiscussionCounter, { store, propsData: { blocksMerge: true } });
-      await wrapper.find('.dropdown-toggle').trigger('click');
+      await wrapper.findComponent(GlDisclosureDropdown).trigger('click');
 
-      expect(wrapper.findAllComponents(GlDropdownItem)).toHaveLength(groupLength);
+      expect(wrapper.findAllComponents(GlDisclosureDropdownItem)).toHaveLength(groupLength);
+    });
+
+    describe('resolve all with new issue link', () => {
+      it('has correct href prop', async () => {
+        updateStore({ resolvable: true });
+        wrapper = mount(DiscussionCounter, { store, propsData: { blocksMerge: true } });
+
+        const resolveDiscussionsPath =
+          store.getters.getNoteableData.create_issue_to_resolve_discussions_path;
+
+        await wrapper.findComponent(GlDisclosureDropdown).trigger('click');
+        const resolveAllLink = wrapper.find('[data-testid="resolve-all-with-issue-link"]');
+
+        expect(resolveAllLink.attributes('href')).toBe(resolveDiscussionsPath);
+      });
     });
   });
 
@@ -115,11 +130,9 @@ describe('DiscussionCounter component', () => {
       store.commit(types.ADD_OR_UPDATE_DISCUSSIONS, [discussion]);
       store.dispatch('updateResolvableDiscussionsCounts');
       wrapper = mount(DiscussionCounter, { store, propsData: { blocksMerge: true } });
-      await wrapper.find('.dropdown-toggle').trigger('click');
+      await wrapper.findComponent(GlDisclosureDropdown).trigger('click');
       toggleAllButton = wrapper.find('[data-testid="toggle-all-discussions-btn"]');
     };
-
-    afterEach(() => wrapper.destroy());
 
     it('calls button handler when clicked', async () => {
       await updateStoreWithExpanded(true);

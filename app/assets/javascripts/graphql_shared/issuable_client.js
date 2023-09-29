@@ -2,12 +2,12 @@ import produce from 'immer';
 import VueApollo from 'vue-apollo';
 import { defaultDataIdFromObject } from '@apollo/client/core';
 import { concatPagination } from '@apollo/client/utilities';
+import errorQuery from '~/boards/graphql/client/error.query.graphql';
 import getIssueStateQuery from '~/issues/show/queries/get_issue_state.query.graphql';
 import createDefaultClient from '~/lib/graphql';
 import typeDefs from '~/work_items/graphql/typedefs.graphql';
-import { WIDGET_TYPE_NOTES } from '~/work_items/constants';
-import getWorkItemLinksQuery from '~/work_items/graphql/work_item_links.query.graphql';
-import { findHierarchyWidgetChildren } from '~/work_items/utils';
+import { WIDGET_TYPE_NOTES, WIDGET_TYPE_AWARD_EMOJI } from '~/work_items/constants';
+import activeBoardItemQuery from 'ee_else_ce/boards/graphql/client/active_board_item.query.graphql';
 
 export const config = {
   typeDefs,
@@ -36,12 +36,31 @@ export const config = {
           },
         },
       },
+      WorkItemWidgetAwardEmoji: {
+        fields: {
+          // If we add any key args, the awardEmoji field becomes awardEmoji({"first":10}) and
+          // kills any possibility to handle it on the widget level without hardcoding a string.
+          awardEmoji: {
+            keyArgs: false,
+          },
+        },
+      },
       WorkItemWidgetProgress: {
         fields: {
           progress: {
             // We want to show null progress as 0 as per https://gitlab.com/gitlab-org/gitlab/-/issues/386117
             read(existing) {
               return existing === null ? 0 : existing;
+            },
+          },
+        },
+      },
+      DescriptionVersion: {
+        fields: {
+          startVersionId: {
+            read() {
+              // we need to set this when fetching the diff in the last 10 mins , the starting diff will be the very first one , so need to save it
+              return '';
             },
           },
         },
@@ -58,10 +77,30 @@ export const config = {
                 const incomingWidget = incoming.find(
                   (w) => w.type && w.type === existingWidget.type,
                 );
-                // We don't want to override existing notes with empty widget on work item updates
-                if (incomingWidget?.type === WIDGET_TYPE_NOTES && !context.variables.pageSize) {
+                // We don't want to override existing notes or award emojis with empty widget on work item updates
+                if (
+                  (incomingWidget?.type === WIDGET_TYPE_NOTES ||
+                    incomingWidget?.type === WIDGET_TYPE_AWARD_EMOJI) &&
+                  !context.variables.pageSize
+                ) {
                   return existingWidget;
                 }
+
+                // we want to concat next page of awardEmoji to the existing ones
+                if (incomingWidget?.type === WIDGET_TYPE_AWARD_EMOJI && context.variables.after) {
+                  // concatPagination won't work because we were placing new widget here so we have to do this manually
+                  return {
+                    ...incomingWidget,
+                    awardEmoji: {
+                      ...incomingWidget.awardEmoji,
+                      nodes: [
+                        ...existingWidget.awardEmoji.nodes,
+                        ...incomingWidget.awardEmoji.nodes,
+                      ],
+                    },
+                  };
+                }
+
                 // we want to concat next page of discussions to the existing ones
                 if (incomingWidget?.type === WIDGET_TYPE_NOTES && context.variables.after) {
                   // concatPagination won't work because we were placing new widget here so we have to do this manually
@@ -126,6 +165,33 @@ export const config = {
                 };
               },
             },
+            Group: {
+              fields: {
+                projects: {
+                  keyArgs: ['includeSubgroups', 'search'],
+                },
+                descendantGroups: {
+                  keyArgs: ['includeSubgroups', 'search'],
+                },
+              },
+            },
+            ProjectConnection: {
+              fields: {
+                nodes: concatPagination(),
+              },
+            },
+            GroupConnection: {
+              fields: {
+                nodes: concatPagination(),
+              },
+            },
+            Board: {
+              fields: {
+                epics: {
+                  keyArgs: ['boardId'],
+                },
+              },
+            },
             BoardEpicConnection: {
               merge(existing = { nodes: [] }, incoming, { args }) {
                 if (!args.after) {
@@ -137,6 +203,16 @@ export const config = {
                 };
               },
             },
+            Query: {
+              fields: {
+                boardList: {
+                  keyArgs: ['id'],
+                },
+                epicBoardList: {
+                  keyArgs: ['id'],
+                },
+              },
+            },
           }
         : {}),
     },
@@ -145,34 +221,42 @@ export const config = {
 
 export const resolvers = {
   Mutation: {
-    addHierarchyChild: (_, { id, workItem }, { cache }) => {
-      const queryArgs = { query: getWorkItemLinksQuery, variables: { id } };
-      const sourceData = cache.readQuery(queryArgs);
-
-      const data = produce(sourceData, (draftState) => {
-        findHierarchyWidgetChildren(draftState.workItem).push(workItem);
-      });
-
-      cache.writeQuery({ ...queryArgs, data });
-    },
-    removeHierarchyChild: (_, { id, workItem }, { cache }) => {
-      const queryArgs = { query: getWorkItemLinksQuery, variables: { id } };
-      const sourceData = cache.readQuery(queryArgs);
-
-      const data = produce(sourceData, (draftState) => {
-        const hierarchyChildren = findHierarchyWidgetChildren(draftState.workItem);
-        const index = hierarchyChildren.findIndex((child) => child.id === workItem.id);
-        hierarchyChildren.splice(index, 1);
-      });
-
-      cache.writeQuery({ ...queryArgs, data });
-    },
     updateIssueState: (_, { issueType = undefined, isDirty = false }, { cache }) => {
       const sourceData = cache.readQuery({ query: getIssueStateQuery });
       const data = produce(sourceData, (draftData) => {
         draftData.issueState = { issueType, isDirty };
       });
       cache.writeQuery({ query: getIssueStateQuery, data });
+    },
+    setActiveBoardItem(_, { boardItem }, { cache }) {
+      cache.writeQuery({
+        query: activeBoardItemQuery,
+        data: { activeBoardItem: boardItem },
+      });
+      return boardItem;
+    },
+    setError(_, { error }, { cache }) {
+      cache.writeQuery({
+        query: errorQuery,
+        data: { boardsAppError: error },
+      });
+      return error;
+    },
+    clientToggleListCollapsed(_, { list = {}, collapsed = false }) {
+      return {
+        list: {
+          ...list,
+          collapsed,
+        },
+      };
+    },
+    clientToggleEpicListCollapsed(_, { list = {}, collapsed = false }) {
+      return {
+        list: {
+          ...list,
+          collapsed,
+        },
+      };
     },
   },
 };

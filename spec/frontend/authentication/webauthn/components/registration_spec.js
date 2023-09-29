@@ -17,12 +17,15 @@ import {
   STATE_SUCCESS,
   STATE_UNSUPPORTED,
   STATE_WAITING,
+  WEBAUTHN_REGISTER,
 } from '~/authentication/webauthn/constants';
 import * as WebAuthnUtils from '~/authentication/webauthn/util';
+import WebAuthnError from '~/authentication/webauthn/error';
 
 const csrfToken = 'mock-csrf-token';
 jest.mock('~/lib/utils/csrf', () => ({ token: csrfToken }));
 jest.mock('~/authentication/webauthn/util');
+jest.mock('~/authentication/webauthn/error');
 
 describe('Registration', () => {
   const initialError = null;
@@ -40,8 +43,9 @@ describe('Registration', () => {
 
   describe(`when ${STATE_UNSUPPORTED} state`, () => {
     it('shows an error if using unsecure scheme (HTTP)', () => {
+      // `supported` function returns false for HTTP because `navigator.credentials` is undefined.
+      WebAuthnUtils.supported.mockReturnValue(false);
       WebAuthnUtils.isHTTPS.mockReturnValue(false);
-      WebAuthnUtils.supported.mockReturnValue(true);
       createComponent();
 
       const alert = wrapper.findComponent(GlAlert);
@@ -50,8 +54,8 @@ describe('Registration', () => {
     });
 
     it('shows an error if using unsupported browser', () => {
-      WebAuthnUtils.isHTTPS.mockReturnValue(true);
       WebAuthnUtils.supported.mockReturnValue(false);
+      WebAuthnUtils.isHTTPS.mockReturnValue(true);
       createComponent();
 
       const alert = wrapper.findComponent(GlAlert);
@@ -207,7 +211,7 @@ describe('Registration', () => {
     });
 
     describe(`when ${STATE_ERROR} state`, () => {
-      it('shows an initial error message and a retry button', async () => {
+      it('shows an initial error message and a retry button', () => {
         const myError = 'my error';
         createComponent({ initialError: myError });
 
@@ -221,10 +225,12 @@ describe('Registration', () => {
 
       it('shows an error message and a retry button', async () => {
         createComponent();
-        mockCreate.mockRejectedValueOnce(new Error());
+        const error = new Error();
+        mockCreate.mockRejectedValueOnce(error);
 
         await setupDevice();
 
+        expect(WebAuthnError).toHaveBeenCalledWith(error, WEBAUTHN_REGISTER);
         expect(wrapper.findComponent(GlAlert).props()).toMatchObject({
           variant: 'danger',
           secondaryButtonText: I18N_BUTTON_TRY_AGAIN,

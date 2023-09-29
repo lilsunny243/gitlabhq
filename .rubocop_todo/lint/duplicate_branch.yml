@@ -1,6 +1,5 @@
 ---
 Lint/DuplicateBranch:
-  Details: grace period
   Exclude:
     - 'app/controllers/concerns/issuable_collections.rb'
     - 'app/controllers/concerns/sorting_preference.rb'
@@ -28,9 +27,7 @@ Lint/DuplicateBranch:
     - 'lib/gitlab/ci/yaml_processor.rb'
     - 'lib/gitlab/database/load_balancing/load_balancer.rb'
     - 'lib/gitlab/import_export/project/relation_factory.rb'
-    - 'lib/gitlab/search_results.rb'
     - 'lib/mattermost/session.rb'
     - 'lib/sidebars/groups/menus/settings_menu.rb'
     - 'qa/qa/resource/pipeline.rb'
     - 'scripts/rubocop-parse'
-    - 'spec/support/shared_contexts/features/integrations/integrations_shared_context.rb'

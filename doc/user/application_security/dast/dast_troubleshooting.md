@@ -5,7 +5,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 type: reference, howto
 ---
 
-# Troubleshooting DAST proxy-based analyzer **(ULTIMATE)**
+# Troubleshooting DAST proxy-based analyzer **(ULTIMATE ALL)**
 
 The following troubleshooting scenarios have been collected from customer support cases. If you
 experience a problem not addressed here, or the information here does not fix your problem, create a
@@ -70,7 +70,7 @@ tips for optimizing DAST scans in a [blog post](https://about.gitlab.com/blog/20
 
 ## Getting warning message `gl-dast-report.json: no matching files`
 
-For information on this, see the [general Application Security troubleshooting section](../../../ci/pipelines/job_artifacts.md#error-message-no-files-to-upload).
+For information on this, see the [general Application Security troubleshooting section](../../../ci/jobs/job_artifacts_troubleshooting.md#error-message-no-files-to-upload).
 
 ## Getting error `dast job: chosen stage does not exist` when including DAST CI template
 

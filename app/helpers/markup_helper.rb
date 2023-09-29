@@ -63,7 +63,7 @@ module MarkupHelper
     md = markdown_field(object, attribute, options.merge(post_process: false))
     return unless md.present?
 
-    tags = %w(a gl-emoji b strong i em pre code p span)
+    tags = %w[a gl-emoji b strong i em pre code p span]
 
     context = markdown_field_render_context(object, attribute, options)
     context.reverse_merge!(truncate_visible_max_chars: max_chars || md.length)
@@ -73,16 +73,14 @@ module MarkupHelper
       text,
       tags: tags,
       attributes: Rails::Html::WhiteListSanitizer.allowed_attributes +
-        %w(
+        %w[
           style data-src data-name data-unicode-version data-html
           data-reference-type data-project-path data-iid data-mr-title
           data-user
-        )
+        ]
     )
 
-    # since <img> tags are stripped, this can leave empty <a> tags hanging around
-    # (as our markdown wraps images in links)
-    strip_empty_link_tags(text).html_safe
+    render_links(text)
   end
 
   def markdown(text, context = {})
@@ -112,8 +110,8 @@ module MarkupHelper
     prepare_asciidoc_context(file_name, context)
 
     html = Markup::RenderingService
-      .new(text, file_name: file_name, context: context, postprocess_context: postprocess_context)
-      .execute
+             .new(text, file_name: file_name, context: context, postprocess_context: postprocess_context)
+             .execute
 
     Hamlit::RailsHelpers.preserve(html)
   end
@@ -126,8 +124,8 @@ module MarkupHelper
     prepare_asciidoc_context(wiki_page.path, context)
 
     html = Markup::RenderingService
-      .new(text, file_name: wiki_page.path, context: context, postprocess_context: postprocess_context)
-      .execute
+             .new(text, file_name: wiki_page.path, context: context, postprocess_context: postprocess_context)
+             .execute
 
     Hamlit::RailsHelpers.preserve(html)
   end
@@ -171,9 +169,22 @@ module MarkupHelper
     { project: wiki.container }
   end
 
-  def strip_empty_link_tags(text)
+  # Sanitize and style user references links
+  #
+  # @param String text the string to be sanitized
+  #
+  # 1. Remove empty <a> tags which are caused by the <img> tags being stripped
+  #   (as our markdown wraps images in links)
+  # 2. Strip all link tags, except user references, leaving just the link text
+  # 3. Add a highlight class for current user's references
+  #
+  # @return sanitized HTML string
+  def render_links(text)
     scrubber = Loofah::Scrubber.new do |node|
-      node.remove if node.name == 'a' && node.children.empty?
+      next unless node.name == 'a'
+      next node.remove if node.children.empty?
+      next node.replace(node.children) if node['data-reference-type'] != 'user'
+      next node.append_class('current-user') if current_user && node['data-user'] == current_user.id.to_s
     end
 
     sanitize text, scrubber: scrubber
@@ -181,15 +192,21 @@ module MarkupHelper
 
   def markdown_toolbar_button(options = {})
     data = options[:data].merge({ container: 'body' })
-    css_classes = %w[gl-button btn btn-default-tertiary btn-icon js-md has-tooltip] << options[:css_class].to_s
-    content_tag :button,
-      type: 'button',
-      class: css_classes.join(' '),
-      data: data,
-      title: options[:title],
-      aria: { label: options[:title] } do
-      sprite_icon(options[:icon])
-    end
+    css_classes = %w[js-md has-tooltip] << options[:css_class].to_s
+
+    render Pajamas::ButtonComponent.new(
+      category: :tertiary,
+      size: :small,
+      icon: options[:icon],
+      button_options: {
+        class: css_classes.join(' '),
+        data: data,
+        title: options[:title],
+        aria: {
+          label: options[:title]
+        }
+      }
+    )
   end
 
   def render_markdown_field(object, field, context = {})

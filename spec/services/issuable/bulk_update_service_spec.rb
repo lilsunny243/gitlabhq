@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Issuable::BulkUpdateService do
+RSpec.describe Issuable::BulkUpdateService, feature_category: :team_planning do
   let_it_be(:user)    { create(:user) }
   let_it_be(:project) { create(:project, :repository, namespace: user.namespace) }
 
@@ -27,6 +27,23 @@ RSpec.describe Issuable::BulkUpdateService do
 
       issuables.each do |issuable|
         expect(issuable.reload.milestone).to eq(milestone)
+      end
+    end
+  end
+
+  shared_examples 'updates confidentiality' do
+    it 'succeeds' do
+      result = bulk_update(issuables, confidential: true)
+
+      expect(result.success?).to be_truthy
+      expect(result.payload[:count]).to eq(issuables.count)
+    end
+
+    it 'updates the issuables confidentiality' do
+      bulk_update(issuables, confidential: true)
+
+      issuables.each do |issuable|
+        expect(issuable.reload.confidential).to be(true)
       end
     end
   end
@@ -303,6 +320,16 @@ RSpec.describe Issuable::BulkUpdateService do
       end
     end
 
+    describe 'updating confidentiality' do
+      let(:issuables) { create_list(:issue, 2, project: project) }
+
+      it_behaves_like 'updates confidentiality'
+
+      it_behaves_like 'not scheduling cached group count clear' do
+        let(:params) { { confidential: true } }
+      end
+    end
+
     describe 'updating labels' do
       let(:bug) { create(:label, project: project) }
       let(:regression) { create(:label, project: project) }
@@ -387,6 +414,30 @@ RSpec.describe Issuable::BulkUpdateService do
         let(:issuables)      { [merge_request1, merge_request2] }
 
         it_behaves_like 'updates milestones'
+      end
+    end
+
+    describe 'updating confidentiality' do
+      let_it_be(:project) { create(:project, :repository, group: group) }
+
+      before do
+        group.add_maintainer(user)
+      end
+
+      context 'with issues' do
+        let(:issuables) { create_list(:issue, 2, project: project) }
+
+        it_behaves_like 'updates confidentiality'
+      end
+
+      context 'with merge requests' do
+        let(:issuables) { [create(:merge_request, source_project: project, target_project: project)] }
+
+        it 'does not throw an error' do
+          result = bulk_update(issuables, confidential: true)
+
+          expect(result.success?).to be_truthy
+        end
       end
     end
 

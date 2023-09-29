@@ -4,27 +4,24 @@ group: Composition analysis
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Operational Container Scanning **(ULTIMATE)**
+# Operational Container Scanning **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/6346) in GitLab 14.8.
 > - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/368828) the starboard directive in GitLab 15.4. The starboard directive is scheduled for removal in GitLab 16.0.
 
-To view cluster vulnerabilities, you can view the [vulnerability report](../../application_security/vulnerabilities/index.md).
-You can also configure your agent so the vulnerabilities are displayed with other agent information in GitLab.
-
 ## Enable operational container scanning
 
 You can use operational container scanning to scan container images in your cluster for security vulnerabilities. You
-can enable the scanner to run on a cadence as configured via the agent, or setup scan execution policies within a
+can enable the scanner to run on a cadence as configured via the `agent config`, or setup `scan execution policies` within a
 project that houses the agent.
 
 NOTE:
-In GitLab 15.0 and later, you do not need to install Starboard operator in the Kubernetes cluster.
+If both `agent config` and `scan execution policies` are configured, the configuration from `scan execution policy` takes precedence.
 
 ### Enable via agent configuration
 
 To enable scanning of all images within your Kubernetes cluster via the agent configuration, add a `container_scanning` configuration block to your agent
-configuration with a `cadence` field containing a [CRON expression](https://docs.oracle.com/cd/E12058_01/doc/doc.1014/e12030/cron_expressions.htm) for when the scans are run.
+configuration with a `cadence` field containing a [CRON expression](https://en.wikipedia.org/wiki/Cron) for when the scans are run.
 
 ```yaml
 container_scanning:
@@ -56,7 +53,7 @@ container_scanning:
       - kube-system
 ```
 
-## Enable via scan execution policies
+### Enable via scan execution policies
 
 To enable scanning of all images within your Kubernetes cluster via scan execution policies, we can use the
 [scan execution policy editor](../../application_security/policies/scan-execution-policies.md#scan-execution-policy-editor)
@@ -96,12 +93,41 @@ The CRON expression is evaluated in [UTC](https://www.timeanddate.com/worldclock
 
 You can view the complete schema within the [scan execution policy documentation](../../application_security/policies/scan-execution-policies.md#scan-execution-policies-schema).
 
+## Configure scanner resource requirements
+
+By default the scanner pod's default resource requirements are:
+
+```yaml
+requests:
+  cpu: 100m
+  memory: 100Mi
+limits:
+  cpu: 500m
+  memory: 500Mi
+```
+
+You can customize it with a `resource_requirements` field.
+
+```yaml
+container_scanning:
+  resource_requirements:
+    requests:
+      cpu: 200m
+      memory: 200Mi
+    limits:
+      cpu: 700m
+      memory: 700Mi
+```
+
+NOTE:
+Resource requirements can only be set up using the agent configuration. If you enabled `Operational Container Scanning` through `scan execution policies`, you would need to define the resource requirements within the agent configuration file.
+
 ## View cluster vulnerabilities
 
 To view vulnerability information in GitLab:
 
-1. On the top bar, select **Main menu > Projects** and find the project that contains the agent configuration file.
-1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
+1. On the left sidebar, select **Search or go to** and find the project that contains the agent configuration file.
+1. Select **Operate > Kubernetes clusters**.
 1. Select the **Agent** tab.
 1. Select an agent to view the cluster vulnerabilities.
 
@@ -111,3 +137,9 @@ This information can also be found under [operational vulnerabilities](../../../
 
 NOTE:
 You must have at least the Developer role.
+
+## Scanning private images
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/415451) in GitLab 16.4.
+
+To scan private images, the scanner relies on the image pull secrets (direct references and from the service account) to pull the image.

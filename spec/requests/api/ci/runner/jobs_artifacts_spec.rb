@@ -137,6 +137,10 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
               let(:send_request) { subject }
             end
 
+            it_behaves_like 'runner migrations backoff' do
+              let(:request) { subject }
+            end
+
             it "doesn't update runner info" do
               expect { subject }.not_to change { runner.reload.contacted_at }
             end
@@ -174,6 +178,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
                   expect(json_response['RemoteObject']).to have_key('StoreURL')
                   expect(json_response['RemoteObject']).to have_key('DeleteURL')
                   expect(json_response['RemoteObject']).to have_key('MultipartUpload')
+                  expect(json_response['RemoteObject']['SkipDelete']).to eq(true)
                   expect(json_response['MaximumSize']).not_to be_nil
                 end
               end
@@ -255,8 +260,8 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
           it 'tracks code_intelligence usage ping' do
             tracking_params = {
               event_names: 'i_source_code_code_intelligence',
-              start_date: Date.yesterday,
-              end_date: Date.today
+              start_date: Date.today.beginning_of_week,
+              end_date: 1.week.from_now
             }
 
             expect { authorize_artifacts_with_token_in_headers(artifact_type: :lsif) }
@@ -284,6 +289,10 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
           let(:send_request) do
             upload_artifacts(file_upload, headers_with_token)
           end
+        end
+
+        it_behaves_like 'runner migrations backoff' do
+          let(:request) { upload_artifacts(file_upload, headers_with_token) }
         end
 
         it "doesn't update runner info" do
@@ -374,29 +383,53 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
 
                 let(:object) do
                   fog_connection.directories.new(key: 'artifacts').files.create( # rubocop:disable Rails/SaveBang
-                    key: 'tmp/uploads/12312300',
+                    key: remote_path,
                     body: 'content'
                   )
                 end
 
                 let(:file_upload) { fog_to_uploaded_file(object) }
 
-                before do
-                  upload_artifacts(file_upload, headers_with_token, 'file.remote_id' => remote_id)
-                end
+                context 'when uploaded file has matching pending remote upload to its final location' do
+                  let(:remote_path) { '12345/foo-bar-123' }
+                  let(:object_remote_id) { remote_path }
+                  let(:remote_id) { remote_path }
 
-                context 'when valid remote_id is used' do
-                  let(:remote_id) { '12312300' }
+                  before do
+                    allow(JobArtifactUploader).to receive(:generate_final_store_path).and_return(remote_path)
+
+                    ObjectStorage::PendingDirectUpload.prepare(
+                      JobArtifactUploader.storage_location_identifier,
+                      remote_path
+                    )
+
+                    upload_artifacts(file_upload, headers_with_token, 'file.remote_id' => remote_path)
+                  end
 
                   it_behaves_like 'successful artifacts upload'
                 end
 
-                context 'when invalid remote_id is used' do
-                  let(:remote_id) { 'invalid id' }
+                context 'when uploaded file is uploaded to temporary location' do
+                  let(:object_remote_id) { JobArtifactUploader.generate_remote_id }
+                  let(:remote_path) { File.join(ObjectStorage::TMP_UPLOAD_PATH, object_remote_id) }
 
-                  it 'responds with bad request' do
-                    expect(response).to have_gitlab_http_status(:internal_server_error)
-                    expect(json_response['message']).to eq("Missing file")
+                  before do
+                    upload_artifacts(file_upload, headers_with_token, 'file.remote_id' => remote_id)
+                  end
+
+                  context 'and matching temporary remote_id is used' do
+                    let(:remote_id) { object_remote_id }
+
+                    it_behaves_like 'successful artifacts upload'
+                  end
+
+                  context 'and invalid remote_id is used' do
+                    let(:remote_id) { JobArtifactUploader.generate_remote_id }
+
+                    it 'responds with internal server error' do
+                      expect(response).to have_gitlab_http_status(:internal_server_error)
+                      expect(json_response['message']).to eq("Missing file")
+                    end
                   end
                 end
               end
@@ -862,6 +895,10 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_catego
 
         it_behaves_like 'API::CI::Runner application context metadata', 'GET /api/:version/jobs/:id/artifacts' do
           let(:send_request) { download_artifact }
+        end
+
+        it_behaves_like 'runner migrations backoff' do
+          let(:request) { download_artifact }
         end
 
         it "doesn't update runner info" do

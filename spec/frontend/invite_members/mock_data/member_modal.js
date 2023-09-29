@@ -6,14 +6,6 @@ export const propsData = {
   accessLevels: { Guest: 10, Reporter: 20, Developer: 30, Maintainer: 40, Owner: 50 },
   defaultAccessLevel: 30,
   helpLink: 'https://example.com',
-  tasksToBeDoneOptions: [
-    { text: 'First task', value: 'first' },
-    { text: 'Second task', value: 'second' },
-  ],
-  projects: [
-    { text: 'First project', value: '1' },
-    { text: 'Second project', value: '2' },
-  ],
 };
 
 export const inviteSource = 'unknown';
@@ -43,6 +35,31 @@ export const user6 = {
   id: 'user-defined-token3',
   name: 'email5@example.com',
   avatar_url: '',
+};
+
+export const postData = {
+  user_id: `${user1.id},${user2.id}`,
+  access_level: propsData.defaultAccessLevel,
+  expires_at: undefined,
+  invite_source: inviteSource,
+  format: 'json',
+};
+
+export const emailPostData = {
+  access_level: propsData.defaultAccessLevel,
+  expires_at: undefined,
+  email: `${user3.name}`,
+  invite_source: inviteSource,
+  format: 'json',
+};
+
+export const singleUserPostData = {
+  access_level: propsData.defaultAccessLevel,
+  expires_at: undefined,
+  user_id: `${user1.id}`,
+  email: `${user3.name}`,
+  invite_source: inviteSource,
+  format: 'json',
 };
 
 export const GlEmoji = { template: '<img/>' };

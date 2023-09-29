@@ -2,6 +2,7 @@ import { GlCollapsibleListbox } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import { pick, clone } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import ProjectDropdown from '~/error_tracking_settings/components/project_dropdown.vue';
 import { defaultProps, projectList, staleProject } from '../mock';
@@ -31,12 +32,6 @@ describe('error tracking settings project dropdown', () => {
 
   beforeEach(() => {
     mountComponent();
-  });
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-    }
   });
 
   describe('empty project list', () => {

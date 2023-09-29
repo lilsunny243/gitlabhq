@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlAlert, GlButton, GlFormSelect, GlFormGroup, GlIcon, GlLink, GlToken } from '@gitlab/ui';
 import { isNumber } from 'lodash';
@@ -138,7 +139,7 @@ export default {
             <template #description>
               {{ $options.i18n.strategyTypeDescription }}
               <gl-link :href="strategyTypeDocsPagePath" target="_blank">
-                <gl-icon name="question" />
+                <gl-icon name="question-o" />
               </gl-link>
             </template>
             <gl-form-select
@@ -202,7 +203,7 @@ export default {
         {{ $options.i18n.environmentsSelectDescription }}
       </span>
       <gl-link :href="environmentsScopeDocsPath" target="_blank">
-        <gl-icon name="question" />
+        <gl-icon name="question-o" />
       </gl-link>
     </div>
   </div>

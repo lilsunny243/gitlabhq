@@ -6,8 +6,8 @@ RSpec.describe 'User uses header search field', :js, :disable_rate_limiter, feat
   include FilteredSearchHelpers
 
   let_it_be(:project) { create(:project, :repository) }
-  let_it_be(:reporter) { create(:user) }
-  let_it_be(:developer) { create(:user) }
+  let_it_be(:reporter) { create(:user, :no_super_sidebar) }
+  let_it_be(:developer) { create(:user, :no_super_sidebar) }
 
   let(:user) { reporter }
 
@@ -26,11 +26,21 @@ RSpec.describe 'User uses header search field', :js, :disable_rate_limiter, feat
       wait_for_all_requests
     end
 
-    it 'starts searching by pressing the enter key' do
-      submit_search('gitlab')
+    context 'when searching by pressing the enter key' do
+      before do
+        submit_search('gitlab')
+      end
 
-      page.within('.page-title') do
-        expect(page).to have_content('Search')
+      it 'renders page title' do
+        page.within('.page-title') do
+          expect(page).to have_content('Search')
+        end
+      end
+
+      it 'renders breadcrumbs' do
+        page.within('.breadcrumbs') do
+          expect(page).to have_content('Search')
+        end
       end
     end
 

@@ -1,8 +1,9 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
-import { GlIcon } from '@gitlab/ui';
+import { GlIcon, GlTooltipDirective } from '@gitlab/ui';
 import $ from 'jquery';
 import { debounce, unescape } from 'lodash';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import GLForm from '~/gl_form';
 import SafeHtml from '~/vue_shared/directives/safe_html';
 import axios from '~/lib/utils/axios_utils';
@@ -27,6 +28,7 @@ export default {
   },
   directives: {
     SafeHtml,
+    GlTooltip: GlTooltipDirective,
   },
   mixins: [glFeatureFlagsMixin()],
   props: {
@@ -62,10 +64,15 @@ export default {
       required: false,
       default: true,
     },
-    quickActionsDocsPath: {
-      type: String,
+    removeBorder: {
+      type: Boolean,
       required: false,
-      default: '',
+      default: false,
+    },
+    supportsQuickActions: {
+      type: Boolean,
+      required: false,
+      default: false,
     },
     canAttachFile: {
       type: Boolean,
@@ -245,7 +252,7 @@ export default {
       immediate: true,
       handler(newVal) {
         if (!newVal) {
-          this.showWriteTab();
+          this.hidePreview();
         }
       },
     },
@@ -277,7 +284,7 @@ export default {
     }
   },
   methods: {
-    showPreviewTab() {
+    showPreview() {
       if (this.previewMarkdown) return;
 
       this.previewMarkdown = true;
@@ -297,7 +304,7 @@ export default {
         this.renderMarkdown();
       }
     },
-    showWriteTab() {
+    hidePreview() {
       this.markdownPreview = '';
       this.previewMarkdown = false;
     },
@@ -349,8 +356,7 @@ export default {
 <template>
   <div
     ref="gl-form"
-    :class="{ 'gl-mt-3 gl-mb-3': addSpacingClasses }"
-    class="js-vue-markdown-field md-area position-relative gfm-form"
+    class="js-vue-markdown-field md-area position-relative gfm-form gl-overflow-hidden"
     :data-uploads-path="uploadsPath"
   >
     <markdown-header
@@ -363,10 +369,11 @@ export default {
       :uploads-path="uploadsPath"
       :markdown-preview-path="markdownPreviewPath"
       :drawio-enabled="drawioEnabled"
+      :supports-quick-actions="supportsQuickActions"
       data-testid="markdownHeader"
       :restricted-tool-bar-items="restrictedToolBarItems"
-      @preview-markdown="showPreviewTab"
-      @write-markdown="showWriteTab"
+      @showPreview="showPreview"
+      @hidePreview="hidePreview"
       @handleSuggestDismissed="() => $emit('handleSuggestDismissed')"
     />
     <div v-show="!previewMarkdown" class="md-write-holder">
@@ -381,7 +388,6 @@ export default {
         </a>
         <markdown-toolbar
           :markdown-docs-path="markdownDocsPath"
-          :quick-actions-docs-path="quickActionsDocsPath"
           :can-attach-file="canAttachFile"
           :show-comment-tool-bar="showCommentToolBar"
           :show-content-editor-switcher="showContentEditorSwitcher"
@@ -389,34 +395,27 @@ export default {
         />
       </div>
     </div>
-    <template v-if="hasSuggestion">
-      <div
-        v-show="previewMarkdown"
-        ref="markdown-preview"
-        class="js-vue-md-preview md-preview-holder"
-      >
-        <suggestions
-          v-if="hasSuggestion"
-          :note-html="markdownPreview"
-          :line-type="lineType"
-          :disabled="true"
-          :suggestions="suggestions"
-          :help-page-path="helpPagePath"
-        />
-      </div>
-    </template>
-    <template v-else>
-      <div
-        v-show="previewMarkdown"
-        ref="markdown-preview"
-        v-safe-html:[$options.safeHtmlConfig]="markdownPreview"
-        class="js-vue-md-preview md md-preview-holder"
-      ></div>
-    </template>
+    <div
+      v-show="previewMarkdown"
+      ref="markdown-preview"
+      class="js-vue-md-preview md-preview-holder gl-px-5"
+    >
+      <suggestions
+        v-if="hasSuggestion"
+        :note-html="markdownPreview"
+        :line-type="lineType"
+        :disabled="true"
+        :suggestions="suggestions"
+        :help-page-path="helpPagePath"
+      />
+      <template v-else>
+        <div v-safe-html:[$options.safeHtmlConfig]="markdownPreview" class="md"></div>
+      </template>
+    </div>
     <div
       v-if="referencedCommands && previewMarkdown && !markdownPreviewLoading"
       v-safe-html:[$options.safeHtmlConfig]="referencedCommands"
-      class="referenced-commands"
+      class="referenced-commands gl-mx-2 gl-mb-2 gl-px-4 gl-rounded-bottom-left-base gl-rounded-bottom-right-base"
       data-testid="referenced-commands"
     ></div>
     <div v-if="shouldShowReferencedUsers" class="referenced-users">

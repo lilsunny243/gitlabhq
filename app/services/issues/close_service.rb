@@ -6,10 +6,12 @@ module Issues
     def execute(issue, commit: nil, notifications: true, system_note: true, skip_authorization: false)
       return issue unless can_close?(issue, skip_authorization: skip_authorization)
 
-      close_issue(issue,
-                  closed_via: commit,
-                  notifications: notifications,
-                  system_note: system_note)
+      close_issue(
+        issue,
+        closed_via: commit,
+        notifications: notifications,
+        system_note: system_note
+      )
     end
 
     # Closes the supplied issue without checking if the user is authorized to
@@ -28,6 +30,11 @@ module Issues
         event_service.close_issue(issue, current_user)
         create_note(issue, closed_via) if system_note
 
+        if current_user.project_bot?
+          log_audit_event(issue, current_user, "#{issue.issue_type}_closed_by_project_bot",
+            "Closed #{issue.issue_type.humanize(capitalize: false)} #{issue.title}")
+        end
+
         closed_via = _("commit %{commit_id}") % { commit_id: closed_via.id } if closed_via.is_a?(Commit)
 
         notification_service.async.close_issue(issue, current_user, { closed_via: closed_via }) if notifications
@@ -43,7 +50,7 @@ module Issues
           Onboarding::ProgressService.new(project.namespace).execute(action: :issue_auto_closed)
         end
 
-        delete_milestone_closed_issue_counter_cache(issue.milestone)
+        Milestones::ClosedIssuesCountService.new(issue.milestone).delete_cache if issue.milestone
       end
 
       issue
@@ -81,7 +88,7 @@ module Issues
       issue = alert.issue
 
       if alert.resolve
-        SystemNoteService.change_alert_status(alert, User.alert_bot, " because #{current_user.to_reference} closed incident #{issue.to_reference(project)}")
+        SystemNoteService.change_alert_status(alert, Users::Internal.alert_bot, " because #{current_user.to_reference} closed incident #{issue.to_reference(project)}")
       else
         Gitlab::AppLogger.warn(
           message: 'Cannot resolve an associated Alert Management alert',
@@ -93,7 +100,7 @@ module Issues
     end
 
     def resolve_incident(issue)
-      return unless issue.incident?
+      return unless issue.work_item_type&.incident?
 
       status = issue.incident_management_issuable_escalation_status || issue.build_incident_management_issuable_escalation_status
 

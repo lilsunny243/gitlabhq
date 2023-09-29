@@ -38,8 +38,8 @@ module Gitlab
       Timing information for debugging purposes:
     MESSAGE
 
-    DOWNLOAD_COMMANDS = %w{git-upload-pack git-upload-archive}.freeze
-    PUSH_COMMANDS = %w{git-receive-pack}.freeze
+    DOWNLOAD_COMMANDS = %w[git-upload-pack git-upload-archive].freeze
+    PUSH_COMMANDS = %w[git-receive-pack].freeze
     ALL_COMMANDS = DOWNLOAD_COMMANDS + PUSH_COMMANDS
 
     attr_reader :actor, :protocol, :authentication_abilities,
@@ -513,7 +513,7 @@ module Gitlab
     end
 
     def check_size_against_limit(size)
-      if size_checker.changes_will_exceed_size_limit?(size)
+      if size_checker.changes_will_exceed_size_limit?(size, project)
         raise ForbiddenError, size_checker.error_message.new_changes_error
       end
     end

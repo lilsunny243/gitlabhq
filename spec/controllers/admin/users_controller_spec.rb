@@ -356,7 +356,7 @@ RSpec.describe Admin::UsersController do
         put :activate, params: { id: user.username }
         user.reload
         expect(user.active?).to be_falsey
-        expect(flash[:notice]).to eq('Error occurred. A blocked user must be unblocked to be activated')
+        expect(flash[:alert]).to eq('Error occurred. A blocked user must be unblocked to be activated')
       end
     end
   end
@@ -388,7 +388,7 @@ RSpec.describe Admin::UsersController do
           put :deactivate, params: { id: user.username }
           user.reload
           expect(user.deactivated?).to be_falsey
-          expect(flash[:notice]).to eq("The user you are trying to deactivate has been active in the past #{Gitlab::CurrentSettings.deactivate_dormant_users_period} days and cannot be deactivated")
+          expect(flash[:alert]).to eq("The user you are trying to deactivate has been active in the past #{Gitlab::CurrentSettings.deactivate_dormant_users_period} days and cannot be deactivated")
         end
       end
     end
@@ -410,18 +410,18 @@ RSpec.describe Admin::UsersController do
         put :deactivate, params: { id: user.username }
         user.reload
         expect(user.deactivated?).to be_falsey
-        expect(flash[:notice]).to eq('Error occurred. A blocked user cannot be deactivated')
+        expect(flash[:alert]).to eq('Error occurred. A blocked user cannot be deactivated')
       end
     end
 
     context 'for an internal user' do
       it 'does not deactivate the user' do
-        internal_user = User.alert_bot
+        internal_user = Users::Internal.alert_bot
 
         put :deactivate, params: { id: internal_user.username }
 
         expect(internal_user.reload.deactivated?).to be_falsey
-        expect(flash[:notice]).to eq('Internal users cannot be deactivated')
+        expect(flash[:alert]).to eq('Internal users cannot be deactivated')
       end
     end
   end
@@ -904,7 +904,7 @@ RSpec.describe Admin::UsersController do
       it "shows a notice" do
         post :impersonate, params: { id: user.username }
 
-        expect(flash[:alert]).to eq("You are now impersonating #{user.username}")
+        expect(flash[:notice]).to eq("You are now impersonating #{user.username}")
       end
 
       it 'clears token session keys' do

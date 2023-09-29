@@ -1,7 +1,6 @@
 ---
 # Cop supports --autocorrect.
 Layout/LineContinuationSpacing:
-  Details: grace period
   Exclude:
     - 'app/controllers/concerns/controller_with_cross_project_access_check.rb'
     - 'app/controllers/projects/google_cloud/databases_controller.rb'
@@ -16,7 +15,6 @@ Layout/LineContinuationSpacing:
     - 'app/models/environment.rb'
     - 'app/models/integrations/base_third_party_wiki.rb'
     - 'app/models/integrations/teamcity.rb'
-    - 'app/models/members/member_role.rb'
     - 'app/models/work_items/parent_link.rb'
     - 'app/services/feature_flags/update_service.rb'
     - 'app/services/issues/build_service.rb'
@@ -24,8 +22,6 @@ Layout/LineContinuationSpacing:
     - 'app/services/uploads/destroy_service.rb'
     - 'app/services/users/email_verification/validate_token_service.rb'
     - 'config/initializers_before_autoloader/003_gc_compact.rb'
-    - 'ee/app/components/namespaces/storage/pre_enforcement_alert_component.rb'
-    - 'ee/app/components/namespaces/storage/user_pre_enforcement_alert_component.rb'
     - 'ee/app/controllers/ee/ldap/omniauth_callbacks_controller.rb'
     - 'ee/app/graphql/mutations/app_sec/fuzzing/api/ci_configuration/create.rb'
     - 'ee/app/graphql/mutations/requirements_management/export_requirements.rb'
@@ -56,7 +52,6 @@ Layout/LineContinuationSpacing:
     - 'ee/lib/ee/gitlab/ci/pipeline/quota/size.rb'
     - 'ee/lib/ee/gitlab/git_access.rb'
     - 'ee/lib/tasks/gitlab/geo.rake'
-    - 'ee/spec/components/namespaces/free_user_cap/usage_quota_trial_alert_component_spec.rb'
     - 'ee/spec/controllers/groups/group_members_controller_spec.rb'
     - 'ee/spec/controllers/projects/security/configuration_controller_spec.rb'
     - 'ee/spec/features/admin/admin_emails_spec.rb'
@@ -142,8 +137,6 @@ Layout/LineContinuationSpacing:
     - 'rubocop/cop/migration/background_migrations.rb'
     - 'rubocop/cop/performance/ar_exists_and_present_blank.rb'
     - 'rubocop/cop/redis_queue_usage.rb'
-    - 'scripts/create-pipeline-failure-incident.rb'
-    - 'scripts/generate-failed-pipeline-slack-message.rb'
     - 'scripts/qa/testcases-check'
     - 'spec/controllers/concerns/controller_with_cross_project_access_check_spec.rb'
     - 'spec/features/issues/create_issue_for_single_discussion_in_merge_request_spec.rb'
@@ -154,7 +147,6 @@ Layout/LineContinuationSpacing:
     - 'spec/features/projects/files/user_edits_files_spec.rb'
     - 'spec/features/projects/files/user_replaces_files_spec.rb'
     - 'spec/features/projects/issues/viewing_issues_with_external_authorization_enabled_spec.rb'
-    - 'spec/features/u2f_spec.rb'
     - 'spec/features/users/email_verification_on_login_spec.rb'
     - 'spec/features/users/login_spec.rb'
     - 'spec/finders/groups/projects_requiring_authorizations_refresh/on_direct_membership_finder_spec.rb'
@@ -173,8 +165,6 @@ Layout/LineContinuationSpacing:
     - 'spec/lib/gitlab/usage/metrics/instrumentations/count_imported_projects_total_metric_spec.rb'
     - 'spec/lib/gitlab/usage/metrics/instrumentations/gitlab_for_jira_app_direct_installations_count_metric_spec.rb'
     - 'spec/lib/gitlab/usage/metrics/instrumentations/gitlab_for_jira_app_proxy_installations_count_metric_spec.rb'
-    - 'spec/lib/gitlab/usage/metrics/instrumentations/in_product_marketing_email_cta_clicked_metric_spec.rb'
-    - 'spec/lib/gitlab/usage/metrics/instrumentations/in_product_marketing_email_sent_metric_spec.rb'
     - 'spec/lib/gitlab/utils/gzip_spec.rb'
     - 'spec/lib/system_check/incoming_email/imap_authentication_check_spec.rb'
     - 'spec/mailers/emails/identity_verification_spec.rb'
@@ -184,7 +174,6 @@ Layout/LineContinuationSpacing:
     - 'spec/models/integrations/chat_message/push_message_spec.rb'
     - 'spec/models/integrations/chat_message/wiki_page_message_spec.rb'
     - 'spec/models/member_spec.rb'
-    - 'spec/models/members/member_role_spec.rb'
     - 'spec/models/operations/feature_flags_client_spec.rb'
     - 'spec/models/project_spec.rb'
     - 'spec/requests/api/graphql/mutations/clusters/agent_tokens/agent_tokens/create_spec.rb'

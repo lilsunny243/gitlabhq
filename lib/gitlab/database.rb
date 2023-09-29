@@ -2,8 +2,6 @@
 
 module Gitlab
   module Database
-    DATABASE_NAMES = %w[main ci main_clusterwide].freeze
-
     MAIN_DATABASE_NAME = 'main'
     CI_DATABASE_NAME = 'ci'
     DEFAULT_POOL_HEADROOM = 10
@@ -18,7 +16,7 @@ module Gitlab
 
     # Minimum PostgreSQL version requirement per documentation:
     # https://docs.gitlab.com/ee/install/requirements.html#postgresql-requirements
-    MINIMUM_POSTGRES_VERSION = 12
+    MINIMUM_POSTGRES_VERSION = 13
 
     # https://www.postgresql.org/docs/9.2/static/datatype-numeric.html
     MAX_INT_VALUE = 2147483647
@@ -35,7 +33,7 @@ module Gitlab
     MAX_TEXT_SIZE_LIMIT = 1_000_000
 
     # Migrations before this version may have been removed
-    MIN_SCHEMA_GITLAB_VERSION = '15.0'
+    MIN_SCHEMA_GITLAB_VERSION = '15.11'
 
     # Schema we store dynamically managed partitions in (e.g. for time partitioning)
     DYNAMIC_PARTITIONS_SCHEMA = :gitlab_partitions_dynamic
@@ -51,67 +49,83 @@ module Gitlab
 
     FULLY_QUALIFIED_IDENTIFIER = /^\w+\.\w+$/
 
+    ## Database Modes
+    MODE_SINGLE_DATABASE = "single-database"
+    MODE_SINGLE_DATABASE_CI_CONNECTION = "single-database-ci-connection"
+    MODE_MULTIPLE_DATABASES = "multiple-databases"
+
+    def self.all_database_connection_files
+      Dir.glob(Rails.root.join("db/database_connections/*.yaml"))
+    end
+
+    def self.all_gitlab_schema_files
+      Dir.glob(Rails.root.join("db/gitlab_schemas/*.yaml"))
+    end
+
+    def self.all_database_connections
+      @all_database_connections ||=
+        all_database_connection_files
+          .map { |file| DatabaseConnectionInfo.load_file(file) }
+          .sort_by(&:order)
+          .index_by(&:name)
+          .with_indifferent_access.freeze
+    end
+
+    def self.all_database_names
+      all_database_connections.keys.map(&:to_s)
+    end
+
+    def self.all_gitlab_schemas
+      @all_gitlab_schemas ||=
+        all_gitlab_schema_files
+          .map { |file| GitlabSchemaInfo.load_file(file) }
+          .index_by(&:name)
+          .with_indifferent_access.freeze
+    end
+
     def self.database_base_models
-      @database_base_models ||= {
-        # Note that we use ActiveRecord::Base here and not ApplicationRecord.
-        # This is deliberate, as we also use these classes to apply load
-        # balancing to, and the load balancer must be enabled for _all_ models
-        # that inherit from ActiveRecord::Base; not just our own models that
-        # inherit from ApplicationRecord.
-        main: ::ActiveRecord::Base,
-        main_clusterwide: ::MainClusterwide::ApplicationRecord.connection_class? ? ::MainClusterwide::ApplicationRecord : nil,
-        ci: ::Ci::ApplicationRecord.connection_class? ? ::Ci::ApplicationRecord : nil
-      }.compact.with_indifferent_access.freeze
+      # Note that we use ActiveRecord::Base here and not ApplicationRecord.
+      # This is deliberate, as we also use these classes to apply load
+      # balancing to, and the load balancer must be enabled for _all_ models
+      # that inherit from ActiveRecord::Base; not just our own models that
+      # inherit from ApplicationRecord.
+      @database_base_models ||=
+        all_database_connections
+          .transform_values(&:connection_class)
+          .compact.with_indifferent_access.freeze
     end
 
     # This returns a list of databases that contains all the gitlab_shared schema
-    # tables. We can't reuse database_base_models because Geo does not support
-    # the gitlab_shared tables yet.
+    # tables.
     def self.database_base_models_with_gitlab_shared
-      @database_base_models_with_gitlab_shared ||= {
-        # Note that we use ActiveRecord::Base here and not ApplicationRecord.
-        # This is deliberate, as we also use these classes to apply load
-        # balancing to, and the load balancer must be enabled for _all_ models
-        # that inher from ActiveRecord::Base; not just our own models that
-        # inherit from ApplicationRecord.
-        main: ::ActiveRecord::Base,
-        main_clusterwide: ::MainClusterwide::ApplicationRecord.connection_class? ? ::MainClusterwide::ApplicationRecord : nil,
-        ci: ::Ci::ApplicationRecord.connection_class? ? ::Ci::ApplicationRecord : nil
-      }.compact.with_indifferent_access.freeze
+      @database_base_models_with_gitlab_shared ||=
+        all_database_connections
+          .select { |_, db| db.has_gitlab_shared? }
+          .transform_values(&:connection_class)
+          .compact.with_indifferent_access.freeze
     end
 
     # This returns a list of databases whose connection supports database load
-    # balancing. We can't reuse the database_base_models method because the Geo
-    # database does not support load balancing yet.
-    #
-    # TODO: https://gitlab.com/gitlab-org/geo-team/discussions/-/issues/5032
+    # balancing. We can't reuse the database_base_models since not all connections
+    # do support load balancing.
     def self.database_base_models_using_load_balancing
-      @database_base_models_using_load_balancing ||= {
-        # Note that we use ActiveRecord::Base here and not ApplicationRecord.
-        # This is deliberate, as we also use these classes to apply load
-        # balancing to, and the load balancer must be enabled for _all_ models
-        # that inher from ActiveRecord::Base; not just our own models that
-        # inherit from ApplicationRecord.
-        main: ::ActiveRecord::Base,
-        main_clusterwide: ::MainClusterwide::ApplicationRecord.connection_class? ? ::MainClusterwide::ApplicationRecord : nil,
-        ci: ::Ci::ApplicationRecord.connection_class? ? ::Ci::ApplicationRecord : nil
-      }.compact.with_indifferent_access.freeze
+      @database_base_models_using_load_balancing ||=
+        all_database_connections
+          .select { |_, db| db.uses_load_balancing? }
+          .transform_values(&:connection_class)
+          .compact.with_indifferent_access.freeze
     end
 
     # This returns a list of base models with connection associated for a given gitlab_schema
     def self.schemas_to_base_models
-      @schemas_to_base_models ||= {
-        gitlab_main: [self.database_base_models.fetch(:main)],
-        gitlab_ci: [self.database_base_models[:ci] || self.database_base_models.fetch(:main)], # use CI or fallback to main
-        gitlab_shared: database_base_models_with_gitlab_shared.values, # all models
-        gitlab_internal: database_base_models.values, # all models
-        gitlab_pm: [self.database_base_models.fetch(:main)], # package metadata models
-        gitlab_main_clusterwide: [self.database_base_models[:main_clusterwide] || self.database_base_models.fetch(:main)]
-      }.with_indifferent_access.freeze
-    end
-
-    def self.all_database_names
-      DATABASE_NAMES
+      @schemas_to_base_models ||=
+        all_gitlab_schemas.transform_values do |schema|
+          all_database_connections
+            .values
+            .select { |db| db.gitlab_schemas.include?(schema.name) }
+            .filter_map { |db| db.connection_class_or_fallback(all_database_connections) }
+            .uniq
+        end.compact.with_indifferent_access.freeze
     end
 
     # We configure the database connection pool size automatically based on the
@@ -128,10 +142,27 @@ module Gitlab
       Gitlab::Runtime.max_threads + headroom
     end
 
+    # Database configured. Returns true even if the database is shared
     def self.has_config?(database_name)
       ActiveRecord::Base.configurations
-        .configs_for(env_name: Rails.env, name: database_name.to_s, include_replicas: true)
+        .configs_for(env_name: Rails.env, name: database_name.to_s, include_hidden: true)
         .present?
+    end
+
+    # Database configured. Returns false if the database is shared
+    def self.has_database?(database_name)
+      db_config = ::Gitlab::Database.database_base_models[database_name]&.connection_db_config
+      db_config.present? && db_config_share_with(db_config).nil?
+    end
+
+    def self.database_mode
+      if !has_config?(CI_DATABASE_NAME)
+        MODE_SINGLE_DATABASE
+      elsif has_database?(CI_DATABASE_NAME)
+        MODE_MULTIPLE_DATABASES
+      else
+        MODE_SINGLE_DATABASE_CI_CONNECTION
+      end
     end
 
     class PgUser < ApplicationRecord
@@ -153,38 +184,6 @@ module Gitlab
       raise 'User CURRENT_USER not found'
     end
     # rubocop: enable CodeReuse/ActiveRecord
-
-    def self.check_postgres_version_and_print_warning
-      return if Gitlab::Runtime.rails_runner?
-
-      database_base_models.each do |name, model|
-        database = Gitlab::Database::Reflection.new(model)
-
-        next if database.postgresql_minimum_supported_version?
-
-        Kernel.warn ERB.new(Rainbow.new.wrap(<<~EOS).red).result
-
-                    ██     ██  █████  ██████  ███    ██ ██ ███    ██  ██████ 
-                    ██     ██ ██   ██ ██   ██ ████   ██ ██ ████   ██ ██      
-                    ██  █  ██ ███████ ██████  ██ ██  ██ ██ ██ ██  ██ ██   ███ 
-                    ██ ███ ██ ██   ██ ██   ██ ██  ██ ██ ██ ██  ██ ██ ██    ██ 
-                     ███ ███  ██   ██ ██   ██ ██   ████ ██ ██   ████  ██████  
-
-          ******************************************************************************
-            You are using PostgreSQL #{database.version} for the #{name} database, but PostgreSQL >= <%= Gitlab::Database::MINIMUM_POSTGRES_VERSION %>
-            is required for this version of GitLab.
-            <% if Rails.env.development? || Rails.env.test? %>
-            If using gitlab-development-kit, please find the relevant steps here:
-              https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/postgresql.md#upgrade-postgresql
-            <% end %>
-            Please upgrade your environment to a supported PostgreSQL version, see
-            https://docs.gitlab.com/ee/install/requirements.html#database for details.
-          ******************************************************************************
-        EOS
-      rescue ActiveRecord::ActiveRecordError, PG::Error
-        # ignore - happens when Rake tasks yet have to create a database, e.g. for testing
-      end
-    end
 
     def self.random
       "RANDOM()"
@@ -234,8 +233,16 @@ module Gitlab
       end
     end
 
-    def self.db_config_names
-      ::ActiveRecord::Base.configurations.configs_for(env_name: Rails.env).map(&:name) - ['geo']
+    def self.db_config_names(with_schema:)
+      db_config_names = ::ActiveRecord::Base.configurations
+        .configs_for(env_name: Rails.env).map(&:name)
+      return db_config_names unless with_schema
+
+      schema_models = schemas_to_base_models.fetch(with_schema)
+      db_config_names.select do |db_config_name|
+        db_info = all_database_connections.fetch(db_config_name)
+        schema_models.include?(db_info.connection_class)
+      end
     end
 
     # This returns all matching schemas that a given connection can use
@@ -290,14 +297,19 @@ module Gitlab
       db_config&.name || 'unknown'
     end
 
-    # Currently the database configuration can only be shared with `main:`
-    # If the `database_tasks: false` is being used
-    # This is to be refined: https://gitlab.com/gitlab-org/gitlab/-/issues/356580
+    # If the `database_tasks: false` is being used,
+    # return the expected fallback database for this database configuration
     def self.db_config_share_with(db_config)
-      if db_config.database_tasks?
-        nil # no sharing
+      # no sharing
+      return if db_config.database_tasks?
+
+      database_connection_info = all_database_connections[db_config.name]
+
+      if database_connection_info
+        database_connection_info.fallback_database&.to_s
       else
-        'main' # share with `main:`
+        # legacy behaviour
+        'main'
       end
     end
 

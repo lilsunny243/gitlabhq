@@ -13,8 +13,8 @@ module Gitlab
           ALLOWED_WHEN = %w[on_success on_failure always manual delayed].freeze
           ALLOWED_KEYS = %i[tags script image services start_in artifacts
                             cache dependencies before_script after_script hooks
-                            environment coverage retry parallel interruptible timeout
-                            release id_tokens].freeze
+                            coverage retry parallel interruptible timeout
+                            release id_tokens publish].freeze
 
           validations do
             validates :config, allowed_keys: Gitlab::Ci::Config::Entry::Job.allowed_keys + PROCESSABLE_ALLOWED_KEYS
@@ -45,6 +45,8 @@ module Gitlab
                 errors.add(:dependencies, "the #{missing_needs.join(", ")} should be part of needs") if missing_needs.any?
               end
             end
+
+            validates :publish, absence: { message: "can only be used within a `pages` job" }, unless: -> { pages_job? }
           end
 
           entry :before_script, Entry::Commands,
@@ -100,10 +102,6 @@ module Gitlab
             metadata: { allowed_needs: %i[job cross_dependency] },
             inherit: false
 
-          entry :environment, Entry::Environment,
-            description: 'Environment configuration for this job.',
-            inherit: false
-
           entry :coverage, Entry::Coverage,
             description: 'Coverage configuration for this job.',
             inherit: false
@@ -122,13 +120,17 @@ module Gitlab
 
           entry :id_tokens, ::Gitlab::Config::Entry::ComposableHash,
             description: 'Configured JWTs for this job',
-            inherit: false,
+            inherit: true,
             metadata: { composable_class: ::Gitlab::Ci::Config::Entry::IdToken }
+
+          entry :publish, Entry::Publish,
+            description: 'Path to be published with Pages',
+            inherit: false
 
           attributes :script, :tags, :when, :dependencies,
                      :needs, :retry, :parallel, :start_in,
                      :interruptible, :timeout,
-                     :release, :allow_failure
+                     :release, :allow_failure, :publish
 
           def self.matching?(name, config)
             !name.to_s.start_with?('.') &&
@@ -154,13 +156,11 @@ module Gitlab
               when: self.when,
               start_in: self.start_in,
               dependencies: dependencies,
-              environment: environment_defined? ? environment_value : nil,
-              environment_name: environment_defined? ? environment_value[:name] : nil,
               coverage: coverage_defined? ? coverage_value : nil,
               retry: retry_defined? ? retry_value : nil,
               parallel: has_parallel? ? parallel_value : nil,
               interruptible: interruptible_defined? ? interruptible_value : nil,
-              timeout: has_timeout? ? ChronicDuration.parse(timeout.to_s) : nil,
+              timeout: parsed_timeout,
               artifacts: artifacts_value,
               release: release_value,
               after_script: after_script_value,
@@ -169,12 +169,23 @@ module Gitlab
               allow_failure_criteria: allow_failure_criteria,
               needs: needs_defined? ? needs_value : nil,
               scheduling_type: needs_defined? ? :dag : :stage,
-              id_tokens: id_tokens_value
+              id_tokens: id_tokens_value,
+              publish: publish
             ).compact
+          end
+
+          def parsed_timeout
+            return unless has_timeout?
+
+            ChronicDuration.parse(timeout.to_s)
           end
 
           def ignored?
             allow_failure_defined? ? static_allow_failure : manual_action?
+          end
+
+          def pages_job?
+            name == :pages
           end
 
           def self.allowed_keys

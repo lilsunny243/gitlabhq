@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapMutations } from 'vuex';
 import { GlButton } from '@gitlab/ui';
 import { sprintf } from '~/locale';
@@ -12,6 +13,7 @@ import {
   I18N_OAUTH_FAILED_MESSAGE,
   OAUTH_SELF_MANAGED_DOC_LINK,
   OAUTH_WINDOW_OPTIONS,
+  OAUTH_CALLBACK_MESSAGE_TYPE,
   PKCE_CODE_CHALLENGE_DIGEST_ALGORITHM,
 } from '~/jira_connect/subscriptions/constants';
 import { fetchOAuthApplicationId, fetchOAuthToken } from '~/jira_connect/subscriptions/api';
@@ -130,6 +132,11 @@ export default {
       }
     },
     async handleWindowMessage(event) {
+      // Make sure this ia a message from the OAuth flow in pages/jira_connect/oauth_callbacks/index.js
+      if (event.data?.type !== OAUTH_CALLBACK_MESSAGE_TYPE) {
+        return;
+      }
+
       if (window.origin !== event.origin) {
         this.loading = false;
         return;
@@ -177,10 +184,11 @@ export default {
   },
 };
 </script>
+
 <template>
   <gl-button
     v-bind="$attrs"
-    variant="info"
+    variant="confirm"
     :loading="loading"
     :disabled="!canUseCrypto"
     @click="startOAuthFlow"

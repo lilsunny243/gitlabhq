@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe "Admin > Admin sees background migrations", feature_category: :database do
   include ListboxHelpers
 
-  let_it_be(:admin) { create(:admin) }
+  let_it_be(:admin) { create(:admin, :no_super_sidebar) }
   let(:job_class) { Gitlab::BackgroundMigration::CopyColumnUsingBackgroundMigrationJob }
 
   let_it_be(:active_migration) { create(:batched_background_migration, :active, table_name: 'active') }
@@ -191,7 +191,7 @@ RSpec.describe "Admin > Admin sees background migrations", feature_category: :da
     visit admin_background_migrations_path
 
     within '#content-body' do
-      expect(page).to have_link('Learn more', href: help_page_path('user/admin_area/monitoring/background_migrations'))
+      expect(page).to have_link('Learn more', href: help_page_path('update/background_migrations'))
     end
   end
 
@@ -200,7 +200,7 @@ RSpec.describe "Admin > Admin sees background migrations", feature_category: :da
       before do
         skip_if_multiple_databases_are_setup
 
-        allow(Gitlab::Database).to receive(:db_config_names).and_return(['main'])
+        allow(Gitlab::Database).to receive(:db_config_names).with(with_schema: :gitlab_shared).and_return(['main'])
       end
 
       it 'does not render the database listbox' do
@@ -214,7 +214,7 @@ RSpec.describe "Admin > Admin sees background migrations", feature_category: :da
       before do
         skip_if_multiple_databases_not_setup(:ci)
 
-        allow(Gitlab::Database).to receive(:db_config_names).and_return(%w[main ci])
+        allow(Gitlab::Database).to receive(:db_config_names).with(with_schema: :gitlab_shared).and_return(%w[main ci])
       end
 
       it 'renders the database listbox' do

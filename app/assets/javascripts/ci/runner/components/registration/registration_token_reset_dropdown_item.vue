@@ -1,6 +1,6 @@
 <script>
-import { GlDropdownItem, GlLoadingIcon, GlModal, GlModalDirective } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { GlDisclosureDropdownItem, GlLoadingIcon, GlModal, GlModalDirective } from '@gitlab/ui';
+import { createAlert } from '~/alert';
 import { TYPENAME_GROUP, TYPENAME_PROJECT } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { __, s__ } from '~/locale';
@@ -19,7 +19,7 @@ export default {
   name: 'RunnerRegistrationTokenReset',
   i18n,
   components: {
-    GlDropdownItem,
+    GlDisclosureDropdownItem,
     GlLoadingIcon,
     GlModal,
   },
@@ -73,13 +73,13 @@ export default {
     actionPrimary() {
       return {
         text: i18n.modalAction,
-        attributes: [{ variant: 'danger' }],
+        attributes: { variant: 'danger' },
       };
     },
     actionSecondary() {
       return {
         text: i18n.modalCancel,
-        attributes: [{ variant: 'default' }],
+        attributes: { variant: 'default' },
       };
     },
   },
@@ -124,18 +124,20 @@ export default {
 };
 </script>
 <template>
-  <gl-dropdown-item v-gl-modal="$options.modalId">
-    {{ __('Reset registration token') }}
-    <gl-modal
-      size="sm"
-      :modal-id="$options.modalId"
-      :action-primary="actionPrimary"
-      :action-secondary="actionSecondary"
-      :title="$options.i18n.modalTitle"
-      @primary="handleModalPrimary"
-    >
-      <p>{{ $options.i18n.modalCopy }}</p>
-    </gl-modal>
-    <gl-loading-icon v-if="loading" inline />
-  </gl-dropdown-item>
+  <gl-disclosure-dropdown-item v-gl-modal="$options.modalId">
+    <template #list-item>
+      {{ __('Reset registration token') }}
+      <gl-modal
+        size="sm"
+        :modal-id="$options.modalId"
+        :action-primary="actionPrimary"
+        :action-secondary="actionSecondary"
+        :title="$options.i18n.modalTitle"
+        @primary="handleModalPrimary"
+      >
+        <p>{{ $options.i18n.modalCopy }}</p>
+      </gl-modal>
+      <gl-loading-icon v-if="loading" inline />
+    </template>
+  </gl-disclosure-dropdown-item>
 </template>

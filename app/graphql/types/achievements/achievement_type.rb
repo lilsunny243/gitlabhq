@@ -5,6 +5,8 @@ module Types
     class AchievementType < BaseObject
       graphql_name 'Achievement'
 
+      connection_type_class Types::CountableConnectionType
+
       authorize :read_achievement
 
       field :id,
@@ -14,7 +16,6 @@ module Types
 
       field :namespace,
             ::Types::NamespaceType,
-            null: false,
             description: 'Namespace of the achievement.'
 
       field :name,
@@ -46,7 +47,9 @@ module Types
             Types::Achievements::UserAchievementType.connection_type,
             null: true,
             alpha: { milestone: '15.10' },
-            description: "Recipients for the achievement."
+            description: "Recipients for the achievement.",
+            extras: [:lookahead],
+            resolver: ::Resolvers::Achievements::UserAchievementsResolver
 
       def avatar_url
         object.avatar_url(only_path: false)

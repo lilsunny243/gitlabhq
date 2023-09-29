@@ -7,17 +7,8 @@ module QA
       let(:expected_text) { Faker::Lorem.sentence }
       let(:unexpected_text) { Faker::Lorem.sentence }
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-pipeline-1'
-        end
-      end
-
-      let(:other_project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-with-pipeline-2'
-        end
-      end
+      let(:project) { create(:project, name: 'project-with-pipeline-1') }
+      let(:other_project) { create(:project, name: 'project-with-pipeline-2') }
 
       let!(:runner) do
         Resource::ProjectRunner.fabricate! do |runner|
@@ -32,7 +23,7 @@ module QA
         add_included_files
         add_main_ci_file
         project.visit!
-        Flow::Pipeline.visit_latest_pipeline(status: 'passed')
+        Flow::Pipeline.visit_latest_pipeline(status: 'Passed')
       end
 
       after do

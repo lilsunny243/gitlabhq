@@ -1,6 +1,6 @@
 import { propertyOf } from 'lodash';
 import getDesignListQuery from 'shared_queries/design_management/get_design_list.query.graphql';
-import { createAlert, VARIANT_WARNING } from '~/flash';
+import { createAlert, VARIANT_WARNING } from '~/alert';
 import { s__ } from '~/locale';
 import { DESIGNS_ROUTE_NAME } from '../router/constants';
 import allVersionsMixin from './all_versions';
@@ -43,7 +43,7 @@ export default {
           });
           this.$router.replace({ name: DESIGNS_ROUTE_NAME, query: { version: undefined } });
         }
-        if (this.designCollection.copyState === 'ERROR') {
+        if (this.designCollection?.copyState === 'ERROR') {
           createAlert({
             message: s__(
               'DesignManagement|There was an error moving your designs. Please upload your designs below.',

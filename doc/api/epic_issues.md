@@ -4,14 +4,14 @@ group: Product Planning
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Epic Issues API **(PREMIUM)**
+# Epic Issues API **(PREMIUM ALL)**
 
 Every API call to the epic issues API endpoint must be authenticated.
 
 If a user is not a member of a group and the group is private, a `GET` request on that group
 results in a `404` status code.
 
-Epics are available only in GitLab [Premium and higher](https://about.gitlab.com/pricing/).
+Epics are available only in GitLab [Premium and Ultimate](https://about.gitlab.com/pricing/).
 If the Epics feature is not available, a `403` status code is returned.
 
 ## Epic Issues pagination

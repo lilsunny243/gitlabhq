@@ -6,10 +6,7 @@ module QA
       let(:executor) { "qa-runner-#{SecureRandom.hex(4)}" }
 
       let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'pipeline-with-manual-job'
-          project.description = 'Project for pipeline with manual job'
-        end
+        create(:project, name: 'pipeline-with-manual-job', description: 'Project for pipeline with manual job')
       end
 
       let!(:runner) do
@@ -70,7 +67,7 @@ module QA
 
         Flow::Login.sign_in
         project.visit!
-        Flow::Pipeline.visit_latest_pipeline(status: 'skipped')
+        Flow::Pipeline.visit_latest_pipeline(status: 'Skipped')
       end
 
       after do
@@ -124,9 +121,7 @@ module QA
 
       def trigger_new_pipeline
         original_count = project.pipelines.length
-        Resource::Pipeline.fabricate_via_api! do |pipeline|
-          pipeline.project = project
-        end
+        create(:pipeline, project: project)
 
         Support::Waiter.wait_until(sleep_interval: 1) { project.pipelines.length > original_count }
       end
@@ -136,13 +131,10 @@ module QA
       # If pipeline is held up, likely because there are some jobs that
       # doesn't have either "skipped" or "manual" status
       def problematic_jobs
-        pipeline = Resource::Pipeline.fabricate_via_api! do |pipeline|
-          pipeline.project = project
-          pipeline.id = project.latest_pipeline[:id]
-        end
+        pipeline = create(:pipeline, project: project, id: project.latest_pipeline[:id])
 
         acceptable_statuses = %w[skipped manual]
-        pipeline.pipeline_jobs.select { |job| !(acceptable_statuses.include? job[:status]) }
+        pipeline.jobs.select { |job| !(acceptable_statuses.include? job[:status]) }
       end
     end
   end

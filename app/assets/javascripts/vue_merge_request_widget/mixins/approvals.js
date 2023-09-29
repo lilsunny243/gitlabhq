@@ -1,5 +1,11 @@
-import { createAlert } from '~/flash';
+import mergeRequestApprovalStateUpdated from 'ee_else_ce/vue_merge_request_widget/components/approvals/queries/approvals.subscription.graphql';
 import approvedByQuery from 'ee_else_ce/vue_merge_request_widget/components/approvals/queries/approvals.query.graphql';
+
+import { createAlert } from '~/alert';
+
+import { convertToGraphQLId } from '../../graphql_shared/utils';
+import { TYPENAME_MERGE_REQUEST } from '../../graphql_shared/constants';
+
 import { FETCH_ERROR } from '../components/approvals/messages';
 
 export default {
@@ -16,6 +22,8 @@ export default {
       result({ data }) {
         const { mergeRequest } = data.project;
 
+        this.disableCommittersApproval = data.project.mergeRequestsDisableCommittersApproval;
+
         this.mr.setApprovals(mergeRequest);
       },
       error() {
@@ -23,12 +31,36 @@ export default {
           message: FETCH_ERROR,
         });
       },
+      subscribeToMore: {
+        document: mergeRequestApprovalStateUpdated,
+        variables() {
+          return {
+            issuableId: convertToGraphQLId(TYPENAME_MERGE_REQUEST, this.mr.id),
+          };
+        },
+        skip() {
+          return !this.mr?.id;
+        },
+        updateQuery(
+          _,
+          {
+            subscriptionData: {
+              data: { mergeRequestApprovalStateUpdated: queryResult },
+            },
+          },
+        ) {
+          if (queryResult) {
+            this.mr.setApprovals(queryResult);
+          }
+        },
+      },
     },
   },
   data() {
     return {
       alerts: [],
       approvals: {},
+      disableCommittersApproval: false,
     };
   },
   methods: {

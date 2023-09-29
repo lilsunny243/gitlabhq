@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Members > User requests access', :js, feature_category: :subgroups do
+RSpec.describe 'Projects > Members > User requests access', :js, feature_category: :groups_and_projects do
   include Spec::Support::Helpers::ModalHelpers
 
-  let_it_be(:user) { create(:user) }
-  let_it_be(:maintainer) { create(:user) }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:maintainer) { create(:user, :no_super_sidebar) }
   let_it_be(:project) { create(:project, :public, :repository) }
 
   let(:owner) { project.first_owner }
@@ -38,9 +38,11 @@ RSpec.describe 'Projects > Members > User requests access', :js, feature_categor
 
   context 'code access is restricted' do
     it 'user can request access' do
-      project.project_feature.update!(repository_access_level: ProjectFeature::PRIVATE,
-                                      builds_access_level: ProjectFeature::PRIVATE,
-                                      merge_requests_access_level: ProjectFeature::PRIVATE)
+      project.project_feature.update!(
+        repository_access_level: ProjectFeature::PRIVATE,
+        builds_access_level: ProjectFeature::PRIVATE,
+        merge_requests_access_level: ProjectFeature::PRIVATE
+      )
       visit project_path(project)
 
       expect(page).to have_content 'Request Access'

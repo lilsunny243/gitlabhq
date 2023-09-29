@@ -4,159 +4,9 @@ group: Pipeline Authoring
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# CI Lint API **(FREE)**
+# CI Lint API **(FREE ALL)**
 
-## Validate the CI YAML configuration
-
-Checks if CI/CD YAML configuration is valid. This endpoint validates basic CI/CD
-configuration syntax. It doesn't have any namespace-specific context.
-
-Access to this endpoint does not require authentication when the instance
-[allows new sign ups](../user/admin_area/settings/sign_up_restrictions.md#disable-new-sign-ups)
-and:
-
-- Does not have an [allowlist or denylist](../user/admin_area/settings/sign_up_restrictions.md#allow-or-deny-sign-ups-using-specific-email-domains).
-- Does not [require administrator approval for new sign ups](../user/admin_area/settings/sign_up_restrictions.md#require-administrator-approval-for-new-sign-ups).
-- Does not have additional [sign up restrictions](../user/admin_area/settings/sign_up_restrictions.md).
-
-Otherwise, authentication is required.
-
-```plaintext
-POST /ci/lint
-```
-
-| Attribute  | Type    | Required | Description |
-| ---------- | ------- | -------- | -------- |
-| `content`              | string     | yes      | The CI/CD configuration content. |
-| `include_merged_yaml`  | boolean    | no       | If the [expanded CI/CD configuration](#yaml-expansion) should be included in the response. |
-| `include_jobs`  | boolean    | no       | If the list of jobs should be included in the response. This is false by default. |
-
-```shell
-curl --header "Content-Type: application/json" --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/ci/lint" --data '{"content": "{ \"image\": \"ruby:2.6\", \"services\": [\"postgres\"], \"before_script\": [\"bundle install\", \"bundle exec rake db:create\"], \"variables\": {\"DB_NAME\": \"postgres\"}, \"types\": [\"test\", \"deploy\", \"notify\"], \"rspec\": { \"script\": \"rake spec\", \"tags\": [\"ruby\", \"postgres\"], \"only\": [\"branches\"]}}"}'
-```
-
-Be sure to paste the exact contents of your GitLab CI/CD YAML configuration because YAML
-is very sensitive about indentation and spacing.
-
-Example responses:
-
-- Valid content:
-
-  ```json
-  {
-    "status": "valid",
-    "errors": [],
-    "warnings": []
-  }
-  ```
-
-- Valid content with warnings:
-
-  ```json
-  {
-    "status": "valid",
-    "errors": [],
-    "warnings": ["jobs:job may allow multiple pipelines to run for a single action due to
-    `rules:when` clause with no `workflow:rules` - read more:
-    https://docs.gitlab.com/ee/ci/troubleshooting.html#pipeline-warnings"]
-  }
-  ```
-
-- Invalid content:
-
-  ```json
-  {
-    "status": "invalid",
-    "errors": [
-      "variables config should be a hash of key value pairs"
-    ],
-    "warnings": []
-  }
-  ```
-
-- Without the content attribute:
-
-  ```json
-  {
-    "error": "content is missing"
-  }
-  ```
-
-### YAML expansion
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/29568) in GitLab 13.5.
-
-The CI lint returns an expanded version of the configuration. The expansion does not
-work for CI configuration added with [`include: local`](../ci/yaml/index.md#includelocal),
-and the [`extends:`](../ci/yaml/index.md#extends) keyword is [not fully supported](https://gitlab.com/gitlab-org/gitlab/-/issues/258843).
-
-Example contents of a `.gitlab-ci.yml` passed to the CI Lint API with
-`include_merged_yaml` and `include_jobs` set as true:
-
-```yaml
-include:
-  remote: 'https://example.com/remote.yaml'
-
-test:
-  stage: test
-  script:
-    - echo 1
-```
-
-Example contents of `https://example.com/remote.yaml`:
-
-```yaml
-another_test:
-  stage: test
-  script:
-    - echo 2
-```
-
-Example response:
-
-```json
-{
-  "status": "valid",
-  "errors": [],
-  "merged_yaml": "---\n:another_test:\n  :stage: test\n  :script: echo 2\n:test:\n  :stage: test\n  :script: echo 1\n",
-  "jobs": [
-    {
-      "name":"test",
-      "stage":"test",
-      "before_script":[],
-      "script":["echo 1"],
-      "after_script":[],
-      "tag_list":[],
-      "environment":null,
-      "when":"on_success",
-      "allow_failure":false,
-      "only":{
-        "refs":["branches","tags"]
-      },
-      "except":null
-    },
-    {
-      "name":"another_test",
-      "stage":"test",
-      "before_script":[],
-      "script":["echo 2"],
-      "after_script":[],
-      "tag_list":[],
-      "environment":null,
-      "when":"on_success",
-      "allow_failure":false,
-      "only":{
-        "refs":["branches","tags"]
-      },
-      "except":null
-    }
-  ]
-}
-```
-
-## Validate a CI YAML configuration with a namespace
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231352) in GitLab 13.6.
+## Validate the CI/CD configuration for a namespace
 
 Checks if CI/CD YAML configuration is valid. This endpoint has namespace
 specific context.
@@ -165,12 +15,12 @@ specific context.
 POST /projects/:id/ci/lint
 ```
 
-| Attribute  | Type    | Required | Description |
-| ---------- | ------- | -------- | -------- |
-| `content`  | string  | yes      | The CI/CD configuration content. |
-| `dry_run`  | boolean | no       | Run [pipeline creation simulation](../ci/lint.md#simulate-a-pipeline), or only do static check. This is false by default. |
-| `include_jobs`  | boolean    | no       | If the list of jobs that would exist in a static check or pipeline simulation should be included in the response. This is false by default. |
-| `ref`      | string  | no       | When `dry_run` is `true`, sets the branch or tag to use. Defaults to the project's default branch when not set. |
+| Attribute      | Type    | Required | Description |
+|----------------|---------|----------|-------------|
+| `content`      | string  | Yes      | The CI/CD configuration content. |
+| `dry_run`      | boolean | No       | Run [pipeline creation simulation](../ci/lint.md#simulate-a-pipeline), or only do static check. Default: `false`. |
+| `include_jobs` | boolean | No       | If the list of jobs that would exist in a static check or pipeline simulation should be included in the response. Default: `false`. |
+| `ref`          | string  | No       | When `dry_run` is `true`, sets the branch or tag to use. Defaults to the project's default branch when not set. |
 
 Example request:
 
@@ -206,21 +56,23 @@ Example responses:
 
 ## Validate a project's CI configuration
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231352) in GitLab 13.5.
+> `sha` attribute [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/369212) in GitLab 16.5.
 
-Checks if a project's latest (`HEAD` of the project's default branch)
-`.gitlab-ci.yml` configuration is valid. This endpoint uses all namespace
-specific data available, including variables and local includes.
+Checks if a project’s `.gitlab-ci.yml` configuration in a given commit
+(by default `HEAD` of the project’s default branch) is valid. This
+endpoint uses all namespace specific data available, including variables
+and local includes.
 
 ```plaintext
 GET /projects/:id/ci/lint
 ```
 
-| Attribute  | Type    | Required | Description |
-| ---------- | ------- | -------- | -------- |
-| `dry_run`  | boolean | no       | Run pipeline creation simulation, or only do static check. |
-| `include_jobs`  | boolean    | no       | If the list of jobs that would exist in a static check or pipeline simulation should be included in the response. This is false by default. |
-| `ref`      | string  | no       | When `dry_run` is `true`, sets the branch or tag to use. Defaults to the project's default branch when not set. |
+| Attribute      | Type    | Required | Description |
+|----------------|---------|----------|-------------|
+| `dry_run`      | boolean | No       | Run pipeline creation simulation, or only do static check. |
+| `include_jobs` | boolean | No       | If the list of jobs that would exist in a static check or pipeline simulation should be included in the response. Default: `false`. |
+| `ref`          | string  | No       | When `dry_run` is `true`, sets the branch or tag to use. Defaults to the project's default branch when not set. |
+| `sha`          | string  | No       | The commit SHA of a branch or tag. Defaults to the SHA of the head of the project's default branch when not set. |
 
 Example request:
 

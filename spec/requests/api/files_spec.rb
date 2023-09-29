@@ -55,6 +55,11 @@ RSpec.describe API::Files, feature_category: :source_code_management do
     }
   end
 
+  let(:last_commit_for_path) do
+    Gitlab::Git::Commit
+    .last_for_path(project.repository, 'master', Addressable::URI.unencode_component(file_path))
+  end
+
   shared_context 'with author parameters' do
     let(:author_email) { 'user@example.org' }
     let(:author_name) { 'John Doe' }
@@ -136,7 +141,9 @@ RSpec.describe API::Files, feature_category: :source_code_management do
       it 'caches sha256 of the content', :use_clean_rails_redis_caching do
         head api(route(file_path), current_user, **options), params: params
 
-        expect(Gitlab::Cache::Client).to receive(:build_with_metadata).and_call_original
+        expect_next_instance_of(Gitlab::Cache::Client) do |instance|
+          expect(instance).to receive(:fetch).with(anything, nil, { cache_identifier: 'API::Files#content_sha', backing_resource: :gitaly }).and_call_original
+        end
 
         expect(Rails.cache.fetch("blob_content_sha256:#{project.full_path}:#{response.headers['X-Gitlab-Blob-Id']}"))
           .to eq(content_sha256)
@@ -146,27 +153,6 @@ RSpec.describe API::Files, feature_category: :source_code_management do
         end
 
         head api(route(file_path), current_user, **options), params: params
-      end
-
-      context 'when feature flag "cache_client_with_metrics" is disabled' do
-        before do
-          stub_feature_flags(cache_client_with_metrics: false)
-        end
-
-        it 'caches sha256 of the content', :use_clean_rails_redis_caching do
-          head api(route(file_path), current_user, **options), params: params
-
-          expect(Gitlab::Cache::Client).not_to receive(:build_with_metadata)
-
-          expect(Rails.cache.fetch("blob_content_sha256:#{project.full_path}:#{response.headers['X-Gitlab-Blob-Id']}"))
-            .to eq(content_sha256)
-
-          expect_next_instance_of(Gitlab::Git::Blob) do |instance|
-            expect(instance).not_to receive(:load_all_data!)
-          end
-
-          head api(route(file_path), current_user, **options), params: params
-        end
       end
 
       it 'returns file by commit sha' do
@@ -354,6 +340,23 @@ RSpec.describe API::Files, feature_category: :source_code_management do
         get api(url, api_user, **options), params: params
 
         expect(response).to have_gitlab_http_status(:ok)
+      end
+
+      context 'when a project is moved' do
+        let_it_be(:redirect_route) { 'new/project/location' }
+        let_it_be(:file_path) { 'files%2Fruby%2Fpopen.rb' }
+
+        it 'redirects to the new project location' do
+          project.route.create_redirect(redirect_route)
+
+          url = "/projects/#{CGI.escape(redirect_route)}/repository/files/#{file_path}"
+          get api(url, api_user, **options), params: params
+
+          expect(response).to have_gitlab_http_status(:moved_permanently)
+          expect(response.headers['Location']).to start_with(
+            "#{request.base_url}/api/v4/projects/#{project.id}/repository/files/#{file_path}"
+          )
+        end
       end
 
       it 'sets inline content disposition by default' do
@@ -1202,7 +1205,7 @@ RSpec.describe API::Files, feature_category: :source_code_management do
     end
 
     context 'when updating an existing file with stale last commit id' do
-      let(:params_with_stale_id) { params.merge(last_commit_id: 'stale') }
+      let(:params_with_stale_id) { params.merge(last_commit_id: last_commit_for_path.parent_id) }
 
       it 'returns a 400 bad request' do
         put api(route(file_path), user), params: params_with_stale_id
@@ -1213,12 +1216,7 @@ RSpec.describe API::Files, feature_category: :source_code_management do
     end
 
     context 'with correct last commit id' do
-      let(:last_commit) do
-        Gitlab::Git::Commit
-          .last_for_path(project.repository, 'master', Addressable::URI.unencode_component(file_path))
-      end
-
-      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit.id) }
+      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit_for_path.id) }
 
       it 'updates existing file in project repo' do
         put api(route(file_path), user), params: params_with_correct_id
@@ -1228,12 +1226,7 @@ RSpec.describe API::Files, feature_category: :source_code_management do
     end
 
     context 'when file path is invalid' do
-      let(:last_commit) do
-        Gitlab::Git::Commit
-          .last_for_path(project.repository, 'master', Addressable::URI.unencode_component(file_path))
-      end
-
-      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit.id) }
+      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit_for_path.id) }
 
       it 'returns a 400 bad request' do
         put api(route(invalid_file_path), user), params: params_with_correct_id
@@ -1244,12 +1237,7 @@ RSpec.describe API::Files, feature_category: :source_code_management do
     end
 
     it_behaves_like 'when path is absolute' do
-      let(:last_commit) do
-        Gitlab::Git::Commit
-        .last_for_path(project.repository, 'master', Addressable::URI.unencode_component(file_path))
-      end
-
-      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit.id) }
+      let(:params_with_correct_id) { params.merge(last_commit_id: last_commit_for_path.id) }
 
       subject { put api(route(absolute_path), user), params: params_with_correct_id }
     end

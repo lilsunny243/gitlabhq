@@ -74,11 +74,13 @@ RSpec.describe NotesFinder do
 
     context 'on restricted projects' do
       let(:project) do
-        create(:project,
-               :public,
-               :issues_private,
-               :snippets_private,
-               :merge_requests_private)
+        create(
+          :project,
+          :public,
+          :issues_private,
+          :snippets_private,
+          :merge_requests_private
+        )
       end
 
       it 'publicly excludes notes on merge requests' do
@@ -103,6 +105,71 @@ RSpec.describe NotesFinder do
         notes = described_class.new(create(:user), project: project).execute
 
         expect(notes.count).to eq(0)
+      end
+    end
+
+    context 'for notes on public issue in public project' do
+      let_it_be(:public_project) { create(:project, :public) }
+      let_it_be(:guest_member) { create(:user) }
+      let_it_be(:reporter_member) { create(:user) }
+      let_it_be(:guest_project_member) { create(:project_member, :guest, user: guest_member, project: public_project) }
+      let_it_be(:reporter_project_member) { create(:project_member, :reporter, user: reporter_member, project: public_project) }
+      let_it_be(:internal_note) { create(:note_on_issue, project: public_project, internal: true) }
+      let_it_be(:public_note) { create(:note_on_issue, project: public_project) }
+
+      it 'shows all notes when the current_user has reporter access' do
+        notes = described_class.new(reporter_member, project: public_project).execute
+        expect(notes).to contain_exactly internal_note, public_note
+      end
+
+      it 'shows only public notes when the current_user has guest access' do
+        notes = described_class.new(guest_member, project: public_project).execute
+        expect(notes).to contain_exactly public_note
+      end
+    end
+
+    context 'for notes from users who have been banned', :enable_admin_mode, feature_category: :instance_resiliency do
+      subject(:finder) { described_class.new(user, project: project).execute }
+
+      let_it_be(:banned_user) { create(:banned_user).user }
+      let!(:banned_note) { create(:note_on_issue, project: project, author: banned_user) }
+
+      context 'when :hidden_notes feature is not enabled' do
+        before do
+          stub_feature_flags(hidden_notes: false)
+        end
+
+        context 'when user is not an admin' do
+          it { is_expected.to include(banned_note) }
+        end
+
+        context 'when @current_user is nil' do
+          let(:user) { nil }
+
+          it { is_expected.to be_empty }
+        end
+      end
+
+      context 'when :hidden_notes feature is enabled' do
+        before do
+          stub_feature_flags(hidden_notes: true)
+        end
+
+        context 'when user is an admin' do
+          let(:user) { create(:admin) }
+
+          it { is_expected.to include(banned_note) }
+        end
+
+        context 'when user is not an admin' do
+          it { is_expected.not_to include(banned_note) }
+        end
+
+        context 'when @current_user is nil' do
+          let(:user) { nil }
+
+          it { is_expected.to be_empty }
+        end
       end
     end
 
@@ -148,15 +215,6 @@ RSpec.describe NotesFinder do
         expect(notes.count).to eq(1)
       end
 
-      it 'finds notes on personal snippets' do
-        note = create(:note_on_personal_snippet)
-        params = { project: project, target_type: 'personal_snippet', target_id: note.noteable_id }
-
-        notes = described_class.new(user, params).execute
-
-        expect(notes.count).to eq(1)
-      end
-
       it 'raises an exception for an invalid target_type' do
         params[:target_type] = 'invalid'
         expect { described_class.new(user, params).execute }.to raise_error("invalid target_type '#{params[:target_type]}'")
@@ -188,6 +246,44 @@ RSpec.describe NotesFinder do
           project.add_guest(user)
 
           expect { described_class.new(user, params).execute }.to raise_error(ActiveRecord::RecordNotFound)
+        end
+      end
+
+      context 'when targeting personal_snippet' do
+        using RSpec::Parameterized::TableSyntax
+
+        let(:author) { create(:user) }
+        let(:user) { create(:user, email: 'foo@baz.com') }
+        let(:admin) { create(:admin) }
+
+        where(:snippet_visibility, :current_user, :access) do
+          Snippet::PRIVATE | ref(:author) |  true
+          Snippet::PRIVATE | ref(:admin)  |  true
+          Snippet::PRIVATE | ref(:user)   |  false
+          Snippet::PUBLIC  | ref(:author) |  true
+          Snippet::PUBLIC  | ref(:user)   |  true
+        end
+
+        with_them do
+          let(:personal_snippet) { create(:personal_snippet, author: author, visibility_level: snippet_visibility) }
+          let(:note) { create(:note, noteable: personal_snippet) }
+          let(:params) { { project: project, target_type: 'personal_snippet', target_id: note.noteable.id } }
+
+          subject(:notes) do
+            described_class.new(current_user, params).execute
+          end
+
+          before do
+            allow(admin).to receive(:can_read_all_resources?).and_return(true)
+          end
+
+          it 'returns the proper access' do
+            if access
+              expect(notes.count).to eq(1)
+            else
+              expect { notes }.to raise_error(::ActiveRecord::RecordNotFound)
+            end
+          end
         end
       end
     end

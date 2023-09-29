@@ -97,6 +97,37 @@ RSpec.describe Projects::ProjectMembersController do
             expect(assigns(:project_members).map(&:invite_email)).not_to contain_exactly(invited_member.invite_email)
           end
         end
+
+        context 'when invited group members are present' do
+          let_it_be(:invited_group_member) { create(:user) }
+
+          before do
+            group.add_owner(invited_group_member)
+
+            project.invited_groups << group
+            project.add_maintainer(user)
+
+            sign_in(user)
+          end
+
+          context 'when webui_members_inherited_users is disabled' do
+            before do
+              stub_feature_flags(webui_members_inherited_users: false)
+            end
+
+            it 'lists only direct members' do
+              get :index, params: { namespace_id: project.namespace, project_id: project }
+
+              expect(assigns(:project_members).map(&:user_id)).not_to include(invited_group_member.id)
+            end
+          end
+
+          it 'lists invited group members by default' do
+            get :index, params: { namespace_id: project.namespace, project_id: project }
+
+            expect(assigns(:project_members).map(&:user_id)).to include(invited_group_member.id)
+          end
+        end
       end
 
       context 'invited members' do
@@ -289,7 +320,7 @@ RSpec.describe Projects::ProjectMembersController do
           it 'returns correct json response' do
             expect(json_response).to eq({
               "expires_soon" => false,
-              "expires_at_formatted" => expiry_date.to_time.in_time_zone.to_s(:medium)
+              "expires_at_formatted" => expiry_date.to_time.in_time_zone.to_fs(:medium)
             })
           end
         end
@@ -560,12 +591,4 @@ RSpec.describe Projects::ProjectMembersController do
   end
 
   it_behaves_like 'controller actions'
-
-  context 'when project_members_index_by_project_namespace feature flag is disabled' do
-    before do
-      stub_feature_flags(project_members_index_by_project_namespace: false)
-    end
-
-    it_behaves_like 'controller actions'
-  end
 end

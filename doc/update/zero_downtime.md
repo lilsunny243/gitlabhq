@@ -15,7 +15,7 @@ there are the following requirements:
    sequence [and leave the database schema in a broken state](https://gitlab.com/gitlab-org/gitlab/-/issues/321542).
 - You have to use [post-deployment migrations](../development/database/post_deployment_migrations.md).
 - You are using PostgreSQL. Starting from GitLab 12.1, MySQL is not supported.
-- You have set up a multi-node GitLab instance. Single-node instances do not support zero-downtime upgrades.
+- You have set up a multi-node GitLab instance. Cloud Native Hybrid installations do [not support zero-downtime upgrades](../administration/reference_architectures/index.md#zero-downtime-upgrades).
 
 If you want to upgrade multiple releases or do not meet the other requirements:
 
@@ -93,7 +93,7 @@ meet the other online upgrade requirements mentioned above.
 ## Multi-node / HA deployment
 
 WARNING:
-You can only upgrade one minor release at a time. So from 13.6 to 13.7, not to 13.8.
+You can only upgrade one minor release at a time. So from 15.6 to 15.7, not to 15.8.
 If you attempt more than one minor release, the upgrade may fail.
 
 ### Use a load balancer in front of web (Puma) nodes
@@ -116,7 +116,7 @@ continue to accept connections but mark their respective health check
 endpoints to be unhealthy. On seeing this, the load balancer should disconnect
 them gracefully.
 
-Puma restarts only after completing all the currently processing requests.
+Puma restarts only after completing all the currently-processing requests.
 This ensures data and service integrity. Once they have restarted, the health
 check end points are marked healthy.
 
@@ -179,6 +179,9 @@ Before you update the main GitLab application you must (in order):
 
 1. Upgrade the Gitaly nodes that reside on separate servers.
 1. Upgrade Praefect if using Gitaly Cluster.
+
+Because of a [known issue](https://gitlab.com/groups/gitlab-org/-/epics/10328), Gitaly and Gitaly Cluster upgrades
+cause some downtime.
 
 #### Upgrade Gitaly nodes
 
@@ -465,7 +468,8 @@ Log in to your **primary** node, executing the following:
    sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-rake db:migrate
    ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different. The file must be the same on all of a site’s nodes.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different.
+   The file must be the same on all of a site's nodes.
 
 ### Update the Geo secondary site
 
@@ -540,7 +544,7 @@ setting `gitlab_rails['auto_migrate'] = false` in
 ## Multi-node / HA deployment with Geo **(PREMIUM SELF)**
 
 WARNING:
-You can only upgrade one minor release at a time.
+You can only upgrade one minor release at a time. You also must first start with the Gitaly cluster, updating Gitaly one node one at a time. This will ensure access to the Git repositories for the remainder of the upgrade process.
 
 This section describes the steps required to upgrade a multi-node / HA
 deployment with Geo. Some steps must be performed on a particular node. This
@@ -667,7 +671,8 @@ sudo gitlab-ctl hup puma
 sudo gitlab-ctl restart sidekiq
 ```
 
-1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different. The file must be the same on all of a site’s nodes.
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different. The
+   file must be the same on all of a site's nodes.
 
 ### Step 3: Update each Geo secondary multi-node deployment
 

@@ -8,8 +8,8 @@ FactoryBot.define do
   # Project does not have bare repository.
   # Use this factory if you don't need repository in tests
   factory :project, class: 'Project' do
-    sequence(:name) { |n| "project#{n}" }
-    path { name.downcase.gsub(/\s/, '_') }
+    sequence(:path) { |n| "project-#{n}" }
+    name { "#{path.humanize} Name" }
 
     # Behaves differently to nil due to cache_has_external_* methods.
     has_external_issue_tracker { false }
@@ -42,6 +42,7 @@ FactoryBot.define do
       feature_flags_access_level { ProjectFeature::ENABLED }
       releases_access_level { ProjectFeature::ENABLED }
       infrastructure_access_level { ProjectFeature::ENABLED }
+      model_experiments_access_level { ProjectFeature::ENABLED }
 
       # we can't assign the delegated `#ci_cd_settings` attributes directly, as the
       # `#ci_cd_settings` relation needs to be created first
@@ -54,9 +55,11 @@ FactoryBot.define do
       import_correlation_id { nil }
       import_last_error { nil }
       forward_deployment_enabled { nil }
+      forward_deployment_rollback_allowed { nil }
       restrict_user_defined_variables { nil }
       ci_outbound_job_token_scope_enabled { nil }
       ci_inbound_job_token_scope_enabled { nil }
+      runners_token { nil }
       runner_token_expiration_interval { nil }
       runner_token_expiration_interval_human_readable { nil }
     end
@@ -93,6 +96,12 @@ FactoryBot.define do
 
       project.build_project_namespace(project_namespace_hash)
       project.build_project_feature(project_feature_hash)
+
+      project.set_runners_token(evaluator.runners_token) if evaluator.runners_token.present?
+    end
+
+    to_create do |project|
+      project.project_namespace.save! if project.valid?
     end
 
     after(:create) do |project, evaluator|
@@ -105,7 +114,9 @@ FactoryBot.define do
       end
 
       if project.group
-        AuthorizedProjectUpdate::ProjectRecalculateService.new(project).execute
+        project.run_after_commit_or_now do
+          AuthorizedProjectUpdate::ProjectRecalculateService.new(project).execute
+        end
       end
 
       # assign the delegated `#ci_cd_settings` attributes after create
@@ -222,7 +233,7 @@ FactoryBot.define do
     # the transient `files` attribute. Each file will be created in its own
     # commit, operating against the master branch. So, the following call:
     #
-    #     create(:project, :custom_repo, files: { 'foo/a.txt' => 'foo', 'b.txt' => bar' })
+    #     create(:project, :custom_repo, files: { 'foo/a.txt' => 'foo', 'b.txt' => 'bar' })
     #
     # will create a repository containing two files, and two commits, in master
     trait :custom_repo do
@@ -241,6 +252,19 @@ FactoryBot.define do
             message: "Automatically created file #{filename}",
             branch_name: project.default_branch || 'master'
           )
+        end
+      end
+    end
+
+    # A basic repository with a single file 'test.txt'. It also has the HEAD as the default branch.
+    trait :small_repo do
+      custom_repo
+
+      files { { 'test.txt' => 'test' } }
+
+      after(:create) do |project|
+        Sidekiq::Worker.skipping_transaction_check do
+          raise "Failed to assign the repository head!" unless project.change_head(project.default_branch_or_main)
         end
       end
     end
@@ -511,7 +535,7 @@ FactoryBot.define do
   factory :project_with_design, parent: :project do
     after(:create) do |project|
       issue = create(:issue, project: project)
-      create(:design, project: project, issue: issue)
+      create(:design, :with_file, project: project, issue: issue)
     end
   end
 
@@ -521,5 +545,12 @@ FactoryBot.define do
 
   trait :in_subgroup do
     namespace factory: [:group, :nested]
+  end
+
+  trait :readme do
+    custom_repo
+
+    path { 'gitlab-profile' }
+    files { { 'README.md' => 'Hello World' } }
   end
 end

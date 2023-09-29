@@ -1,18 +1,12 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :skip_live_env, :orchestrated, :packages, :object_storage, product_group: :package_registry do
-    describe 'PyPI Repository' do
+  RSpec.describe 'Package', :object_storage, product_group: :package_registry do
+    describe 'PyPI Repository', :external_api_calls do
       include Runtime::Fixtures
       include Support::Helpers::MaskToken
 
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'pypi-package-project'
-          project.visibility = :private
-        end
-      end
-
+      let(:project) { create(:project, :private, name: 'pypi-package-project') }
       let(:package) do
         Resource::Package.init do |package|
           package.name = "mypypipackage-#{SecureRandom.hex(8)}"
@@ -30,16 +24,13 @@ module QA
       end
 
       let(:uri) { URI.parse(Runtime::Scenario.gitlab_address) }
-      let(:personal_access_token) { use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: Runtime::Env.personal_access_token, project: project) }
-      let(:gitlab_address_with_port) { "#{uri.scheme}://#{uri.host}:#{uri.port}" }
-      let(:gitlab_host_with_port) do
-        # Don't specify port if it is a standard one
-        if uri.port == 80 || uri.port == 443
-          uri.host
-        else
-          "#{uri.host}:#{uri.port}"
-        end
+
+      let!(:personal_access_token) do
+        use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: Runtime::Env.personal_access_token, project: project)
       end
+
+      let(:gitlab_address_with_port) { Support::GitlabAddress.address_with_port }
+      let(:gitlab_host_with_port) { Support::GitlabAddress.host_with_port(with_default_port: false) }
 
       before do
         Flow::Login.sign_in
@@ -92,7 +83,7 @@ module QA
 
       context 'when at the project level' do
         it 'publishes and installs a pypi package', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348015' do
-          Page::Project::Menu.perform(&:click_packages_link)
+          Page::Project::Menu.perform(&:go_to_package_registry)
 
           Page::Project::Packages::Index.perform do |index|
             expect(index).to have_package(package.name)
@@ -112,7 +103,7 @@ module QA
               dashboard.go_to_project(project.name)
             end
 
-            Page::Project::Menu.perform(&:click_packages_link)
+            Page::Project::Menu.perform(&:go_to_package_registry)
 
             Page::Project::Packages::Index.perform do |index|
               index.wait_for_package_replication(package.name)

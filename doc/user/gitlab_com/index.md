@@ -11,6 +11,15 @@ This page contains information about the settings that are used on GitLab.com, a
 
 See some of these settings on the [instance configuration page](https://gitlab.com/help/instance_configuration) of GitLab.com.
 
+## Email confirmation
+
+GitLab.com has the:
+
+- [`email_confirmation_setting`](../../administration/settings/sign_up_restrictions.md#confirm-user-email)
+  setting set to **Hard**.
+- [`unconfirmed_users_delete_after_days`](../../administration/moderate_users.md#automatically-delete-unconfirmed-users)
+  setting set to three days.
+
 ## Password requirements
 
 GitLab.com has the following requirements for passwords on new accounts and password changes:
@@ -26,15 +35,23 @@ GitLab.com uses the default [SSH key restrictions](../../security/ssh_keys_restr
 
 ## SSH host keys fingerprints
 
-Below are the fingerprints for SSH host keys on GitLab.com. The first time you
-connect to a GitLab.com repository, one of these keys is displayed in the output.
+Go to the current instance configuration to see the SSH host key fingerprints on
+GitLab.com.
+
+1. Sign in to GitLab.
+1. On the left sidebar, select **Help** (**{question-o}**) > **Help**.
+1. On the Help page, select **Check the current instance configuration**.
+
+In the instance configuration, you see the **SSH host key fingerprints**:
 
 | Algorithm        | MD5 (deprecated) | SHA256  |
 |------------------|------------------|---------|
+| ECDSA            | `f1:d0:fb:46:73:7a:70:92:5a:ab:5d:ef:43:e2:1c:35` | `HbW3g8zUjNSksFbqTiUWPWg2Bq1x8xdGUrliXFzSnUw` |
 | ED25519          | `2e:65:6a:c8:cf:bf:b2:8b:9a:bd:6d:9f:11:5c:12:16` | `eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8` |
 | RSA              | `b6:03:0e:39:97:9e:d0:e7:24:ce:a3:77:3e:01:42:09` | `ROQFvPThGrW4RuWLoL9tq9I9zJ42fK4XywyRtbOz/EQ` |
-| DSA (deprecated) | `7a:47:81:3a:ee:89:89:64:33:ca:44:52:3d:30:d4:87` | `p8vZBUOR0XQz6sYiaWSMLmh0t9i8srqYKool/Xfdfqw` |
-| ECDSA            | `f1:d0:fb:46:73:7a:70:92:5a:ab:5d:ef:43:e2:1c:35` | `HbW3g8zUjNSksFbqTiUWPWg2Bq1x8xdGUrliXFzSnUw` |
+
+The first time you connect to a GitLab.com repository, one of these keys is
+displayed in the output.
 
 ## SSH `known_hosts` entries
 
@@ -61,11 +78,11 @@ and has its own dedicated IP addresses:
 
 The IP addresses for `mg.gitlab.com` are subject to change at any time.
 
-### Service Desk custom mailbox
+### Service Desk alias email address
 
 On GitLab.com, there's a mailbox configured for Service Desk with the email address:
 `contact-project+%{key}@incoming.gitlab.com`. To use this mailbox, configure the
-[custom suffix](../project/service_desk.md#configuring-a-custom-email-address-suffix) in project
+[custom suffix](../project/service_desk/configure.md#configure-a-suffix-for-service-desk-alias-email) in project
 settings.
 
 ## Backups
@@ -89,15 +106,21 @@ Similarly, you can clone a project's wiki to back it up. All files
 [uploaded after August 22, 2020](../project/wiki/index.md#create-a-new-wiki-page)
 are included when cloning.
 
+## Delayed group deletion **(PREMIUM SAAS)**
+
+After May 08, 2023, all groups have delayed deletion enabled by default.
+
+Groups are permanently deleted after a seven-day delay.
+
+If you are on the Free tier, your groups are immediately deleted, and you will not be able to restore them.
+
 ## Delayed project deletion **(PREMIUM SAAS)**
 
-Top-level groups created after August 12, 2021 have delayed project deletion enabled by default.
+After May 08, 2023, all groups have delayed project deletion enabled by default.
+
 Projects are permanently deleted after a seven-day delay.
 
-If you are on:
-
-- Premium tier and above, you can disable this by changing the [group setting](../group/manage.md#enable-delayed-project-deletion).
-- Free tier, you cannot disable this setting or restore projects.
+If you are on the Free tier, your projects are immediately deleted, and you will not be able to restore them.
 
 ## Inactive project deletion
 
@@ -125,20 +148,22 @@ Host gitlab.com
 
 ## GitLab Pages
 
-Below are the settings for [GitLab Pages](https://about.gitlab.com/stages-devops-lifecycle/pages/).
+Some settings for [GitLab Pages](../project/pages/index.md) differ from the
+[defaults for self-managed instances](../../administration/pages/index.md):
 
-| Setting                   | GitLab.com             | Default                |
-|---------------------------|------------------------|------------------------|
-| Domain name               | `gitlab.io`            | -                      |
-| IP address                | `35.185.44.232`        | -                      |
-| Custom domains support    | **{check-circle}** Yes | **{dotted-circle}** No |
-| TLS certificates support  | **{check-circle}** Yes | **{dotted-circle}** No |
-| [Maximum size](../../administration/pages/index.md#set-global-maximum-size-of-each-gitlab-pages-site) (compressed) | 1 GB                   | 100 MB                 |
+| Setting                                           | GitLab.com             |
+|:--------------------------------------------------|:-----------------------|
+| Domain name                                       | `gitlab.io`            |
+| IP address                                        | `35.185.44.232`        |
+| Support for custom domains                        | **{check-circle}** Yes |
+| Support for TLS certificates                      | **{check-circle}** Yes |
+| Maximum site size                                 | 1 GB                   |
+| Number of custom domains per GitLab Pages website | 150                    |
 
-The maximum size of your Pages site is also regulated by the artifacts maximum size,
+The maximum size of your Pages site depends on the maximum artifact size,
 which is part of [GitLab CI/CD](#gitlab-cicd).
 
-There are also [rate limits set for GitLab Pages](#gitlabcom-specific-rate-limits).
+[Rate limits](#gitlabcom-specific-rate-limits) also exist for GitLab Pages.
 
 ## GitLab CI/CD
 
@@ -148,10 +173,10 @@ the related documentation.
 
 | Setting                                                                          | GitLab.com                                                                                                                | Default (self-managed) |
 |----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------|
-| Artifacts maximum size (compressed)                                              | 1 GB                                                                                                                      | See [Maximum artifacts size](../../user/admin_area/settings/continuous_integration.md#maximum-artifacts-size). |
-| Artifacts [expiry time](../../ci/yaml/index.md#artifactsexpire_in)               | From June 22, 2020, deleted after 30 days unless otherwise specified (artifacts created before that date have no expiry). | See [Default artifacts expiration](../admin_area/settings/continuous_integration.md#default-artifacts-expiration). |
+| Artifacts maximum size (compressed)                                              | 1 GB                                                                                                                      | See [Maximum artifacts size](../../administration/settings/continuous_integration.md#maximum-artifacts-size). |
+| Artifacts [expiry time](../../ci/yaml/index.md#artifactsexpire_in)               | From June 22, 2020, deleted after 30 days unless otherwise specified (artifacts created before that date have no expiry). | See [Default artifacts expiration](../../administration/settings/continuous_integration.md#default-artifacts-expiration). |
 | Scheduled Pipeline Cron                                                          | `*/5 * * * *`                                                                                                             | See [Pipeline schedules advanced configuration](../../administration/cicd.md#change-maximum-scheduled-pipeline-frequency). |
-| Maximum jobs in active pipelines                                                 | `500` for Free tier, `1000` for all trial tiers, and unlimited otherwise.                                                 | See [Number of jobs in active pipelines](../../administration/instance_limits.md#number-of-jobs-in-active-pipelines). |
+| Maximum jobs in active pipelines                                                 | `500` for Free tier, `1000` for all trial tiers, `20000` for Premium, and `100000` for Ultimate.                                                 | See [Number of jobs in active pipelines](../../administration/instance_limits.md#number-of-jobs-in-active-pipelines). |
 | Maximum CI/CD subscriptions to a project                                         | `2`                                                                                                                       | See [Number of CI/CD subscriptions to a project](../../administration/instance_limits.md#number-of-cicd-subscriptions-to-a-project). |
 | Maximum number of pipeline triggers in a project                                 | `25000` for Free tier, Unlimited for all paid tiers                                                                       | See [Limit the number of pipeline triggers](../../administration/instance_limits.md#limit-the-number-of-pipeline-triggers). |
 | Maximum pipeline schedules in projects                                           | `10` for Free tier, `50` for all paid tiers                                                                               | See [Number of pipeline schedules](../../administration/instance_limits.md#number-of-pipeline-schedules). |
@@ -175,7 +200,7 @@ varies by format:
 | Generic      | 5 GB       |
 | Helm         | 5 MB       |
 | Maven        | 5 GB       |
-| npm:         | 5 GB       |
+| npm          | 5 GB       |
 | NuGet        | 5 GB       |
 | PyPI         | 5 GB       |
 | Terraform    | 1 GB       |
@@ -183,22 +208,50 @@ varies by format:
 ## Account and limit settings
 
 GitLab.com has the following account limits enabled. If a setting is not listed,
-the default value [is the same as for self-managed instances](../admin_area/settings/account_and_limit_settings.md):
+the default value [is the same as for self-managed instances](../../administration/settings/account_and_limit_settings.md):
 
-| Setting                       | GitLab.com default |
-|-------------------------------|--------------------|
-| [Repository size including LFS](../admin_area/settings/account_and_limit_settings.md#repository-size-limit) | 10 GB |
-| [Maximum import size](../project/settings/import_export.md#maximum-import-file-size)                        | 5 GB  |
-| Maximum attachment size       | 100 MB              |
+| Setting                                                                                                                                                                                                            | GitLab.com default |
+|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------|
+| [Repository size including LFS](../../administration/settings/account_and_limit_settings.md#repository-size-limit)                                                                                                 | 10 GB              |
+| [Maximum import size](../project/settings/import_export.md#import-a-project-and-its-data)                                                                                                                          | 5 GiB              |
+| [Maximum remote file size for imports from external object storages](../../administration/settings/import_and_export_settings.md#maximum-remote-file-size-for-imports)                                             | 10 GiB             |
+| [Maximum download file size when importing from source GitLab instances by direct transfer](../../administration/settings/import_and_export_settings.md#maximum-download-file-size-for-imports-by-direct-transfer) | 5 GiB              |
+| Maximum attachment size                                                                                                                                                                                            | 100 MiB            |
+| [Maximum decompressed file size for imported archives](../../administration/settings/import_and_export_settings.md#maximum-decompressed-file-size-for-imported-archives)                                           | 25 GiB             |
 
-If you are near or over the repository size limit, you can either
-[reduce your repository size with Git](../project/repository/reducing_the_repo_size_using_git.md)
-or [purchase additional storage](https://about.gitlab.com/pricing/licensing-faq/#can-i-buy-more-storage).
+If you are near or over the repository size limit, you can either:
+
+- [Reduce your repository size with Git](../project/repository/reducing_the_repo_size_using_git.md).
+- [Purchase additional storage](https://about.gitlab.com/pricing/licensing-faq/#can-i-buy-more-storage).
 
 NOTE:
-`git push` and GitLab project imports are limited to 5 GB per request through
-Cloudflare. Git LFS and imports other than a file upload are not affected by
+`git push` and GitLab project imports are limited to 5 GiB per request through
+Cloudflare. Imports other than a file upload are not affected by
 this limit. Repository limits apply to both public and private projects.
+
+## Default import sources
+
+> Disabling all importers by default for new GitLab self-managed installations [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/118970) in GitLab 16.0.
+
+The import sources that are available by default depend on which GitLab you use:
+
+- GitLab.com: all available import sources are enabled by default.
+- GitLab self-managed: no import sources are enabled by default and must be
+  [enabled](../../administration/settings/import_and_export_settings.md#configure-allowed-import-sources).
+
+| Import source                                                                                       | GitLab.com default     | GitLab self-managed default |
+|:----------------------------------------------------------------------------------------------------|:-----------------------|:----------------------------|
+| [Bitbucket Cloud](../project/import/bitbucket.md)                                                   | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [Bitbucket Server](../project/import/bitbucket_server.md)                                           | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [FogBugz](../project/import/fogbugz.md)                                                             | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [Gitea](../project/import/gitea.md)                                                                 | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [GitLab by direct transfer](../group/import/index.md#migrate-groups-by-direct-transfer-recommended) | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [GitLab using file exports](../project/settings/import_export.md)                                   | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [GitHub](../project/import/github.md)                                                               | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [Manifest file](../project/import/manifest.md)                                                      | **{check-circle}** Yes | **{dotted-circle}** No      |
+| [Repository by URL](../project/import/repo_by_url.md)                                               | **{check-circle}** Yes | **{dotted-circle}** No      |
+
+[Other importers](../project/import/index.md#available-project-importers) are available.
 
 ## IP range
 
@@ -247,7 +300,7 @@ The limit varies depending on your plan and the number of seats in your subscrip
 
 | Setting              | Default for GitLab.com  |
 |----------------------|-------------------------|
-| Number of webhooks   | `100` per project, `50` per group |
+| Number of webhooks   | `100` per project, `50` per group (subgroup webhooks are not counted towards parent group limits ) |
 | Maximum payload size | 25 MB                   |
 | Timeout              | 10 seconds              |
 
@@ -262,73 +315,6 @@ For self-managed instance limits, see:
 Runner SaaS is the hosted, secure, and managed build environment you can use to run CI/CD jobs for your GitLab.com hosted project.
 
 For more information, see [Runner SaaS](../../ci/runners/index.md).
-
-## Sidekiq
-
-GitLab.com runs [Sidekiq](https://sidekiq.org) with arguments `--timeout=4 --concurrency=4`
-and the following environment variables:
-
-| Setting                                | GitLab.com | Default   |
-|----------------------------------------|------------|-----------|
-| `GITLAB_MEMORY_WATCHDOG_ENABLED`       | -          | `true`    |
-| `SIDEKIQ_MEMORY_KILLER_MAX_RSS`        | -          | `2000000` |
-| `SIDEKIQ_MEMORY_KILLER_HARD_LIMIT_RSS` | -          | -         |
-| `SIDEKIQ_MEMORY_KILLER_CHECK_INTERVAL` | -          | `3`       |
-| `SIDEKIQ_MEMORY_KILLER_GRACE_TIME`     | -          | `900`     |
-| `SIDEKIQ_MEMORY_KILLER_SHUTDOWN_WAIT`  | -          | `30`      |
-| `SIDEKIQ_LOG_ARGUMENTS`                | `1`        | `1`       |
-
-For more information, see how to
-[configure the environment variables](../../administration/sidekiq/sidekiq_memory_killer.md).
-
-NOTE:
-The `SIDEKIQ_MEMORY_KILLER_MAX_RSS` setting is `16000000` on Sidekiq import
-nodes and Sidekiq export nodes.
-
-## PostgreSQL
-
-GitLab.com being a fairly large installation of GitLab means we have changed
-various PostgreSQL settings to better suit our needs. For example, we use
-streaming replication and servers in hot-standby mode to balance queries across
-different database servers.
-
-The list of GitLab.com specific settings (and their defaults) is as follows:
-
-| Setting                               | GitLab.com                                                          | Default                               |
-|:--------------------------------------|:--------------------------------------------------------------------|:--------------------------------------|
-| `archive_command`                     | `/usr/bin/envdir /etc/wal-e.d/env /opt/wal-e/bin/wal-e wal-push %p` | empty                                 |
-| `archive_mode`                        | on                                                                  | off                                   |
-| `autovacuum_analyze_scale_factor`     | 0.01                                                                | 0.01                                  |
-| `autovacuum_max_workers`              | 6                                                                   | 3                                     |
-| `autovacuum_vacuum_cost_limit`        | 1000                                                                | -1                                    |
-| `autovacuum_vacuum_scale_factor`      | 0.01                                                                | 0.02                                  |
-| `checkpoint_completion_target`        | 0.7                                                                 | 0.9                                   |
-| `checkpoint_segments`                 | 32                                                                  | 10                                    |
-| `effective_cache_size`                | 338688 MB                                                           | Based on how much memory is available |
-| `hot_standby`                         | on                                                                  | off                                   |
-| `hot_standby_feedback`                | on                                                                  | off                                   |
-| `log_autovacuum_min_duration`         | 0                                                                   | -1                                    |
-| `log_checkpoints`                     | on                                                                  | off                                   |
-| `log_line_prefix`                     | `%t [%p]: [%l-1]`                                                   | empty                                 |
-| `log_min_duration_statement`          | 1000                                                                | -1                                    |
-| `log_temp_files`                      | 0                                                                   | -1                                    |
-| `maintenance_work_mem`                | 2048 MB                                                             | 16 MB                                 |
-| `max_replication_slots`               | 5                                                                   | 0                                     |
-| `max_wal_senders`                     | 32                                                                  | 0                                     |
-| `max_wal_size`                        | 5 GB                                                                | 1 GB                                  |
-| `shared_buffers`                      | 112896 MB                                                           | Based on how much memory is available |
-| `shared_preload_libraries`            | `pg_stat_statements`                                                | empty                                 |
-| `shmall`                              | 30146560                                                            | Based on the server's capabilities    |
-| `shmmax`                              | 123480309760                                                        | Based on the server's capabilities    |
-| `wal_buffers`                         | 16 MB                                                               | -1                                    |
-| `wal_keep_segments`                   | 512                                                                 | 10                                    |
-| `wal_level`                           | replica                                                             | minimal                               |
-| `statement_timeout`                   | 15 s                                                                | 60 s                                  |
-| `idle_in_transaction_session_timeout` | 60 s                                                                | 60 s                                  |
-
-Some of these settings are in the process being adjusted. For example, the value
-for `shared_buffers` is quite high, and we are
-[considering adjusting it](https://gitlab.com/gitlab-com/gl-infra/reliability/-/issues/4985).
 
 ## Puma
 
@@ -358,25 +344,27 @@ are also informational headers with this response detailed in
 The following table describes the rate limits for GitLab.com, both before and
 after the limits change in January, 2021:
 
-| Rate limit                                                                 | From 2021-02-12               | From 2022-02-03                         |
-|:---------------------------------------------------------------------------|:------------------------------|:----------------------------------------|
-| **Protected paths** (for a given **IP address**)                           | **10** requests per minute    | **10** requests per minute              |
-| **Raw endpoint** traffic (for a given **project, commit, and file path**)  | **300** requests per minute   | **300** requests per minute             |
-| **Unauthenticated** traffic (from a given **IP address**)                  | **500** requests per minute   | **500** requests per minute             |
-| **Authenticated** API traffic (for a given **user**)                       | **2,000** requests per minute | **2,000** requests per minute           |
-| **Authenticated** non-API HTTP traffic (for a given **user**)              | **1,000** requests per minute | **1,000** requests per minute           |
-| **All** traffic (from a given **IP address**)                              | **2,000** requests per minute | **2,000** requests per minute           |
-| **Issue creation**                                                         | **300** requests per minute   | **200** requests per minute             |
-| **Note creation** (on issues and merge requests)                           | **60** requests per minute    | **60** requests per minute              |
-| **Advanced, project, and group search** API (for a given **IP address**)   | **10** requests per minute    | **10** requests per minute              |
-| **GitLab Pages** requests (for a given **IP address**)                     |                               | **1000** requests per **50 seconds**    |
-| **GitLab Pages** requests (for a given **GitLab Pages domain**)            |                               | **5000** requests per **10 seconds**    |
-| **Pipeline creation** requests (for a given **project, user, and commit**) |                               | **25** requests per minute              |
-| **Alert integration endpoint** requests (for a given **project**)          |                               | **3600** requests per hour |
+| Rate limit                                                                 | From 2021-02-12               | From 2022-02-03                      |
+|:---------------------------------------------------------------------------|:------------------------------|:-------------------------------------|
+| **Protected paths** (for a given **IP address**)                           | **10** requests per minute    | **10** requests per minute           |
+| **Raw endpoint** traffic (for a given **project, commit, and file path**)  | **300** requests per minute   | **300** requests per minute          |
+| **Unauthenticated** traffic (from a given **IP address**)                  | **500** requests per minute   | **500** requests per minute          |
+| **Authenticated** API traffic (for a given **user**)                       | **2,000** requests per minute | **2,000** requests per minute        |
+| **Authenticated** non-API HTTP traffic (for a given **user**)              | **1,000** requests per minute | **1,000** requests per minute        |
+| **All** traffic (from a given **IP address**)                              | **2,000** requests per minute | **2,000** requests per minute        |
+| **Issue creation**                                                         | **300** requests per minute   | **200** requests per minute          |
+| **Note creation** (on issues and merge requests)                           | **60** requests per minute    | **60** requests per minute           |
+| **Advanced, project, and group search** API (for a given **IP address**)   | **10** requests per minute    | **10** requests per minute           |
+| **GitLab Pages** requests (for a given **IP address**)                     |                               | **1000** requests per **50 seconds** |
+| **GitLab Pages** requests (for a given **GitLab Pages domain**)            |                               | **5000** requests per **10 seconds** |
+| **GitLab Pages** TLS connections (for a given **IP address**)              |                               | **1000** requests per **50 seconds** |
+| **GitLab Pages** TLS connections (for a given **GitLab Pages domain**)     |                               | **400** requests per **10 seconds**  |
+| **Pipeline creation** requests (for a given **project, user, and commit**) |                               | **25** requests per minute           |
+| **Alert integration endpoint** requests (for a given **project**)          |                               | **3600** requests per hour           |
 
 More details are available on the rate limits for
 [protected paths](#protected-paths-throttle) and
-[raw endpoints](../../user/admin_area/settings/rate_limits_on_raw_endpoints.md).
+[raw endpoints](../../administration/settings/rate_limits_on_raw_endpoints.md).
 
 GitLab can rate-limit requests at several layers. The rate limits listed here
 are configured in the application. These limits are the most
@@ -388,8 +376,8 @@ for GitLab.com, see
 
 For information on rate limiting responses, see:
 
-- [List of headers on responses to blocked requests](../admin_area/settings/user_and_ip_rate_limits.md#response-headers).
-- [Customizable response text](../admin_area/settings/user_and_ip_rate_limits.md#use-a-custom-rate-limit-response).
+- [List of headers on responses to blocked requests](../../administration/settings/user_and_ip_rate_limits.md#response-headers).
+- [Customizable response text](../../administration/settings/user_and_ip_rate_limits.md#use-a-custom-rate-limit-response).
 
 ### Protected paths throttle
 
@@ -399,7 +387,7 @@ paths that exceed 10 requests per **minute** per IP address.
 See the source below for which paths are protected. This includes user creation,
 user confirmation, user sign in, and password reset.
 
-[User and IP rate limits](../admin_area/settings/user_and_ip_rate_limits.md#response-headers)
+[User and IP rate limits](../../administration/settings/user_and_ip_rate_limits.md#response-headers)
 includes a list of the headers responded to blocked requests.
 
 See [Protected Paths](../admin_area/settings/protected_paths.md) for more details.
@@ -471,6 +459,12 @@ See [non-configurable limits](../../security/rate_limits.md#non-configurable-lim
 for information on rate limits that are not configurable, and therefore also
 used on GitLab.com.
 
+## GitLab.com-specific Gitaly RPC concurrency limits
+
+Per-repository Gitaly RPC concurrency and queuing limits are configured for different types of Git operations such as `git clone`. When these limits are exceeded, a `fatal: remote error: GitLab is currently unable to handle this request due to load` message is returned to the client.
+
+For administrator documentation, see [limit RPC concurrency](../../administration/gitaly/configure_gitaly.md#limit-rpc-concurrency).
+
 ## GitLab.com logging
 
 We use [Fluentd](https://gitlab.com/gitlab-com/runbooks/tree/master/logging/doc#fluentd)
@@ -495,9 +489,10 @@ and can't be configured on GitLab.com to expire. You can erase job logs
 
 ## GitLab.com at scale
 
-In addition to the GitLab Enterprise Edition Omnibus install, GitLab.com uses
+In addition to the GitLab Enterprise Edition Linux package install, GitLab.com uses
 the following applications and settings to achieve scale. All settings are
-publicly available at [chef cookbooks](https://gitlab.com/gitlab-cookbooks).
+publicly available, as [Kubernetes configuration](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com)
+or [Chef cookbooks](https://gitlab.com/gitlab-cookbooks).
 
 ### Elastic cluster
 
@@ -541,3 +536,10 @@ Service discovery:
 High Performance TCP/HTTP Load Balancer:
 
 - [`gitlab-cookbooks` / `gitlab-haproxy` · GitLab](https://gitlab.com/gitlab-cookbooks/gitlab-haproxy)
+
+## Sidekiq
+
+GitLab.com runs [Sidekiq](https://sidekiq.org) as an [external process](../../administration/sidekiq/index.md)
+for Ruby job scheduling.
+
+The current settings are in the [GitLab.com Kubernetes pod configuration](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com/-/blob/master/releases/gitlab/values/gprd.yaml.gotmpl).

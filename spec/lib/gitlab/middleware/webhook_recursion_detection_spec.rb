@@ -3,7 +3,7 @@
 require 'fast_spec_helper'
 require 'action_dispatch'
 require 'rack'
-require 'request_store'
+require 'gitlab/safe_request_store'
 
 RSpec.describe Gitlab::Middleware::WebhookRecursionDetection do
   let(:app) { double(:app) }
@@ -11,7 +11,7 @@ RSpec.describe Gitlab::Middleware::WebhookRecursionDetection do
   let(:env) { Rack::MockRequest.env_for("/").merge(headers) }
 
   around do |example|
-    Gitlab::WithRequestStore.with_request_store { example.run }
+    Gitlab::SafeRequestStore.ensure_request_store { example.run }
   end
 
   describe '#call' do

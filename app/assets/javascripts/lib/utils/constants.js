@@ -3,18 +3,10 @@ export const DEFAULT_DEBOUNCE_AND_THROTTLE_MS = 250;
 export const THOUSAND = 1000;
 export const TRUNCATE_WIDTH_DEFAULT_WIDTH = 80;
 export const TRUNCATE_WIDTH_DEFAULT_FONT_SIZE = 12;
-
-export const DATETIME_RANGE_TYPES = {
-  fixed: 'fixed',
-  anchored: 'anchored',
-  rolling: 'rolling',
-  open: 'open',
-  invalid: 'invalid',
-};
-
 export const BV_SHOW_MODAL = 'bv::show::modal';
 export const BV_HIDE_MODAL = 'bv::hide::modal';
 export const BV_HIDE_TOOLTIP = 'bv::hide::tooltip';
+export const BV_SHOW_TOOLTIP = 'bv::show::tooltip';
 export const BV_DROPDOWN_SHOW = 'bv::dropdown::show';
 export const BV_DROPDOWN_HIDE = 'bv::dropdown::hide';
 
@@ -26,3 +18,8 @@ export const DEFAULT_TH_CLASSES =
 export const DRAWER_Z_INDEX = 252;
 
 export const MIN_USERNAME_LENGTH = 2;
+
+export const BYTES_FORMAT_BYTES = 'B';
+export const BYTES_FORMAT_KIB = 'KiB';
+export const BYTES_FORMAT_MIB = 'MiB';
+export const BYTES_FORMAT_GIB = 'GiB';

@@ -11,7 +11,7 @@ If you're hosting GitLab on a cloud provider, you can optionally use a managed
 service for Redis. For example, AWS offers ElastiCache that runs Redis.
 
 Alternatively, you may opt to manage your own Redis instance separate from the
-Omnibus GitLab package.
+Linux package.
 
 ## Requirements
 
@@ -32,15 +32,15 @@ Note the Redis node's IP address or hostname, port, and password (if required).
 1. Configure the GitLab application servers with the appropriate connection details
    for your external Redis service in your `/etc/gitlab/gitlab.rb` file:
 
-    ```ruby
-    redis['enable'] = false
+   ```ruby
+   redis['enable'] = false
 
-    gitlab_rails['redis_host'] = 'redis.example.com'
-    gitlab_rails['redis_port'] = 6379
+   gitlab_rails['redis_host'] = 'redis.example.com'
+   gitlab_rails['redis_port'] = 6379
 
-    # Required if Redis authentication is configured on the Redis node
-    gitlab_rails['redis_password'] = 'Redis Password'
-    ```
+   # Required if Redis authentication is configured on the Redis node
+   gitlab_rails['redis_password'] = 'Redis Password'
+   ```
 
 1. Reconfigure for the changes to take effect:
 
@@ -52,7 +52,7 @@ Note the Redis node's IP address or hostname, port, and password (if required).
 
 This is the documentation for configuring a scalable Redis setup when
 you have installed Redis all by yourself and not using the bundled one that
-comes with the Omnibus packages, although using the Omnibus GitLab packages is
+comes with the Linux packages, although using the Linux packages is
 highly recommend as we optimize them specifically for GitLab, and we take
 care of upgrading Redis to the latest supported version.
 
@@ -63,7 +63,7 @@ settings outlined in
 
 We cannot stress enough the importance of reading the
 [replication and failover](replication_and_failover.md) documentation of the
-Omnibus Redis HA as it provides some invaluable information to the configuration
+Linux package Redis HA because it provides some invaluable information to the configuration
 of Redis. Read it before going forward with this guide.
 
 Before proceeding on setting up the new Redis instances, here are some
@@ -79,15 +79,14 @@ requirements:
 - If you are using Redis with Sentinel, you also need to define the same
   password for the replica password definition (`masterauth`) in the same instance.
 
-In addition, read the prerequisites as described in the
-[Omnibus Redis document](replication_and_failover.md#requirements) since they provide some
-valuable information for the general setup.
+In addition, read the prerequisites as described in
+[Redis replication and failover with the Linux package](replication_and_failover.md#requirements).
 
 ### Step 1. Configuring the primary Redis instance
 
 Assuming that the Redis primary instance IP is `10.0.0.1`:
 
-1. [Install Redis](../../install/installation.md#7-redis).
+1. [Install Redis](../../install/installation.md#8-redis).
 1. Edit `/etc/redis/redis.conf`:
 
    ```conf
@@ -113,7 +112,7 @@ Assuming that the Redis primary instance IP is `10.0.0.1`:
 
 Assuming that the Redis replica instance IP is `10.0.0.2`:
 
-1. [Install Redis](../../install/installation.md#7-redis).
+1. [Install Redis](../../install/installation.md#8-redis).
 1. Edit `/etc/redis/redis.conf`:
 
    ```conf
@@ -237,7 +236,7 @@ which ideally should not have Redis or Sentinels in the same machine:
          port: 26379  # point to sentinel, not to redis port
    ```
 
-1. [Restart GitLab](../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. [Restart GitLab](../restart_gitlab.md#self-compiled-installations) for the changes to take effect.
 
 ## Example of minimal configuration with 1 primary, 2 replicas and 3 sentinels
 
@@ -250,8 +249,8 @@ unauthorized access from other machines, and block traffic from the
 outside ([Internet](https://gitlab.com/gitlab-org/gitlab-foss/uploads/c4cc8cd353604bd80315f9384035ff9e/The_Internet_IT_Crowd.png)).
 
 For this example, **Sentinel 1** is configured in the same machine as the
-**Redis Primary**, **Sentinel 2** and **Sentinel 3** in the same machines as the
-**Replica 1** and **Replica 2** respectively.
+**Redis Primary**, **Sentinel 2** in the same machine as **Replica 1**, and
+**Sentinel 3** in the same machine as **Replica 2**.
 
 Here is a list and description of each **machine** and the assigned **IP**:
 
@@ -362,7 +361,7 @@ or a failover promotes a different **Primary** node.
          port: 26379  # point to sentinel, not to redis port
    ```
 
-1. [Restart GitLab](../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. [Restart GitLab](../restart_gitlab.md#self-compiled-installations) for the changes to take effect.
 
 ## Troubleshooting
 

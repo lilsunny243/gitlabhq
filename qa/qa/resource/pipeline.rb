@@ -28,16 +28,14 @@ module QA
       def fabricate!
         project.visit!
 
-        Page::Project::Menu.perform(&:click_ci_cd_pipelines)
+        Page::Project::Menu.perform(&:go_to_pipelines)
         Page::Project::Pipeline::Index.perform(&:click_run_pipeline_button)
         Page::Project::Pipeline::New.perform(&:click_run_pipeline_button)
       end
 
       def fabricate_via_api!
         resource_web_url(api_get)
-      rescue ResourceNotFoundError
-        super
-      rescue NoValueError
+      rescue ResourceNotFoundError, NoValueError
         super
       end
 
@@ -49,7 +47,7 @@ module QA
         "/projects/#{project.id}/pipelines/#{id}"
       end
 
-      def api_pipeline_jobs_path
+      def api_jobs_path
         "#{api_get_path}/jobs"
       end
 
@@ -98,8 +96,8 @@ module QA
         result[:downstream_pipeline][:id]
       end
 
-      def pipeline_jobs
-        parse_body(api_get_from(api_pipeline_jobs_path))
+      def jobs
+        parse_body(api_get_from(api_jobs_path))
       end
     end
   end

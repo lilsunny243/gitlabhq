@@ -2,13 +2,8 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Merged merge request', product_group: :code_review do
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'revert'
-        end
-      end
-
+    describe 'Merged merge request', :requires_admin, product_group: :code_review do
+      let(:project) { create(:project) }
       let(:revertible_merge_request) do
         Resource::MergeRequest.fabricate_via_api! do |merge_request|
           merge_request.project = project

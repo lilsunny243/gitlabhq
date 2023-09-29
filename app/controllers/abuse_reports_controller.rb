@@ -1,16 +1,9 @@
 # frozen_string_literal: true
 
 class AbuseReportsController < ApplicationController
-  before_action :set_user, only: [:new, :add_category]
+  before_action :set_user, only: [:add_category]
 
   feature_category :insider_threat
-
-  def new
-    @abuse_report = AbuseReport.new(
-      user_id: @user.id,
-      reported_from_url: params.fetch(:ref_url, '')
-    )
-  end
 
   def add_category
     @abuse_report = AbuseReport.new(
@@ -55,7 +48,7 @@ class AbuseReportsController < ApplicationController
   private
 
   def report_params
-    params.require(:abuse_report).permit(:message, :user_id, :category, :reported_from_url, links_to_spam: [])
+    params.require(:abuse_report).permit(:message, :user_id, :category, :reported_from_url, :screenshot, links_to_spam: [])
   end
 
   # rubocop: disable CodeReuse/ActiveRecord
@@ -64,8 +57,8 @@ class AbuseReportsController < ApplicationController
 
     if @user.nil?
       redirect_to root_path, alert: _("Cannot create the abuse report. The user has been deleted.")
-    elsif @user.blocked?
-      redirect_to @user, alert: _("Cannot create the abuse report. This user has been blocked.")
+    elsif @user.banned?
+      redirect_to @user, alert: _("Cannot create the abuse report. This user has been banned.")
     end
   end
   # rubocop: enable CodeReuse/ActiveRecord

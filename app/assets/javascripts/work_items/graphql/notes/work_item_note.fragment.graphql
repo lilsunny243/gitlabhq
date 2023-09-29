@@ -1,4 +1,5 @@
 #import "~/graphql_shared/fragments/user.fragment.graphql"
+#import "~/work_items/graphql/award_emoji.fragment.graphql"
 
 fragment WorkItemNote on Note {
   id
@@ -9,6 +10,9 @@ fragment WorkItemNote on Note {
   systemNoteIconName
   createdAt
   lastEditedAt
+  url
+  authorIsContributor
+  maxAccessLevelOfAuthor
   lastEditedBy {
     ...User
     webPath
@@ -19,6 +23,11 @@ fragment WorkItemNote on Note {
   author {
     ...User
   }
+  awardEmoji {
+    nodes {
+      ...AwardEmojiFragment
+    }
+  }
   userPermissions {
     adminNote
     awardEmoji
@@ -26,5 +35,12 @@ fragment WorkItemNote on Note {
     createNote
     resolveNote
     repositionNote
+  }
+  systemNoteMetadata {
+    id
+    descriptionVersion {
+      id
+      description
+    }
   }
 }

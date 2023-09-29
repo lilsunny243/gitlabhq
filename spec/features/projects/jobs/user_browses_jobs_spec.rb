@@ -8,7 +8,7 @@ def visit_jobs_page
   wait_for_requests
 end
 
-RSpec.describe 'User browses jobs', feature_category: :projects do
+RSpec.describe 'User browses jobs', feature_category: :groups_and_projects do
   describe 'Jobs', :js do
     let(:project) { create(:project, :repository) }
     let(:user) { create(:user) }
@@ -72,15 +72,14 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
           wait_for_requests
 
-          expect(page).to have_selector('.ci-canceled')
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Canceled')
           expect(page).not_to have_selector('[data-testid="jobs-table-error-alert"]')
         end
       end
 
       context 'when a job can be retried' do
         let!(:job) do
-          create(:ci_build, pipeline: pipeline,
-                            stage: 'test')
+          create(:ci_build, pipeline: pipeline, stage: 'test')
         end
 
         before do
@@ -94,7 +93,7 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
           wait_for_requests
 
-          expect(page).to have_selector('.ci-pending')
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending')
         end
       end
 
@@ -134,7 +133,7 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
           wait_for_requests
 
-          expect(page).to have_selector('.ci-pending')
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Pending')
         end
 
         it 'unschedules a job successfully' do
@@ -142,16 +141,13 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
           wait_for_requests
 
-          expect(page).to have_selector('.ci-manual')
+          expect(page).to have_selector('[data-testid="ci-badge-link"]', text: 'Manual')
         end
       end
 
       context 'with downloadable artifacts' do
         let!(:with_artifacts) do
-          build = create(:ci_build, :success,
-                         pipeline: pipeline,
-                         name: 'rspec tests',
-                         stage: 'test')
+          build = create(:ci_build, :success, pipeline: pipeline, name: 'rspec tests', stage: 'test')
 
           create(:ci_job_artifact, :archive, job: build)
         end
@@ -167,10 +163,7 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
       context 'with artifacts expired' do
         let!(:with_artifacts_expired) do
-          create(:ci_build, :expired, :success,
-                 pipeline: pipeline,
-                 name: 'rspec',
-                 stage: 'test')
+          create(:ci_build, :expired, :success, pipeline: pipeline, name: 'rspec', stage: 'test')
         end
 
         before do
@@ -188,8 +181,7 @@ RSpec.describe 'User browses jobs', feature_category: :projects do
 
       context 'column links' do
         let!(:job) do
-          create(:ci_build, pipeline: pipeline,
-                            stage: 'test')
+          create(:ci_build, pipeline: pipeline, stage: 'test')
         end
 
         before do

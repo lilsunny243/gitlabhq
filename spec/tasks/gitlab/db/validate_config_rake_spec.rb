@@ -2,12 +2,12 @@
 
 require 'rake_helper'
 
-RSpec.describe 'gitlab:db:validate_config', :silence_stdout, :suppress_gitlab_schemas_validate_connection, feature_category: :pods do
+RSpec.describe 'gitlab:db:validate_config', :silence_stdout, :suppress_gitlab_schemas_validate_connection, feature_category: :cell do
   # We don't need to delete this data since it only modifies `ar_internal_metadata`
   # which would not be cleaned either by `DbCleaner`
   self.use_transactional_tests = false
 
-  before :all do
+  before(:all) do
     Rake.application.rake_require 'active_record/railties/databases'
     Rake.application.rake_require 'tasks/seed_fu'
     Rake.application.rake_require 'tasks/gitlab/db/validate_config'

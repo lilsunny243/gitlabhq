@@ -534,16 +534,8 @@ describe('common_utils', () => {
   });
 
   describe('spriteIcon', () => {
-    let beforeGon;
-
     beforeEach(() => {
-      window.gon = window.gon || {};
-      beforeGon = { ...window.gon };
       window.gon.sprite_icons = 'icons.svg';
-    });
-
-    afterEach(() => {
-      window.gon = beforeGon;
     });
 
     it('should return the svg for a linked icon', () => {
@@ -1146,6 +1138,79 @@ describe('common_utils', () => {
       ]);
 
       expect(result).toEqual([{ hello: '' }, { helloWorld: '' }]);
+    });
+  });
+
+  describe('isCurrentUser', () => {
+    describe('when user is not signed in', () => {
+      it('returns `false`', () => {
+        window.gon.current_user_id = null;
+
+        expect(commonUtils.isCurrentUser(1)).toBe(false);
+      });
+    });
+
+    describe('when current user id does not match the provided user id', () => {
+      it('returns `false`', () => {
+        window.gon.current_user_id = 2;
+
+        expect(commonUtils.isCurrentUser(1)).toBe(false);
+      });
+    });
+
+    describe('when current user id matches the provided user id', () => {
+      it('returns `true`', () => {
+        window.gon.current_user_id = 1;
+
+        expect(commonUtils.isCurrentUser(1)).toBe(true);
+      });
+    });
+
+    describe('when provided user id is a string and it matches current user id', () => {
+      it('returns `true`', () => {
+        window.gon.current_user_id = 1;
+
+        expect(commonUtils.isCurrentUser('1')).toBe(true);
+      });
+    });
+  });
+
+  describe('cloneWithoutReferences', () => {
+    it('clones the provided object', () => {
+      const obj = {
+        foo: 'bar',
+        cool: 1337,
+        nested: {
+          peanut: 'butter',
+        },
+        arrays: [0, 1, 2],
+      };
+
+      const cloned = commonUtils.cloneWithoutReferences(obj);
+
+      expect(cloned).toMatchObject({
+        foo: 'bar',
+        cool: 1337,
+        nested: {
+          peanut: 'butter',
+        },
+        arrays: [0, 1, 2],
+      });
+    });
+
+    it('does not persist object references after cloning', () => {
+      const ref = {
+        foo: 'bar',
+      };
+
+      const obj = {
+        ref,
+      };
+
+      const cloned = commonUtils.cloneWithoutReferences(obj);
+
+      expect(cloned.ref).toMatchObject({ foo: 'bar' });
+      expect(cloned.ref === ref).toBe(false);
     });
   });
 });

@@ -16,6 +16,7 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :source_code
 
     context 'when logged in' do
       before do
+        group.add_developer(user)
         login_as(user)
       end
 
@@ -120,14 +121,55 @@ RSpec.describe Projects::MergeRequestsController, feature_category: :source_code
     context 'when private project' do
       let_it_be(:private_project) { create(:project, :private) }
 
-      it_behaves_like 'authenticates sessionless user for the request spec', 'index atom', public_resource: false,
-                                                                                           ignore_metrics: true do
+      it_behaves_like 'authenticates sessionless user for the request spec', 'index atom',
+        public_resource: false,
+        ignore_metrics: true do
         let(:url) { project_merge_requests_url(private_project, format: :atom) }
 
         before do
           private_project.add_maintainer(user)
         end
       end
+    end
+  end
+
+  describe 'GET #pipelines.json' do
+    before do
+      login_as(user)
+    end
+
+    it 'avoids N+1 queries', :use_sql_query_cache do
+      create_pipeline
+
+      # warm up
+      get pipelines_project_merge_request_path(project, merge_request, format: :json)
+
+      control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
+        get pipelines_project_merge_request_path(project, merge_request, format: :json)
+      end
+
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(Gitlab::Json.parse(response.body)['count']['all']).to eq(1)
+
+      create_pipeline
+
+      expect do
+        get pipelines_project_merge_request_path(project, merge_request, format: :json)
+      end.to issue_same_number_of_queries_as(control)
+
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(Gitlab::Json.parse(response.body)['count']['all']).to eq(2)
+    end
+
+    private
+
+    def create_pipeline
+      create(
+        :ci_pipeline, :with_job, :success,
+        project: merge_request.source_project,
+        ref: merge_request.source_branch,
+        sha: merge_request.diff_head_sha
+      )
     end
   end
 end

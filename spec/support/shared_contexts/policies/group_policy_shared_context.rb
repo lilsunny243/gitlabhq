@@ -12,14 +12,14 @@ RSpec.shared_context 'GroupPolicy context' do
 
   let(:public_permissions) do
     %i[
-      read_group read_counts read_achievement
+      read_group read_counts read_issue
       read_label read_issue_board_list read_milestone read_issue_board
     ]
   end
 
   let(:guest_permissions) do
     %i[
-      read_label read_group upload_file read_namespace read_group_activity
+      read_label read_group upload_file read_namespace read_namespace_via_membership read_group_activity
       read_group_issues read_group_boards read_group_labels read_group_milestones
       read_group_merge_requests
     ]
@@ -37,14 +37,13 @@ RSpec.shared_context 'GroupPolicy context' do
       read_crm_contact
       read_crm_organization
       read_internal_note
+      read_confidential_issues
     ]
   end
 
   let(:developer_permissions) do
     %i[
-      create_metrics_dashboard_annotation
-      delete_metrics_dashboard_annotation
-      update_metrics_dashboard_annotation
+      admin_metrics_dashboard_annotation
       create_custom_emoji
       create_package
       read_cluster
@@ -54,12 +53,12 @@ RSpec.shared_context 'GroupPolicy context' do
   let(:maintainer_permissions) do
     %i[
       destroy_package
-      admin_package
       create_projects
       create_cluster update_cluster admin_cluster add_cluster
       destroy_upload
       admin_achievement
       award_achievement
+      read_group_runners
     ]
   end
 
@@ -69,13 +68,12 @@ RSpec.shared_context 'GroupPolicy context' do
       admin_group
       admin_namespace
       admin_group_member
+      admin_package
       change_visibility_level
       set_note_created_at
       create_subgroup
       read_statistics
       update_default_branch_protection
-      read_group_runners
-      admin_group_runners
       register_group_runners
       read_billing
       edit_billing

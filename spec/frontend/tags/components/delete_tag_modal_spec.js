@@ -5,12 +5,16 @@ import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import DeleteTagModal from '~/tags/components/delete_tag_modal.vue';
 import eventHub from '~/tags/event_hub';
+import { I18N_DELETE_TAG_MODAL } from '~/tags/constants';
 
 let wrapper;
 
 const tagName = 'test-tag';
 const path = '/path/to/tag';
 const isProtected = false;
+const modalHideSpy = jest.fn();
+const modalShowSpy = jest.fn();
+const formSubmitSpy = jest.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation();
 
 const createComponent = (data = {}) => {
   wrapper = extendedWrapper(
@@ -27,6 +31,10 @@ const createComponent = (data = {}) => {
         GlModal: stubComponent(GlModal, {
           template:
             '<div><slot name="modal-title"></slot><slot></slot><slot name="modal-footer"></slot></div>',
+          methods: {
+            hide: modalHideSpy,
+            show: modalShowSpy,
+          },
         }),
         GlButton,
         GlFormInput,
@@ -44,62 +52,48 @@ const findFormInput = () => wrapper.findComponent(GlFormInput);
 const findForm = () => wrapper.find('form');
 
 describe('Delete tag modal', () => {
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   describe('Deleting a regular tag', () => {
-    const expectedTitle = 'Delete tag. Are you ABSOLUTELY SURE?';
-    const expectedMessage = "You're about to permanently delete the tag test-tag.";
+    const expectedMessage = 'Deleting the test-tag tag cannot be undone.';
 
     beforeEach(() => {
       createComponent();
     });
 
     it('renders the modal correctly', () => {
-      expect(findModal().props('title')).toBe(expectedTitle);
+      expect(findModal().props('title')).toBe(I18N_DELETE_TAG_MODAL.modalTitle);
       expect(findModalMessage().text()).toMatchInterpolatedText(expectedMessage);
-      expect(findCancelButton().text()).toBe('Cancel, keep tag');
-      expect(findDeleteButton().text()).toBe('Yes, delete tag');
+      expect(findCancelButton().text()).toBe(I18N_DELETE_TAG_MODAL.cancelButtonText);
+      expect(findDeleteButton().text()).toBe(I18N_DELETE_TAG_MODAL.deleteButtonText);
       expect(findForm().attributes('action')).toBe(path);
     });
 
     it('submits the form when the delete button is clicked', () => {
-      const submitFormSpy = jest.spyOn(wrapper.vm.$refs.form, 'submit');
-
       findDeleteButton().trigger('click');
 
       expect(findForm().attributes('action')).toBe(path);
-      expect(submitFormSpy).toHaveBeenCalled();
+      expect(formSubmitSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('calls show on the modal when a `openModal` event is received through the event hub', async () => {
-      const showSpy = jest.spyOn(wrapper.vm.$refs.modal, 'show');
-
+    it('calls show on the modal when a `openModal` event is received through the event hub', () => {
       eventHub.$emit('openModal', {
         isProtected,
         tagName,
         path,
       });
 
-      expect(showSpy).toHaveBeenCalled();
+      expect(modalShowSpy).toHaveBeenCalled();
     });
 
     it('calls hide on the modal when cancel button is clicked', () => {
-      const closeModalSpy = jest.spyOn(wrapper.vm.$refs.modal, 'hide');
-
       findCancelButton().trigger('click');
 
-      expect(closeModalSpy).toHaveBeenCalled();
+      expect(modalHideSpy).toHaveBeenCalled();
     });
   });
 
   describe('Deleting a protected tag (for owner or maintainer)', () => {
-    const expectedTitleProtected = 'Delete protected tag. Are you ABSOLUTELY SURE?';
-    const expectedMessageProtected =
-      "You're about to permanently delete the protected tag test-tag.";
-    const expectedConfirmationText =
-      'After you confirm and select Yes, delete protected tag, you cannot recover this tag. Please type the following to confirm: test-tag';
+    const expectedMessage = 'Deleting the test-tag protected tag cannot be undone.';
+    const expectedConfirmationText = 'Please type the following to confirm: test-tag';
 
     beforeEach(() => {
       createComponent({ isProtected: true });
@@ -107,11 +101,11 @@ describe('Delete tag modal', () => {
 
     describe('rendering the modal correctly for a protected tag', () => {
       it('sets the modal title for a protected tag', () => {
-        expect(findModal().props('title')).toBe(expectedTitleProtected);
+        expect(findModal().props('title')).toBe(I18N_DELETE_TAG_MODAL.modalTitleProtectedTag);
       });
 
       it('renders the correct text in the modal message', () => {
-        expect(findModalMessage().text()).toMatchInterpolatedText(expectedMessageProtected);
+        expect(findModalMessage().text()).toMatchInterpolatedText(expectedMessage);
       });
 
       it('renders the protected tag name confirmation form with expected text and action', () => {
@@ -120,8 +114,8 @@ describe('Delete tag modal', () => {
       });
 
       it('renders the buttons with the correct button text', () => {
-        expect(findCancelButton().text()).toBe('Cancel, keep tag');
-        expect(findDeleteButton().text()).toBe('Yes, delete protected tag');
+        expect(findCancelButton().text()).toBe(I18N_DELETE_TAG_MODAL.cancelButtonText);
+        expect(findDeleteButton().text()).toBe(I18N_DELETE_TAG_MODAL.deleteButtonTextProtectedTag);
       });
     });
 

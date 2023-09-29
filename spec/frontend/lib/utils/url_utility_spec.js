@@ -45,10 +45,6 @@ describe('URL utility', () => {
   });
 
   describe('webIDEUrl', () => {
-    afterEach(() => {
-      gon.relative_url_root = '';
-    });
-
     it('escapes special characters', () => {
       expect(urlUtils.webIDEUrl('/gitlab-org/gitlab-#-foss/merge_requests/1')).toBe(
         '/-/ide/project/gitlab-org/gitlab-%23-foss/merge_requests/1',
@@ -331,6 +327,26 @@ describe('URL utility', () => {
     });
   });
 
+  describe('getLocationHash', () => {
+    it('gets a default empty value', () => {
+      setWindowLocation(TEST_HOST);
+
+      expect(urlUtils.getLocationHash()).toBeUndefined();
+    });
+
+    it('gets a value', () => {
+      setWindowLocation('#hash-value');
+
+      expect(urlUtils.getLocationHash()).toBe('hash-value');
+    });
+
+    it('gets an empty value when only hash is set', () => {
+      setWindowLocation('#');
+
+      expect(urlUtils.getLocationHash()).toBeUndefined();
+    });
+  });
+
   describe('doesHashExistInUrl', () => {
     beforeEach(() => {
       setWindowLocation('#note_1');
@@ -398,6 +414,71 @@ describe('URL utility', () => {
       const url = urlUtils.setUrlFragment('/home/feature#overview', '#install');
 
       expect(url).toBe('/home/feature#install');
+    });
+  });
+
+  describe('visitUrl', () => {
+    let originalLocation;
+    const mockUrl = 'http://example.com/page';
+
+    beforeAll(() => {
+      originalLocation = window.location;
+
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: {
+          assign: jest.fn(),
+          protocol: 'http:',
+          host: TEST_HOST,
+        },
+      });
+    });
+
+    afterAll(() => {
+      window.location = originalLocation;
+    });
+
+    it.each`
+      inputQuery                   | expectedQuery
+      ${'?scope=all&state=merged'} | ${'?scope=all&state=merged'}
+      ${'?'}                       | ${'?'}
+    `('handles query string: $inputQuery', ({ inputQuery, expectedQuery }) => {
+      window.location.href = mockUrl;
+      urlUtils.visitUrl(inputQuery);
+      expect(window.location.assign).toHaveBeenCalledWith(`${mockUrl}${expectedQuery}`);
+    });
+
+    it('does not navigate to unsafe urls', () => {
+      // eslint-disable-next-line no-script-url
+      const url = 'javascript:alert(document.domain)';
+
+      expect(() => {
+        urlUtils.visitUrl(url);
+      }).toThrow(new RangeError(`Only http and https protocols are allowed: ${url}`));
+    });
+
+    it('navigates to a page', () => {
+      urlUtils.visitUrl(mockUrl);
+
+      expect(window.location.assign).toHaveBeenCalledWith(mockUrl);
+    });
+
+    it('navigates to a new page', () => {
+      const otherWindow = {
+        location: {
+          assign: jest.fn(),
+        },
+      };
+
+      Object.defineProperty(window, 'open', {
+        writable: true,
+        value: jest.fn().mockReturnValue(otherWindow),
+      });
+
+      urlUtils.visitUrl(mockUrl, true);
+
+      expect(otherWindow.opener).toBe(null);
+      expect(otherWindow.location.assign).toHaveBeenCalledWith(mockUrl);
     });
   });
 
@@ -503,10 +584,6 @@ describe('URL utility', () => {
 
     beforeEach(() => {
       gon.gitlab_url = gitlabUrl;
-    });
-
-    afterEach(() => {
-      gon.gitlab_url = '';
     });
 
     it.each`
@@ -796,18 +873,6 @@ describe('URL utility', () => {
     });
   });
 
-  describe('stripFinalUrlSegment', () => {
-    it.each`
-      path                                                        | expected
-      ${'http://fake.domain/twitter/typeahead-js/-/tags/v0.11.0'} | ${'http://fake.domain/twitter/typeahead-js/-/tags/'}
-      ${'http://fake.domain/bar/cool/-/nested/content'}           | ${'http://fake.domain/bar/cool/-/nested/'}
-      ${'http://fake.domain/bar/cool?q="search"'}                 | ${'http://fake.domain/bar/'}
-      ${'http://fake.domain/bar/cool#link-to-something'}          | ${'http://fake.domain/bar/'}
-    `('stripFinalUrlSegment $path => $expected', ({ path, expected }) => {
-      expect(urlUtils.stripFinalUrlSegment(path)).toBe(expected);
-    });
-  });
-
   describe('escapeFileUrl', () => {
     it('encodes URL excluding the slashes', () => {
       expect(urlUtils.escapeFileUrl('/foo-bar/file.md')).toBe('/foo-bar/file.md');
@@ -1068,6 +1133,7 @@ describe('URL utility', () => {
 
   describe('defaultPromoUrl', () => {
     it('Gitlab about page url', () => {
+      // eslint-disable-next-line no-restricted-syntax
       const url = 'https://about.gitlab.com';
 
       expect(urlUtils.PROMO_URL).toBe(url);
@@ -1095,6 +1161,20 @@ describe('URL utility', () => {
       ${'https://www.gitlab.com/hello'}         | ${'https://www.gitlab.com/hello'}
     `('transforms $input to $output', ({ input, output }) => {
       expect(urlUtils.removeLastSlashInUrlPath(input)).toBe(output);
+    });
+  });
+
+  describe('buildURLwithRefType', () => {
+    const base = 'http://gitlab.com/';
+
+    it.each`
+      path           | refType    | output
+      ${'foo/bar'}   | ${'heads'} | ${'/foo/bar?ref_type=heads'}
+      ${'/foo/bar/'} | ${'HEADS'} | ${'/foo/bar/?ref_type=heads'}
+      ${'/foo/bar/'} | ${''}      | ${'/foo/bar/'}
+      ${'/'}         | ${''}      | ${'/'}
+    `('path $path with ref $refType becomes $output', ({ path, refType, output }) => {
+      expect(urlUtils.buildURLwithRefType({ base, path, refType })).toBe(output);
     });
   });
 });

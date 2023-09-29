@@ -19,13 +19,6 @@
     "key_path": {
       "type": "string"
     },
-    "name": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "pattern": "^([a-z]+_)*[a-z]+$"
-    },
     "description": {
       "type": "string"
     },
@@ -42,12 +35,6 @@
     "product_group": {
       "type": "string",
       "pattern": "^$|^([a-z]+_)*[a-z]+$"
-    },
-    "product_category": {
-      "type": [
-        "string",
-        "null"
-      ]
     },
     "value_type": {
       "type": "string",
@@ -76,10 +63,9 @@
     },
     "milestone_removed": {
       "type": [
-        "string",
-        "null"
+        "string"
       ],
-      "pattern": "^[0-9]+\\.[0-9]+$"
+      "pattern": "^<?[0-9]+\\.[0-9]+$"
     },
     "introduced_by_url": {
       "type": [
@@ -101,6 +87,28 @@
     "options": {
       "type": "object"
     },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "unique": {
+            "type": "string",
+            "enum": [
+              "user.id",
+              "project.id",
+              "namespace.id"
+            ]
+          }
+        }
+      }
+    },
     "time_frame": {
       "type": "string",
       "enum": [
@@ -118,7 +126,8 @@
         "redis_hll",
         "prometheus",
         "system",
-        "license"
+        "license",
+        "internal_events"
       ]
     },
     "data_category": {
@@ -195,6 +204,35 @@
       "then": {
         "required": [
           "repair_issue_url"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "data_source": {
+            "const": "internal_events"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "events"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "removed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "removed_by_url",
+          "milestone_removed"
         ]
       }
     }

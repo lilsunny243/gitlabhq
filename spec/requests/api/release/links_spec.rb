@@ -5,12 +5,12 @@ require 'spec_helper'
 RSpec.describe API::Release::Links, feature_category: :release_orchestration do
   include Ci::JobTokenScopeHelpers
 
-  let(:project) { create(:project, :repository, :private) }
-  let(:maintainer) { create(:user) }
-  let(:developer) { create(:user) }
-  let(:reporter) { create(:user) }
-  let(:non_project_member) { create(:user) }
-  let(:commit) { create(:commit, project: project) }
+  let_it_be_with_reload(:project) { create(:project, :repository, :private) }
+  let_it_be(:maintainer) { create(:user) }
+  let_it_be(:developer) { create(:user) }
+  let_it_be(:reporter) { create(:user) }
+  let_it_be(:non_project_member) { create(:user) }
+  let_it_be(:commit) { create(:commit, project: project) }
 
   let!(:release) do
     create(:release,
@@ -19,7 +19,7 @@ RSpec.describe API::Release::Links, feature_category: :release_orchestration do
            author: maintainer)
   end
 
-  before do
+  before_all do
     project.add_maintainer(maintainer)
     project.add_developer(developer)
     project.add_reporter(reporter)
@@ -174,7 +174,7 @@ RSpec.describe API::Release::Links, feature_category: :release_orchestration do
         specify do
           get api("/projects/#{project.id}/releases/v0.1/assets/links/#{link.id}", maintainer)
 
-          expect(json_response['direct_asset_url']).to eq("http://localhost/#{project.namespace.path}/#{project.name}/-/releases/#{release.tag}/downloads/bin/bigfile.exe")
+          expect(json_response['direct_asset_url']).to eq("http://localhost/#{project.full_path}/-/releases/#{release.tag}/downloads/bin/bigfile.exe")
         end
       end
 
@@ -377,12 +377,21 @@ RSpec.describe API::Release::Links, feature_category: :release_orchestration do
       expect(response).to match_response_schema('release/link')
     end
 
+    context 'when params are invalid' do
+      it 'returns 400 error' do
+        put api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", maintainer),
+            params: params.merge(url: 'wrong_url')
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+      end
+    end
+
     context 'when using `direct_asset_path`' do
       it 'updates the release link' do
         put api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", maintainer),
             params: params.merge(direct_asset_path: '/binaries/awesome-app.msi')
 
-        expect(json_response['direct_asset_url']).to eq("http://localhost/#{project.namespace.path}/#{project.name}/-/releases/#{release.tag}/downloads/binaries/awesome-app.msi")
+        expect(json_response['direct_asset_url']).to eq("http://localhost/#{project.full_path}/-/releases/#{release.tag}/downloads/binaries/awesome-app.msi")
       end
     end
 
@@ -530,6 +539,21 @@ RSpec.describe API::Release::Links, feature_category: :release_orchestration do
           delete api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", developer)
 
           expect(response).to have_gitlab_http_status(:forbidden)
+        end
+      end
+    end
+
+    context 'when destroy process fails' do
+      before do
+        allow_next_instance_of(::Releases::Links::DestroyService) do |service|
+          allow(service).to receive(:execute).and_return(ServiceResponse.error(message: 'error'))
+        end
+      end
+
+      it_behaves_like '400 response' do
+        let(:message) { 'error' }
+        let(:request) do
+          delete api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", maintainer)
         end
       end
     end

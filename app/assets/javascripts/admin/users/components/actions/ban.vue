@@ -1,5 +1,6 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
-import { GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdownItem } from '@gitlab/ui';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { sprintf, s__, __ } from '~/locale';
 import eventHub, { EVENT_OPEN_CONFIRM_MODAL } from '~/vue_shared/components/confirm_modal_eventhub';
@@ -12,14 +13,14 @@ const messageHtml = `
     <li>${s__("AdminUsers|The user can't log in.")}</li>
     <li>${s__("AdminUsers|The user can't access git repositories.")}</li>
     <li>${s__(
-      'AdminUsers|Issues and merge requests authored by this user are hidden from other users.',
+      'AdminUsers|Projects, issues, merge requests, and comments of this user are hidden from other users.',
     )}</li>
   </ul>
   <p>${s__('AdminUsers|You can unban their account in the future. Their data remains intact.')}</p>
   <p>${sprintf(
     s__('AdminUsers|Learn more about %{link_start}banned users.%{link_end}'),
     {
-      link_start: `<a href="${helpPagePath('user/admin_area/moderate_users', {
+      link_start: `<a href="${helpPagePath('administration/moderate_users', {
         anchor: 'ban-a-user',
       })}" target="_blank">`,
       link_end: '</a>',
@@ -30,7 +31,7 @@ const messageHtml = `
 
 export default {
   components: {
-    GlDropdownItem,
+    GlDisclosureDropdownItem,
   },
   props: {
     username: {
@@ -56,7 +57,7 @@ export default {
           },
           actionPrimary: {
             text: I18N_USER_ACTIONS.ban,
-            attributes: [{ variant: 'confirm' }],
+            attributes: { variant: 'confirm' },
           },
           messageHtml,
         },
@@ -67,7 +68,9 @@ export default {
 </script>
 
 <template>
-  <gl-dropdown-item @click="onClick">
-    <slot></slot>
-  </gl-dropdown-item>
+  <gl-disclosure-dropdown-item @action="onClick">
+    <template #list-item>
+      <slot></slot>
+    </template>
+  </gl-disclosure-dropdown-item>
 </template>

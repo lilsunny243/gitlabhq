@@ -12,9 +12,10 @@ module Integrations
       pipeline build archive_trace
     ].freeze
 
-    TAG_KEY_VALUE_RE = %r{\A [\w-]+ : .*\S.* \z}x.freeze
+    TAG_KEY_VALUE_RE = %r{\A [\w-]+ : .*\S.* \z}x
 
     field :datadog_site,
+      exposes_secrets: true,
       placeholder: DEFAULT_DOMAIN,
       help: -> do
         ERB::Util.html_escape(
@@ -31,7 +32,7 @@ module Integrations
       help: -> { s_('DatadogIntegration|(Advanced) The full URL for your Datadog site.') }
 
     field :api_key,
-      type: 'password',
+      type: :password,
       title: -> { _('API key') },
       non_empty_password_title: -> { s_('ProjectService|Enter new API key') },
       non_empty_password_help: -> { s_('ProjectService|Leave blank to use your current API key') },
@@ -39,7 +40,7 @@ module Integrations
         ERB::Util.html_escape(
           s_('DatadogIntegration|%{linkOpen}API key%{linkClose} used for authentication with Datadog.')
         ) % {
-          linkOpen: %Q{<a href="#{URL_API_KEYS_DOCS}" target="_blank" rel="noopener noreferrer">}.html_safe,
+          linkOpen: %(<a href="#{URL_API_KEYS_DOCS}" target="_blank" rel="noopener noreferrer">).html_safe,
           linkClose: '</a>'.html_safe
         }
       end,
@@ -47,7 +48,7 @@ module Integrations
 
     field :archive_trace_events,
       storage: :attribute,
-      type: 'checkbox',
+      type: :checkbox,
       title: -> { _('Logs') },
       checkbox_label: -> { _('Enable logs collection') },
       help: -> { s_('When enabled, job logs are collected by Datadog and displayed along with pipeline execution traces.') }
@@ -72,7 +73,7 @@ module Integrations
       end
 
     field :datadog_tags,
-      type: 'textarea',
+      type: :textarea,
       title: -> { s_('DatadogIntegration|Tags') },
       placeholder: "tag:value\nanother_tag:value",
       help: -> do

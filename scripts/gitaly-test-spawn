@@ -3,13 +3,14 @@
 
 # This script is used both in CI and in local development 'rspec' runs.
 
+require_relative '../config/bundler_setup'
 require_relative '../spec/support/helpers/gitaly_setup'
 
 class GitalyTestSpawn
   include GitalySetup
 
   def run
-    install_gitaly_gems
+    ensure_gitlab_shell_secret!
 
     # Run Praefect migrations
     setup_praefect

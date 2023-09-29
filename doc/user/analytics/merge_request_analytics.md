@@ -5,7 +5,7 @@ group: Optimize
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merge request analytics **(PREMIUM)**
+# Merge request analytics **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/229045) in GitLab 13.3.
 > - Moved to GitLab Premium in 13.9.
@@ -29,8 +29,8 @@ Prerequisite:
 
 To view merge request analytics:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Merge request**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Analyze > Merge request analytics**.
 
 ## View the number of merge requests in a date range
 
@@ -39,8 +39,8 @@ To view merge request analytics:
 
 To view the number of merge requests merged during a specific date range:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Merge request**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Analyze > Merge request analytics**.
 1. Optional. Filter results:
    1. Select the filter bar.
    1. Select a parameter.
@@ -73,6 +73,6 @@ created and when it's merged. Closed and not yet merged merge requests are not i
 
 To view **Mean time to merge**:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Analytics > Merge request**. The **Mean time to merge** number
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Analyze > Merge request analytics**. The **Mean time to merge** number
 is displayed on the dashboard.

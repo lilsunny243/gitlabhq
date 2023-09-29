@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
+RSpec.describe NamespaceSetting, feature_category: :groups_and_projects, type: :model do
   it_behaves_like 'sanitizable', :namespace_settings, %i[default_branch_name]
 
   # Relationships
@@ -14,7 +14,15 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
   it { is_expected.to define_enum_for(:jobs_to_be_done).with_values([:basics, :move_repository, :code_storage, :exploring, :ci, :other]).with_suffix }
   it { is_expected.to define_enum_for(:enabled_git_access_protocol).with_values([:all, :ssh, :http]).with_suffix }
 
+  describe 'default values' do
+    subject(:setting) { described_class.new }
+
+    it { expect(setting.default_branch_protection_defaults).to eq({}) }
+  end
+
   describe "validations" do
+    it { is_expected.to validate_inclusion_of(:code_suggestions).in_array([true, false]) }
+
     describe "#default_branch_name_content" do
       let_it_be(:group) { create(:group) }
 
@@ -49,6 +57,36 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
         end
 
         it_behaves_like "doesn't return an error"
+      end
+    end
+
+    describe '#code_suggestions' do
+      context 'when group namespaces' do
+        let(:settings) { group.namespace_settings }
+        let(:group) { create(:group) }
+
+        context 'when group is created' do
+          it 'sets default code_suggestions value to true' do
+            expect(settings.code_suggestions).to eq true
+          end
+        end
+
+        context 'when setting is updated' do
+          it 'persists the code suggestions setting' do
+            settings.update!(code_suggestions: false)
+
+            expect(settings.code_suggestions).to eq false
+          end
+        end
+      end
+
+      context 'when user namespace' do
+        let(:user) { create(:user) }
+        let(:settings) { user.namespace.namespace_settings }
+
+        it 'defaults to false' do
+          expect(settings.code_suggestions).to eq false
+        end
       end
     end
 
@@ -104,6 +142,25 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
 
           expect(settings).to be_valid
         end
+      end
+    end
+
+    context 'default_branch_protections_defaults validations' do
+      let(:charset) { [*'a'..'z'] + [*0..9] }
+      let(:value) { Array.new(byte_size) { charset.sample }.join }
+
+      it { expect(described_class).to validate_jsonb_schema(['default_branch_protection_defaults']) }
+
+      context 'when json is more than 1kb' do
+        let(:byte_size) { 1.1.kilobytes }
+
+        it { is_expected.not_to allow_value({ name: value }).for(:default_branch_protection_defaults) }
+      end
+
+      context 'when json less than 1kb' do
+        let(:byte_size) { 0.5.kilobytes }
+
+        it { is_expected.to allow_value({ name: value }).for(:default_branch_protection_defaults) }
       end
     end
   end
@@ -192,7 +249,7 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
     context 'when a group has parent groups' do
       let(:grandparent) { create(:group, namespace_settings: settings) }
       let(:parent)      { create(:group, parent: grandparent) }
-      let!(:group) { create(:group, parent: parent) }
+      let!(:group)      { create(:group, parent: parent) }
 
       context "when a parent group has disabled diff previews" do
         let(:settings) { create(:namespace_settings, show_diff_preview_in_email: false) }
@@ -212,60 +269,86 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
     end
   end
 
-  describe '#runner_registration_enabled?' do
-    context 'when not a subgroup' do
-      let_it_be(:settings) { create(:namespace_settings) }
-      let_it_be(:group) { create(:group, namespace_settings: settings) }
+  context 'runner registration settings' do
+    shared_context 'with runner registration settings changing in hierarchy' do
+      context 'when there are no parents' do
+        let_it_be(:group) { create(:group) }
 
-      before do
-        group.update!(runner_registration_enabled: runner_registration_enabled)
-      end
+        it { is_expected.to be_truthy }
 
-      context 'when :runner_registration_enabled is false' do
-        let(:runner_registration_enabled) { false }
+        context 'when no group can register runners' do
+          before do
+            stub_application_setting(valid_runner_registrars: [])
+          end
 
-        it 'returns false' do
-          expect(group.runner_registration_enabled?).to be_falsey
-        end
-
-        it 'does not query the db' do
-          expect { group.runner_registration_enabled? }.not_to exceed_query_limit(0)
+          it { is_expected.to be_falsey }
         end
       end
 
-      context 'when :runner_registration_enabled is true' do
-        let(:runner_registration_enabled) { true }
+      context 'when there are parents' do
+        let_it_be(:grandparent) { create(:group) }
+        let_it_be(:parent)      { create(:group, parent: grandparent) }
+        let_it_be(:group)       { create(:group, parent: parent) }
 
-        it 'returns true' do
-          expect(group.runner_registration_enabled?).to be_truthy
+        before do
+          grandparent.update!(runner_registration_enabled: grandparent_runner_registration_enabled)
+        end
+
+        context 'when a parent group has runner registration disabled' do
+          let(:grandparent_runner_registration_enabled) { false }
+
+          it { is_expected.to be_falsey }
+        end
+
+        context 'when all parent groups have runner registration enabled' do
+          let(:grandparent_runner_registration_enabled) { true }
+
+          it { is_expected.to be_truthy }
         end
       end
     end
 
-    context 'when a group has parent groups' do
-      let_it_be(:grandparent) { create(:group) }
-      let_it_be(:parent)      { create(:group, parent: grandparent) }
-      let_it_be(:group)       { create(:group, parent: parent) }
+    describe '#runner_registration_enabled?' do
+      subject(:group_setting) { group.runner_registration_enabled? }
+
+      let_it_be(:settings) { create(:namespace_settings) }
+      let_it_be(:group) { create(:group, namespace_settings: settings) }
 
       before do
-        grandparent.update!(runner_registration_enabled: runner_registration_enabled)
+        group.update!(runner_registration_enabled: group_runner_registration_enabled)
       end
 
-      context 'when a parent group has runner registration disabled' do
-        let(:runner_registration_enabled) { false }
+      context 'when runner registration is enabled' do
+        let(:group_runner_registration_enabled) { true }
 
-        it 'returns false' do
-          expect(group.runner_registration_enabled?).to be_falsey
+        it { is_expected.to be_truthy }
+
+        it_behaves_like 'with runner registration settings changing in hierarchy'
+      end
+
+      context 'when runner registration is disabled' do
+        let(:group_runner_registration_enabled) { false }
+
+        it { is_expected.to be_falsey }
+
+        it 'does not query the db' do
+          expect { group.runner_registration_enabled? }.not_to exceed_query_limit(0)
+        end
+
+        context 'when group runner registration is disallowed' do
+          before do
+            stub_application_setting(valid_runner_registrars: [])
+          end
+
+          it { is_expected.to be_falsey }
         end
       end
+    end
 
-      context 'when all parent groups have runner registration enabled' do
-        let(:runner_registration_enabled) { true }
+    describe '#all_ancestors_have_runner_registration_enabled?' do
+      subject(:group_setting) { group.all_ancestors_have_runner_registration_enabled? }
 
-        it 'returns true' do
-          expect(group.runner_registration_enabled?).to be_truthy
-        end
-      end
+      it_behaves_like 'with runner registration settings changing in hierarchy'
     end
   end
 
@@ -345,5 +428,25 @@ RSpec.describe NamespaceSetting, feature_category: :subgroups, type: :model do
 
   describe '#delayed_project_removal' do
     it_behaves_like 'a cascading namespace setting boolean attribute', settings_attribute_name: :delayed_project_removal
+  end
+
+  describe 'default_branch_protection_defaults' do
+    let(:defaults) { { name: 'main', push_access_level: 30, merge_access_level: 30, unprotect_access_level: 40 } }
+
+    it 'returns the value for default_branch_protection_defaults' do
+      subject.default_branch_protection_defaults = defaults
+      expect(subject.default_branch_protection_defaults['name']).to eq('main')
+      expect(subject.default_branch_protection_defaults['push_access_level']).to eq(30)
+      expect(subject.default_branch_protection_defaults['merge_access_level']).to eq(30)
+      expect(subject.default_branch_protection_defaults['unprotect_access_level']).to eq(40)
+    end
+
+    context 'when provided with content that does not match the JSON schema' do
+      # valid json
+      it { is_expected.to allow_value({ name: 'bar' }).for(:default_branch_protection_defaults) }
+
+      # invalid json
+      it { is_expected.not_to allow_value({ foo: 'bar' }).for(:default_branch_protection_defaults) }
+    end
   end
 end

@@ -6,9 +6,11 @@ module BulkImports
       class UploadsPipeline
         include Pipeline
 
-        AVATAR_PATTERN = %r{.*\/#{BulkImports::UploadsExportService::AVATAR_PATH}\/(?<identifier>.*)}.freeze
+        AVATAR_PATTERN = %r{.*\/#{BulkImports::UploadsExportService::AVATAR_PATH}\/(?<identifier>.*)}
 
         AvatarLoadingError = Class.new(StandardError)
+
+        file_extraction_pipeline!
 
         def extract(_context)
           download_service.execute
@@ -22,9 +24,9 @@ module BulkImports
 
         def load(context, file_path)
           # Validate that the path is OK to load
-          Gitlab::Utils.check_allowed_absolute_path_and_path_traversal!(file_path, [Dir.tmpdir])
+          Gitlab::PathTraversal.check_allowed_absolute_path_and_path_traversal!(file_path, [Dir.tmpdir])
           return if File.directory?(file_path)
-          return if File.lstat(file_path).symlink?
+          return if Gitlab::Utils::FileInfo.linked?(file_path)
 
           avatar_path = AVATAR_PATTERN.match(file_path)
           return save_avatar(file_path) if avatar_path
@@ -46,7 +48,7 @@ module BulkImports
         def download_service
           BulkImports::FileDownloadService.new(
             configuration: context.configuration,
-            relative_url: context.entity.relation_download_url_path(relation),
+            relative_url: context.entity.relation_download_url_path(relation, context.extra[:batch_number]),
             tmpdir: tmpdir,
             filename: targz_filename
           )

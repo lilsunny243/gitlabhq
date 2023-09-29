@@ -14,6 +14,7 @@ module QA
               include MembersFilter
               include RemoveMemberModal
               include RemoveGroupModal
+              include ConfirmModal
             end
 
             base.view 'app/assets/javascripts/members/components/table/members_table.vue' do
@@ -34,7 +35,7 @@ module QA
             end
 
             base.view 'app/assets/javascripts/members/components/action_buttons/approve_access_request_button.vue' do
-              element :approve_access_request_button
+              element 'approve-access-request-button'
             end
 
             base.view 'app/assets/javascripts/members/components/members_tabs.vue' do
@@ -53,6 +54,8 @@ module QA
               click_element :access_level_dropdown
               click_element :access_level_link, text: access_level
             end
+
+            click_confirmation_ok_button_if_present
           end
 
           def remove_member(username)
@@ -66,13 +69,13 @@ module QA
 
           def approve_access_request(username)
             within_element(:member_row, text: username) do
-              click_element :approve_access_request_button
+              click_element 'approve-access-request-button'
             end
           end
 
           def deny_access_request(username)
             within_element(:member_row, text: username) do
-              click_element :delete_member_button
+              click_element 'delete-member-button'
             end
 
             confirm_remove_member

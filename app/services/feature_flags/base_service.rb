@@ -4,45 +4,27 @@ module FeatureFlags
   class BaseService < ::BaseService
     include Gitlab::Utils::StrongMemoize
 
-    AUDITABLE_ATTRIBUTES = %w(name description active).freeze
+    AUDITABLE_ATTRIBUTES = %w[name description active].freeze
 
     def success(**args)
-      audit_event = args.fetch(:audit_event) { audit_event(args[:feature_flag]) }
-      save_audit_event(audit_event)
       sync_to_jira(args[:feature_flag])
+
+      audit_event(args[:feature_flag], args[:audit_context])
       super
     end
 
     protected
 
+    def audit_event(feature_flag, context = nil)
+      context ||= audit_context(feature_flag)
+
+      return if context[:message].blank?
+
+      ::Gitlab::Audit::Auditor.audit(context)
+    end
+
     def update_last_feature_flag_updated_at!
       Operations::FeatureFlagsClient.update_last_feature_flag_updated_at!(project)
-    end
-
-    def audit_event(feature_flag)
-      message = audit_message(feature_flag)
-
-      return if message.blank?
-
-      details =
-        {
-          custom_message: message,
-          target_id: feature_flag.id,
-          target_type: feature_flag.class.name,
-          target_details: feature_flag.name
-        }
-
-      ::AuditEventService.new(
-        current_user,
-        feature_flag.project,
-        details
-      )
-    end
-
-    def save_audit_event(audit_event)
-      return unless audit_event
-
-      audit_event.security_event
     end
 
     def sync_to_jira(feature_flag)
@@ -57,9 +39,9 @@ module FeatureFlags
 
     def created_strategy_message(strategy)
       scopes = strategy.scopes
-                 .map { |scope| %Q("#{scope.environment_scope}") }
+                 .map { |scope| %("#{scope.environment_scope}") }
                  .join(', ')
-      %Q(Created strategy "#{strategy.name}" with scopes #{scopes}.)
+      %(Created strategy "#{strategy.name}" with scopes #{scopes}.)
     end
 
     def feature_flag_by_name

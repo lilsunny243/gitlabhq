@@ -1,10 +1,10 @@
 ---
-stage: Release
-group: Release
+stage: Deploy
+group: Environments
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Deploy keys **(FREE)**
+# Deploy keys **(FREE ALL)**
 
 Use deploy keys to access repositories that are hosted in GitLab. In most cases, you use deploy keys
 to access a repository from an external host, like a build server or Continuous Integration (CI) server.
@@ -15,8 +15,7 @@ Depending on your needs, you might want to use a [deploy token](../deploy_tokens
 |------------------|-------------|--------------|
 | Sharing          | Shareable between multiple projects, even those in different groups. | Belong to a project or group. |
 | Source           | Public SSH key generated on an external host. | Generated on your GitLab instance, and is provided to users only at creation time. |
-| Validity         | Valid as long as it's registered and enabled, and the user that created it exists. | Can be given an expiration date. |
-| Registry access  | Cannot access a package registry. | Can read from and write to a package registry. |
+| Accessible resources  | Git repository over SSH | Git repository over HTTP, package registry, and container registry. |
 
 Deploy keys can't be used for Git operations if [external authorization](../../admin_area/settings/external_authorization.md) is enabled.
 
@@ -41,10 +40,7 @@ A deploy key is given a permission level when it is created:
 You can change a deploy key's permission level after creating it. Changing a project deploy key's
 permissions only applies for the current project.
 
-When a read-write deploy key is used to push a commit, GitLab checks if the creator of the
-deploy key has permission to access the resource.
-
-For example:
+GitLab authorizes the creator of the deploy key if the Git-command triggers additional processes. For example:
 
 - When a deploy key is used to push a commit to a [protected branch](../protected_branches.md),
   the _creator_ of the deploy key must have access to the branch.
@@ -52,12 +48,24 @@ For example:
   deploy key must have access to the CI/CD resources, including protected environments and secret
   variables.
 
+## Security implications
+
+The intended use case for deploy keys is for non-human interaction with GitLab, for example: an automated script running on a server in your organization.
+As with all sensitive information, you should ensure only those who need access to the secret can read it.
+For human interactions, use credentials tied to users such as Personal Access Tokens.
+
+To help detect a potential secret leak, you can use the
+[Audit Event](../../../administration/audit_event_streaming/examples.md#example-payloads-for-ssh-events-with-deploy-key) feature.
+
+WARNING:
+Deploy keys work even if the user who created them is removed from the group or project.
+
 ## View deploy keys
 
 To view the deploy keys available to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Deploy keys**.
 
 The deploy keys available are listed:
@@ -74,12 +82,14 @@ Prerequisites:
 - [Generate an SSH key pair](../../ssh.md#generate-an-ssh-key-pair). Put the private SSH
   key on the host that requires access to the repository.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Deploy keys**.
+1. Select **Add new key**.
 1. Complete the fields.
 1. Optional. To grant `read-write` permission, select the **Grant write permissions to this key**
    checkbox.
+1. Optional. Update the **Expiration date**.
 
 A project deploy key is enabled when it is created. You can modify only a project deploy key's
 name and permissions.
@@ -88,14 +98,15 @@ name and permissions.
 
 Prerequisites:
 
-- You must have administrator access.
-- [Generate an SSH key pair](../../ssh.md#generate-an-ssh-key-pair). Put the private SSH
-  key on the host that requires access to the repository.
+- You must have administrator access to the instance.
+- You must [generate an SSH key pair](../../ssh.md#generate-an-ssh-key-pair).
+- You must put the private SSH key on the host that requires access to the repository.
 
 To create a public deploy key:
 
-1. On the top bar, select **Main menu > Admin**.
-1. On the left sidebar, select **Deploy Keys**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
+1. Select **Deploy Keys**.
 1. Select **New deploy key**.
 1. Complete the fields.
    - Use a meaningful description for **Name**. For example, include the name of the external host
@@ -111,14 +122,28 @@ Prerequisites:
 
 To grant a public deploy key access to a project:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Deploy keys**.
 1. Select **Publicly accessible deploy keys**.
 1. In the key's row, select **Enable**.
 1. To grant read-write permission to the public deploy key:
    1. In the key's row, select **Edit** (**{pencil}**).
    1. Select the **Grant write permissions to this key** checkbox.
+
+### Edit project access permissions of a deploy key
+
+Prerequisites:
+
+- You must have at least the Maintainer role for the project.
+
+To edit the project access permissions of a deploy key:
+
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
+1. Expand **Deploy keys**.
+1. In the key's row, select **Edit** (**{pencil}**).
+1. Select or clear the **Grant write permissions to this key** checkbox.
 
 ## Revoke project access of a deploy key
 
@@ -131,8 +156,8 @@ Prerequisites:
 
 To disable a deploy key:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
 1. Expand **Deploy keys**.
 1. Select **Disable** (**{cancel}**).
 
@@ -151,9 +176,11 @@ What happens to the deploy key when it is disabled depends on the following:
 There are a few scenarios where a deploy key fails to push to a
 [protected branch](../protected_branches.md).
 
-- The owner associated to a deploy key does not have access to the protected branch.
 - The owner associated to a deploy key does not have [membership](../members/index.md) to the project of the protected branch.
-- **No one** is selected in [the **Allowed to push** section](../protected_branches.md#configure-a-protected-branch) of the protected branch.
+- The owner associated to a deploy key has [project membership permissions](../../../user/permissions.md#project-members-permissions) lower than required to **View project code**.
+- The deploy key does not have [read-write permissions for the project](#edit-project-access-permissions-of-a-deploy-key).
+- The deploy key has been [revoked](#revoke-project-access-of-a-deploy-key).
+- **No one** is selected in [the **Allowed to push and merge** section](../protected_branches.md#add-protection-to-existing-branches) of the protected branch.
 
 All deploy keys are associated to an account. Since the permissions for an account can change, this might lead to scenarios where a deploy key that was working is suddenly unable to push to a protected branch.
 
@@ -165,7 +192,7 @@ If you need to find the keys that belong to a non-member or blocked user,
 you can use [the Rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session) to identify unusable deploy keys using a script similar to the following:
 
 ```ruby
-ghost_user_id = User.ghost.id
+ghost_user_id = Users::Internal.ghost.id
 
 DeployKeysProject.with_write_access.find_each do |deploy_key_mapping|
   project = deploy_key_mapping.project

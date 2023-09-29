@@ -4,6 +4,7 @@ import { cleanLeadingSeparator } from '~/lib/utils/url_utility';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_action';
 import { createAndSubmitForm } from '~/lib/utils/create_and_submit_form';
 import csrf from '~/lib/utils/csrf';
+import Tracking from '~/tracking';
 import { getBaseConfig } from './lib/gitlab_web_ide/get_base_config';
 import { setupRootElement } from './lib/gitlab_web_ide/setup_root_element';
 import { GITLAB_WEB_IDE_FEEDBACK_ISSUE } from './constants';
@@ -42,6 +43,7 @@ export const initGitlabWebIDE = async (el) => {
     editorFontSrcUrl,
     editorFontFormat,
     editorFontFamily,
+    codeSuggestionsEnabled,
   } = el.dataset;
 
   const rootEl = setupRootElement(el);
@@ -61,19 +63,22 @@ export const initGitlabWebIDE = async (el) => {
     filePath,
     mrId,
     mrTargetProject: getMRTargetProject(),
-    // note: At the time of writing this, forkInfo isn't expected by `@gitlab/web-ide`,
-    //       but it will be soon.
     forkInfo,
+    username: gon.current_username,
     links: {
       feedbackIssue: GITLAB_WEB_IDE_FEEDBACK_ISSUE,
       userPreferences: el.dataset.userPreferencesPath,
+      signIn: el.dataset.signInPath,
     },
     editorFont: {
       srcUrl: editorFontSrcUrl,
       fontFamily: editorFontFamily,
       format: editorFontFormat,
     },
+    codeSuggestionsEnabled,
     handleTracking,
+    // See https://gitlab.com/gitlab-org/gitlab-web-ide/-/blob/main/packages/web-ide-types/src/config.ts#L86
+    telemetryEnabled: Tracking.enabled(),
     async handleStartRemote({ remoteHost, remotePath, connectionToken }) {
       const confirmed = await confirmAction(
         __('Are you sure you want to leave the Web IDE? All unsaved changes will be lost.'),

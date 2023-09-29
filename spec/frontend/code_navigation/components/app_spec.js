@@ -1,5 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
@@ -32,10 +33,6 @@ function factory(initialState = {}, props = {}) {
 }
 
 describe('Code navigation app component', () => {
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   it('sets initial data on mount if the correct props are passed', () => {
     const codeNavigationPath = 'code/nav/path.js';
     const path = 'blob/path.js';

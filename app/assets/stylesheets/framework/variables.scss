@@ -2,16 +2,19 @@
  * Layout
  */
 $grid-size: 8px;
-$gutter-collapsed-width: 62px;
-$gutter-width: 290px;
-$gutter-inner-width: 250px;
+$right-sidebar-collapsed-width: 62px;
+$right-sidebar-width: 290px;
+$right-sidebar-inner-width: 250px;
 $sidebar-breakpoint: 1024px;
 $default-transition-duration: 0.15s;
 $contextual-sidebar-width: 256px;
 $contextual-sidebar-collapsed-width: 56px;
 $toggle-sidebar-height: 48px;
-$super-sidebar-width: 256px;
-$super-sidebar-toggle-position-breakpoint: 1360px;
+$super-sidebar-width: 16rem;
+$super-sidebar-z-index: 600;
+$super-sidebar-skip-to-z-index: 601;
+$super-sidebar-overlay-z-index: 599;
+$top-bar-z-index: 210;
 
 /**
   🚨 Do not use this spacing scale — it is deprecated and being removed. 🚨
@@ -280,75 +283,79 @@ $color-ranges: (
 
 // GitLab themes
 
-$indigo-50: #f7f7ff;
-$indigo-100: #ebebfa;
-$indigo-200: #d1d1f0;
-$indigo-300: #a6a6de;
-$indigo-400: #7c7ccc;
+$indigo-50: #f1f1ff;
+$indigo-100: #dbdbf8;
+$indigo-200: #c7c7f2;
+$indigo-300: #a2a2e6;
+$indigo-400: #8181d7;
 $indigo-500: #6666c4;
-$indigo-600: #5b5bbd;
-$indigo-700: #4b4ba3;
-$indigo-800: #393982;
-$indigo-900: #292961;
-$indigo-950: #1a1a40;
+$indigo-600: #5252b5;
+$indigo-700: #41419f;
+$indigo-800: #303083;
+$indigo-900: #222261;
+$indigo-950: #14143d;
 // To do this variant right for darkmode, we need to create a variable for it.
 $indigo-900-alpha-008: rgba($indigo-900, 0.08);
 
-$theme-blue-50: #f4f8fc;
-$theme-blue-100: #e6edf5;
-$theme-blue-200: #c8d7e6;
-$theme-blue-300: #97b3cf;
-$theme-blue-400: #648cb4;
-$theme-blue-500: #4a79a8;
-$theme-blue-600: #3e6fa0;
-$theme-blue-700: #305c88;
-$theme-blue-800: #25496e;
-$theme-blue-900: #1a3652;
-$theme-blue-950: #0f2235;
+$theme-blue-50: #cdd8e3;
+$theme-blue-100: #b9cadc;
+$theme-blue-200: #a6bdd5;
+$theme-blue-300: #81a5c9;
+$theme-blue-400: #628eb9;
+$theme-blue-500: #4977a5;
+$theme-blue-600: #346596;
+$theme-blue-700: #235180;
+$theme-blue-800: #153c63;
+$theme-blue-900: #0b2640;
+$theme-blue-950: #04101c;
 
-$theme-light-blue-50: #f2f7fc;
-$theme-light-blue-100: #ebf1f7;
-$theme-light-blue-200: #c9dcf2;
-$theme-light-blue-300: #83abd4;
-$theme-light-blue-400: #4d86bf;
-$theme-light-blue-500: #367cc2;
-$theme-light-blue-600: #3771ab;
-$theme-light-blue-700: #2261a1;
+$theme-light-blue-50: #dde6ee;
+$theme-light-blue-100: #c1d4e6;
+$theme-light-blue-200: #a0bedc;
+$theme-light-blue-300: #74a3d3;
+$theme-light-blue-400: #4f8bc7;
+$theme-light-blue-500: #3476b9;
+$theme-light-blue-600: #2268ae;
+$theme-light-blue-700: #145aa1;
+$theme-light-blue-800: #0e4d8d;
+$theme-light-blue-900: #0c4277;
+$theme-light-blue-950: #0a3764;
 
-$theme-green-50: #f2faf6;
-$theme-green-100: #e4f3ea;
-$theme-green-200: #c0dfcd;
-$theme-green-300: #8ac2a1;
-$theme-green-400: #52a274;
-$theme-green-500: #35935c;
-$theme-green-600: #288a50;
-$theme-green-700: #1c7441;
-$theme-green-800: #145d33;
-$theme-green-900: #0d4524;
-$theme-green-950: #072d16;
+$theme-green-50: #dde9de;
+$theme-green-100: #b1d6b5;
+$theme-green-200: #8cc497;
+$theme-green-300: #69af7d;
+$theme-green-400: #499767;
+$theme-green-500: #308258;
+$theme-green-600: #25744c;
+$theme-green-700: #1b653f;
+$theme-green-800: #155635;
+$theme-green-900: #0e4328;
+$theme-green-950: #052e19;
 
-$theme-light-green-700: #156b39;
-
-$theme-red-50: #fcf4f2;
-$theme-red-100: #fae9e6;
-$theme-red-200: #ebcac5;
-$theme-red-300: #d99b91;
-$theme-red-400: #b0655a;
+$theme-red-50: #f4e9e7;
+$theme-red-100: #ecd3d0;
+$theme-red-200: #e3bab5;
+$theme-red-300: #d59086;
+$theme-red-400: #c66e60;
 $theme-red-500: #ad4a3b;
-$theme-red-600: #9e4133;
-$theme-red-700: #912f20;
-$theme-red-800: #78291d;
-$theme-red-900: #691a16;
-$theme-red-950: #36140f;
+$theme-red-600: #a13322;
+$theme-red-700: #8f2110;
+$theme-red-800: #761405;
+$theme-red-900: #580d02;
+$theme-red-950: #380700;
 
-$theme-light-red-50: #fff6f5;
-$theme-light-red-100: #fae2de;
-$theme-light-red-200: #f7d5d0;
-$theme-light-red-300: #d9796a;
-$theme-light-red-400: #cf604e;
+$theme-light-red-50: #faf2f1;
+$theme-light-red-100: #f6d9d5;
+$theme-light-red-200: #ebada2;
+$theme-light-red-300: #e07f6f;
+$theme-light-red-400: #d36250;
 $theme-light-red-500: #c24b38;
-$theme-light-red-600: #b03927;
-$theme-light-red-700: #a62e21;
+$theme-light-red-600: #b53a26;
+$theme-light-red-700: #a02e1c;
+$theme-light-red-800: #8b2212;
+$theme-light-red-900: #751709;
+$theme-light-red-950: #5c1105;
 
 // Data visualization color palette
 
@@ -388,7 +395,6 @@ $nav-active-bg: $t-gray-a-08;
  * Text
  */
 $gl-font-size: 14px;
-$gl-font-size-xs: 11px;
 $gl-font-size-small: 12px;
 $gl-font-size-large: 16px;
 $gl-font-weight-normal: 400;
@@ -457,21 +463,20 @@ $browser-scrollbar-size: 10px;
 /*
  * Misc
  */
-$header-height: var(--header-height, 48px);
+$header-height: 48px;
+$content-wrapper-padding: 100px;
 $header-zindex: 1000;
 $zindex-dropdown-menu: 300;
 $ide-statusbar-height: 25px;
 $fixed-layout-width: 1280px;
 $limited-layout-width: 990px;
 $container-text-max-width: 540px;
-$gl-avatar-size: 40px;
 $border-radius-default: 4px;
 $border-radius-small: 2px;
 $border-radius-large: 8px;
 $default-icon-size: 16px;
 $layout-link-gray: #7e7c7c;
 $btn-side-margin: $grid-size;
-$btn-sm-side-margin: 7px;
 $count-arrow-border: #dce0e5;
 $general-hover-transition-duration: 100ms;
 $general-hover-transition-curve: linear;
@@ -479,10 +484,11 @@ $highlight-changes-color: rgb(235, 255, 232);
 $performance-bar-height: 35px;
 $system-header-height: 16px;
 $system-footer-height: $system-header-height;
+$mr-sticky-header-height: 72px;
+$mr-review-bar-height: calc(2rem + 13px);
 $flash-height: 52px;
-$flash-container-top: 48px;
 $context-header-height: 60px;
-$breadcrumb-min-height: 48px;
+$top-bar-height: 48px;
 $home-panel-title-row-height: 64px;
 $home-panel-avatar-mobile-size: 24px;
 $issuable-title-max-width: 350px;
@@ -494,6 +500,15 @@ $gl-line-height-24: 24px;
 $gl-line-height-14: 14px;
 
 $pages-group-name-color: #4c4e54;
+
+/*
+ * Calculated heights
+ */
+$calc-system-headers-height: calc(var(--system-header-height) + var(--performance-bar-height));
+$calc-application-bars-height: calc(var(--header-height) + #{$calc-system-headers-height});
+$calc-application-header-height: calc(#{$calc-application-bars-height} + var(--top-bar-height));
+$calc-application-footer-height: var(--system-footer-height);
+$calc-application-viewport-height: calc(100vh - #{$calc-application-header-height} - #{$calc-application-footer-height});
 
 /*
 * Common component specific colors
@@ -556,10 +571,12 @@ $diff-jagged-border-gradient-color: darken($white-normal, 8%);
 
 /*
  * Fonts
+ * The --default-mono-font and --default-regular-font variables give users
+ * a way to override our font choices for them.
  */
-$monospace-font: var(--default-mono-font, 'Menlo'), 'DejaVu Sans Mono', 'Liberation Mono', 'Consolas',
+$monospace-font: var(--default-mono-font, 'GitLab Mono'), 'JetBrains Mono', 'Menlo', 'DejaVu Sans Mono', 'Liberation Mono', 'Consolas',
   'Ubuntu Mono', 'Courier New', 'andale mono', 'lucida console', monospace;
-$regular-font: var(--default-regular-font, -apple-system), BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans',
+$regular-font: var(--default-regular-font, 'GitLab Sans'), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans',
   Ubuntu, Cantarell, 'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
   'Segoe UI Symbol', 'Noto Color Emoji';
 $gl-monospace-font: $monospace-font;
@@ -667,8 +684,6 @@ $note-targe3-inside: #ffffd3;
 /*
 * Calendar
 */
-$calendar-hover-bg: #ecf3fe;
-$calendar-border-color: rgba(#000, 0.1);
 $calendar-user-contrib-text: #959494;
 
 /*
@@ -681,21 +696,11 @@ $ci-skipped-color: #888;
 */
 $issue-boards-font-size: 14px;
 $issue-boards-card-shadow: rgba(0, 0, 0, 0.1);
-$issue-boards-filter-height: 68px;
-/*
- The following heights are used in environment_logs.scss and are used for calculation of the log viewer height.
-*/
-$environment-logs-breadcrumbs-height: 63px;
-$environment-logs-breadcrumbs-height-md: $breadcrumb-min-height;
-
-$environment-logs-difference-xs-up: calc(#{$header-height} + #{$environment-logs-breadcrumbs-height});
-$environment-logs-difference-md-up: calc(#{$header-height} + #{$environment-logs-breadcrumbs-height-md});
 
 /*
 * Avatar
 */
 $avatar-radius: 50%;
-$gl-avatar-size: 40px;
 $gl-avatar-border-opacity: 0.1;
 
 /*
@@ -732,7 +737,6 @@ $calendar-activity-colors: (
 */
 $commit-max-width-marker-color: rgba(0, 0, 0, 0);
 $commit-message-text-area-bg: rgba(0, 0, 0, 0);
-$commit-stat-summary-height: 36px;
 
 /*
 * Files
@@ -743,7 +747,7 @@ $logs-p-color: #333;
 /*
 * Forms
 */
-$input-height: 34px;
+$input-height: 32px;
 $input-danger-bg: #f2dede;
 $input-group-addon-bg: $gray-10;
 $gl-field-focus-shadow: rgba(0, 0, 0, 0.075);
@@ -837,12 +841,6 @@ $perf-bar-bucket-box-shadow-to: rgba($black, 0.25);
 $perf-bar-canary-text: $orange-400;
 
 /*
-Issuable warning
-*/
-$issuable-warning-size: 24px;
-$issuable-warning-icon-margin: 4px;
-
-/*
 Image Commenting cursor
 */
 $image-comment-cursor-left-offset: 12;
@@ -857,6 +855,7 @@ $security-and-compliance-carousel-image-discover-text-carousel-max-width: 650px;
 $security-and-compliance-carousel-image-discover-text-carousel-caption-height: 100%;
 $security-and-compliance-carousel-image-discover-text-carousel-caption-max-width: 500px;
 $security-and-compliance-carousel-control-icon-width: 10px;
+$security-and-compliance-carousel-control-icon-middle-width: 20px;
 $security-and-compliance-carousel-control-position: -5%;
 $security-and-compliance-carousel-inner-width: 90%;
 $security-and-compliance-carousel-indicators-bottom: -20px;
@@ -877,6 +876,11 @@ $popup-box-shadow-color: rgba(90, 90, 90, 0.05);
 Multi file editor
 */
 $border-color-settings: #e1e1e1;
+
+/*
+Drawers
+*/
+$wide-drawer: 500px;
 
 /*
 Modals
@@ -904,14 +908,15 @@ Merge requests
 $mr-tabs-height: 48px;
 
 /*
-Compare Branches
-*/
-$compare-branches-sticky-header-height: 68px;
-
-/*
 Board Swimlanes
 */
 $board-swimlanes-headers-height: 64px;
+
+/*
+Source Editor theme overrides
+*/
+$source-editor-hover-light-text-color: #ececef;
+$source-editor-hover-dark-text-color: #333238;
 
 /**
  Bootstrap 4.2.0 introduced new icons for validating forms.

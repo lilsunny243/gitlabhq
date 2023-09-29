@@ -1,7 +1,6 @@
 import MockAdapter from 'axios-mock-adapter';
 import {
   axiosInstance,
-  addSubscription,
   removeSubscription,
   fetchGroups,
   getCurrentUser,
@@ -17,10 +16,8 @@ jest.mock('~/jira_connect/subscriptions/utils', () => ({
 
 describe('JiraConnect API', () => {
   let axiosMock;
-  let originalGon;
   let response;
 
-  const mockAddPath = 'addPath';
   const mockRemovePath = 'removePath';
   const mockNamespace = 'namespace';
   const mockJwt = 'jwt';
@@ -29,37 +26,12 @@ describe('JiraConnect API', () => {
 
   beforeEach(() => {
     axiosMock = new MockAdapter(axiosInstance);
-    originalGon = window.gon;
     window.gon = { api_version: 'v4' };
   });
 
   afterEach(() => {
     axiosMock.restore();
-    window.gon = originalGon;
     response = null;
-  });
-
-  describe('addSubscription', () => {
-    const makeRequest = () => addSubscription(mockAddPath, mockNamespace);
-
-    it('returns success response', async () => {
-      jest.spyOn(axiosInstance, 'post');
-      axiosMock
-        .onPost(mockAddPath, {
-          jwt: mockJwt,
-          namespace_path: mockNamespace,
-        })
-        .replyOnce(HTTP_STATUS_OK, mockResponse);
-
-      response = await makeRequest();
-
-      expect(getJwt).toHaveBeenCalled();
-      expect(axiosInstance.post).toHaveBeenCalledWith(mockAddPath, {
-        jwt: mockJwt,
-        namespace_path: mockNamespace,
-      });
-      expect(response.data).toEqual(mockResponse);
-    });
   });
 
   describe('removeSubscription', () => {
@@ -83,11 +55,13 @@ describe('JiraConnect API', () => {
 
   describe('fetchGroups', () => {
     const mockGroupsPath = 'groupsPath';
+    const mockMinAccessLevel = 30;
     const mockPage = 1;
     const mockPerPage = 10;
 
     const makeRequest = () =>
       fetchGroups(mockGroupsPath, {
+        minAccessLevel: mockMinAccessLevel,
         page: mockPage,
         perPage: mockPerPage,
       });
@@ -96,6 +70,7 @@ describe('JiraConnect API', () => {
       jest.spyOn(axiosInstance, 'get');
       axiosMock
         .onGet(mockGroupsPath, {
+          min_access_level: mockMinAccessLevel,
           page: mockPage,
           per_page: mockPerPage,
         })
@@ -106,6 +81,7 @@ describe('JiraConnect API', () => {
       expect(axiosInstance.get).toHaveBeenCalledWith(mockGroupsPath, {
         headers: {},
         params: {
+          min_access_level: mockMinAccessLevel,
           page: mockPage,
           per_page: mockPerPage,
           search: undefined,

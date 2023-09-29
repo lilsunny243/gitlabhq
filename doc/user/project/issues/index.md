@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Issues **(FREE)**
+# Issues **(FREE ALL)**
 
 Use issues to collaborate on ideas, solve problems, and plan work.
 Share and discuss proposals with your team and with outside collaborators.
@@ -16,11 +16,18 @@ You can use issues for many purposes, customized to your needs and workflow.
 - Accept feature proposals, questions, support requests, or bug reports.
 - Elaborate on code implementations.
 
-For more information about using issues, see the GitLab blog post:
+For more information about issues, see the GitLab blog post:
 [Always start a discussion with an issue](https://about.gitlab.com/blog/2016/03/03/start-with-an-issue/).
 
 Issues are always associated with a specific project. If you have multiple
 projects in a group, you can view all of the projects' issues at once.
+
+<div class="video-fallback">
+  See the video: <a href="https://www.youtube.com/watch?v=tTE6omrBBZI">Issues - Setting up your Organization with GitLab</a>.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/tTE6omrBBZI" frameborder="0" allowfullscreen> </iframe>
+</figure>
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
 To learn how the GitLab Strategic Marketing department uses GitLab issues with [labels](../labels.md) and

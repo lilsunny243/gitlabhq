@@ -1,12 +1,10 @@
 <script>
 import { GlLoadingIcon, GlModal } from '@gitlab/ui';
-import { mapState, mapMutations } from 'vuex';
-import { parse } from 'yaml';
 import { fetchPolicies } from '~/lib/graphql';
-import { mergeUrlParams, queryToObject, redirectTo } from '~/lib/utils/url_utility';
+import { mergeUrlParams, queryToObject, redirectTo } from '~/lib/utils/url_utility'; // eslint-disable-line import/no-deprecated
 import { __, s__ } from '~/locale';
-import { unwrapStagesWithNeeds } from '~/pipelines/components/unwrapping_utils';
-import { UPDATE_CI_CONFIG, UPDATE_AVAILABLE_STAGES } from './store/mutation_types';
+
+import { unwrapStagesWithNeeds } from '~/ci/pipeline_details/utils/unwrapping_utils';
 
 import ConfirmUnsavedChangesDialog from './components/ui/confirm_unsaved_changes_dialog.vue';
 import PipelineEditorEmptyState from './components/ui/pipeline_editor_empty_state.vue';
@@ -46,6 +44,7 @@ export default {
   data() {
     return {
       ciConfigData: {},
+      currentCiFileContent: '',
       failureType: null,
       failureReasons: [],
       hasBranchLoaded: false,
@@ -95,7 +94,7 @@ export default {
           const fileContent = rawBlob ?? '';
 
           this.lastCommittedContent = fileContent;
-          this.updateCiConfig(fileContent);
+          this.currentCiFileContent = fileContent;
 
           // If rawBlob is defined and returns a string, it means that there is
           // a CI config file with empty content. If `rawBlob` is not defined
@@ -155,10 +154,6 @@ export default {
           if (this.isLintUnavailable) {
             this.isLintUnavailable = false;
           }
-        }
-
-        if (data?.ciConfig?.mergedYaml) {
-          this.updateAvailableStages(parse(data.ciConfig.mergedYaml).stages);
         }
       },
       error() {
@@ -236,7 +231,6 @@ export default {
     },
   },
   computed: {
-    ...mapState(['currentCiFileContent']),
     hasUnsavedChanges() {
       return this.lastCommittedContent !== this.currentCiFileContent;
     },
@@ -300,10 +294,6 @@ export default {
     this.checkShouldSkipStartScreen();
   },
   methods: {
-    ...mapMutations({
-      updateCiConfig: UPDATE_CI_CONFIG,
-      updateAvailableStages: UPDATE_AVAILABLE_STAGES,
-    }),
     checkShouldSkipStartScreen() {
       const params = queryToObject(window.location.search);
       this.shouldSkipStartScreen = Boolean(params?.add_new_config_file);
@@ -335,7 +325,7 @@ export default {
         },
         this.newMergeRequestPath,
       );
-      redirectTo(url);
+      redirectTo(url); // eslint-disable-line import/no-deprecated
     },
     async refetchContent() {
       this.$apollo.queries.initialCiFileContent.skip = false;
@@ -354,7 +344,7 @@ export default {
     },
     resetContent() {
       this.showResetConfirmationModal = false;
-      this.updateCiConfig(this.lastCommittedContent);
+      this.currentCiFileContent = this.lastCommittedContent;
     },
     setAppStatus(appStatus) {
       if (EDITOR_APP_VALID_STATUSES.includes(appStatus)) {
@@ -370,6 +360,9 @@ export default {
     },
     showErrorAlert({ type, reasons = [] }) {
       this.reportFailure(type, reasons);
+    },
+    updateCiConfig(ciFileContent) {
+      this.currentCiFileContent = ciFileContent;
     },
     updateCommitSha() {
       this.isFetchingCommitSha = true;
@@ -401,7 +394,7 @@ export default {
 </script>
 
 <template>
-  <div class="gl-mt-4 gl-relative" data-qa-selector="pipeline_editor_app">
+  <div class="gl-mt-4 gl-relative">
     <gl-loading-icon v-if="isBlobContentLoading" size="lg" class="gl-m-3" />
     <pipeline-editor-empty-state
       v-else-if="showStartScreen || usesExternalConfig"

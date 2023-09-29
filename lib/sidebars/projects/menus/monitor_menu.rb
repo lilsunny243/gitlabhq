@@ -8,7 +8,6 @@ module Sidebars
         def configure_menu_items
           return false unless feature_enabled?
 
-          add_item(metrics_dashboard_menu_item)
           add_item(error_tracking_menu_item)
           add_item(alert_management_menu_item)
           add_item(incidents_menu_item)
@@ -38,24 +37,15 @@ module Sidebars
           { controller: [:user, :gcp] }
         end
 
+        override :serialize_as_menu_item_args
+        def serialize_as_menu_item_args
+          nil
+        end
+
         private
 
         def feature_enabled?
           context.project.feature_available?(:monitor, context.current_user)
-        end
-
-        def metrics_dashboard_menu_item
-          unless can?(context.current_user, :metrics_dashboard, context.project)
-            return ::Sidebars::NilMenuItem.new(item_id: :metrics)
-          end
-
-          ::Sidebars::MenuItem.new(
-            title: _('Metrics'),
-            link: project_metrics_dashboard_path(context.project),
-            active_routes: { path: 'metrics_dashboard#show' },
-            container_html_options: { class: 'shortcuts-metrics' },
-            item_id: :metrics
-          )
         end
 
         def error_tracking_menu_item
@@ -66,6 +56,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Error Tracking'),
             link: project_error_tracking_index_path(context.project),
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::MonitorMenu,
             active_routes: { controller: :error_tracking },
             item_id: :error_tracking
           )
@@ -79,6 +70,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Alerts'),
             link: project_alert_management_index_path(context.project),
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::MonitorMenu,
             active_routes: { controller: :alert_management },
             item_id: :alert_management
           )
@@ -92,6 +84,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Incidents'),
             link: project_incidents_path(context.project),
+            super_sidebar_parent: ::Sidebars::Projects::SuperSidebarMenus::MonitorMenu,
             active_routes: { controller: [:incidents, :incident_management] },
             item_id: :incidents
           )

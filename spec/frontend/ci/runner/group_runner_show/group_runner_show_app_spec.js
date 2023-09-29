@@ -4,15 +4,13 @@ import VueApollo from 'vue-apollo';
 import { mountExtended, shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import { createAlert, VARIANT_SUCCESS } from '~/flash';
-import { redirectTo } from '~/lib/utils/url_utility';
+import { createAlert, VARIANT_SUCCESS } from '~/alert';
+import { visitUrl } from '~/lib/utils/url_utility';
 
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import RunnerHeader from '~/ci/runner/components/runner_header.vue';
+import RunnerHeaderActions from '~/ci/runner/components/runner_header_actions.vue';
 import RunnerDetails from '~/ci/runner/components/runner_details.vue';
-import RunnerPauseButton from '~/ci/runner/components/runner_pause_button.vue';
-import RunnerDeleteButton from '~/ci/runner/components/runner_delete_button.vue';
-import RunnerEditButton from '~/ci/runner/components/runner_edit_button.vue';
 import RunnerDetailsTabs from '~/ci/runner/components/runner_details_tabs.vue';
 import RunnersJobs from '~/ci/runner/components/runner_jobs.vue';
 
@@ -24,13 +22,17 @@ import { saveAlertToLocalStorage } from '~/ci/runner/local_storage_alert/save_al
 import { runnerData } from '../mock_data';
 
 jest.mock('~/ci/runner/local_storage_alert/save_alert_to_local_storage');
-jest.mock('~/flash');
+jest.mock('~/alert');
 jest.mock('~/ci/runner/sentry_utils');
-jest.mock('~/lib/utils/url_utility');
+jest.mock('~/lib/utils/url_utility', () => ({
+  ...jest.requireActual('~/lib/utils/url_utility'),
+  visitUrl: jest.fn(),
+}));
 
 const mockRunner = runnerData.data.runner;
 const mockRunnerGraphqlId = mockRunner.id;
 const mockRunnerId = `${getIdFromGraphQLId(mockRunnerGraphqlId)}`;
+const mockRunnerSha = mockRunner.shortSha;
 const mockRunnersPath = '/groups/group1/-/runners';
 const mockEditGroupRunnerPath = `/groups/group1/-/runners/${mockRunnerId}/edit`;
 
@@ -43,9 +45,7 @@ describe('GroupRunnerShowApp', () => {
 
   const findRunnerHeader = () => wrapper.findComponent(RunnerHeader);
   const findRunnerDetails = () => wrapper.findComponent(RunnerDetails);
-  const findRunnerDeleteButton = () => wrapper.findComponent(RunnerDeleteButton);
-  const findRunnerEditButton = () => wrapper.findComponent(RunnerEditButton);
-  const findRunnerPauseButton = () => wrapper.findComponent(RunnerPauseButton);
+  const findRunnerHeaderActions = () => wrapper.findComponent(RunnerHeaderActions);
   const findRunnerDetailsTabs = () => wrapper.findComponent(RunnerDetailsTabs);
   const findRunnersJobs = () => wrapper.findComponent(RunnersJobs);
 
@@ -74,7 +74,6 @@ describe('GroupRunnerShowApp', () => {
 
   afterEach(() => {
     mockRunnerQuery.mockReset();
-    wrapper.destroy();
   });
 
   describe('When showing runner details', () => {
@@ -84,18 +83,19 @@ describe('GroupRunnerShowApp', () => {
       await createComponent({ mountFn: mountExtended });
     });
 
-    it('expect GraphQL ID to be requested', async () => {
+    it('expect GraphQL ID to be requested', () => {
       expect(mockRunnerQuery).toHaveBeenCalledWith({ id: mockRunnerGraphqlId });
     });
 
     it('displays the runner header', () => {
-      expect(findRunnerHeader().text()).toContain(`Runner #${mockRunnerId}`);
+      expect(findRunnerHeader().text()).toContain(`#${mockRunnerId} (${mockRunnerSha})`);
     });
 
-    it('displays the runner edit and pause buttons', async () => {
-      expect(findRunnerEditButton().attributes('href')).toBe(mockEditGroupRunnerPath);
-      expect(findRunnerPauseButton().exists()).toBe(true);
-      expect(findRunnerDeleteButton().exists()).toBe(true);
+    it('displays the runner buttons', () => {
+      expect(findRunnerHeaderActions().props()).toEqual({
+        runner: mockRunner,
+        editPath: mockEditGroupRunnerPath,
+      });
     });
 
     it('shows runner details', () => {
@@ -124,54 +124,6 @@ describe('GroupRunnerShowApp', () => {
       expect(wrapper.text().replace(/\s+/g, ' ')).toContain(expected);
     });
 
-    describe('when runner cannot be updated', () => {
-      beforeEach(async () => {
-        mockRunnerQueryResult({
-          userPermissions: {
-            ...mockRunner.userPermissions,
-            updateRunner: false,
-          },
-        });
-
-        await createComponent({
-          mountFn: mountExtended,
-        });
-      });
-
-      it('does not display the runner edit and pause buttons', () => {
-        expect(findRunnerEditButton().exists()).toBe(false);
-        expect(findRunnerPauseButton().exists()).toBe(false);
-      });
-
-      it('displays delete button', () => {
-        expect(findRunnerDeleteButton().exists()).toBe(true);
-      });
-    });
-
-    describe('when runner cannot be deleted', () => {
-      beforeEach(async () => {
-        mockRunnerQueryResult({
-          userPermissions: {
-            ...mockRunner.userPermissions,
-            deleteRunner: false,
-          },
-        });
-
-        await createComponent({
-          mountFn: mountExtended,
-        });
-      });
-
-      it('does not display the delete button', () => {
-        expect(findRunnerDeleteButton().exists()).toBe(false);
-      });
-
-      it('displays edit and pause buttons', () => {
-        expect(findRunnerEditButton().exists()).toBe(true);
-        expect(findRunnerPauseButton().exists()).toBe(true);
-      });
-    });
-
     describe('when runner is deleted', () => {
       beforeEach(async () => {
         await createComponent({
@@ -180,13 +132,13 @@ describe('GroupRunnerShowApp', () => {
       });
 
       it('redirects to the runner list page', () => {
-        findRunnerDeleteButton().vm.$emit('deleted', { message: 'Runner deleted' });
+        findRunnerHeaderActions().vm.$emit('deleted', { message: 'Runner deleted' });
 
         expect(saveAlertToLocalStorage).toHaveBeenCalledWith({
           message: 'Runner deleted',
           variant: VARIANT_SUCCESS,
         });
-        expect(redirectTo).toHaveBeenCalledWith(mockRunnersPath);
+        expect(visitUrl).toHaveBeenCalledWith(mockRunnersPath);
       });
     });
   });

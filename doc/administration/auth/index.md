@@ -1,7 +1,6 @@
 ---
-comments: false
 type: index
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
@@ -20,7 +19,7 @@ and the following external authentication and authorization providers:
 NOTE:
 UltraAuth has removed their software which supports OmniAuth integration. We have therefore removed all references to UltraAuth integration.
 
-## SaaS vs Self-Managed Comparison
+## SaaS vs self-managed comparison
 
 The external authentication and authorization providers may support the following capabilities.
 For more information, see the links shown on this page for each external provider.
@@ -34,3 +33,7 @@ For more information, see the links shown on this page for each external provide
 | **User Removal**                                | SCIM (remove user from top-level group) | LDAP (remove user from groups and block from the instance)<br>SCIM |
 
 1. Using Just-In-Time (JIT) provisioning, user accounts are created when the user first signs in.
+
+## Test OIDC/OAuth in GitLab
+
+See [Test OIDC/OAuth in GitLab](test_oidc_oauth.md) to learn how to test OIDC/OAuth authentication in your GitLab instance using your client application.

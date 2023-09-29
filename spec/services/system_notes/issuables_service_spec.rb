@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::SystemNotes::IssuablesService do
+RSpec.describe ::SystemNotes::IssuablesService, feature_category: :team_planning do
   include ProjectForksHelper
 
   let_it_be(:group)   { create(:group) }
@@ -26,6 +26,14 @@ RSpec.describe ::SystemNotes::IssuablesService do
     context 'when issue marks another as related' do
       it 'sets the note text' do
         expect(subject.note).to eq "marked this issue as related to #{noteable_ref.to_reference(project)}"
+      end
+    end
+
+    context 'with work items' do
+      let_it_be(:noteable) { create(:work_item, :task, project: project) }
+
+      it 'sets the note text with the correct work item type' do
+        expect(subject.note).to eq "marked this task as related to #{noteable_ref.to_reference(project)}"
       end
     end
   end
@@ -686,9 +694,10 @@ RSpec.describe ::SystemNotes::IssuablesService do
           subject
         end
 
-        it_behaves_like 'issue_edit snowplow tracking' do
-          let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CLONED }
+        it_behaves_like 'internal event tracking' do
+          let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CLONED }
           let(:user) { author }
+          let(:namespace) { project.namespace }
         end
       end
     end
@@ -861,15 +870,29 @@ RSpec.describe ::SystemNotes::IssuablesService do
   end
 
   describe '#change_issue_type' do
-    let(:noteable) { create(:incident, project: project) }
+    context 'with issue' do
+      let_it_be_with_reload(:noteable) { create(:issue, project: project) }
 
-    subject { service.change_issue_type }
+      subject { service.change_issue_type('incident') }
 
-    it_behaves_like 'a system note' do
-      let(:action) { 'issue_type' }
+      it_behaves_like 'a system note' do
+        let(:action) { 'issue_type' }
+      end
+
+      it { expect(subject.note).to eq "changed type from incident to issue" }
     end
 
-    it { expect(subject.note).to eq "changed issue type to incident" }
+    context 'with work item' do
+      let_it_be_with_reload(:noteable) { create(:work_item, project: project) }
+
+      subject { service.change_issue_type('task') }
+
+      it_behaves_like 'a system note' do
+        let(:action) { 'issue_type' }
+      end
+
+      it { expect(subject.note).to eq "changed type from task to issue" }
+    end
   end
 
   describe '#hierarchy_changed' do

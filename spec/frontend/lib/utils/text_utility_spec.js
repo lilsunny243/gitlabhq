@@ -221,53 +221,6 @@ describe('text_utility', () => {
     });
   });
 
-  describe('getFirstCharacterCapitalized', () => {
-    it('returns the first character capitalized, if first character is alphabetic', () => {
-      expect(textUtils.getFirstCharacterCapitalized('loremIpsumDolar')).toEqual('L');
-      expect(textUtils.getFirstCharacterCapitalized('Sit amit !')).toEqual('S');
-    });
-
-    it('returns the first character, if first character is non-alphabetic', () => {
-      expect(textUtils.getFirstCharacterCapitalized(' lorem')).toEqual(' ');
-      expect(textUtils.getFirstCharacterCapitalized('%#!')).toEqual('%');
-    });
-
-    it('returns an empty string, if string is falsey', () => {
-      expect(textUtils.getFirstCharacterCapitalized('')).toEqual('');
-      expect(textUtils.getFirstCharacterCapitalized(null)).toEqual('');
-    });
-  });
-
-  describe('truncatePathMiddleToLength', () => {
-    it('does not truncate text', () => {
-      expect(textUtils.truncatePathMiddleToLength('app/test', 50)).toEqual('app/test');
-    });
-
-    it('truncates middle of the path', () => {
-      expect(textUtils.truncatePathMiddleToLength('app/test/diff', 13)).toEqual('app/…/diff');
-    });
-
-    it('truncates multiple times in the middle of the path', () => {
-      expect(textUtils.truncatePathMiddleToLength('app/test/merge_request/diff', 13)).toEqual(
-        'app/…/…/diff',
-      );
-    });
-
-    describe('given a path too long for the maxWidth', () => {
-      it.each`
-        path          | maxWidth | result
-        ${'aa/bb/cc'} | ${1}     | ${'…'}
-        ${'aa/bb/cc'} | ${2}     | ${'…'}
-        ${'aa/bb/cc'} | ${3}     | ${'…/…'}
-        ${'aa/bb/cc'} | ${4}     | ${'…/…'}
-        ${'aa/bb/cc'} | ${5}     | ${'…/…/…'}
-      `('truncates ($path, $maxWidth) to $result', ({ path, maxWidth, result }) => {
-        expect(result.length).toBeLessThanOrEqual(maxWidth);
-        expect(textUtils.truncatePathMiddleToLength(path, maxWidth)).toEqual(result);
-      });
-    });
-  });
-
   describe('slugifyWithUnderscore', () => {
     it('should replaces whitespaces with underscore and convert to lower case', () => {
       expect(textUtils.slugifyWithUnderscore('My Input String')).toEqual('my_input_string');
@@ -397,5 +350,54 @@ describe('text_utility', () => {
     it('decodes unicode characters', () => {
       expect(textUtils.base64DecodeUnicode('8J+YgA==')).toBe('😀');
     });
+  });
+
+  describe('findInvalidBranchNameCharacters', () => {
+    const invalidChars = [' ', '~', '^', ':', '?', '*', '[', '..', '@{', '\\', '//'];
+    const badBranchName = 'branch-with all these ~ ^ : ? * [ ] \\ // .. @{ } //';
+    const goodBranch = 'branch-with-no-errrors';
+
+    it('returns an array of invalid characters in a branch name', () => {
+      const chars = textUtils.findInvalidBranchNameCharacters(badBranchName);
+      chars.forEach((char) => {
+        expect(invalidChars).toContain(char);
+      });
+    });
+
+    it('returns an empty array with no invalid characters', () => {
+      expect(textUtils.findInvalidBranchNameCharacters(goodBranch)).toEqual([]);
+    });
+  });
+
+  describe('humanizeBranchValidationErrors', () => {
+    it.each`
+      errors               | message
+      ${[' ']}             | ${"Can't contain spaces"}
+      ${['?', '//', ' ']}  | ${"Can't contain spaces, ?, //"}
+      ${['\\', '[', '..']} | ${"Can't contain \\, [, .."}
+    `('returns an $message with $errors', ({ errors, message }) => {
+      expect(textUtils.humanizeBranchValidationErrors(errors)).toEqual(message);
+    });
+
+    it('returns an empty string with no invalid characters', () => {
+      expect(textUtils.humanizeBranchValidationErrors([])).toEqual('');
+    });
+  });
+
+  describe('stripQuotes', () => {
+    it.each`
+      inputValue     | outputValue
+      ${'"Foo Bar"'} | ${'Foo Bar'}
+      ${"'Foo Bar'"} | ${'Foo Bar'}
+      ${'FooBar'}    | ${'FooBar'}
+      ${"Foo'Bar"}   | ${"Foo'Bar"}
+      ${'Foo"Bar'}   | ${'Foo"Bar'}
+      ${'Foo Bar'}   | ${'Foo Bar'}
+    `(
+      'returns string $outputValue when called with string $inputValue',
+      ({ inputValue, outputValue }) => {
+        expect(textUtils.stripQuotes(inputValue)).toBe(outputValue);
+      },
+    );
   });
 });

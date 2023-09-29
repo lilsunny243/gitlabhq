@@ -1,15 +1,9 @@
-import Mousetrap from 'mousetrap';
+import { Mousetrap } from '~/lib/mousetrap';
 import 'mousetrap/plugins/pause/mousetrap-pause';
 
 const shorcutsDisabledKey = 'shortcutsDisabled';
 
-export const shouldDisableShortcuts = () => {
-  try {
-    return localStorage.getItem(shorcutsDisabledKey) === 'true';
-  } catch (e) {
-    return false;
-  }
-};
+export const shouldDisableShortcuts = () => !window.gon.keyboard_shortcuts_enabled;
 
 export function enableShortcuts() {
   localStorage.setItem(shorcutsDisabledKey, false);

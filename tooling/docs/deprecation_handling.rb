@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'erb'
 
 module Docs
@@ -7,11 +8,7 @@ module Docs
       @type = type
       @yaml_glob_path = Rails.root.join("data/#{type.pluralize}/**/*.yml")
       @template_path = Rails.root.join("data/#{type.pluralize}/templates/_#{type}_template.md.erb")
-      @milestone_key_name = if type == "deprecation"
-                              "announcement_milestone"
-                            else
-                              "removal_milestone"
-                            end
+      @milestone_key_name = "removal_milestone"
     end
 
     def render
@@ -20,7 +17,7 @@ module Docs
       end
 
       entries = source_file_paths.flat_map do |file|
-        YAML.load_file(file)
+        YAML.safe_load_file(file, permitted_classes: [Date])
       end
       entries = entries.sort_by { |d| d["title"] }
 

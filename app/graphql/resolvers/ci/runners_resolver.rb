@@ -4,6 +4,7 @@ module Resolvers
   module Ci
     class RunnersResolver < BaseResolver
       include LooksAhead
+      include Gitlab::Graphql::Authorize::AuthorizeResource
 
       type Types::Ci::RunnerType.connection_type, null: true
 
@@ -45,9 +46,15 @@ module Resolvers
           ::Ci::RunnersFinder
             .new(current_user: current_user, params: runners_finder_params(args))
             .execute)
+      rescue Gitlab::Access::AccessDeniedError
+        handle_access_denied_error!
       end
 
       protected
+
+      def handle_access_denied_error!
+        raise_resource_not_available_error!
+      end
 
       def runners_finder_params(params)
         # Give preference to paused argument over the deprecated 'active' argument
@@ -61,9 +68,7 @@ module Resolvers
           upgrade_status: params[:upgrade_status],
           search: params[:search],
           sort: params[:sort]&.to_s,
-          preload: {
-            tag_name: node_selection&.selects?(:tag_list)
-          }
+          preload: false # we'll handle preloading ourselves
         }.compact
          .merge(parent_param)
       end
@@ -79,6 +84,15 @@ module Resolvers
       def parent
         object.respond_to?(:sync) ? object.sync : object
       end
+
+      def preloads
+        super.merge({
+          created_by: [:creator],
+          tag_list: [:tags]
+        })
+      end
     end
   end
 end
+
+Resolvers::Ci::RunnersResolver.prepend_mod

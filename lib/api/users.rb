@@ -6,7 +6,7 @@ module API
     include APIGuard
     include Helpers::CustomAttributes
 
-    allow_access_with_scope :read_user, if: -> (request) { request.get? || request.head? }
+    allow_access_with_scope :read_user, if: ->(request) { request.get? || request.head? }
 
     feature_category :user_profile,
                      %w[
@@ -80,31 +80,6 @@ module API
         end
       end
 
-      resources ':id/associations_count' do
-        helpers do
-          def present_entity(result)
-            present result,
-                    with: ::API::Entities::UserAssociationsCount
-          end
-        end
-
-        desc "Returns a list of a specified user's count of projects, groups, issues and merge requests."
-        params do
-          requires :id,
-                   type: Integer,
-                   desc: 'ID of the user to query.'
-        end
-        get do
-          authenticate!
-
-          user = find_user_by_id(params)
-          forbidden! unless can?(current_user, :get_user_associations_count, user)
-          not_found!('User') unless user
-
-          present_entity(user)
-        end
-      end
-
       desc 'Get the list of users' do
         success Entities::UserBasic
       end
@@ -124,6 +99,7 @@ module API
         optional :exclude_internal, as: :non_internal, type: Boolean, default: false, desc: 'Filters only non internal users'
         optional :without_project_bots, type: Boolean, default: false, desc: 'Filters users without project bots'
         optional :admins, type: Boolean, default: false, desc: 'Filters only admin users'
+        optional :two_factor, type: String, desc: 'Filter users by Two-factor authentication.'
         all_or_none_of :extern_uid, :provider
 
         use :sort_params
@@ -133,10 +109,12 @@ module API
       end
       # rubocop: disable CodeReuse/ActiveRecord
       get feature_category: :user_profile, urgency: :low do
-        authenticated_as_admin! if params[:extern_uid].present? && params[:provider].present?
+        index_params = declared_params(include_missing: false)
+
+        authenticated_as_admin! if index_params[:extern_uid].present? && index_params[:provider].present?
 
         unless current_user&.can_read_all_resources?
-          params.except!(:created_after, :created_before, :order_by, :sort, :two_factor, :without_projects)
+          index_params.except!(:created_after, :created_before, :order_by, :sort, :two_factor, :without_projects)
         end
 
         authorized = can?(current_user, :read_users_list)
@@ -146,24 +124,28 @@ module API
         # a list of all the users on the GitLab instance. `UsersFinder` performs
         # an exact match on the `username` parameter, so we are guaranteed to
         # get either 0 or 1 `users` here.
-        authorized &&= params[:username].present? if current_user.blank?
+        authorized &&= index_params[:username].present? if current_user.blank?
 
         forbidden!("Not authorized to access /api/v4/users") unless authorized
 
-        users = UsersFinder.new(current_user, params).execute
+        users = UsersFinder.new(current_user, index_params).execute
         users = reorder_users(users)
 
         entity = current_user&.can_read_all_resources? ? Entities::UserWithAdmin : Entities::UserBasic
 
         if entity == Entities::UserWithAdmin
-          users = users.preload(:identities, :u2f_registrations, :webauthn_registrations, :namespace, :followers, :followees, :user_preference)
+          users = users.preload(:identities, :webauthn_registrations, :namespace, :followers, :followees, :user_preference, :user_detail)
         end
 
         users, options = with_custom_attributes(users, { with: entity, current_user: current_user })
 
         users = users.preload(:user_detail)
 
-        present paginate(users), options
+        if Feature.enabled?(:api_keyset_pagination_multi_order)
+          present paginate_with_strategies(users), options
+        else
+          present paginate(users), options
+        end
       end
       # rubocop: enable CodeReuse/ActiveRecord
 
@@ -220,12 +202,13 @@ module API
         not_found!('User') unless user
 
         followee = current_user.follow(user)
+
+        not_modified! unless followee
+
         if followee&.errors&.any?
           render_api_error!(followee.errors.full_messages.join(', '), 400)
         elsif followee&.persisted?
           present user, with: Entities::UserBasic
-        else
-          not_modified!
         end
       end
 
@@ -381,7 +364,7 @@ module API
       params do
         requires :id, type: Integer, desc: 'The ID of the user'
       end
-      patch ":id/disable_two_factor", feature_category: :authentication_and_authorization do
+      patch ":id/disable_two_factor", feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by_id(params[:id])
@@ -407,7 +390,7 @@ module API
         requires :provider, type: String, desc: 'The external provider'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete ":id/identities/:provider", feature_category: :authentication_and_authorization do
+      delete ":id/identities/:provider", feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params[:id])
@@ -456,7 +439,7 @@ module API
                               desc: 'Scope of usage for the SSH key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ":user_id/keys", feature_category: :authentication_and_authorization do
+      post ":user_id/keys", feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params.delete(:user_id))
@@ -479,7 +462,7 @@ module API
         requires :user_id, type: String, desc: 'The ID or username of the user'
         use :pagination
       end
-      get ':user_id/keys', requirements: API::USER_REQUIREMENTS, feature_category: :authentication_and_authorization do
+      get ':user_id/keys', requirements: API::USER_REQUIREMENTS, feature_category: :system_access do
         user = find_user(params[:user_id])
         not_found!('User') unless user && can?(current_user, :read_user, user)
 
@@ -494,7 +477,7 @@ module API
         requires :id, type: Integer, desc: 'The ID of the user'
         requires :key_id, type: Integer, desc: 'The ID of the SSH key'
       end
-      get ':id/keys/:key_id', requirements: API::USER_REQUIREMENTS, feature_category: :authentication_and_authorization do
+      get ':id/keys/:key_id', requirements: API::USER_REQUIREMENTS, feature_category: :system_access do
         user = find_user(params[:id])
         not_found!('User') unless user && can?(current_user, :read_user, user)
 
@@ -512,7 +495,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the SSH key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete ':id/keys/:key_id', feature_category: :authentication_and_authorization do
+      delete ':id/keys/:key_id', feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params[:id])
@@ -537,7 +520,7 @@ module API
         requires :key, type: String, desc: 'The new GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/gpg_keys', feature_category: :authentication_and_authorization do
+      post ':id/gpg_keys', feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params.delete(:id))
@@ -562,7 +545,7 @@ module API
         use :pagination
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      get ':id/gpg_keys', feature_category: :authentication_and_authorization do
+      get ':id/gpg_keys', feature_category: :system_access do
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
 
@@ -579,7 +562,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      get ':id/gpg_keys/:key_id', feature_category: :authentication_and_authorization do
+      get ':id/gpg_keys/:key_id', feature_category: :system_access do
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
 
@@ -598,7 +581,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete ':id/gpg_keys/:key_id', feature_category: :authentication_and_authorization do
+      delete ':id/gpg_keys/:key_id', feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params[:id])
@@ -622,7 +605,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/gpg_keys/:key_id/revoke', feature_category: :authentication_and_authorization do
+      post ':id/gpg_keys/:key_id/revoke', feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params[:id])
@@ -726,21 +709,25 @@ module API
         requires :id, type: Integer, desc: 'The ID of the user'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/activate', feature_category: :authentication_and_authorization do
+      post ':id/activate', feature_category: :system_access do
         authenticated_as_admin!
 
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
-        forbidden!('A blocked user must be unblocked to be activated') if user.blocked?
 
-        user.activate
+        result = ::Users::ActivateService.new(current_user).execute(user)
+        if result[:status] == :success
+          true
+        else
+          render_api_error!(result[:message], result[:reason] || :bad_request)
+        end
       end
 
       desc 'Approve a pending user. Available only for admins.'
       params do
         requires :id, type: Integer, desc: 'The ID of the user'
       end
-      post ':id/approve', feature_category: :authentication_and_authorization do
+      post ':id/approve', feature_category: :system_access do
         user = User.find_by(id: params[:id])
         not_found!('User') unless can?(current_user, :read_user, user)
 
@@ -757,7 +744,7 @@ module API
       params do
         requires :id, type: Integer, desc: 'The ID of the user'
       end
-      post ':id/reject', feature_category: :authentication_and_authorization do
+      post ':id/reject', feature_category: :system_access do
         user = find_user_by_id(params)
 
         result = ::Users::RejectService.new(current_user).execute(user)
@@ -775,23 +762,18 @@ module API
         requires :id, type: Integer, desc: 'The ID of the user'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/deactivate', feature_category: :authentication_and_authorization do
+      post ':id/deactivate', feature_category: :system_access do
         authenticated_as_admin!
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
 
         break if user.deactivated?
 
-        unless user.can_be_deactivated?
-          forbidden!('A blocked user cannot be deactivated by the API') if user.blocked?
-          forbidden!('An internal user cannot be deactivated by the API') if user.internal?
-          forbidden!("The user you are trying to deactivate has been active in the past #{Gitlab::CurrentSettings.deactivate_dormant_users_period} days and cannot be deactivated")
-        end
-
-        if user.deactivate
+        result = ::Users::DeactivateService.new(current_user, skip_authorization: true).execute(user)
+        if result[:status] == :success
           true
         else
-          render_api_error!(user.errors.full_messages, 400)
+          render_api_error!(result[:message], result[:reason] || :bad_request)
         end
       end
       # rubocop: enable CodeReuse/ActiveRecord
@@ -801,7 +783,7 @@ module API
         requires :id, type: Integer, desc: 'The ID of the user'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/block', feature_category: :authentication_and_authorization do
+      post ':id/block', feature_category: :system_access do
         authenticated_as_admin!
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
@@ -828,7 +810,7 @@ module API
         requires :id, type: Integer, desc: 'The ID of the user'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post ':id/unblock', feature_category: :authentication_and_authorization do
+      post ':id/unblock', feature_category: :system_access do
         authenticated_as_admin!
         user = User.find_by(id: params[:id])
         not_found!('User') unless user
@@ -848,7 +830,7 @@ module API
       params do
         requires :id, type: Integer, desc: 'The ID of the user'
       end
-      post ':id/ban', feature_category: :authentication_and_authorization do
+      post ':id/ban', feature_category: :system_access do
         authenticated_as_admin!
         user = find_user_by_id(params)
 
@@ -864,7 +846,7 @@ module API
       params do
         requires :id, type: Integer, desc: 'The ID of the user'
       end
-      post ':id/unban', feature_category: :authentication_and_authorization do
+      post ':id/unban', feature_category: :system_access do
         authenticated_as_admin!
         user = find_user_by_id(params)
 
@@ -902,6 +884,31 @@ module API
         present paginate(members), with: Entities::Membership
       end
 
+      resources ':id/associations_count' do
+        helpers do
+          def present_entity(result)
+            present result,
+              with: ::API::Entities::UserAssociationsCount
+          end
+        end
+
+        desc "Returns a list of a specified user's count of projects, groups, issues and merge requests."
+        params do
+          requires :id,
+            type: Integer,
+            desc: 'ID of the user to query.'
+        end
+        get do
+          authenticate!
+
+          user = find_user_by_id(params)
+          forbidden! unless can?(current_user, :get_user_associations_count, user)
+          not_found!('User') unless user
+
+          present_entity(user)
+        end
+      end
+
       params do
         requires :user_id, type: Integer, desc: 'The ID of the user'
       end
@@ -928,7 +935,7 @@ module API
             use :pagination
             optional :state, type: String, default: 'all', values: %w[all active inactive], desc: 'Filters (all|active|inactive) impersonation_tokens'
           end
-          get feature_category: :authentication_and_authorization do
+          get feature_category: :system_access do
             present paginate(finder(declared_params(include_missing: false)).execute), with: Entities::ImpersonationToken
           end
 
@@ -941,7 +948,7 @@ module API
             optional :expires_at, type: Date, desc: 'The expiration date in the format YEAR-MONTH-DAY of the impersonation token'
             optional :scopes, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'The array of scopes of the impersonation token'
           end
-          post feature_category: :authentication_and_authorization do
+          post feature_category: :system_access do
             impersonation_token = finder.build(declared_params(include_missing: false))
 
             if impersonation_token.save
@@ -958,7 +965,7 @@ module API
           params do
             requires :impersonation_token_id, type: Integer, desc: 'The ID of the impersonation token'
           end
-          get ':impersonation_token_id', feature_category: :authentication_and_authorization do
+          get ':impersonation_token_id', feature_category: :system_access do
             present find_impersonation_token, with: Entities::ImpersonationToken
           end
 
@@ -968,7 +975,7 @@ module API
           params do
             requires :impersonation_token_id, type: Integer, desc: 'The ID of the impersonation token'
           end
-          delete ':impersonation_token_id', feature_category: :authentication_and_authorization do
+          delete ':impersonation_token_id', feature_category: :system_access do
             token = find_impersonation_token
 
             destroy_conditionally!(token) do
@@ -996,7 +1003,7 @@ module API
                               desc: 'The array of scopes of the personal access token'
             optional :expires_at, type: Date, desc: 'The expiration date in the format YEAR-MONTH-DAY of the personal access token'
           end
-          post feature_category: :authentication_and_authorization do
+          post feature_category: :system_access do
             response = ::PersonalAccessTokens::CreateService.new(
               current_user: current_user, target_user: target_user, params: declared_params(include_missing: false)
             ).execute
@@ -1018,7 +1025,7 @@ module API
 
       # Enabling /user endpoint for the v3 version to allow oauth
       # authentication through this endpoint.
-      version %w(v3 v4), using: :path do
+      version %w[v3 v4], using: :path do
         desc 'Get the currently authenticated user' do
           success Entities::UserPublic
         end
@@ -1060,7 +1067,7 @@ module API
       params do
         use :pagination
       end
-      get "keys", feature_category: :authentication_and_authorization do
+      get "keys", feature_category: :system_access do
         keys = current_user.keys.preload_users
 
         present paginate(keys), with: Entities::SSHKey
@@ -1073,7 +1080,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the SSH key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      get "keys/:key_id", feature_category: :authentication_and_authorization do
+      get "keys/:key_id", feature_category: :system_access do
         key = current_user.keys.find_by(id: params[:key_id])
         not_found!('Key') unless key
 
@@ -1091,7 +1098,7 @@ module API
         optional :usage_type, type: String, values: Key.usage_types.keys, default: 'auth_and_signing',
                               desc: 'Scope of usage for the SSH key'
       end
-      post "keys", feature_category: :authentication_and_authorization do
+      post "keys", feature_category: :system_access do
         key = ::Keys::CreateService.new(current_user, declared_params(include_missing: false)).execute
 
         if key.persisted?
@@ -1108,7 +1115,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the SSH key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete "keys/:key_id", feature_category: :authentication_and_authorization do
+      delete "keys/:key_id", feature_category: :system_access do
         key = current_user.keys.find_by(id: params[:key_id])
         not_found!('Key') unless key
 
@@ -1126,7 +1133,7 @@ module API
       params do
         use :pagination
       end
-      get 'gpg_keys', feature_category: :authentication_and_authorization do
+      get 'gpg_keys', feature_category: :system_access do
         present paginate(current_user.gpg_keys), with: Entities::GpgKey
       end
 
@@ -1138,7 +1145,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      get 'gpg_keys/:key_id', feature_category: :authentication_and_authorization do
+      get 'gpg_keys/:key_id', feature_category: :system_access do
         key = current_user.gpg_keys.find_by(id: params[:key_id])
         not_found!('GPG Key') unless key
 
@@ -1153,7 +1160,7 @@ module API
       params do
         requires :key, type: String, desc: 'The new GPG key'
       end
-      post 'gpg_keys', feature_category: :authentication_and_authorization do
+      post 'gpg_keys', feature_category: :system_access do
         key = ::GpgKeys::CreateService.new(current_user, declared_params(include_missing: false)).execute
 
         if key.persisted?
@@ -1170,7 +1177,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the GPG key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      post 'gpg_keys/:key_id/revoke', feature_category: :authentication_and_authorization do
+      post 'gpg_keys/:key_id/revoke', feature_category: :system_access do
         key = current_user.gpg_keys.find_by(id: params[:key_id])
         not_found!('GPG Key') unless key
 
@@ -1186,7 +1193,7 @@ module API
         requires :key_id, type: Integer, desc: 'The ID of the SSH key'
       end
       # rubocop: disable CodeReuse/ActiveRecord
-      delete 'gpg_keys/:key_id', feature_category: :authentication_and_authorization do
+      delete 'gpg_keys/:key_id', feature_category: :system_access do
         key = current_user.gpg_keys.find_by(id: params[:key_id])
         not_found!('GPG Key') unless key
 
@@ -1227,7 +1234,7 @@ module API
 
         attrs = declared_params(include_missing: false)
 
-        service = ::Users::UpsertCreditCardValidationService.new(attrs, user).execute
+        service = ::Users::UpsertCreditCardValidationService.new(attrs).execute
 
         if service.success?
           present user.credit_card_validation, with: Entities::UserCreditCardValidations
@@ -1243,7 +1250,8 @@ module API
       params do
         optional :view_diffs_file_by_file, type: Boolean, desc: 'Flag indicating the user sees only one file diff per page'
         optional :show_whitespace_in_diffs, type: Boolean, desc: 'Flag indicating the user sees whitespace changes in diffs'
-        at_least_one_of :view_diffs_file_by_file, :show_whitespace_in_diffs
+        optional :pass_user_identities_to_ci_jwt, type: Boolean, desc: 'Flag indicating the user passes their external identities to a CI job as part of a JSON web token.'
+        at_least_one_of :view_diffs_file_by_file, :show_whitespace_in_diffs, :pass_user_identities_to_ci_jwt
       end
       put "preferences", feature_category: :user_profile, urgency: :high do
         authenticate!

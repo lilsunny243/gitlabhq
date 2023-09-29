@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Users::MigrateRecordsToGhostUserService do
+RSpec.describe Users::MigrateRecordsToGhostUserService, feature_category: :user_management do
   include BatchDestroyDependentAssociationsHelper
 
   let!(:user) { create(:user) }
@@ -45,10 +45,13 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
       context 'when deleted user is present as both author and merge_user' do
         include_examples 'migrating records to the ghost user', MergeRequest, [:author, :merge_user] do
           let(:created_record) do
-            create(:merge_request, source_project: project,
-                                   author: user,
-                                   merge_user: user,
-                                   target_branch: "first")
+            create(
+              :merge_request,
+              source_project: project,
+              author: user,
+              merge_user: user,
+              target_branch: "first"
+            )
           end
         end
       end
@@ -56,9 +59,12 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
       context 'when deleted user is present only as both merge_user' do
         include_examples 'migrating records to the ghost user', MergeRequest, [:merge_user] do
           let(:created_record) do
-            create(:merge_request, source_project: project,
-                                   merge_user: user,
-                                   target_branch: "first")
+            create(
+              :merge_request,
+              source_project: project,
+              merge_user: user,
+              target_branch: "first"
+            )
           end
         end
       end
@@ -94,7 +100,11 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
 
         context "when the awardable already has an award emoji of the same name assigned to the ghost user" do
           let(:awardable) { create(:issue) }
-          let!(:existing_award_emoji) { create(:award_emoji, user: User.ghost, name: "thumbsup", awardable: awardable) }
+
+          let!(:existing_award_emoji) do
+            create(:award_emoji, user: Users::Internal.ghost, name: "thumbsup", awardable: awardable)
+          end
+
           let!(:award_emoji) { create(:award_emoji, user: user, name: "thumbsup", awardable: awardable) }
 
           it "migrates the award emoji regardless" do
@@ -102,7 +112,7 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
 
             migrated_record = AwardEmoji.find_by_id(award_emoji.id)
 
-            expect(migrated_record.user).to eq(User.ghost)
+            expect(migrated_record.user).to eq(Users::Internal.ghost)
           end
 
           it "does not leave the migrated award emoji in an invalid state" do
@@ -212,11 +222,14 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
       end
 
       it 'nullifies merge request associations', :aggregate_failures do
-        merge_request = create(:merge_request, source_project: project,
-                                               target_project: project,
-                                               assignee: user,
-                                               updated_by: user,
-                                               merge_user: user)
+        merge_request = create(
+          :merge_request,
+          source_project: project,
+          target_project: project,
+          assignee: user,
+          updated_by: user,
+          merge_user: user
+        )
         merge_request.metrics.update!(merged_by: user, latest_closed_by: user)
         merge_request.reviewers = [user]
         merge_request.assignees = [user]
@@ -242,10 +255,18 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
           nullify_in_batches_regexp(:merge_request_metrics, :latest_closed_by_id, user)
         ]
 
-        expected_queries += delete_in_batches_regexps(:merge_request_assignees, :user_id, user,
-                                                      merge_request.assignees)
-        expected_queries += delete_in_batches_regexps(:merge_request_reviewers, :user_id, user,
-                                                      merge_request.reviewers)
+        expected_queries += delete_in_batches_regexps(
+          :merge_request_assignees,
+          :user_id,
+          user,
+          merge_request.assignees
+        )
+        expected_queries += delete_in_batches_regexps(
+          :merge_request_reviewers,
+          :user_id,
+          user,
+          merge_request.reviewers
+        )
 
         expect(query_recorder.log).to include(*expected_queries)
       end
@@ -305,7 +326,7 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
         service.execute
 
         expect(gitlab_shell.repository_exists?(repo.shard_name, "#{repo.disk_path}.git")).to be(true)
-        expect(User.ghost.snippets).to include(repo.snippet)
+        expect(Users::Internal.ghost.snippets).to include(repo.snippet)
       end
 
       context 'when an error is raised deleting snippets' do
@@ -322,8 +343,7 @@ RSpec.describe Users::MigrateRecordsToGhostUserService do
               raise_error(Users::MigrateRecordsToGhostUserService::DestroyError, 'foo'))
             expect(snippet.reload).not_to be_nil
             expect(
-              gitlab_shell.repository_exists?(snippet.repository_storage,
-                                              "#{snippet.disk_path}.git")
+              gitlab_shell.repository_exists?(snippet.repository_storage, "#{snippet.disk_path}.git")
             ).to be(true)
           end
         end

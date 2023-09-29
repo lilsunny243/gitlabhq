@@ -1,6 +1,6 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
@@ -10,7 +10,8 @@ All methods require administrator authorization.
 
 You can configure the URL endpoint of the system hooks from the GitLab user interface:
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. Select **System Hooks** (`/admin/hooks`).
 
 Read more about [system hooks](../administration/system_hooks.md).
@@ -126,6 +127,8 @@ Example response:
 
 ## Test system hook
 
+Executes the system hook with mock data.
+
 ```plaintext
 POST /hooks/:id
 ```
@@ -140,7 +143,7 @@ Example request:
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/hooks/1"
 ```
 
-Example response:
+The response is always the mock data:
 
 ```json
 {

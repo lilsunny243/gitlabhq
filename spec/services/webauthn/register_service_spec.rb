@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'webauthn/fake_client'
 
-RSpec.describe Webauthn::RegisterService do
+RSpec.describe Webauthn::RegisterService, feature_category: :system_access do
   let(:client) { WebAuthn::FakeClient.new(origin) }
   let(:user) { create(:user) }
   let(:challenge) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
@@ -16,7 +16,7 @@ RSpec.describe Webauthn::RegisterService do
       webauthn_credential = WebAuthn::Credential.from_create(create_result)
 
       params = { device_response: create_result.to_json, name: 'abc' }
-      service = Webauthn::RegisterService.new(user, params, challenge)
+      service = described_class.new(user, params, challenge)
 
       registration = service.execute
       expect(registration.credential_xid).to eq(Base64.strict_encode64(webauthn_credential.raw_id))
@@ -27,7 +27,7 @@ RSpec.describe Webauthn::RegisterService do
       create_result = client.create(challenge: Base64.strict_encode64(SecureRandom.random_bytes(16))) # rubocop:disable Rails/SaveBang
 
       params = { device_response: create_result.to_json, name: 'abc' }
-      service = Webauthn::RegisterService.new(user, params, challenge)
+      service = described_class.new(user, params, challenge)
 
       registration = service.execute
       expect(registration.errors.size).to eq(1)

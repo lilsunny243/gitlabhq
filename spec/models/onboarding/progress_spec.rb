@@ -77,8 +77,10 @@ RSpec.describe Onboarding::Progress do
 
     describe '.completed_actions_with_latest_in_range' do
       subject do
-        described_class.completed_actions_with_latest_in_range(actions,
-                                                               1.day.ago.beginning_of_day..1.day.ago.end_of_day)
+        described_class.completed_actions_with_latest_in_range(
+          actions,
+          1.day.ago.beginning_of_day..1.day.ago.end_of_day
+        )
       end
 
       let!(:one_action_completed_in_range_one_action_incompleted) do
@@ -187,7 +189,7 @@ RSpec.describe Onboarding::Progress do
     end
 
     context 'for multiple actions' do
-      let(:action1) { :security_scan_enabled }
+      let(:action1) { :secure_dast_run }
       let(:action2) { :secure_dependency_scanning_run }
       let(:actions) { [action1, action2] }
 
@@ -206,11 +208,11 @@ RSpec.describe Onboarding::Progress do
 
         it 'does not override timestamp', :aggregate_failures do
           described_class.register(namespace, [action1])
-          expect(described_class.find_by_namespace_id(namespace.id).security_scan_enabled_at).not_to be_nil
+          expect(described_class.find_by_namespace_id(namespace.id).secure_dast_run_at).not_to be_nil
           expect(described_class.find_by_namespace_id(namespace.id).secure_dependency_scanning_run_at).to be_nil
 
           expect { described_class.register(namespace, [action1, action2]) }.not_to change {
-            described_class.find_by_namespace_id(namespace.id).security_scan_enabled_at
+            described_class.find_by_namespace_id(namespace.id).secure_dast_run_at
           }
           expect(described_class.find_by_namespace_id(namespace.id).secure_dependency_scanning_run_at).not_to be_nil
         end

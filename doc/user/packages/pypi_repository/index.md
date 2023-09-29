@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# PyPI packages in the Package Registry **(FREE)**
+# PyPI packages in the Package Registry **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/208747) in GitLab 12.10.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/221259) from GitLab Premium to GitLab Free in 13.3.
@@ -33,6 +33,8 @@ To do this, you can use:
 - A [deploy token](../../project/deploy_tokens/index.md) with the scope set to
   `read_package_registry`, `write_package_registry`, or both.
 - A [CI job token](#authenticate-with-a-ci-job-token).
+
+Do not use authentication methods other than the methods documented here. Undocumented authentication methods might be removed in the future.
 
 ### Authenticate with a personal access token
 

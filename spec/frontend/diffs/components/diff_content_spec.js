@@ -1,7 +1,11 @@
 import { GlLoadingIcon } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
+import waitForPromises from 'helpers/wait_for_promises';
+import { sprintf } from '~/locale';
+import { createAlert } from '~/alert';
 import DiffContentComponent from '~/diffs/components/diff_content.vue';
 import DiffDiscussions from '~/diffs/components/diff_discussions.vue';
 import DiffView from '~/diffs/components/diff_view.vue';
@@ -10,9 +14,11 @@ import { diffViewerModes } from '~/ide/constants';
 import NoteForm from '~/notes/components/note_form.vue';
 import NoPreviewViewer from '~/vue_shared/components/diff_viewer/viewers/no_preview.vue';
 import NotDiffableViewer from '~/vue_shared/components/diff_viewer/viewers/not_diffable.vue';
+import { SOMETHING_WENT_WRONG, SAVING_THE_COMMENT_FAILED } from '~/diffs/i18n';
 import { getDiffFileMock } from '../mock_data/diff_file';
 
 Vue.use(Vuex);
+jest.mock('~/alert');
 
 describe('DiffContent', () => {
   let wrapper;
@@ -72,6 +78,7 @@ describe('DiffContent', () => {
             getCommentFormForDiffFile: getCommentFormForDiffFileGetterMock,
             diffLines: () => () => [...getDiffFileMock().parallel_diff_lines],
             fileLineCodequality: () => () => [],
+            fileLineSast: () => () => [],
           },
           actions: {
             saveDiffDiscussion: saveDiffDiscussionMock,
@@ -93,11 +100,6 @@ describe('DiffContent', () => {
     });
   };
 
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
-  });
-
   describe('with text based files', () => {
     afterEach(() => {
       [isParallelViewGetterMock, isInlineViewGetterMock].forEach((m) => m.mockRestore());
@@ -117,6 +119,35 @@ describe('DiffContent', () => {
       createComponent({ props: { diffFile: { ...textDiffFile, renderingLines: true } } });
 
       expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
+    });
+  });
+
+  describe('with whitespace only change', () => {
+    afterEach(() => {
+      [isParallelViewGetterMock, isInlineViewGetterMock].forEach((m) => m.mockRestore());
+    });
+
+    const textDiffFile = {
+      ...defaultProps.diffFile,
+      viewer: { name: diffViewerModes.text, whitespace_only: true },
+    };
+
+    it('should render empty state', () => {
+      createComponent({
+        props: { diffFile: textDiffFile },
+      });
+
+      expect(wrapper.find('[data-testid="diff-whitespace-only-state"]').exists()).toBe(true);
+    });
+
+    it('emits load-file event when clicking show changes button', () => {
+      createComponent({
+        props: { diffFile: textDiffFile },
+      });
+
+      wrapper.find('[data-testid="diff-load-file-button"]').vm.$emit('click');
+
+      expect(wrapper.emitted('load-file')).toEqual([[{ w: '0' }]]);
     });
   });
 
@@ -152,7 +183,12 @@ describe('DiffContent', () => {
       getCommentFormForDiffFileGetterMock.mockReturnValue(() => true);
       createComponent({
         props: {
-          diffFile: { ...imageDiffFile, discussions: [{ name: 'discussion-stub ' }] },
+          diffFile: {
+            ...imageDiffFile,
+            discussions: [
+              { name: 'discussion-stub', position: { position_type: IMAGE_DIFF_POSITION_TYPE } },
+            ],
+          },
         },
       });
 
@@ -162,7 +198,12 @@ describe('DiffContent', () => {
     it('emits saveDiffDiscussion when note-form emits `handleFormUpdate`', () => {
       const noteStub = {};
       getCommentFormForDiffFileGetterMock.mockReturnValue(() => true);
-      const currentDiffFile = { ...imageDiffFile, discussions: [{ name: 'discussion-stub ' }] };
+      const currentDiffFile = {
+        ...imageDiffFile,
+        discussions: [
+          { name: 'discussion-stub', position: { position_type: IMAGE_DIFF_POSITION_TYPE } },
+        ],
+      };
       createComponent({
         props: {
           diffFile: currentDiffFile,
@@ -182,6 +223,45 @@ describe('DiffContent', () => {
           height: undefined,
           noteableType: undefined,
         },
+      });
+    });
+
+    describe('when note-form emits `handleFormUpdate`', () => {
+      const noteStub = {};
+      const parentElement = null;
+      const errorCallback = jest.fn();
+
+      describe.each`
+        scenario                  | serverError                      | message
+        ${'with server error'}    | ${{ data: { errors: 'error' } }} | ${SAVING_THE_COMMENT_FAILED}
+        ${'without server error'} | ${null}                          | ${SOMETHING_WENT_WRONG}
+      `('$scenario', ({ serverError, message }) => {
+        beforeEach(async () => {
+          saveDiffDiscussionMock.mockRejectedValue({ response: serverError });
+
+          createComponent({
+            props: {
+              diffFile: imageDiffFile,
+            },
+          });
+
+          wrapper
+            .findComponent(NoteForm)
+            .vm.$emit('handleFormUpdate', noteStub, parentElement, errorCallback);
+
+          await waitForPromises();
+        });
+
+        it(`renders ${serverError ? 'server' : 'generic'} error message`, () => {
+          expect(createAlert).toHaveBeenCalledWith({
+            message: sprintf(message, { reason: serverError?.data?.errors }),
+            parent: parentElement,
+          });
+        });
+
+        it('calls errorCallback', () => {
+          expect(errorCallback).toHaveBeenCalled();
+        });
       });
     });
   });

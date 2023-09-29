@@ -5,7 +5,7 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, api
 ---
 
-# Branches API **(FREE)**
+# Branches API **(FREE ALL)**
 
 This API operates on [repository branches](../user/project/repository/branches/index.md).
 
@@ -27,7 +27,7 @@ Parameters:
 | Attribute | Type           | Required | Description |
 |:----------|:---------------|:---------|:------------|
 | `id`      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user.|
-| `search`  | string         | no       | Return list of branches containing the search string. You can use `^term` and `term$` to find branches that begin and end with `term` respectively. |
+| `search`  | string         | no       | Return list of branches containing the search string. You can use `^term` to find branches that begin with `term`, and `term$` to find branches that end with `term`. |
 | `regex`   | string         | no       | Return list of branches with names matching a [re2](https://github.com/google/re2/wiki/Syntax) regular expression. |
 
 Example request:
@@ -50,19 +50,22 @@ Example response:
     "can_push": true,
     "web_url": "https://gitlab.example.com/my-group/my-project/-/tree/main",
     "commit": {
-      "author_email": "john@example.com",
-      "author_name": "John Smith",
-      "authored_date": "2012-06-27T05:51:39-07:00",
-      "committed_date": "2012-06-28T03:44:20-07:00",
-      "committer_email": "john@example.com",
-      "committer_name": "John Smith",
       "id": "7b5c3cc8be40ee161ae89a06bba6229da1032a0c",
       "short_id": "7b5c3cc",
-      "title": "add projects API",
-      "message": "add projects API",
+      "created_at": "2012-06-28T03:44:20-07:00",
       "parent_ids": [
         "4ad91d3c1144c406e50c7b33bae684bd6837faf8"
-      ]
+      ],
+      "title": "add projects API",
+      "message": "add projects API",
+      "author_name": "John Smith",
+      "author_email": "john@example.com",
+      "authored_date": "2012-06-27T05:51:39-07:00",
+      "committer_name": "John Smith",
+      "committer_email": "john@example.com",
+      "committed_date": "2012-06-28T03:44:20-07:00",
+      "trailers": {},
+      "web_url": "https://gitlab.example.com/my-group/my-project/-/commit/7b5c3cc8be40ee161ae89a06bba6229da1032a0c"
     }
   },
   ...
@@ -97,7 +100,7 @@ Example response:
 
 ```json
 {
-  "name": "master",
+  "name": "main",
   "merged": false,
   "protected": true,
   "default": true,
@@ -106,19 +109,22 @@ Example response:
   "can_push": true,
   "web_url": "https://gitlab.example.com/my-group/my-project/-/tree/main",
   "commit": {
-    "author_email": "john@example.com",
-    "author_name": "John Smith",
-    "authored_date": "2012-06-27T05:51:39-07:00",
-    "committed_date": "2012-06-28T03:44:20-07:00",
-    "committer_email": "john@example.com",
-    "committer_name": "John Smith",
     "id": "7b5c3cc8be40ee161ae89a06bba6229da1032a0c",
     "short_id": "7b5c3cc",
-    "title": "add projects API",
-    "message": "add projects API",
+    "created_at": "2012-06-28T03:44:20-07:00",
     "parent_ids": [
       "4ad91d3c1144c406e50c7b33bae684bd6837faf8"
-    ]
+    ],
+    "title": "add projects API",
+    "message": "add projects API",
+    "author_name": "John Smith",
+    "author_email": "john@example.com",
+    "authored_date": "2012-06-27T05:51:39-07:00",
+    "committer_name": "John Smith",
+    "committer_email": "john@example.com",
+    "committed_date": "2012-06-28T03:44:20-07:00",
+    "trailers": {},
+    "web_url": "https://gitlab.example.com/my-group/my-project/-/commit/7b5c3cc8be40ee161ae89a06bba6229da1032a0c"
   }
 }
 ```
@@ -160,19 +166,22 @@ Example response:
 ```json
 {
   "commit": {
-    "author_email": "john@example.com",
-    "author_name": "John Smith",
-    "authored_date": "2012-06-27T05:51:39-07:00",
-    "committed_date": "2012-06-28T03:44:20-07:00",
-    "committer_email": "john@example.com",
-    "committer_name": "John Smith",
     "id": "7b5c3cc8be40ee161ae89a06bba6229da1032a0c",
     "short_id": "7b5c3cc",
-    "title": "add projects API",
-    "message": "add projects API",
+    "created_at": "2012-06-28T03:44:20-07:00",
     "parent_ids": [
       "4ad91d3c1144c406e50c7b33bae684bd6837faf8"
-    ]
+    ],
+    "title": "add projects API",
+    "message": "add projects API",
+    "author_name": "John Smith",
+    "author_email": "john@example.com",
+    "authored_date": "2012-06-27T05:51:39-07:00",
+    "committer_name": "John Smith",
+    "committer_email": "john@example.com",
+    "committed_date": "2012-06-28T03:44:20-07:00",
+    "trailers": {},
+    "web_url": "https://gitlab.example.com/my-group/my-project/-/commit/7b5c3cc8be40ee161ae89a06bba6229da1032a0c"
   },
   "name": "newbranch",
   "merged": false,
@@ -231,3 +240,9 @@ Example request:
 ```shell
 curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/repository/merged_branches"
 ```
+
+## Related topics
+
+- [Branches](../user/project/repository/branches/index.md)
+- [Protected branches](../user/project/protected_branches.md)
+- [Protected branches API](protected_branches.md)

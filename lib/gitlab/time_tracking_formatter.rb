@@ -8,14 +8,14 @@ module Gitlab
     CUSTOM_DAY_AND_MONTH_LENGTH = { hours_per_day: 8, days_per_month: 20 }.freeze
 
     def parse(string, keep_zero: false)
+      return unless string
+
       negative_time = string.start_with?('-')
       string = string.delete_prefix('-')
 
       seconds =
         begin
-          ChronicDuration.parse(
-            string,
-            CUSTOM_DAY_AND_MONTH_LENGTH.merge(default_unit: 'hours', keep_zero: keep_zero))
+          ChronicDuration.parse(string, CUSTOM_DAY_AND_MONTH_LENGTH.merge(default_unit: 'hours', keep_zero: keep_zero))
         rescue StandardError
           nil
         end

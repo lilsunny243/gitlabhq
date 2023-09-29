@@ -8,7 +8,7 @@ module API
 
     before { authenticate! }
 
-    feature_category :authentication_and_authorization
+    feature_category :system_access
 
     %w[project group].each do |source_type|
       resource source_type.pluralize, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
@@ -92,17 +92,30 @@ module API
           success Entities::ResourceAccessTokenWithToken
         end
         params do
-          requires :id, type: String, desc: "The #{source_type} ID", documentation: { example: 2 }
-          requires :name, type: String, desc: "Resource access token name", documentation: { example: 'test' }
-          requires :scopes, type: Array[String], values: ::Gitlab::Auth.resource_bot_scopes.map(&:to_s),
-                            desc: "The permissions of the token",
-                            documentation: { example: %w[api read_repository] }
-          optional :access_level, type: Integer,
-                                  values: ALLOWED_RESOURCE_ACCESS_LEVELS.values,
-                                  default: Gitlab::Access::MAINTAINER,
-                                  desc: "The access level of the token in the #{source_type}",
-                                  documentation: { example: 40 }
-          optional :expires_at, type: Date, desc: "The expiration date of the token", documentation: { example: '"2021-01-31' }
+          requires :id,
+            type: String,
+            desc: "The #{source_type} ID",
+            documentation: { example: 2 }
+          requires :name,
+            type: String,
+            desc: "Resource access token name",
+            documentation: { example: 'test' }
+          requires :scopes,
+            type: Array[String],
+            values: ::Gitlab::Auth.resource_bot_scopes.map(&:to_s),
+            desc: "The permissions of the token",
+            documentation: { example: %w[api read_repository] }
+          requires :expires_at,
+            type: Date,
+            desc: "The expiration date of the token",
+            default: PersonalAccessToken::MAX_PERSONAL_ACCESS_TOKEN_LIFETIME_IN_DAYS.days.from_now,
+            documentation: { example: '"2021-01-31' }
+          optional :access_level,
+            type: Integer,
+            values: ALLOWED_RESOURCE_ACCESS_LEVELS.values,
+            default: Gitlab::Access::MAINTAINER,
+            desc: "The access level of the token in the #{source_type}",
+            documentation: { example: 40 }
         end
         post ':id/access_tokens' do
           resource = find_source(source_type, params[:id])
@@ -117,6 +130,38 @@ module API
             present token_response.payload[:access_token], with: Entities::ResourceAccessTokenWithToken, resource: resource
           else
             bad_request!(token_response.message)
+          end
+        end
+
+        desc 'Rotate a resource access token' do
+          detail 'This feature was introduced in GitLab 16.0.'
+          tags ["#{source_type}_access_tokens"]
+          success Entities::ResourceAccessTokenWithToken
+        end
+        params do
+          requires :id, type: String, desc: "The #{source_type} ID"
+          requires :token_id, type: String, desc: "The ID of the token"
+        end
+        post ':id/access_tokens/:token_id/rotate' do
+          resource = find_source(source_type, params[:id])
+
+          resource_accessible = Ability.allowed?(current_user, :manage_resource_access_tokens, resource)
+          token = find_token(resource, params[:token_id]) if resource_accessible
+
+          if token
+            response = ::PersonalAccessTokens::RotateService.new(current_user, token).execute
+
+            if response.success?
+              status :ok
+
+              new_token = response.payload[:personal_access_token]
+              present new_token, with: Entities::ResourceAccessTokenWithToken, resource: resource
+            else
+              bad_request!(response.message)
+            end
+          else
+            # Only admins should be informed if the token doesn't exist
+            current_user.can_admin_all_resources? ? not_found! : unauthorized!
           end
         end
       end

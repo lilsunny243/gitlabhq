@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Admin::Sidekiq, :clean_gitlab_redis_queues, feature_category: :not_owned do
+RSpec.describe API::Admin::Sidekiq, :clean_gitlab_redis_queues, feature_category: :shared do
   let_it_be(:admin) { create(:admin) }
 
   describe 'DELETE /admin/sidekiq/queues/:queue_name' do
@@ -31,7 +31,9 @@ RSpec.describe API::Admin::Sidekiq, :clean_gitlab_redis_queues, feature_category
 
         let_it_be(:path) { "/admin/sidekiq/queues/authorized_projects?user=#{admin.username}&worker_class=AuthorizedProjectsWorker" }
 
-        it_behaves_like 'DELETE request permissions for admin mode', :ok
+        it_behaves_like 'DELETE request permissions for admin mode' do
+          let(:success_status_code) { :ok }
+        end
 
         it 'returns info about the deleted jobs' do
           delete api(path, admin, admin_mode: true)

@@ -1,4 +1,4 @@
-import { GlEmptyState, GlLink } from '@gitlab/ui';
+import { GlDisclosureDropdown, GlEmptyState, GlLink } from '@gitlab/ui';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import CsvImportExportButtons from '~/issuable/components/csv_import_export_buttons.vue';
 import EmptyStateWithoutAnyIssues from '~/issues/list/components/empty_state_without_any_issues.vue';
@@ -23,9 +23,11 @@ describe('EmptyStateWithoutAnyIssues component', () => {
     newProjectPath: 'new/project/path',
     showNewIssueLink: false,
     signInPath: 'sign/in/path',
+    groupId: '',
   };
 
   const findCsvImportExportButtons = () => wrapper.findComponent(CsvImportExportButtons);
+  const findCsvImportExportDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
   const findGlEmptyState = () => wrapper.findComponent(GlEmptyState);
   const findGlLink = () => wrapper.findComponent(GlLink);
   const findIssuesHelpPageLink = () =>
@@ -135,6 +137,7 @@ describe('EmptyStateWithoutAnyIssues component', () => {
             it('renders', () => {
               mountComponent({ props: { showCsvButtons: true } });
 
+              expect(findCsvImportExportDropdown().props('toggleText')).toBe('Import issues');
               expect(findCsvImportExportButtons().props()).toMatchObject({
                 exportCsvPath: defaultProps.exportCsvPathWithQuery,
                 issuableCount: 0,
@@ -146,6 +149,7 @@ describe('EmptyStateWithoutAnyIssues component', () => {
             it('does not render', () => {
               mountComponent({ props: { showCsvButtons: false } });
 
+              expect(findCsvImportExportDropdown().exists()).toBe(false);
               expect(findCsvImportExportButtons().exists()).toBe(false);
             });
           });

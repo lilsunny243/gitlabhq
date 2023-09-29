@@ -26,6 +26,11 @@ export default {
       required: false,
       default: '',
     },
+    isInternalNote: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   computed: {
     author() {
@@ -36,18 +41,34 @@ export default {
         username: window.gon.current_username,
       };
     },
+    entryClass() {
+      return {
+        'note note-wrapper note-comment being-posted': true,
+        'internal-note': this.isInternalNote,
+      };
+    },
   },
 };
 </script>
 
 <template>
-  <timeline-entry-item class="note note-wrapper note-comment gl-p-4 being-posted">
+  <timeline-entry-item :class="entryClass">
     <div class="timeline-avatar gl-float-left">
-      <gl-avatar :src="$options.constantOptions.avatarUrl" :size="32" class="gl-mr-3" />
+      <gl-avatar :src="$options.constantOptions.avatarUrl" :size="32" />
     </div>
-    <div class="note-header">
-      <note-header :author="author" />
+    <div class="timeline-content" data-testid="note-wrapper">
+      <div class="note-header">
+        <note-header :author="author" />
+      </div>
+      <div ref="note-body" class="timeline-discussion-body">
+        <div class="note-body">
+          <div
+            v-safe-html:[$options.safeHtmlConfig]="body"
+            class="note-text md"
+            data-testid="work-item-note-body"
+          ></div>
+        </div>
+      </div>
     </div>
-    <div ref="note-body" v-safe-html:[$options.safeHtmlConfig]="body" class="note-body"></div>
   </timeline-entry-item>
 </template>

@@ -25,8 +25,8 @@ RSpec.describe 'shared/_label_row.html.haml' do
       expect(rendered).to have_text(label.title)
     end
 
-    it 'has a non-linked label title' do
-      expect(rendered).not_to have_link(label.title)
+    it 'has a linked label title' do
+      expect(rendered).to have_link(label.title)
     end
 
     it 'has Issues link' do
@@ -38,7 +38,7 @@ RSpec.describe 'shared/_label_row.html.haml' do
     end
 
     it 'shows the path from where the label was created' do
-      expect(rendered).to have_css('.label-badge', text: project.full_name)
+      expect(rendered).to have_text(project.full_name)
     end
   end
 
@@ -57,8 +57,8 @@ RSpec.describe 'shared/_label_row.html.haml' do
       expect(rendered).to have_text(label.title)
     end
 
-    it 'has a non-linked label title' do
-      expect(rendered).not_to have_link(label.title)
+    it 'has a linked label title' do
+      expect(rendered).to have_link(label.title)
     end
 
     it 'has Issues link' do
@@ -70,7 +70,7 @@ RSpec.describe 'shared/_label_row.html.haml' do
     end
 
     it 'shows the path from where the label was created' do
-      expect(rendered).to have_css('.label-badge', text: subgroup.full_name)
+      expect(rendered).to have_text(subgroup.full_name)
     end
   end
 
@@ -85,8 +85,8 @@ RSpec.describe 'shared/_label_row.html.haml' do
       expect(rendered).to have_text(label.title)
     end
 
-    it 'has a non-linked label title' do
-      expect(rendered).not_to have_link(label.title)
+    it 'has a linked label title' do
+      expect(rendered).to have_link(label.title)
     end
 
     it 'has Issues link' do
@@ -111,8 +111,8 @@ RSpec.describe 'shared/_label_row.html.haml' do
       expect(rendered).to have_text(label.title)
     end
 
-    it 'has a non-linked label title' do
-      expect(rendered).not_to have_link(label.title)
+    it 'has a linked label title' do
+      expect(rendered).to have_link(label.title)
     end
 
     it 'does not show Issues link' do

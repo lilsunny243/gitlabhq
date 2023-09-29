@@ -36,7 +36,7 @@ export default {
       <deployment-status-link :deployment-job="item.job" :status="item.status" />
     </template>
     <template #cell(id)="{ item }">
-      <strong>{{ item.id }}</strong>
+      <strong data-testid="deployment-id">{{ item.id }}</strong>
     </template>
     <template #cell(triggerer)="{ item }">
       <deployment-triggerer :triggerer="item.triggerer" />
@@ -48,13 +48,26 @@ export default {
       <deployment-job :job="item.job" />
     </template>
     <template #cell(created)="{ item }">
-      <time-ago-tooltip :time="item.created" />
+      <time-ago-tooltip
+        :time="item.created"
+        enable-truncation
+        data-testid="deployment-created-at"
+      />
     </template>
     <template #cell(deployed)="{ item }">
-      <time-ago-tooltip :time="item.deployed" />
+      <time-ago-tooltip
+        v-if="item.deployed"
+        :time="item.deployed"
+        enable-truncation
+        data-testid="deployment-deployed-at"
+      />
     </template>
     <template #cell(actions)="{ item }">
-      <deployment-actions :actions="item.actions" />
+      <deployment-actions
+        :actions="item.actions"
+        :rollback="item.rollback"
+        :approval-environment="item.deploymentApproval"
+      />
     </template>
   </gl-table-lite>
 </template>

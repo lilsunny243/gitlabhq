@@ -4,7 +4,7 @@ group: unassigned
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Guidelines for shell commands in the GitLab codebase
+# Shell command development guidelines
 
 This document contains guidelines for working with processes and files in the GitLab codebase.
 These guidelines are meant to make your code more reliable _and_ secure.
@@ -88,7 +88,7 @@ cat: illegal option -- l
 usage: cat [-benstuv] [file ...]
 ```
 
-In the example above, the argument parser of `cat` assumes that `-l` is an option. The solution in the example above is to make it clear to `cat` that `-l` is really an argument, not an option. Many Unix command line tools follow the convention of separating options from arguments with `--`.
+In the example above, the argument parser of `cat` assumes that `-l` is an option. The solution in the example above is to make it clear to `cat` that `-l` is really an argument, not an option. Many Unix command-line tools follow the convention of separating options from arguments with `--`.
 
 ```shell
 # Example (continued)

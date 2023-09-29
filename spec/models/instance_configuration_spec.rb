@@ -73,7 +73,7 @@ RSpec.describe InstanceConfiguration do
         it 'returns Settings.pages' do
           gitlab_pages.delete(:ip_address)
 
-          expect(gitlab_pages).to eq(Settings.pages.symbolize_keys)
+          expect(gitlab_pages).to eq(Settings.pages.to_hash.deep_symbolize_keys)
         end
 
         it 'returns the GitLab\'s pages host ip address' do
@@ -103,7 +103,9 @@ RSpec.describe InstanceConfiguration do
             diff_max_patch_bytes: 409600,
             max_artifacts_size: 50,
             max_pages_size: 60,
-            snippet_size_limit: 70
+            snippet_size_limit: 70,
+            max_import_remote_file_size: 80,
+            bulk_import_max_download_file_size: 90
           )
         end
 
@@ -118,6 +120,8 @@ RSpec.describe InstanceConfiguration do
           expect(size_limits[:max_artifacts_size]).to eq(50.megabytes)
           expect(size_limits[:max_pages_size]).to eq(60.megabytes)
           expect(size_limits[:snippet_size_limit]).to eq(70.bytes)
+          expect(size_limits[:max_import_remote_file_size]).to eq(80.megabytes)
+          expect(size_limits[:bulk_import_max_download_file_size]).to eq(90.megabytes)
         end
 
         it 'returns nil if receive_max_input_size not set' do
@@ -132,7 +136,9 @@ RSpec.describe InstanceConfiguration do
           Gitlab::CurrentSettings.current_application_settings.update!(
             max_import_size: 0,
             max_export_size: 0,
-            max_pages_size: 0
+            max_pages_size: 0,
+            max_import_remote_file_size: 0,
+            bulk_import_max_download_file_size: 0
           )
 
           size_limits = subject.settings[:size_limits]
@@ -140,6 +146,8 @@ RSpec.describe InstanceConfiguration do
           expect(size_limits[:max_import_size]).to be_nil
           expect(size_limits[:max_export_size]).to be_nil
           expect(size_limits[:max_pages_size]).to be_nil
+          expect(size_limits[:max_import_remote_file_size]).to eq(0)
+          expect(size_limits[:bulk_import_max_download_file_size]).to eq(0)
         end
       end
 
@@ -189,7 +197,6 @@ RSpec.describe InstanceConfiguration do
             plan: plan1,
             ci_pipeline_size: 1001,
             ci_active_jobs: 1002,
-            ci_active_pipelines: 1003,
             ci_project_subscriptions: 1004,
             ci_pipeline_schedules: 1005,
             ci_needs_size_limit: 1006,
@@ -200,7 +207,6 @@ RSpec.describe InstanceConfiguration do
             plan: plan2,
             ci_pipeline_size: 1101,
             ci_active_jobs: 1102,
-            ci_active_pipelines: 1103,
             ci_project_subscriptions: 1104,
             ci_pipeline_schedules: 1105,
             ci_needs_size_limit: 1106,
@@ -214,7 +220,6 @@ RSpec.describe InstanceConfiguration do
 
           expect(ci_cd_size_limits[:Plan1]).to eq({
             ci_active_jobs: 1002,
-            ci_active_pipelines: 1003,
             ci_needs_size_limit: 1006,
             ci_pipeline_schedules: 1005,
             ci_pipeline_size: 1001,
@@ -224,7 +229,6 @@ RSpec.describe InstanceConfiguration do
           })
           expect(ci_cd_size_limits[:Plan2]).to eq({
             ci_active_jobs: 1102,
-            ci_active_pipelines: 1103,
             ci_needs_size_limit: 1106,
             ci_pipeline_schedules: 1105,
             ci_pipeline_size: 1101,

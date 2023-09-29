@@ -2,7 +2,6 @@
 stage: Systems
 group: Distribution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 description: Doing SRE for GitLab instances and runners on AWS.
 ---
 
@@ -81,11 +80,11 @@ All recommendations are for production configurations, including performance tes
 
 ### AWS Gitaly backup
 
-Due to the nature of how Praefect tracks the replication metadata of Gitaly disk information, the best backup method is [the official backup and restore Rake tasks](../../raketasks/backup_restore.md).
+Due to the nature of how Praefect tracks the replication metadata of Gitaly disk information, the best backup method is [the official backup and restore Rake tasks](../../administration/backup_restore/index.md).
 
 ### AWS Gitaly recovery
 
-Gitaly Cluster does not support snapshot backups as these can cause issues where the Praefect database becomes out of syn with the disk storage. Due to the nature of how Praefect rebuilds the replication metadata of Gitaly disk information during a restore, the best recovery method is [the official backup and restore Rake tasks](../../raketasks/backup_restore.md).
+Gitaly Cluster does not support snapshot backups as these can cause issues where the Praefect database becomes out of syn with the disk storage. Due to the nature of how Praefect rebuilds the replication metadata of Gitaly disk information during a restore, the best recovery method is [the official backup and restore Rake tasks](../../administration/backup_restore/index.md).
 
 ### Gitaly HA in EKS quick start
 

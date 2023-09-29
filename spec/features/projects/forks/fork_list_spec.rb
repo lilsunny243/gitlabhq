@@ -2,13 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe 'listing forks of a project', feature_category: :projects do
+RSpec.describe 'listing forks of a project', feature_category: :groups_and_projects do
   include ProjectForksHelper
   include ExternalAuthorizationServiceHelpers
 
   let(:source) { create(:project, :public, :repository) }
   let!(:fork) { fork_project(source, nil, repository: true) }
-  let(:user) { create(:user) }
+  let(:user) { create(:user, :no_super_sidebar) }
 
   before do
     source.add_maintainer(user)

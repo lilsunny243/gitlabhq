@@ -1,16 +1,17 @@
 <script>
 import { GlAlert, GlLink, GlSprintf } from '@gitlab/ui';
 import { isEmpty } from 'lodash';
+// eslint-disable-next-line no-restricted-imports
 import { mapState, mapMutations, mapActions } from 'vuex';
 import { retrieveAlert } from '~/jira_connect/subscriptions/utils';
 import AccessorUtilities from '~/lib/utils/accessor';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { I18N_DEFAULT_SIGN_IN_ERROR_MESSAGE } from '../constants';
 import { SET_ALERT } from '../store/mutation_types';
 import SignInPage from '../pages/sign_in/sign_in_page.vue';
 import SubscriptionsPage from '../pages/subscriptions_page.vue';
 import UserLink from './user_link.vue';
 import BrowserSupportAlert from './browser_support_alert.vue';
+import FeedbackBanner from './feedback_banner.vue';
 
 export default {
   name: 'JiraConnectApp',
@@ -19,15 +20,12 @@ export default {
     GlLink,
     GlSprintf,
     BrowserSupportAlert,
+    FeedbackBanner,
     SignInPage,
     SubscriptionsPage,
     UserLink,
   },
-  mixins: [glFeatureFlagMixin()],
   inject: {
-    usersPath: {
-      default: '',
-    },
     subscriptionsPath: {
       default: '',
     },
@@ -45,21 +43,14 @@ export default {
       return !isEmpty(this.subscriptions);
     },
     userSignedIn() {
-      if (this.isOauthEnabled) {
-        return Boolean(this.currentUser);
-      }
-
-      return Boolean(!this.usersPath);
-    },
-    isOauthEnabled() {
-      return this.glFeatures.jiraConnectOauth;
+      return Boolean(this.currentUser);
     },
     /**
      * Returns false if the GitLab for Jira app doesn't support the user's browser.
      * Any web API that the GitLab for Jira app depends on should be checked here.
      */
     isBrowserSupported() {
-      return !this.isOauthEnabled || AccessorUtilities.canUseCrypto();
+      return AccessorUtilities.canUseCrypto();
     },
     gitlabUrl() {
       return gon.gitlab_url;
@@ -80,11 +71,10 @@ export default {
     }),
     ...mapActions(['fetchSubscriptions']),
     /**
-     * Fetch subscriptions from the REST API,
-     * if the jiraConnectOauth flag is enabled.
+     * Fetch subscriptions from the REST API.
      */
     fetchSubscriptionsOauth() {
-      if (!this.isOauthEnabled || !this.userSignedIn) return;
+      if (!this.userSignedIn) return;
 
       this.fetchSubscriptions(this.subscriptionsPath);
     },
@@ -113,46 +103,49 @@ export default {
       <gl-link :href="gitlabUrl" target="_blank">
         <img :src="gitlabLogo" class="gl-h-6" :alt="__('GitLab')" />
       </gl-link>
-      <user-link
-        :user-signed-in="userSignedIn"
-        :has-subscriptions="hasSubscriptions"
-        :user="currentUser"
-        class="gl-fixed gl-right-4"
-      />
+      <user-link v-if="userSignedIn" :user="currentUser" class="gl-fixed gl-right-4" />
     </header>
 
-    <main class="jira-connect-app gl-px-5 gl-pt-7 gl-mx-auto">
-      <browser-support-alert v-if="!isBrowserSupported" class="gl-mb-7" />
-      <div v-else data-testid="jira-connect-app">
-        <gl-alert
-          v-if="shouldShowAlert"
-          :variant="alert.variant"
-          :title="alert.title"
-          class="gl-mb-5"
-          data-testid="jira-connect-persisted-alert"
-          @dismiss="setAlert"
-        >
-          <gl-sprintf v-if="alert.linkUrl" :message="alert.message">
-            <template #link="{ content }">
-              <gl-link :href="alert.linkUrl" target="_blank">{{ content }}</gl-link>
+    <main
+      class="jira-connect-app gl-px-5 gl-pt-7 gl-pb-7 gl-mx-auto gl-display-flex gl-flex-direction-column gl-gap-7"
+    >
+      <div class="gl-flex-grow-1">
+        <browser-support-alert v-if="!isBrowserSupported" class="gl-mb-7" />
+        <div v-else data-testid="jira-connect-app">
+          <gl-alert
+            v-if="shouldShowAlert"
+            :variant="alert.variant"
+            :title="alert.title"
+            class="gl-mb-5"
+            data-testid="jira-connect-persisted-alert"
+            @dismiss="setAlert"
+          >
+            <gl-sprintf v-if="alert.linkUrl" :message="alert.message">
+              <template #link="{ content }">
+                <gl-link :href="alert.linkUrl" target="_blank">{{ content }}</gl-link>
+              </template>
+            </gl-sprintf>
+
+            <template v-else>
+              {{ alert.message }}
             </template>
-          </gl-sprintf>
+          </gl-alert>
 
-          <template v-else>
-            {{ alert.message }}
-          </template>
-        </gl-alert>
-
-        <div class="gl-layout-w-limited gl-mx-auto gl-px-5 gl-mb-7">
-          <sign-in-page
-            v-show="!userSignedIn"
-            :has-subscriptions="hasSubscriptions"
-            :public-key-storage-enabled="publicKeyStorageEnabled"
-            @sign-in-oauth="onSignInOauth"
-            @error="onSignInError"
-          />
-          <subscriptions-page v-if="userSignedIn" :has-subscriptions="hasSubscriptions" />
+          <div class="gl-layout-w-limited gl-mx-auto gl-px-5 gl-mb-7">
+            <sign-in-page
+              v-show="!userSignedIn"
+              :has-subscriptions="hasSubscriptions"
+              :public-key-storage-enabled="publicKeyStorageEnabled"
+              @sign-in-oauth="onSignInOauth"
+              @error="onSignInError"
+            />
+            <subscriptions-page v-if="userSignedIn" :has-subscriptions="hasSubscriptions" />
+          </div>
         </div>
+      </div>
+
+      <div class="gl-flex-grow-2">
+        <feedback-banner class="gl-max-w-80 gl-mx-auto" />
       </div>
     </main>
   </div>

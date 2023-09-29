@@ -9,15 +9,22 @@ module Packages
       # used by ExclusiveLeaseGuard
       DEFAULT_LEASE_TIMEOUT = 1.hour.to_i.freeze
       SYMBOL_PACKAGE_IDENTIFIER = 'SymbolsPackage'
+      INVALID_METADATA_ERROR_MESSAGE = 'package name, version, authors and/or description not found in metadata'
+      INVALID_METADATA_ERROR_SYMBOL_MESSAGE = 'package name, version and/or description not found in metadata'
+      MISSING_MATCHING_PACKAGE_ERROR_MESSAGE = 'symbol package is invalid, matching package does not exist'
 
       InvalidMetadataError = Class.new(StandardError)
+      ZipError = Class.new(StandardError)
 
       def initialize(package_file)
         @package_file = package_file
       end
 
       def execute
-        raise InvalidMetadataError, 'package name and/or package version not found in metadata' unless valid_metadata?
+        unless valid_metadata?
+          error_message = symbol_package? ? INVALID_METADATA_ERROR_SYMBOL_MESSAGE : INVALID_METADATA_ERROR_MESSAGE
+          raise InvalidMetadataError, error_message
+        end
 
         try_obtain_lease do
           @package_file.transaction do
@@ -26,6 +33,8 @@ module Packages
         end
       rescue ActiveRecord::RecordInvalid => e
         raise InvalidMetadataError, e.message
+      rescue Zip::Error
+        raise ZipError, 'Could not open the .nupkg file'
       end
 
       private
@@ -39,7 +48,7 @@ module Packages
           target_package = existing_package
         else
           if symbol_package?
-            raise InvalidMetadataError, 'symbol package is invalid, matching package does not exist'
+            raise InvalidMetadataError, MISSING_MATCHING_PACKAGE_ERROR_MESSAGE
           end
 
           update_linked_package
@@ -55,17 +64,21 @@ module Packages
         return if symbol_package?
 
         ::Packages::Nuget::SyncMetadatumService
-          .new(package, metadata.slice(:project_url, :license_url, :icon_url))
+          .new(package, metadata.slice(:authors, :description, :project_url, :license_url, :icon_url))
           .execute
+
         ::Packages::UpdateTagsService
           .new(package, package_tags)
           .execute
+
       rescue StandardError => e
         raise InvalidMetadataError, e.message
       end
 
       def valid_metadata?
-        package_name.present? && package_version.present?
+        fields = [package_name, package_version, package_description]
+        fields << package_authors unless symbol_package?
+        fields.all?(&:present?)
       end
 
       def link_to_existing_package
@@ -93,15 +106,14 @@ module Packages
       end
 
       def existing_package
-        strong_memoize(:existing_package) do
-          @package_file.project.packages
-                               .nuget
-                               .with_name(package_name)
-                               .with_version(package_version)
-                               .not_pending_destruction
-                               .first
-        end
+        @package_file.project.packages
+                             .nuget
+                             .with_name(package_name)
+                             .with_version(package_version)
+                             .not_pending_destruction
+                             .first
       end
+      strong_memoize_attr :existing_package
 
       def package_name
         metadata[:package_name]
@@ -123,15 +135,22 @@ module Packages
         metadata.fetch(:package_types, [])
       end
 
+      def package_authors
+        metadata[:authors]
+      end
+
+      def package_description
+        metadata[:description]
+      end
+
       def symbol_package?
         package_types.include?(SYMBOL_PACKAGE_IDENTIFIER)
       end
 
       def metadata
-        strong_memoize(:metadata) do
-          ::Packages::Nuget::MetadataExtractionService.new(@package_file.id).execute
-        end
+        ::Packages::Nuget::MetadataExtractionService.new(@package_file).execute.payload
       end
+      strong_memoize_attr :metadata
 
       def package_filename
         "#{package_name.downcase}.#{package_version.downcase}.#{symbol_package? ? 'snupkg' : 'nupkg'}"

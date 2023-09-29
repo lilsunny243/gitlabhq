@@ -36,15 +36,18 @@ module Ci
         next unless ci_ref.artifacts_locked?
 
         ci_ref.run_after_commit do
-          Ci::PipelineSuccessUnlockArtifactsWorker.perform_async(ci_ref.last_finished_pipeline_id)
+          if Feature.enabled?(:ci_unlock_pipelines_queue, ci_ref.project)
+            Ci::Refs::UnlockPreviousPipelinesWorker.perform_async(ci_ref.id)
+          else
+            Ci::PipelineSuccessUnlockArtifactsWorker.perform_async(ci_ref.last_finished_pipeline_id)
+          end
         end
       end
     end
 
     class << self
       def ensure_for(pipeline)
-        safe_find_or_create_by(project_id: pipeline.project_id,
-                               ref_path: pipeline.source_ref_path)
+        safe_find_or_create_by(project_id: pipeline.project_id, ref_path: pipeline.source_ref_path)
       end
 
       def failing_state?(status_name)
@@ -53,7 +56,11 @@ module Ci
     end
 
     def last_finished_pipeline_id
-      Ci::Pipeline.last_finished_for_ref_id(self.id)&.id
+      last_finished_pipeline&.id
+    end
+
+    def last_finished_pipeline
+      Ci::Pipeline.last_finished_for_ref_id(self.id)
     end
 
     def artifacts_locked?

@@ -35,7 +35,7 @@ module QA
         # @param [Array<RSpec::Core::Example>] examples
         # @return [Array<Hash>]
         def execution_data(examples = nil)
-          @execution_metrics ||= examples.map { |example| test_stats(example) }.compact
+          @execution_metrics ||= examples.filter_map { |example| test_stats(example) }
         end
         alias_method :parse_execution_data, :execution_data
 
@@ -74,10 +74,14 @@ module QA
         def save_test_metrics
           return log(:debug, "Saving test metrics json not enabled, skipping") unless save_metrics_json?
 
-          File.write("tmp/test-metrics-#{env('CI_JOB_NAME_SLUG') || 'local'}.json", execution_data.to_json)
+          file = "tmp/test-metrics-#{env('CI_JOB_NAME_SLUG') || 'local'}.json"
+
+          File.write(file, execution_data.to_json) && log(:debug, "Saved test metrics to #{file}")
         rescue StandardError => e
           log(:error, "Failed to save test execution metrics, error: #{e}")
         end
+
+        # rubocop:disable Metrics/AbcSize
 
         # Transform example to influxdb compatible metrics data
         # https://github.com/influxdata/influxdb-client-ruby#data-format
@@ -85,7 +89,9 @@ module QA
         # @param [RSpec::Core::Example] example
         # @return [Hash]
         def test_stats(example)
-          file_path = example.metadata[:file_path].gsub('./qa/specs/features', '')
+          # use rerun_file_path so shared_examples have the correct file path
+          file_path = example.metadata[:rerun_file_path].gsub('./qa/specs/features', '')
+
           api_fabrication = ((example.metadata[:api_fabrication] || 0) * 1000).round
           ui_fabrication = ((example.metadata[:browser_ui_fabrication] || 0) * 1000).round
 
@@ -123,6 +129,7 @@ module QA
               pipeline_id: env('CI_PIPELINE_ID'),
               job_id: env('CI_JOB_ID'),
               merge_request_iid: merge_request_iid,
+              failure_exception: example.execution_result.exception.to_s.delete("\n"),
               **custom_metrics_fields(example.metadata)
             }
           }
@@ -130,6 +137,8 @@ module QA
           log(:error, "Failed to transform example '#{example.id}', error: #{e}")
           nil
         end
+
+        # rubocop:enable Metrics/AbcSize
 
         # Resource fabrication data point
         #
@@ -171,11 +180,7 @@ module QA
         #
         # @return [Time]
         def time
-          @time ||= begin
-            return Time.now unless env('CI_PIPELINE_CREATED_AT')
-
-            env('CI_PIPELINE_CREATED_AT').to_time
-          end
+          @time ||= env('CI_PIPELINE_CREATED_AT')&.to_time || Time.now
         end
 
         # Is a merge request execution

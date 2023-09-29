@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 module QA
-  # https://github.com/gitlab-qa-github/import-test <- project under test
-  #
-  RSpec.describe 'Manage', product_group: :import do
+  RSpec.describe 'Manage', product_group: :import_and_integrate do
     describe 'GitHub import' do
       include_context 'with github import'
+
+      before do
+        QA::Support::Helpers::ImportSource.enable('github')
+      end
 
       context 'when imported via api' do
         it 'imports project', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347670' do
@@ -101,11 +103,11 @@ module QA
 
         def verify_issues_import
           issues = imported_project.issues
-          issue = Resource::Issue.init do |resource|
-            resource.project = imported_project
-            resource.iid = issues.first[:iid]
-            resource.api_client = user_api_client
-          end.reload!
+          issue = build(:issue,
+            project: imported_project,
+            iid: issues.first[:iid],
+            api_client: user_api_client).reload!
+
           comments, events = fetch_events_and_comments(issue)
 
           expect(issues.length).to eq(1)

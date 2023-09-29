@@ -133,7 +133,8 @@ export const dayInQuarter = (date, quarter) => {
   return quarter.reduce((acc, month) => {
     if (dateValues.month > month.getMonth()) {
       return acc + totalDaysInMonth(month);
-    } else if (dateValues.month === month.getMonth()) {
+    }
+    if (dateValues.month === month.getMonth()) {
       return acc + dateValues.date;
     }
     return acc + 0;
@@ -562,9 +563,11 @@ export const approximateDuration = (seconds = 0) => {
 
   if (seconds < 30) {
     return __('less than a minute');
-  } else if (seconds < MINUTES_LIMIT) {
+  }
+  if (seconds < MINUTES_LIMIT) {
     return n__('1 minute', '%d minutes', seconds < ONE_MINUTE_LIMIT ? 1 : minutes);
-  } else if (seconds < HOURS_LIMIT) {
+  }
+  if (seconds < HOURS_LIMIT) {
     return n__('about 1 hour', 'about %d hours', seconds < ONE_HOUR_LIMIT ? 1 : hours);
   }
   return n__('1 day', '%d days', seconds < ONE_DAY_LIMIT ? 1 : days);
@@ -729,4 +732,14 @@ export const getTimeRemainingInWords = (date) => {
 
   const years = dateInFuture.getFullYear() - today.getFullYear();
   return n__('1 year remaining', '%d years remaining', years);
+};
+
+/**
+ * Returns the current date according to UTC time at midnight
+ * @return {Date} The current date in UTC
+ */
+export const getCurrentUtcDate = () => {
+  const now = new Date();
+
+  return new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 };

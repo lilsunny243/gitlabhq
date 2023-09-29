@@ -139,14 +139,14 @@ To move all snippets by using the API:
 To move all groups by using the API:
 
 1. [Schedule repository storage moves for all groups on a storage shard](../../api/group_repository_storage_moves.md#schedule-repository-storage-moves-for-all-groups-on-a-storage-shard).
-    For example:
+   For example:
 
-    ```shell
-    curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
-         --header "Content-Type: application/json" \
-         --data '{"source_storage_name":"<original_storage_name>","destination_storage_name":"<cluster_storage_name>"}' \
-         "https://gitlab.example.com/api/v4/group_repository_storage_moves"
-    ```
+   ```shell
+   curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
+        --header "Content-Type: application/json" \
+        --data '{"source_storage_name":"<original_storage_name>","destination_storage_name":"<cluster_storage_name>"}' \
+        "https://gitlab.example.com/api/v4/group_repository_storage_moves"
+   ```
 
 1. [Query the most recent repository moves](../../api/group_repository_storage_moves.md#retrieve-all-group-repository-storage-moves).
    The response indicates either:
@@ -188,14 +188,14 @@ Each of the approaches we list can or does overwrite data in the target director
 
 ### Recommended approach in all cases
 
-For either Gitaly or Gitaly Cluster targets, the GitLab [backup and restore capability](../../raketasks/backup_restore.md)
+For either Gitaly or Gitaly Cluster targets, the GitLab [backup and restore capability](../../administration/backup_restore/index.md)
 should be used. Git repositories are accessed, managed, and stored on GitLab servers by Gitaly as a database. Data loss
 can result from directly accessing and copying Gitaly files using tools like `rsync`.
 
 - From GitLab 13.3, backup performance can be improved by
-  [processing multiple repositories concurrently](../../raketasks/backup_gitlab.md#back-up-git-repositories-concurrently).
+  [processing multiple repositories concurrently](../../administration/backup_restore/backup_gitlab.md#back-up-git-repositories-concurrently).
 - Backups can be created of just the repositories using the
-  [skip feature](../../raketasks/backup_gitlab.md#excluding-specific-directories-from-the-backup).
+  [skip feature](../../administration/backup_restore/backup_gitlab.md#excluding-specific-directories-from-the-backup).
 
 No other method works for Gitaly Cluster targets.
 
@@ -264,7 +264,14 @@ sudo -u git sh -c 'rsync -a --delete /var/opt/gitlab/git-data/repositories/. \
   git@newserver:/mnt/gitlab/repositories'
 ```
 
+<!--- start_remove The following content will be removed on remove_date: '2024-05-16' -->
+
 ### Thousands of Git repositories: use one `rsync` per repository
+
+WARNING:
+The Rake task `gitlab:list_repos` was
+[deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/384361) in GitLab 16.4 and is planned for
+removal in 17.0. Use [backup and restore](#recommended-approach-in-all-cases) instead.
 
 WARNING:
 Using `rsync` to migrate Git data can cause data loss and repository corruption.
@@ -290,6 +297,11 @@ This process:
 - Only works for Gitaly targets. Use [recommended approach](#recommended-approach-in-all-cases) for Gitaly Cluster targets.
 
 #### Parallel `rsync` for all repositories known to GitLab
+
+WARNING:
+The Rake task `gitlab:list_repos` was
+[deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/384361) in GitLab 16.4 and is planned for
+removal in 17.0. Use [backup and restore](#recommended-approach-in-all-cases) instead.
 
 WARNING:
 Using `rsync` to migrate Git data can cause data loss and repository corruption.
@@ -353,6 +365,11 @@ cat /home/git/transfer-logs/* | sort | uniq -u |\
 #### Parallel `rsync` only for repositories with recent activity
 
 WARNING:
+The Rake task `gitlab:list_repos` was
+[deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/384361) in GitLab 16.4 and is planned for
+removal in 17.0. Use [backup and restore](#recommended-approach-in-all-cases) instead.
+
+WARNING:
 Using `rsync` to migrate Git data can cause data loss and repository corruption.
 [These instructions are being reviewed](https://gitlab.com/gitlab-org/gitlab/-/issues/270422).
 
@@ -381,3 +398,5 @@ sudo -u git -H bundle exec rake gitlab:list_repos SINCE='2015-10-1 12:00 UTC' |\
     /home/git/repositories \
     /mnt/gitlab/repositories
 ```
+
+<!--- end_remove -->

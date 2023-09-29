@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Notes API **(FREE)**
+# Notes API **(FREE ALL)**
 
 Notes are comments on:
 
@@ -39,7 +39,7 @@ Read more on [pagination](rest/index.md#pagination).
 ## Rate limits
 
 To help avoid abuse, you can limit your users to a specific number of `Create` request per minute.
-See [Notes rate limits](../user/admin_area/settings/rate_limit_on_notes_creation.md).
+See [Notes rate limits](../administration/settings/rate_limit_on_notes_creation.md).
 
 ## Issues
 
@@ -149,7 +149,7 @@ Parameters:
 | `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                                           |
 | `issue_iid`    | integer        | yes      | The IID of an issue.                                                                                                         |
 | `body`         | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
-| `confidential` | boolean        | no       | **Deprecated:** will be removed in GitLab 16.0 and renamed to `internal`. The confidential flag of a note. Default is false.                                                                           |
+| `confidential` | boolean        | no       | **Deprecated:** Scheduled to be removed in GitLab 16.0 and renamed to `internal`. The confidential flag of a note. Default is false.                                                                           |
 | `internal`     | boolean        | no       | The internal flag of a note. Overrides `confidential` when both parameters are submitted. Default is false.                                                                               |
 | `created_at`   | string         | no       | Date time string, ISO 8601 formatted. It must be after 1970-01-01. Example: `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
 
@@ -173,7 +173,7 @@ Parameters:
 | `issue_iid`    | integer           | yes      | The IID of an issue.                                                                               |
 | `note_id`      | integer           | yes      | The ID of a note.                                                                                  |
 | `body`         | string            | no       | The content of a note. Limited to 1,000,000 characters.                                            |
-| `confidential` | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
+| `confidential` | boolean           | no       | **Deprecated:** Scheduled to be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/issues/11/notes/636?body=note"
@@ -272,7 +272,7 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 ### Create new snippet note
 
 Creates a new note for a single snippet. Snippet notes are user comments on snippets.
-If you create a note where the body only contains an Award Emoji, GitLab returns this object.
+If you create a note where the body only contains an emoji reaction, GitLab returns this object.
 
 ```plaintext
 POST /projects/:id/snippets/:snippet_id/notes
@@ -408,7 +408,7 @@ lines in a merge request. For other approaches with more granular control, see
 and [Create a new thread in the merge request diff](discussions.md#create-a-new-thread-in-the-merge-request-diff)
 in the Discussions API.
 
-If you create a note where the body only contains an award emoji, GitLab returns this object.
+If you create a note where the body only contains an emoji reaction, GitLab returns this object.
 
 ```plaintext
 POST /projects/:id/merge_requests/:merge_request_iid/notes
@@ -422,7 +422,7 @@ Parameters:
 | `merge_request_iid`     | integer        | yes      | The IID of a project merge request                                                                                           |
 | `body`                  | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
 | `created_at`            | string         | no       | Date time string, ISO 8601 formatted. Example: `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
-| `merge_request_diff_sha`| string         | no       | Required for the `/merge` [quick action](../user/project/quick_actions.md). The SHA of the head commit, which ensures the merge request wasn't updated after the API request was sent. |
+| `merge_request_diff_head_sha`| string         | no       | Required for the `/merge` [quick action](../user/project/quick_actions.md). The SHA of the head commit, which ensures the merge request wasn't updated after the API request was sent. |
 
 ### Modify existing merge request note
 
@@ -440,7 +440,7 @@ Parameters:
 | `merge_request_iid` | integer           | yes      | The IID of a project merge request                                                                 |
 | `note_id`           | integer           | no       | The ID of a note                                                                                   |
 | `body`              | string            | yes      | The content of a note. Limited to 1,000,000 characters.                                            |
-| `confidential`      | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
+| `confidential`      | boolean           | no       | **Deprecated:** Scheduled to be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/merge_requests/11/notes/1?body=note"
@@ -466,7 +466,7 @@ Parameters:
 curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/merge_requests/7/notes/1602"
 ```
 
-## Epics **(PREMIUM)**
+## Epics **(PREMIUM ALL)**
 
 ### List all epic notes
 
@@ -542,7 +542,7 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 ### Create new epic note
 
 Creates a new note for a single epic. Epic notes are comments users can post to an epic.
-If you create a note where the body only contains an Award Emoji, GitLab returns this object.
+If you create a note where the body only contains an emoji reaction, GitLab returns this object.
 
 ```plaintext
 POST /groups/:id/epics/:epic_id/notes
@@ -555,7 +555,7 @@ Parameters:
 | `body`         | string  | yes  | The content of a note. Limited to 1,000,000 characters. |
 | `epic_id`      | integer | yes  | The ID of an epic |
 | `id`           | integer or string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
-| `confidential` | boolean        | no       | **Deprecated:** will be removed in GitLab 16.0 and is renamed to `internal`. The confidential flag of a note. Default is `false`. |
+| `confidential` | boolean        | no       | **Deprecated:** Scheduled to be removed in GitLab 16.0 and is renamed to `internal`. The confidential flag of a note. Default is `false`. |
 | `internal`     | boolean        | no       | The internal flag of a note. Overrides `confidential` when both parameters are submitted. Default is `false`. |
 
 ```shell
@@ -578,7 +578,7 @@ Parameters:
 | `epic_id`      | integer           | yes      | The ID of an epic                                                                                  |
 | `note_id`      | integer           | yes      | The ID of a note                                                                                   |
 | `body`         | string            | yes      | The content of a note. Limited to 1,000,000 characters.                                            |
-| `confidential` | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
+| `confidential` | boolean           | no       | **Deprecated:** Scheduled to be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/5/epics/11/notes/1?body=note"

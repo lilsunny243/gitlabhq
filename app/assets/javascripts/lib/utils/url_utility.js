@@ -5,11 +5,21 @@ const PATH_SEPARATOR_LEADING_REGEX = new RegExp(`^${PATH_SEPARATOR}+`);
 const PATH_SEPARATOR_ENDING_REGEX = new RegExp(`${PATH_SEPARATOR}+$`);
 const SHA_REGEX = /[\da-f]{40}/gi;
 
-// About GitLab default host (overwrite in jh)
-export const PROMO_HOST = 'about.gitlab.com';
+// GitLab default domain (override in jh)
+export const DOMAIN = 'gitlab.com';
 
-// About Gitlab default url (overwrite in jh)
+// Following URLs will be overwritten in jh
+export const FORUM_URL = `https://forum.${DOMAIN}/`; // forum.gitlab.com
+export const DOCS_URL = `https://docs.${DOMAIN}`; // docs.gitlab.com
+
+// About GitLab default host
+export const PROMO_HOST = `about.${DOMAIN}`; // about.gitlab.com
+
+// About Gitlab default url
 export const PROMO_URL = `https://${PROMO_HOST}`;
+
+// eslint-disable-next-line no-restricted-syntax
+export const DOCS_URL_IN_EE_DIR = `${DOCS_URL}/ee`;
 
 // Reset the cursor in a Regex so that multiple uses before a recompile don't fail
 function resetRegExp(regex) {
@@ -231,7 +241,11 @@ export function removeParams(params, url = window.location.href, skipEncoding = 
   return `${root}${writableQuery}${writableFragment}`;
 }
 
-export const getLocationHash = (hash = window.location.hash) => hash.split('#')[1];
+/**
+ * Returns value after the '#' in the location hash
+ * @returns Current value of the hash, undefined if not set
+ */
+export const getLocationHash = () => window.location.hash?.split('#')[1];
 
 /**
  * Returns a boolean indicating whether the URL hash contains the given string value
@@ -269,18 +283,6 @@ export const setUrlFragment = (url, fragment) => {
   return `${rootUrl}#${encodedFragment}`;
 };
 
-export function visitUrl(url, external = false) {
-  if (external) {
-    // Simulate `target="_blank" rel="noopener noreferrer"`
-    // See https://mathiasbynens.github.io/rel-noopener/
-    const otherWindow = window.open();
-    otherWindow.opener = null;
-    otherWindow.location = url;
-  } else {
-    window.location.href = url;
-  }
-}
-
 export function updateHistory({ state = {}, title = '', url, replace = false, win = window } = {}) {
   if (win.history) {
     if (replace) {
@@ -289,14 +291,6 @@ export function updateHistory({ state = {}, title = '', url, replace = false, wi
       win.history.pushState(state, title, url);
     }
   }
-}
-
-export function refreshCurrentPage() {
-  visitUrl(window.location.href);
-}
-
-export function redirectTo(url) {
-  return window.location.assign(url);
 }
 
 export const escapeFileUrl = (fileUrl) => encodeURIComponent(fileUrl).replace(/%2F/g, '/');
@@ -315,15 +309,6 @@ export function webIDEUrl(route = undefined) {
 export function getBaseURL() {
   const { protocol, host } = window.location;
   return `${protocol}//${host}`;
-}
-
-/**
- * Takes a URL and returns content from the start until the final '/'
- *
- * @param {String} url - full url, including protocol and host
- */
-export function stripFinalUrlSegment(url) {
-  return new URL('.', url).href;
 }
 
 /**
@@ -693,3 +678,62 @@ export const removeUrlProtocol = (url) => url.replace(/^\w+:\/?\/?/, '');
  */
 export const removeLastSlashInUrlPath = (url) =>
   url.replace(/\/$/, '').replace(/\/(\?|#){1}([^/]*)$/, '$1$2');
+
+/**
+ * Navigates to a URL
+ * @deprecated Use visitUrl from ~/lib/utils/url_utility.js instead
+ * @param {*} url
+ */
+export function redirectTo(url) {
+  return window.location.assign(url);
+}
+
+/**
+ * Navigates to a URL.
+ *
+ * If destination is a querystring, it will be automatically transformed into a fully qualified URL.
+ * If the URL is not a safe URL (see isSafeURL implementation), this function will log an exception into Sentry.
+ *
+ * @param {*} destination - url to navigate to. This can be a fully qualified URL or a querystring.
+ * @param {*} external - if true, open a new page or tab
+ */
+export function visitUrl(destination, external = false) {
+  let url = destination;
+
+  if (destination.startsWith('?')) {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.search = destination;
+    url = currentUrl.toString();
+  }
+
+  if (!isSafeURL(url)) {
+    throw new RangeError(`Only http and https protocols are allowed: ${url}`);
+  }
+
+  if (external) {
+    // Simulate `target="_blank" rel="noopener noreferrer"`
+    // See https://mathiasbynens.github.io/rel-noopener/
+    const otherWindow = window.open();
+    otherWindow.opener = null;
+    otherWindow.location.assign(url);
+  } else {
+    window.location.assign(url);
+  }
+}
+
+export function refreshCurrentPage() {
+  visitUrl(window.location.href);
+}
+
+// Adds a ref_type param to the path if refType is available
+export function buildURLwithRefType({ base = window.location.origin, path, refType = null }) {
+  const url = new URL('', base);
+  url.pathname = path; // This assignment does proper _escapes_
+
+  if (refType) {
+    url.searchParams.set('ref_type', refType.toLowerCase());
+  } else {
+    url.searchParams.delete('ref_type');
+  }
+  return url.pathname + url.search;
+}

@@ -1,12 +1,26 @@
 import { setAttributes } from '~/lib/utils/dom_utils';
 import axios from '~/lib/utils/axios_utils';
-import { getBaseURL, relativePathToAbsolute, joinPaths } from '~/lib/utils/url_utility';
+import {
+  getBaseURL,
+  relativePathToAbsolute,
+  joinPaths,
+  setUrlParams,
+  getParameterByName,
+} from '~/lib/utils/url_utility';
 
 const SANDBOX_FRAME_PATH = '/-/sandbox/swagger';
 
 const getSandboxFrameSrc = () => {
   const path = joinPaths(gon.relative_url_root || '', SANDBOX_FRAME_PATH);
-  return relativePathToAbsolute(path, getBaseURL());
+  const absoluteUrl = relativePathToAbsolute(path, getBaseURL());
+  const displayOperationId = getParameterByName('displayOperationId');
+  const params = { displayOperationId };
+
+  if (window.gon?.relative_url_root) {
+    params.relativeRootPath = window.gon.relative_url_root;
+  }
+
+  return setUrlParams(params, absoluteUrl);
 };
 
 const createSandbox = () => {

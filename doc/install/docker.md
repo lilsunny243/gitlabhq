@@ -55,6 +55,12 @@ For macOS users, use the user's `$HOME/gitlab` directory:
 export GITLAB_HOME=$HOME/gitlab
 ```
 
+The `GITLAB_HOME` environment variable should be appended to your shell's profile so it is
+applied on all future terminal sessions:
+
+- Bash: `~/.bash_profile`
+- ZSH: `~/.zshrc`
+
 The GitLab container uses host mounted volumes to store persistent data:
 
 | Local location       | Container location | Usage                                       |
@@ -276,13 +282,9 @@ Here's an example that deploys GitLab with four runners as a [stack](https://doc
    docker stack deploy --compose-file docker-compose.yml mystack
    ```
 
-### Install the product documentation
-
-This is an optional step. See how to [self-host the product documentation](../administration/docs_self_host.md#self-host-the-product-documentation-with-docker).
-
 ## Configuration
 
-This container uses the official Omnibus GitLab package, so all configuration
+This container uses the official Linux package, so all configuration
 is done in the unique configuration file `/etc/gitlab/gitlab.rb`.
 
 To access the GitLab configuration file, you can start a shell session in the
@@ -305,7 +307,7 @@ point to a valid URL.
 To receive emails from GitLab you have to configure the
 [SMTP settings](https://docs.gitlab.com/omnibus/settings/smtp.html) because the GitLab Docker image doesn't
 have an SMTP server installed. You may also be interested in
-[enabling HTTPS](https://docs.gitlab.com/omnibus/settings/ssl.html).
+[enabling HTTPS](https://docs.gitlab.com/omnibus/settings/ssl/index.html).
 
 After you make all the changes you want, you will need to restart the container to reconfigure GitLab:
 
@@ -324,7 +326,7 @@ You can pre-configure the GitLab Docker image by adding the environment variable
 `gitlab.rb` setting and is evaluated before the loading of the container's
 `gitlab.rb` file. This behavior allows you to configure the external GitLab URL,
 and make database configuration or any other option from the
-[Omnibus GitLab template](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/files/gitlab-config-template/gitlab.rb.template).
+[Linux package template](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/files/gitlab-config-template/gitlab.rb.template).
 The settings contained in `GITLAB_OMNIBUS_CONFIG` aren't written to the
 `gitlab.rb` configuration file, and are evaluated on load.
 
@@ -456,6 +458,37 @@ web browser under `<hostIP>:8929` and push using SSH under the port `2289`.
 A `docker-compose.yml` example that uses different ports can be found in the
 [Docker compose](#install-gitlab-using-docker-compose) section.
 
+### Configure multiple database connections
+
+In [GitLab 16.0](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/6850),
+GitLab defaults to using two database connections that point to the same PostgreSQL database.
+
+If, for any reason, you wish to switch back to single database connection:
+
+1. Edit `/etc/gitlab/gitlab.rb` inside the container:
+
+   ```shell
+   sudo docker exec -it gitlab editor /etc/gitlab/gitlab.rb
+   ```
+
+1. Add the following line:
+
+   ```ruby
+   gitlab_rails['databases']['ci']['enable'] = false
+   ```
+
+1. Restart the container:
+
+```shell
+sudo docker restart gitlab
+```
+
+## Recommended next steps
+
+After completing your installation, consider taking the
+[recommended next steps](next_steps.md), including authentication options
+and sign-up restrictions.
+
 ## Upgrade
 
 In most cases, upgrading GitLab is as easy as downloading the newest Docker
@@ -486,6 +519,12 @@ To upgrade GitLab that was [installed using Docker Engine](#install-gitlab-using
    sudo docker pull gitlab/gitlab-ee:latest
    ```
 
+1. Ensure that the `GITLAB_HOME` environment variable is [defined](#set-up-the-volumes-location):
+
+   ```shell
+   echo $GITLAB_HOME
+   ```
+
 1. Create the container once again with the
 [previously specified](#install-gitlab-using-docker-engine) options:
 
@@ -505,7 +544,7 @@ To upgrade GitLab that was [installed using Docker Engine](#install-gitlab-using
 On the first run, GitLab will reconfigure and upgrade itself.
 
 Refer to the GitLab [Upgrade recommendations](../policy/maintenance.md#upgrade-recommendations)
-when upgrading between major versions.
+when upgrading between versions.
 
 ### Upgrade GitLab using Docker compose
 
@@ -543,11 +582,6 @@ The following steps assume that you are upgrading the same version.
    replace `ce` with `ee` in your `docker run` command or `docker-compose.yml` file.
    However, reuse the CE container name, port and file mappings, and version.
 
-### Upgrade the product documentation
-
-This is an optional step. If you [installed the documentation site](#install-the-product-documentation),
-see how to [upgrade to another version](../administration/docs_self_host.md#upgrade-using-docker).
-
 ### Downgrade GitLab
 
 To downgrade GitLab after an upgrade:
@@ -559,7 +593,7 @@ To downgrade GitLab after an upgrade:
 
    - Restoring is required to back out database data and schema changes (migrations) made as part of the upgrade.
    - GitLab backups must be restored to the exact same version and edition.
-   - [Follow the restore steps for Docker images](../raketasks/restore_gitlab.md#restore-for-docker-image-and-gitlab-helm-chart-installations), including
+   - [Follow the restore steps for Docker images](../administration/backup_restore/restore_gitlab.md#restore-for-docker-image-and-gitlab-helm-chart-installations), including
      stopping Puma and Sidekiq. Only the database must be restored, so add
      `SKIP=artifacts,repositories,registry,uploads,builds,pages,lfs,packages,terraform_state`
      to the `gitlab-backup restore` command line arguments.
@@ -572,7 +606,7 @@ You can create a GitLab backup with:
 docker exec -t <container name> gitlab-backup create
 ```
 
-Read more on how to [back up and restore GitLab](../raketasks/backup_restore.md).
+Read more on how to [back up and restore GitLab](../administration/backup_restore/index.md).
 
 NOTE:
 If configuration is provided entirely via the `GITLAB_OMNIBUS_CONFIG` environment variable
@@ -581,8 +615,8 @@ meaning no configuration is set directly in the `gitlab.rb` file, then there is 
 to back up the `gitlab.rb` file.
 
 WARNING:
-[Backing up the GitLab secrets file](../raketasks/backup_gitlab.md#storing-configuration-files) is required
-to avoid [complicated steps](../raketasks/backup_restore.md#when-the-secrets-file-is-lost) when recovering
+[Backing up the GitLab secrets file](../administration/backup_restore/backup_gitlab.md#storing-configuration-files) is required
+to avoid [complicated steps](../administration/backup_restore/backup_gitlab.md#when-the-secrets-file-is-lost) when recovering
 GitLab from backup. The secrets file is stored at `/etc/gitlab/gitlab-secrets.json` inside the container, or
 `$GITLAB_HOME/config/gitlab-secrets.json` [on the container host](#set-up-the-volumes-location).
 
@@ -606,7 +640,7 @@ page.
 
 ## Troubleshooting
 
-The following information will help if you encounter problems using Omnibus GitLab and Docker.
+The following information will help if you encounter problems with an installation that used the Linux package and Docker.
 
 ### Diagnose potential problems
 
@@ -623,8 +657,7 @@ sudo docker exec -it gitlab /bin/bash
 ```
 
 From within the container you can administer the GitLab container as you would
-usually administer an
-[Omnibus installation](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/README.md)
+usually administer a [Linux package installation](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/README.md).
 
 ### 500 Internal Error
 
@@ -737,3 +770,17 @@ xargs: tail: terminated by signal 6
 ```
 
 Removing old log files helps fix the error, and ensures a clean startup of the instance.
+
+### ThreadError can't create Thread Operation not permitted
+
+```plaintext
+can't create Thread: Operation not permitted
+```
+
+This error occurs when running a container built with newer `glibc` versions on a
+[host that doesn't have support for the new clone3 function](https://github.com/moby/moby/issues/42680). In GitLab 16.0 and later, the container image includes
+the Ubuntu 22.04 Linux package which is built with this newer `glibc`.
+
+This problem is fixed with newer container runtime tools like [Docker 20.10.10](https://github.com/moby/moby/pull/42836).
+
+To resolve this issue, update Docker to version 20.10.10 or later.

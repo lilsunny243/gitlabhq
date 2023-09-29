@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::ClustersController, feature_category: :kubernetes_management do
+RSpec.describe Groups::ClustersController, feature_category: :deployment_management do
   include AccessMatchersForController
   include GoogleApi::CloudPlatformHelpers
 
@@ -63,7 +63,8 @@ RSpec.describe Groups::ClustersController, feature_category: :kubernetes_managem
           let(:total_count) { group.clusters.page.total_count }
 
           before do
-            create_list(:cluster, 30, :provided_by_gcp, :production_environment, cluster_type: :group_type, groups: [group])
+            allow(Clusters::Cluster).to receive(:default_per_page).and_return(1)
+            create_list(:cluster, 2, :provided_by_gcp, :production_environment, cluster_type: :group_type, groups: [group])
           end
 
           it 'redirects to the page' do
@@ -112,46 +113,6 @@ RSpec.describe Groups::ClustersController, feature_category: :kubernetes_managem
       it { expect { go }.to be_denied_for(:guest).of(group) }
       it { expect { go }.to be_denied_for(:user) }
       it { expect { go }.to be_denied_for(:external) }
-    end
-  end
-
-  it_behaves_like 'GET #metrics_dashboard for dashboard', 'Cluster health' do
-    let(:cluster) { create(:cluster, :provided_by_gcp, cluster_type: :group_type, groups: [group]) }
-
-    let(:metrics_dashboard_req_params) do
-      {
-        id: cluster.id,
-        group_id: group.name
-      }
-    end
-  end
-
-  describe 'GET #prometheus_proxy' do
-    let(:proxyable) do
-      create(:cluster, :provided_by_gcp, cluster_type: :group_type, groups: [group])
-    end
-
-    it_behaves_like 'metrics dashboard prometheus api proxy' do
-      let(:proxyable_params) do
-        {
-          id: proxyable.id.to_s,
-          group_id: group.name
-        }
-      end
-
-      context 'with anonymous user' do
-        let(:prometheus_body) { nil }
-
-        before do
-          sign_out(user)
-        end
-
-        it 'returns 404' do
-          get :prometheus_proxy, params: prometheus_proxy_params
-
-          expect(response).to have_gitlab_http_status(:not_found)
-        end
-      end
     end
   end
 
@@ -322,12 +283,6 @@ RSpec.describe Groups::ClustersController, feature_category: :kubernetes_managem
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to match_response_schema('cluster_status')
       end
-
-      it 'invokes schedule_status_update on each application' do
-        expect_any_instance_of(Clusters::Applications::Ingress).to receive(:schedule_status_update)
-
-        go
-      end
     end
 
     describe 'security' do
@@ -357,24 +312,6 @@ RSpec.describe Groups::ClustersController, feature_category: :kubernetes_managem
 
     include_examples ':certificate_based_clusters feature flag controller responses' do
       let(:subject) { go }
-    end
-
-    describe 'functionality' do
-      render_views
-
-      it 'renders view' do
-        go
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(assigns(:cluster)).to eq(cluster)
-      end
-
-      it 'renders integration tab view', :aggregate_failures do
-        go(tab: 'integrations')
-
-        expect(response).to render_template('clusters/clusters/_integrations')
-        expect(response).to have_gitlab_http_status(:ok)
-      end
     end
 
     describe 'security' do

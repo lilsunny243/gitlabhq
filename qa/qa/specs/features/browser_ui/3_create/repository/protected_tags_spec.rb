@@ -3,13 +3,7 @@
 module QA
   RSpec.describe 'Create' do
     describe 'Repository tags', :reliable, product_group: :source_code do
-      let(:project) do
-        Resource::Project.fabricate_via_api! do |project|
-          project.name = 'project-for-tags'
-          project.initialize_with_readme = true
-        end
-      end
-
+      let(:project) { create(:project, :with_readme, name: 'project-for-tags') }
       let(:developer_user) do
         Resource::User.fabricate_or_use(Runtime::Env.gitlab_qa_username_1, Runtime::Env.gitlab_qa_password_1)
       end
@@ -20,13 +14,12 @@ module QA
 
       let(:tag_name) { 'v0.0.1' }
       let(:tag_message) { 'Version 0.0.1' }
-      let(:tag_release_notes) { 'Release It!' }
 
       shared_examples 'successful tag creation' do |user, testcase|
         it "can be created by #{user}", testcase: testcase do
           Flow::Login.sign_in(as: send(user))
 
-          create_tag_for_project(project, tag_name, tag_message, tag_release_notes)
+          create_tag_for_project(project, tag_name, tag_message)
 
           Page::Project::Tag::Show.perform do |show|
             expect(show).to have_tag_name(tag_name)
@@ -40,7 +33,7 @@ module QA
         it "cannot be created by an unauthorized #{user}", testcase: testcase do
           Flow::Login.sign_in(as: send(user))
 
-          create_tag_for_project(project, tag_name, tag_message, tag_release_notes)
+          create_tag_for_project(project, tag_name, tag_message)
 
           Page::Project::Tag::New.perform do |new_tag|
             expect(new_tag).to have_content('You are not allowed to create this tag as it is protected.')
@@ -73,7 +66,7 @@ module QA
         it_behaves_like 'successful tag creation', :maintainer_user, 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347928'
       end
 
-      def create_tag_for_project(project, name, message, release_notes)
+      def create_tag_for_project(project, name, message)
         project.visit!
 
         Page::Project::Menu.perform(&:go_to_repository_tags)

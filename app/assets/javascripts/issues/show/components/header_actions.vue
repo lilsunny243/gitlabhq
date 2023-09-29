@@ -9,17 +9,31 @@ import {
   GlModalDirective,
   GlTooltipDirective,
 } from '@gitlab/ui';
+import * as Sentry from '@sentry/browser';
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapGetters, mapState } from 'vuex';
-import { createAlert, VARIANT_SUCCESS } from '~/flash';
+import { createAlert, VARIANT_SUCCESS } from '~/alert';
 import { EVENT_ISSUABLE_VUE_APP_CHANGE } from '~/issuable/constants';
-import { IssueType, STATUS_CLOSED, TYPE_INCIDENT } from '~/issues/constants';
-import { ISSUE_STATE_EVENT_CLOSE, ISSUE_STATE_EVENT_REOPEN } from '~/issues/show/constants';
+import { STATUS_CLOSED, TYPE_ISSUE, issuableTypeText } from '~/issues/constants';
+import {
+  ISSUE_STATE_EVENT_CLOSE,
+  ISSUE_STATE_EVENT_REOPEN,
+  NEW_ACTIONS_POPOVER_KEY,
+} from '~/issues/show/constants';
 import { capitalizeFirstCharacter } from '~/lib/utils/text_utility';
+import { getCookie, parseBoolean, setCookie, isLoggedIn } from '~/lib/utils/common_utils';
 import { visitUrl } from '~/lib/utils/url_utility';
-import { s__, __, sprintf } from '~/locale';
+import { __, sprintf } from '~/locale';
 import eventHub from '~/notes/event_hub';
 import Tracking from '~/tracking';
+import toast from '~/vue_shared/plugins/global_toast';
 import AbuseCategorySelector from '~/abuse_reports/components/abuse_category_selector.vue';
+import NewHeaderActionsPopover from '~/issues/show/components/new_header_actions_popover.vue';
+import SidebarSubscriptionsWidget from '~/sidebar/components/subscriptions/sidebar_subscriptions_widget.vue';
+import IssuableLockForm from '~/sidebar/components/lock/issuable_lock_form.vue';
+import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import issueReferenceQuery from '~/sidebar/queries/issue_reference.query.graphql';
+import issuesEventHub from '../event_hub';
 import promoteToEpicMutation from '../queries/promote_to_epic.mutation.graphql';
 import updateIssueMutation from '../queries/update_issue.mutation.graphql';
 import DeleteIssueModal from './delete_issue_modal.vue';
@@ -35,6 +49,8 @@ export default {
   },
   deleteModalId: 'delete-modal-id',
   i18n: {
+    edit: __('Edit'),
+    editTitleAndDescription: __('Edit title and description'),
     promoteErrorMessage: __(
       'Something went wrong while promoting the issue to an epic. Please try again.',
     ),
@@ -42,6 +58,8 @@ export default {
       'The issue was successfully promoted to an epic. Redirecting to epic...',
     ),
     reportAbuse: __('Report abuse to administrator'),
+    referenceFetchError: __('An error occurred while fetching reference'),
+    copyReferenceText: __('Copy reference'),
   },
   components: {
     DeleteIssueModal,
@@ -52,77 +70,75 @@ export default {
     GlLink,
     GlModal,
     AbuseCategorySelector,
+    NewHeaderActionsPopover,
+    SidebarSubscriptionsWidget,
+    IssuableLockForm,
   },
   directives: {
     GlModal: GlModalDirective,
     GlTooltip: GlTooltipDirective,
   },
-  mixins: [trackingMixin],
-  inject: {
-    canCreateIssue: {
-      default: false,
-    },
-    canDestroyIssue: {
-      default: false,
-    },
-    canPromoteToEpic: {
-      default: false,
-    },
-    canReopenIssue: {
-      default: false,
-    },
-    canReportSpam: {
-      default: false,
-    },
-    canUpdateIssue: {
-      default: false,
-    },
-    iid: {
-      default: '',
-    },
-    isIssueAuthor: {
-      default: false,
-    },
-    issuePath: {
-      default: '',
-    },
-    issueType: {
-      default: IssueType.Issue,
-    },
-    newIssuePath: {
-      default: '',
-    },
-    projectPath: {
-      default: '',
-    },
-    submitAsSpamPath: {
-      default: '',
-    },
-    reportedUserId: {
-      default: '',
-    },
-    reportedFromUrl: {
-      default: '',
-    },
-  },
+  mixins: [trackingMixin, glFeatureFlagMixin()],
+  inject: [
+    'canCreateIssue',
+    'canDestroyIssue',
+    'canPromoteToEpic',
+    'canReopenIssue',
+    'canReportSpam',
+    'canUpdateIssue',
+    'iid',
+    'isIssueAuthor',
+    'issuePath',
+    'issueType',
+    'newIssuePath',
+    'projectPath',
+    'submitAsSpamPath',
+    'reportedUserId',
+    'reportedFromUrl',
+    'issuableEmailAddress',
+    'fullPath',
+  ],
   data() {
     return {
       isReportAbuseDrawerOpen: false,
+      isUserSignedIn: isLoggedIn(),
     };
+  },
+  apollo: {
+    issuableReference: {
+      query: issueReferenceQuery,
+      variables() {
+        return {
+          fullPath: this.fullPath,
+          iid: String(this.iid),
+        };
+      },
+      update(data) {
+        return data.workspace?.issuable?.reference || '';
+      },
+      skip() {
+        return !this.isMrSidebarMoved;
+      },
+      error(error) {
+        createAlert({ message: this.$options.i18n.referenceFetchError });
+        Sentry.captureException(error);
+      },
+    },
   },
   computed: {
     ...mapState(['isToggleStateButtonLoading']),
     ...mapGetters(['openState', 'getBlockedByIssues']),
+    ...mapGetters(['getNoteableData']),
+    isLocked() {
+      return this.getNoteableData.discussion_locked;
+    },
     isClosed() {
       return this.openState === STATUS_CLOSED;
     },
     issueTypeText() {
-      const issueTypeTexts = {
-        [IssueType.Issue]: s__('HeaderAction|issue'),
-        [TYPE_INCIDENT]: s__('HeaderAction|incident'),
-      };
+      const { issueType } = this;
 
-      return issueTypeTexts[this.issueType] ?? this.issueType;
+      return issuableTypeText[issueType] ?? issueType;
     },
     buttonText() {
       return this.isClosed
@@ -137,11 +153,11 @@ export default {
     },
     dropdownText() {
       return sprintf(__('%{issueType} actions'), {
-        issueType: capitalizeFirstCharacter(this.issueType),
+        issueType: capitalizeFirstCharacter(this.issueTypeText),
       });
     },
     newIssueTypeText() {
-      return sprintf(__('New related %{issueType}'), { issueType: this.issueType });
+      return sprintf(__('New related %{issueType}'), { issueType: this.issueTypeText });
     },
     showToggleIssueStateButton() {
       const canClose = !this.isClosed && this.canUpdateIssue;
@@ -150,11 +166,29 @@ export default {
     },
     hasDesktopDropdown() {
       return (
-        this.canCreateIssue || this.canPromoteToEpic || !this.isIssueAuthor || this.canReportSpam
+        this.canCreateIssue ||
+        this.canPromoteToEpic ||
+        !this.isIssueAuthor ||
+        this.canReportSpam ||
+        this.issuableReference
       );
     },
     hasMobileDropdown() {
       return this.hasDesktopDropdown || this.showToggleIssueStateButton;
+    },
+    copyMailAddressText() {
+      return sprintf(__('Copy %{issueType} email address'), {
+        issueType: this.issueTypeText,
+      });
+    },
+    isMrSidebarMoved() {
+      return this.glFeatures.movedMrSidebar;
+    },
+    showLockIssueOption() {
+      return this.isMrSidebarMoved && this.issueType === TYPE_ISSUE && this.isUserSignedIn;
+    },
+    showMovedSidebarOptions() {
+      return this.isMrSidebarMoved && this.isUserSignedIn;
     },
   },
   created() {
@@ -165,6 +199,7 @@ export default {
   },
   methods: {
     ...mapActions(['toggleStateButtonLoading']),
+    ...mapActions(['updateLockedAttribute']),
     toggleIssueState() {
       if (!this.isClosed && this.getBlockedByIssues?.length) {
         this.$refs.blockedByIssuesModal.show();
@@ -184,7 +219,7 @@ export default {
           mutation: updateIssueMutation,
           variables: {
             input: {
-              iid: this.iid.toString(),
+              iid: String(this.iid),
               projectPath: this.projectPath,
               stateEvent: this.isClosed ? ISSUE_STATE_EVENT_REOPEN : ISSUE_STATE_EVENT_CLOSE,
             },
@@ -218,7 +253,7 @@ export default {
           mutation: promoteToEpicMutation,
           variables: {
             input: {
-              iid: this.iid,
+              iid: String(this.iid),
               projectPath: this.projectPath,
             },
           },
@@ -240,24 +275,56 @@ export default {
           this.toggleStateButtonLoading(false);
         });
     },
+    edit() {
+      issuesEventHub.$emit('open.form');
+    },
+    dismissPopover() {
+      if (this.isMrSidebarMoved && !parseBoolean(getCookie(`${NEW_ACTIONS_POPOVER_KEY}`))) {
+        setCookie(NEW_ACTIONS_POPOVER_KEY, true);
+      }
+    },
+    copyReference() {
+      toast(__('Reference copied'));
+    },
+    copyEmailAddress() {
+      toast(__('Email address copied'));
+    },
   },
+  TYPE_ISSUE,
 };
 </script>
 
 <template>
-  <div class="detail-page-header-actions gl-display-flex gl-align-self-start">
+  <div class="detail-page-header-actions gl-display-flex gl-align-self-start gl-sm-gap-3">
     <gl-dropdown
       v-if="hasMobileDropdown"
       class="gl-sm-display-none! w-100"
       block
       :text="dropdownText"
-      data-qa-selector="issue_actions_dropdown"
       data-testid="mobile-dropdown"
       :loading="isToggleStateButtonLoading"
     >
+      <template v-if="showMovedSidebarOptions">
+        <sidebar-subscriptions-widget
+          :iid="String(iid)"
+          :full-path="fullPath"
+          :issuable-type="$options.TYPE_ISSUE"
+          data-testid="notification-toggle"
+        />
+
+        <gl-dropdown-divider />
+      </template>
+
+      <template v-if="showLockIssueOption">
+        <issuable-lock-form :is-editable="false" data-testid="lock-issue-toggle" />
+      </template>
+
+      <gl-dropdown-item v-if="canUpdateIssue" @click="edit">
+        {{ $options.i18n.edit }}
+      </gl-dropdown-item>
       <gl-dropdown-item
         v-if="showToggleIssueStateButton"
-        :data-qa-selector="`mobile_${qaSelector}`"
+        :data-testid="`mobile_${qaSelector}`"
         @click="toggleIssueState"
       >
         {{ buttonText }}
@@ -268,9 +335,22 @@ export default {
       <gl-dropdown-item v-if="canPromoteToEpic" @click="promoteToEpic">
         {{ __('Promote to epic') }}
       </gl-dropdown-item>
-      <gl-dropdown-item v-if="!isIssueAuthor" @click="toggleReportAbuseDrawer(true)">
-        {{ $options.i18n.reportAbuse }}
-      </gl-dropdown-item>
+      <template v-if="isMrSidebarMoved">
+        <gl-dropdown-item
+          :data-clipboard-text="issuableReference"
+          button-class="js-copy-reference"
+          data-testid="copy-reference"
+          @click="copyReference"
+          >{{ $options.i18n.copyReferenceText }}</gl-dropdown-item
+        >
+        <gl-dropdown-item
+          v-if="issuableEmailAddress && showMovedSidebarOptions"
+          :data-clipboard-text="issuableEmailAddress"
+          data-testid="copy-email"
+          @click="copyEmailAddress"
+          >{{ copyMailAddressText }}</gl-dropdown-item
+        >
+      </template>
       <gl-dropdown-item
         v-if="canReportSpam"
         :href="submitAsSpamPath"
@@ -289,13 +369,33 @@ export default {
           {{ deleteButtonText }}
         </gl-dropdown-item>
       </template>
+      <gl-dropdown-item
+        v-if="!isIssueAuthor && isUserSignedIn"
+        data-testid="report-abuse-item"
+        @click="toggleReportAbuseDrawer(true)"
+      >
+        {{ $options.i18n.reportAbuse }}
+      </gl-dropdown-item>
     </gl-dropdown>
 
     <gl-button
-      v-if="showToggleIssueStateButton"
+      v-if="canUpdateIssue"
+      v-gl-tooltip.bottom
+      :title="$options.i18n.editTitleAndDescription"
+      :aria-label="$options.i18n.editTitleAndDescription"
+      class="js-issuable-edit gl-display-none! gl-sm-display-block!"
+      data-testid="edit-button"
+      @click="edit"
+    >
+      {{ $options.i18n.edit }}
+    </gl-button>
+
+    <gl-button
+      v-if="showToggleIssueStateButton && !glFeatures.moveCloseIntoDropdown"
       class="gl-display-none gl-sm-display-inline-flex!"
       :data-qa-selector="qaSelector"
       :loading="isToggleStateButtonLoading"
+      data-testid="toggle-issue-state-button"
       @click="toggleIssueState"
     >
       {{ buttonText }}
@@ -303,11 +403,11 @@ export default {
 
     <gl-dropdown
       v-if="hasDesktopDropdown"
+      id="new-actions-header-dropdown"
       v-gl-tooltip.hover
-      class="gl-display-none gl-sm-display-inline-flex! gl-ml-3"
+      class="gl-display-none gl-sm-display-inline-flex!"
       icon="ellipsis_v"
       category="tertiary"
-      data-qa-selector="issue_actions_ellipsis_dropdown"
       :text="dropdownText"
       :text-sr-only="true"
       :title="dropdownText"
@@ -315,8 +415,26 @@ export default {
       data-testid="desktop-dropdown"
       no-caret
       right
+      @shown="dismissPopover"
     >
-      <gl-dropdown-item v-if="canCreateIssue" :href="newIssuePath">
+      <template v-if="showMovedSidebarOptions">
+        <sidebar-subscriptions-widget
+          :iid="String(iid)"
+          :full-path="fullPath"
+          :issuable-type="$options.TYPE_ISSUE"
+          data-testid="notification-toggle"
+        />
+
+        <gl-dropdown-divider />
+      </template>
+      <gl-dropdown-item
+        v-if="showToggleIssueStateButton && glFeatures.moveCloseIntoDropdown"
+        data-testid="toggle-issue-state-button"
+        @click="toggleIssueState"
+      >
+        {{ buttonText }}
+      </gl-dropdown-item>
+      <gl-dropdown-item v-if="canCreateIssue && isUserSignedIn" :href="newIssuePath">
         {{ newIssueTypeText }}
       </gl-dropdown-item>
       <gl-dropdown-item
@@ -327,9 +445,26 @@ export default {
       >
         {{ __('Promote to epic') }}
       </gl-dropdown-item>
-      <gl-dropdown-item v-if="!isIssueAuthor" @click="toggleReportAbuseDrawer(true)">
-        {{ $options.i18n.reportAbuse }}
-      </gl-dropdown-item>
+      <template v-if="showLockIssueOption">
+        <issuable-lock-form :is-editable="false" data-testid="lock-issue-toggle" />
+      </template>
+      <template v-if="isMrSidebarMoved">
+        <gl-dropdown-item
+          :data-clipboard-text="issuableReference"
+          button-class="js-copy-reference"
+          data-testid="copy-reference"
+          @click="copyReference"
+          >{{ $options.i18n.copyReferenceText }}</gl-dropdown-item
+        >
+        <gl-dropdown-item
+          v-if="issuableEmailAddress && showMovedSidebarOptions"
+          :data-clipboard-text="issuableEmailAddress"
+          data-testid="copy-email"
+          @click="copyEmailAddress"
+          >{{ copyMailAddressText }}</gl-dropdown-item
+        >
+      </template>
+      <gl-dropdown-divider v-if="canDestroyIssue || canReportSpam || !isIssueAuthor" />
       <gl-dropdown-item
         v-if="canReportSpam"
         :href="submitAsSpamPath"
@@ -338,12 +473,18 @@ export default {
       >
         {{ __('Submit as spam') }}
       </gl-dropdown-item>
+      <gl-dropdown-item
+        v-if="!isIssueAuthor && isUserSignedIn"
+        data-testid="report-abuse-item"
+        @click="toggleReportAbuseDrawer(true)"
+      >
+        {{ $options.i18n.reportAbuse }}
+      </gl-dropdown-item>
       <template v-if="canDestroyIssue">
-        <gl-dropdown-divider />
         <gl-dropdown-item
           v-gl-modal="$options.deleteModalId"
           variant="danger"
-          data-qa-selector="delete_issue_button"
+          data-testid="delete-issue-button"
           @click="track('click_dropdown')"
         >
           {{ deleteButtonText }}
@@ -351,6 +492,7 @@ export default {
       </template>
     </gl-dropdown>
 
+    <new-header-actions-popover v-if="isMrSidebarMoved" :issue-type="issueType" />
     <gl-modal
       ref="blockedByIssuesModal"
       modal-id="blocked-by-issues-modal"

@@ -4,10 +4,12 @@ class Admin::ImpersonationTokensController < Admin::ApplicationController
   before_action :user
   before_action :verify_impersonation_enabled!
 
-  feature_category :authentication_and_authorization
+  feature_category :user_management
 
   def index
     set_index_vars
+    @can_impersonate = helpers.can_impersonate_user(user, impersonation_in_progress?)
+    @impersonation_error_text = @can_impersonate ? nil : helpers.impersonation_error_text(user, impersonation_in_progress?)
   end
 
   def create

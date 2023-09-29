@@ -4,7 +4,7 @@ group: Compliance
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Events API **(FREE)**
+# Events API **(FREE ALL)**
 
 ## Filter parameters
 
@@ -185,7 +185,7 @@ Example response:
       "ref_type": "branch",
       "commit_from": "50d4420237a9de7be1304607147aec22e4a14af7",
       "commit_to": "c5feabde2d8cd023215af4d2ceeb7a64839fc428",
-      "ref": "master",
+      "ref": "main",
       "commit_title": "Add simple search to projects in public area"
     },
     "target_title": null

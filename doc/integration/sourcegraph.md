@@ -5,14 +5,14 @@ info: "To determine the technical writer assigned to the Stage/Group associated 
 type: reference, how-to
 ---
 
-# Sourcegraph **(FREE)**
+# Sourcegraph **(FREE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/16556) in GitLab 12.5 [with a flag](../administration/feature_flags.md) named `sourcegraph`. Disabled by default.
 > - Enabled on GitLab.com in GitLab 12.5.
 > - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/73116) in GitLab 14.8.
 
 FLAG:
-On self-managed GitLab, by default this feature is available. To hide the feature, ask an administrator to [disable the feature flag](../administration/feature_flags.md) named `sourcegraph`.
+On self-managed GitLab, by default this feature is available. To hide the feature, an administrator can [disable the feature flag](../administration/feature_flags.md) named `sourcegraph`.
 On GitLab.com, this feature is available for public projects only.
 
 [Sourcegraph](https://sourcegraph.com) provides code intelligence features, natively integrated into the GitLab UI.
@@ -49,7 +49,8 @@ You can skip this step if you already have your GitLab repositories searchable i
 
 ### Configure your GitLab instance with Sourcegraph
 
-1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Search or go to**.
+1. Select **Admin Area**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Sourcegraph** configuration section.
 1. Check **Enable Sourcegraph**.
@@ -63,7 +64,7 @@ If a GitLab administrator has enabled Sourcegraph, you can enable this feature i
 
 In GitLab:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Preferences**.
 1. In the **Integrations** section, select the checkbox under **Sourcegraph**.
 1. Select **Save changes**.
@@ -89,23 +90,16 @@ When visiting one of these views, you can now hover over a code reference to see
 
 ## Sourcegraph for GitLab.com
 
-Sourcegraph powered code intelligence is available for all public projects on GitLab.com.
+Sourcegraph is available for all public projects on GitLab.com.
+Private projects are not supported.
+For more information, see [epic 2201](https://gitlab.com/groups/gitlab-org/-/epics/2201).
 
-Support for private projects is not yet available for GitLab.com;
-follow the epic [&2201](https://gitlab.com/groups/gitlab-org/-/epics/2201)
-for updates.
+## Sourcegraph and privacy
+
+See the [Sourcegraph browser extension documentation](https://docs.sourcegraph.com/integration/browser_extension/references/privacy).
 
 ## Troubleshooting
 
 ### Sourcegraph isn't working
 
 If you enabled Sourcegraph for your project but it isn't working, Sourcegraph may not have indexed the project yet. You can check if Sourcegraph is available for your project by visiting `https://sourcegraph.com/gitlab.com/<project-path>`replacing `<project-path>` with the path to your GitLab project.
-
-## Sourcegraph and Privacy
-
-From the Sourcegraph [extension documentation](https://docs.sourcegraph.com/integration/browser_extension#privacy) which is the
-engine behind the native GitLab integration:
-
-> Sourcegraph integrations never send any logs, pings, usage statistics, or telemetry to Sourcegraph.com.
-> They connect only to Sourcegraph.com as required to provide code intelligence or other functionality on public code.
-> As a result, no private code, private repository names, usernames, or any other specific data is sent to Sourcegraph.com.

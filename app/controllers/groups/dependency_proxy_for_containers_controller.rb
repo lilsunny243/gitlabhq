@@ -121,7 +121,7 @@ class Groups::DependencyProxyForContainersController < ::Groups::DependencyProxy
   end
 
   def manifest_file_name
-    @manifest_file_name ||= Gitlab::Utils.check_path_traversal!("#{image}:#{tag}.json")
+    @manifest_file_name ||= Gitlab::PathTraversal.check_path_traversal!("#{image}:#{tag}.json")
   end
 
   def group
@@ -172,6 +172,6 @@ class Groups::DependencyProxyForContainersController < ::Groups::DependencyProxy
   end
 
   def manifest_header
-    token_header.merge(Accept: ::ContainerRegistry::Client::ACCEPTED_TYPES)
+    token_header.merge(Accept: ::DependencyProxy::Manifest::ACCEPTED_TYPES)
   end
 end

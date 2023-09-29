@@ -14,7 +14,7 @@ working on the GitLab codebase.
 This documentation does not yet include the internal API used by
 GitLab Pages.
 
-## Adding new endpoints
+## Add new endpoints
 
 API endpoints should be externally accessible by default, with proper authentication and authorization.
 Before adding a new internal endpoint, consider if the API would potentially be
@@ -171,6 +171,40 @@ Example response:
   "title": "admin@example.com",
   "key": "ssh-rsa ...",
   "created_at": "2019-06-27T15:29:02.219Z"
+}
+```
+
+### Known consumers
+
+- GitLab Shell
+
+## Authorized Certs
+
+This endpoint is called by the GitLab Shell to get the namespace that has a particular CA SSH certificate
+configured. It also accepts `user_identifier` to return a GitLab user for specified identifier.
+
+| Attribute             | Type   | Required | Description |
+|:----------------------|:-------|:---------|:------------|
+| `key`                 | string | yes      | The fingerprint of the SSH certificate. |
+| `user_identifier`     | string | yes      | The identifier of the user to whom the SSH certificate has been issued (username or primary email). |
+
+```plaintext
+GET /internal/authorized_certs
+```
+
+Example request:
+
+```shell
+curl --request GET --header "Gitlab-Shell-Api-Request: <JWT token>" "http://localhost:3001/api/v4/internal/authorized_certs?key=<key>&user_identifier=<user_identifier>"
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "namespace": "gitlab-org",
+  "username": "root"
 }
 ```
 
@@ -492,13 +526,24 @@ curl --request GET --header "Gitlab-Kas-Api-Request: <JWT token>" \
 Called from GitLab agent server (`kas`) to increase the usage
 metric counters.
 
-| Attribute                                                                  | Type          | Required | Description                                                                                                      |
-|:---------------------------------------------------------------------------|:--------------|:---------|:-----------------------------------------------------------------------------------------------------------------|
-| `counters`                                                                 | hash          | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
-| `counters["k8s_api_proxy_request"]`                                        | integer       | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
-| `counters["gitops_sync"]`                                                  | integer       | no | The number to increase the `gitops_sync` counter by                                                              |
-| `unique_counters`                                                          | hash          | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
-| `unique_counters["agent_users_using_ci_tunnel"]`                              | integer array | no | The set of unique user ids that have interacted a CI Tunnel to track the `agent_users_using_ci_tunnel` metric event |
+| Attribute                                                                 | Type          | Required | Description                                                                                                                                                     |
+|:--------------------------------------------------------------------------|:--------------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `counters`                                                                | hash          | no       | Hash of counters                                                                                                                                                |
+| `counters["k8s_api_proxy_request"]`                                       | integer       | no       | The number to increase the `k8s_api_proxy_request` counter by                                                                                                   |
+| `counters["gitops_sync"]`                                                 | integer       | no       | The number to increase the `gitops_sync` counter by                                                                                                             |
+| `counters["flux_git_push_notifications_total"]`                           | integer       | no       | The number to increase the `flux_git_push_notifications_total` counter by                                                                                       |
+| `counters["k8s_api_proxy_requests_via_ci_access"]`                        | integer       | no       | The number to increase the `k8s_api_proxy_requests_via_ci_access` counter by                                                                                    |
+| `counters["k8s_api_proxy_requests_via_user_access"]`                      | integer       | no       | The number to increase the `k8s_api_proxy_requests_via_user_access` counter by                                                                                  |
+| `counters["k8s_api_proxy_requests_via_pat_access"]`                       | integer       | no       | The number to increase the `k8s_api_proxy_requests_via_pat_access` counter by                                                                                   |
+| `unique_counters`                                                         | hash          | no       | Array of unique numbers                                                                                                                                         |
+| `unique_counters["agent_users_using_ci_tunnel"]`                          | integer array | no       | The set of unique user ids that have interacted a CI Tunnel to track the `agent_users_using_ci_tunnel` metric event                                             |
+| `unique_counters["k8s_api_proxy_requests_unique_users_via_ci_access"]`    | integer array | no       | The set of unique user ids that have interacted a CI Tunnel via `ci_access` to track the `k8s_api_proxy_requests_unique_users_via_ci_access` metric event       |
+| `unique_counters["k8s_api_proxy_requests_unique_agents_via_ci_access"]`   | integer array | no       | The set of unique agent ids that have interacted a CI Tunnel via `ci_access` to track the `k8s_api_proxy_requests_unique_agents_via_ci_access` metric event     |
+| `unique_counters["k8s_api_proxy_requests_unique_users_via_user_access"]`  | integer array | no       | The set of unique user ids that have interacted a CI Tunnel via `user_access` to track the `k8s_api_proxy_requests_unique_users_via_user_access` metric event   |
+| `unique_counters["k8s_api_proxy_requests_unique_agents_via_user_access"]` | integer array | no       | The set of unique agent ids that have interacted a CI Tunnel via `user_access` to track the `k8s_api_proxy_requests_unique_agents_via_user_access` metric event |
+| `unique_counters["k8s_api_proxy_requests_unique_users_via_pat_access"]`   | integer array | no       | The set of unique user ids that have used the KAS Kubernetes API proxy via PAT to track the `k8s_api_proxy_requests_unique_users_via_pat_access` metric event   |
+| `unique_counters["k8s_api_proxy_requests_unique_agents_via_pat_access"]`  | integer array | no       | The set of unique agent ids that have used the KAS Kubernetes API proxy via PAT to track the `k8s_api_proxy_requests_unique_agents_via_pat_access` metric event |
+| `unique_counters["flux_git_push_notified_unique_projects"]`               | integer array | no       | The set of unique projects ids that have been notified to reconcile their Flux workloads to track the `flux_git_push_notified_unique_projects` metric event     |
 
 ```plaintext
 POST /internal/kubernetes/usage_metrics
@@ -663,9 +708,9 @@ Example response:
 
 The subscriptions endpoint is used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`) to apply subscriptions including trials, and add-on purchases, for personal namespaces or top-level groups within GitLab.com.
 
-### Creating a subscription
+### Create a subscription
 
-Use a POST to create a subscription.
+Use a POST command to create a subscription.
 
 ```plaintext
 POST /namespaces/:id/gitlab_subscription
@@ -714,7 +759,7 @@ Example response:
 }
 ```
 
-### Updating a subscription
+### Update a subscription
 
 Use a PUT command to update an existing subscription.
 
@@ -765,7 +810,7 @@ Example response:
 }
 ```
 
-### Retrieving a subscription
+### Retrieve a subscription
 
 Use a GET command to view an existing subscription.
 
@@ -809,14 +854,218 @@ Example response:
 
 - CustomersDot
 
-## CI/CD minutes provisioning
+## Subscription add-on purchases (excluding storage and compute packs)
 
-The CI/CD Minutes endpoints are used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`)
-to apply additional packs of CI/CD minutes, for personal namespaces or top-level groups within GitLab.com.
+The subscription add-on purchase endpoint is used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`) to apply subscription add-on purchases like Code Suggestions for personal namespaces, or top-level groups within GitLab.com. It is not used to apply storage and compute pack purchases.
 
-### Creating an additional pack
+### Create a subscription add-on purchase
 
-Use a POST to create additional packs.
+Use a POST command to create a subscription add-on purchase.
+
+```plaintext
+POST /namespaces/:id/subscription_add_on_purchase/:add_on_name
+```
+
+| Attribute   | Type    | Required | Description |
+|:------------|:--------|:---------|:------------|
+| `quantity` | integer | yes | Amount of units in the subscription add-on purchase (Example: Number of seats for a Code Suggestions add-on) |
+| `expires_on` | date | yes | Expiration date of the subscription add-on purchase |
+| `purchase_xid` | string | yes | Identifier for the subscription add-on purchase (Example: Subscription name for a Code Suggestions add-on) |
+
+Example request:
+
+```shell
+curl --request POST --header "PRIVATE-TOKEN: <admin_access_token>" "https://gitlab.com/api/v4/namespaces/1234/subscription_add_on_purchase/code_suggestions?&quantity=10&expires_on="2024-07-15"&purchase_xid="A-S12345678""
+```
+
+Example response:
+
+```json
+{
+  "namespace_id":1234,
+  "namespace_name":"A Namespace Name",
+  "add_on":"Code Suggestions",
+  "quantity":10,
+  "expires_on":"2024-07-15",
+  "purchase_xid":"A-S12345678"
+}
+```
+
+### Update a subscription add-on purchases
+
+Use a PUT command to update an existing subscription add-on purchase.
+
+```plaintext
+PUT /namespaces/:id/subscription_add_on_purchase/:add_on_name
+```
+
+| Attribute   | Type    | Required | Description |
+|:------------|:--------|:---------|:------------|
+| `quantity` | integer | no | Amount of units in the subscription add-on purchase (Example: Number of seats for a Code Suggestions add-on) |
+| `expires_on` | date | yes | Expiration date of the subscription add-on purchase |
+| `purchase_xid` | string | no | Identifier for the subscription add-on purchase (Example: Subscription name for a Code Suggestions add-on) |
+
+Example request:
+
+```shell
+curl --request PUT --header "PRIVATE-TOKEN: <admin_access_token>" "https://gitlab.com/api/v4/namespaces/1234/subscription_add_on_purchase/code_suggestions?&quantity=15&expires_on="2024-07-15"&purchase_xid="A-S12345678""
+```
+
+Example response:
+
+```json
+{
+  "namespace_id":1234,
+  "namespace_name":"A Namespace Name",
+  "add_on":"Code Suggestions",
+  "quantity":15,
+  "expires_on":"2024-07-15",
+  "purchase_xid":"A-S12345678"
+}
+```
+
+### Retrieve a subscription add-on purchases
+
+Use a GET command to view an existing subscription add-on purchase.
+
+```plaintext
+GET /namespaces/:id/subscription_add_on_purchase/:add_on_name
+```
+
+Example request:
+
+```shell
+curl --header "PRIVATE-TOKEN: <admin_access_token>" "https://gitlab.com/api/v4/namespaces/1234/subscription_add_on_purchase/code_suggestions"
+```
+
+Example response:
+
+```json
+{
+  "namespace_id":1234,
+  "namespace_name":"A Namespace Name",
+  "add_on":"Code Suggestions",
+  "quantity":15,
+  "expires_on":"2024-07-15",
+  "purchase_xid":"A-S12345678"
+}
+```
+
+### Known consumers
+
+- CustomersDot
+
+## Storage limit exclusions
+
+The namespace storage limit exclusion endpoints manage storage limit exclusions on top-level namespaces on GitLab.com.
+These endpoints can only be consumed in the Admin Area of GitLab.com.
+
+### Retrieve storage limit exclusions
+
+Use a GET request to retrieve all `Namespaces::Storage::LimitExclusion` records.
+
+```plaintext
+GET /namespaces/storage/limit_exclusions
+```
+
+Example request:
+
+```shell
+curl --request GET \
+  --url "https://gitlab.com/v4/namespaces/storage/limit_exclusions" \
+  --header 'PRIVATE-TOKEN: <admin access token>'
+```
+
+Example response:
+
+```json
+[
+    {
+      "id": 1,
+      "namespace_id": 1234,
+      "namespace_name": "A Namespace Name",
+      "reason": "a reason to exclude the Namespace"
+    },
+    {
+      "id": 2,
+      "namespace_id": 4321,
+      "namespace_name": "Another Namespace Name",
+      "reason": "another reason to exclude the Namespace"
+    },
+]
+```
+
+### Create a storage limit exclusion
+
+Use a POST request to create an `Namespaces::Storage::LimitExclusion`.
+
+```plaintext
+POST /namespaces/:id/storage/limit_exclusion
+```
+
+| Attribute   | Type    | Required | Description |
+|:------------|:--------|:---------|:------------|
+| `reason`    | string  | yes      | The reason to exclude the namespace. |
+
+Example request:
+
+```shell
+curl --request POST \
+  --url "https://gitlab.com/v4/namespaces/123/storage/limit_exclusion" \
+  --header 'Content-Type: application/json' \
+  --header 'PRIVATE-TOKEN: <admin access token>' \
+  --data '{
+    "reason": "a reason to exclude the Namespace"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": 1,
+  "namespace_id": 1234,
+  "namespace_name": "A Namespace Name",
+  "reason": "a reason to exclude the Namespace"
+}
+```
+
+### Delete a storage limit exclusion
+
+Use a DELETE request to delete a `Namespaces::Storage::LimitExclusion` for a namespace.
+
+```plaintext
+DELETE /namespaces/:id/storage/limit_exclusion
+```
+
+Example request:
+
+```shell
+curl --request DELETE \
+  --url "https://gitlab.com/v4/namespaces/123/storage/limit_exclusion" \
+  --header 'PRIVATE-TOKEN: <admin access token>'
+```
+
+Example response:
+
+```plaintext
+204
+```
+
+### Known consumers
+
+- GitLab.com Admin Area
+
+## Compute quota provisioning
+
+> [Renamed](https://gitlab.com/groups/gitlab-com/-/epics/2150) from "CI/CD minutes" to "compute quota" and "compute minutes" in GitLab 16.1.
+
+The compute quota endpoints are used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`)
+to apply additional packs of compute minutes, for personal namespaces or top-level groups in GitLab.com.
+
+### Create an additional pack
+
+Use a POST command to create additional packs.
 
 ```plaintext
 POST /namespaces/:id/minutes
@@ -824,9 +1073,9 @@ POST /namespaces/:id/minutes
 
 | Attribute   | Type    | Required | Description |
 |:------------|:--------|:---------|:------------|
-| `packs`     | array   | yes      | An array of purchased minutes packs |
+| `packs`     | array   | yes      | An array of purchased compute packs |
 | `packs[expires_at]` | date   | yes      | Expiry date of the purchased pack|
-| `packs[number_of_minutes]`  | integer    | yes       | Number of additional minutes |
+| `packs[number_of_minutes]`  | integer    | yes       | Number of additional compute minutes |
 | `packs[purchase_xid]` | string  | yes       | The unique ID of the purchase |
 
 Example request:
@@ -860,9 +1109,9 @@ Example response:
 ]
 ```
 
-### Moving additional packs
+### Move additional packs
 
-Use a `PATCH` to move additional packs from one namespace to another.
+Use a `PATCH` command to move additional packs from one namespace to another.
 
 ```plaintext
 PATCH /namespaces/:id/minutes/move/:target_id
@@ -898,7 +1147,7 @@ Example response:
 The `upcoming_reconciliations` endpoint is used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`)
 to update upcoming reconciliations for namespaces.
 
-### Updating `upcoming_reconciliations`
+### Update `upcoming_reconciliations`
 
 Use a PUT command to update `upcoming_reconciliations`.
 
@@ -932,7 +1181,7 @@ Example response:
 200
 ```
 
-### Deleting an `upcoming_reconciliation`
+### Delete an `upcoming_reconciliation`
 
 Use a DELETE command to delete an `upcoming_reconciliation`.
 
@@ -1153,7 +1402,7 @@ Example request:
 
 ```shell
 curl --verbose --request PATCH "https://gitlab.example.com/api/scim/v2/groups/test_group/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
-     --data '{ "Operations": [{"op":"Add","path":"name.formatted","value":"New Name"}] }' \
+     --data '{ "Operations": [{"op":"replace","path":"id","value":"1234abcd"}] }' \
      --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
 ```
 
@@ -1350,7 +1599,7 @@ Fields that can be updated are:
 | SCIM/IdP field                   | GitLab field                                                                 |
 |:---------------------------------|:-----------------------------------------------------------------------------|
 | `id/externalId`                  | `extern_uid`                                                                 |
-| `active`                         | Identity removal if `active` = `false`                                       |
+| `active`                         | If `false`, the user is blocked, but the SCIM identity remains linked.       |
 
 ```plaintext
 PATCH /api/scim/v2/application/Users/:id
@@ -1367,7 +1616,7 @@ Example request:
 
 ```shell
 curl --verbose --request PATCH "https://gitlab.example.com/api/scim/v2/application/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
-     --data '{ "Operations": [{"op":"Add","path":"name.formatted","value":"New Name"}] }' \
+     --data '{ "Operations": [{"op":"Update","path":"active","value":"false"}] }' \
      --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
 ```
 

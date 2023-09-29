@@ -9,6 +9,7 @@ class EnvironmentStatus
   delegate :name, to: :environment
   delegate :status, to: :deployment, allow_nil: true
   delegate :deployed_at, to: :deployment, allow_nil: true
+  delegate :deployable, to: :deployment, allow_nil: true
 
   def self.for_merge_request(mr, user)
     build_environments_status(mr, user, mr.actual_head_pipeline)
@@ -78,7 +79,7 @@ class EnvironmentStatus
 
   private
 
-  PAGE_EXTENSIONS = /\A\.(s?html?|php|asp|cgi|pl)\z/i.freeze
+  PAGE_EXTENSIONS = /\A\.(s?html?|php|asp|cgi|pl)\z/i
 
   def deployment_metrics
     @deployment_metrics ||= DeploymentMetrics.new(project, deployment)
@@ -100,11 +101,13 @@ class EnvironmentStatus
   def self.build_environments_status(mr, user, pipeline)
     return [] unless pipeline
 
-    pipeline.environments_in_self_and_project_descendants.includes(:project).available.map do |environment|
+    environments = pipeline.environments_in_self_and_project_descendants.includes(:project)
+    environments.map do |environment|
       next unless Ability.allowed?(user, :read_environment, environment)
 
       EnvironmentStatus.new(pipeline.project, environment, mr, pipeline.sha)
     end.compact
   end
+
   private_class_method :build_environments_status
 end

@@ -48,17 +48,18 @@ class Profiles::PreferencesController < Profiles::ApplicationController
       :first_day_of_week,
       :preferred_language,
       :time_display_relative,
-      :time_format_in_24h,
       :show_whitespace_in_diffs,
       :view_diffs_file_by_file,
       :tab_width,
       :sourcegraph_enabled,
       :gitpod_enabled,
       :render_whitespace_in_code,
+      :project_shortcut_buttons,
+      :keyboard_shortcuts_enabled,
       :markdown_surround_selection,
       :markdown_automatic_lists,
-      :use_legacy_web_ide,
-      :use_new_navigation
+      :use_new_navigation,
+      :enabled_following
     ]
   end
 end

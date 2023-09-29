@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe WorkItem, feature_category: :portfolio_management do
+  using RSpec::Parameterized::TableSyntax
+
   let_it_be(:reusable_project) { create(:project) }
 
   describe 'associations' do
@@ -77,11 +79,44 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
     end
   end
 
+  describe '.in_namespaces' do
+    let(:group) { create(:group) }
+    let!(:group_work_item) { create(:work_item, namespace: group) }
+    let!(:project_work_item) { create(:work_item, project: reusable_project) }
+
+    subject { described_class.in_namespaces(group) }
+
+    it { is_expected.to contain_exactly(group_work_item) }
+  end
+
+  describe '.with_confidentiality_check' do
+    let(:user) { create(:user) }
+    let!(:authored_work_item) { create(:work_item, :confidential, project: reusable_project, author: user) }
+    let!(:assigned_work_item) { create(:work_item, :confidential, project: reusable_project, assignees: [user]) }
+    let!(:public_work_item) { create(:work_item, project: reusable_project) }
+
+    before do
+      create(:work_item, :confidential, project: reusable_project)
+    end
+
+    subject { described_class.with_confidentiality_check(user) }
+
+    it { is_expected.to contain_exactly(public_work_item, authored_work_item, assigned_work_item) }
+  end
+
   describe '#noteable_target_type_name' do
     it 'returns `issue` as the target name' do
       work_item = build(:work_item)
 
       expect(work_item.noteable_target_type_name).to eq('issue')
+    end
+  end
+
+  describe '#todoable_target_type_name' do
+    it 'returns correct target name' do
+      work_item = build(:work_item)
+
+      expect(work_item.todoable_target_type_name).to contain_exactly('Issue', 'WorkItem')
     end
   end
 
@@ -99,15 +134,28 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
     end
   end
 
-  describe '#supports_assignee?' do
-    let(:work_item) { build(:work_item, :task) }
+  describe '#get_widget' do
+    let(:work_item) { build(:work_item, description: 'foo') }
 
-    before do
-      allow(work_item.work_item_type).to receive(:supports_assignee?).and_return(false)
+    it 'returns widget object' do
+      expect(work_item.get_widget(:description)).to be_an_instance_of(WorkItems::Widgets::Description)
     end
 
-    it 'delegates the call to its work item type' do
-      expect(work_item.supports_assignee?).to be(false)
+    context 'when widget does not exist' do
+      it 'returns nil' do
+        expect(work_item.get_widget(:nop)).to be_nil
+      end
+    end
+  end
+
+  describe '#supports_assignee?' do
+    Gitlab::DatabaseImporters::WorkItems::BaseTypeImporter::WIDGETS_FOR_TYPE.each_pair do |base_type, widgets|
+      specify do
+        work_item = build(:work_item, base_type)
+        supports_assignee = widgets.include?(:assignees)
+
+        expect(work_item.supports_assignee?).to eq(supports_assignee)
+      end
     end
   end
 
@@ -117,7 +165,8 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
     subject { work_item.supported_quick_action_commands }
 
     it 'returns quick action commands supported for all work items' do
-      is_expected.to include(:title, :reopen, :close, :cc, :tableflip, :shrug)
+      is_expected.to include(:title, :reopen, :close, :cc, :tableflip, :shrug, :type, :promote_to, :checkin_reminder,
+        :subscribe, :unsubscribe, :confidential, :award)
     end
 
     context 'when work item supports the assignee widget' do
@@ -127,7 +176,7 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
     end
 
     context 'when work item does not the assignee widget' do
-      let(:work_item) { build(:work_item, :incident) }
+      let(:work_item) { build(:work_item, :test_case) }
 
       it 'omits assignee related quick action commands' do
         is_expected.not_to include(:assign, :unassign, :reassign)
@@ -161,6 +210,69 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
         is_expected.not_to include(:due, :remove_due_date)
       end
     end
+
+    context 'when work item supports the current user todos widget' do
+      it 'returns todos related quick action commands' do
+        is_expected.to include(:todo, :done)
+      end
+    end
+
+    context 'when work item does not support current user todos widget' do
+      let(:work_item) { build(:work_item, :task) }
+
+      before do
+        WorkItems::Type.default_by_type(:task).widget_definitions
+                       .find_by_widget_type(:current_user_todos).update!(disabled: true)
+      end
+
+      it 'omits todos related quick action commands' do
+        is_expected.not_to include(:todo, :done)
+      end
+    end
+  end
+
+  describe 'transform_quick_action_params' do
+    let(:command_params) { { title: 'bar', assignee_ids: ['foo'] } }
+    let(:work_item) { build(:work_item, :task) }
+
+    subject(:transformed_params) { work_item.transform_quick_action_params(command_params) }
+
+    it 'correctly separates widget params from regular params' do
+      expect(transformed_params).to eq({
+        common: {
+          title: 'bar'
+        },
+        widgets: {
+          assignees_widget: {
+            assignee_ids: ['foo']
+          }
+        }
+      })
+    end
+
+    context 'with current user todos widget' do
+      let(:command_params) { { title: 'bar', todo_event: param } }
+
+      where(:param, :expected) do
+        'done' | 'mark_as_done'
+        'add'  | 'add'
+      end
+
+      with_them do
+        it 'correctly transform todo_event param' do
+          expect(transformed_params).to eq({
+            common: {
+              title: 'bar'
+            },
+            widgets: {
+              current_user_todos_widget: {
+                action: expected
+              }
+            }
+          })
+        end
+      end
+    end
   end
 
   describe 'callbacks' do
@@ -173,11 +285,13 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
         create(:work_item)
       end
 
-      it_behaves_like 'issue_edit snowplow tracking' do
+      it_behaves_like 'internal event tracking' do
         let(:work_item) { create(:work_item) }
-        let(:property) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CREATED }
+        let(:event) { Gitlab::UsageDataCounters::IssueActivityUniqueCounter::ISSUE_CREATED }
         let(:project) { work_item.project }
         let(:user) { work_item.author }
+        let(:namespace) { project.namespace }
+
         subject(:service_action) { work_item }
       end
     end
@@ -215,22 +329,6 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
 
   describe 'validations' do
     subject { work_item.valid? }
-
-    describe 'issue_type' do
-      let(:work_item) { build(:work_item, issue_type: issue_type) }
-
-      context 'when a valid type' do
-        let(:issue_type) { :issue }
-
-        it { is_expected.to eq(true) }
-      end
-
-      context 'empty type' do
-        let(:issue_type) { nil }
-
-        it { is_expected.to eq(false) }
-      end
-    end
 
     describe 'confidentiality' do
       let_it_be(:project) { create(:project) }
@@ -290,6 +388,20 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
     end
   end
 
+  describe '#link_reference_pattern' do
+    let(:match_data) { described_class.link_reference_pattern.match(link_reference_url) }
+
+    context 'with work item url' do
+      let(:link_reference_url) { 'http://localhost/namespace/project/-/work_items/1' }
+
+      it 'matches with expected attributes' do
+        expect(match_data['namespace']).to eq('namespace')
+        expect(match_data['project']).to eq('project')
+        expect(match_data['work_item']).to eq('1')
+      end
+    end
+  end
+
   context 'with hierarchy' do
     let_it_be(:type1) { create(:work_item_type, namespace: reusable_project.namespace) }
     let_it_be(:type2) { create(:work_item_type, namespace: reusable_project.namespace) }
@@ -342,6 +454,287 @@ RSpec.describe WorkItem, feature_category: :portfolio_management do
       it 'returns 1 if there are no descendants' do
         expect(item1.same_type_descendants_depth).to eq(1)
       end
+    end
+  end
+
+  describe '#allowed_work_item_type_change' do
+    let_it_be(:all_types) { WorkItems::Type::BASE_TYPES.keys }
+
+    it 'is possible to change between all types', :aggregate_failures do
+      all_types.each do |type|
+        work_item = build(:work_item, type, project: reusable_project)
+
+        (all_types - [type]).each do |new_type|
+          work_item.work_item_type_id = WorkItems::Type.default_by_type(new_type).id
+
+          expect(work_item).to be_valid, "#{type} to #{new_type}"
+        end
+      end
+    end
+
+    context 'with ParentLink relation' do
+      let_it_be(:old_type) { create(:work_item_type) }
+      let_it_be(:new_type) { create(:work_item_type) }
+
+      context 'with hierarchy restrictions' do
+        let_it_be(:child_type) { create(:work_item_type) }
+
+        let_it_be_with_reload(:parent) { create(:work_item, work_item_type: old_type, project: reusable_project) }
+        let_it_be_with_reload(:child) { create(:work_item, work_item_type: child_type, project: reusable_project) }
+
+        let_it_be(:hierarchy_restriction) do
+          create(:hierarchy_restriction, parent_type: old_type, child_type: child_type)
+        end
+
+        let_it_be(:link) { create(:parent_link, work_item_parent: parent, work_item: child) }
+
+        context 'when child items restrict the type change' do
+          before do
+            parent.work_item_type = new_type
+          end
+
+          context 'when child items are compatible with the new type' do
+            let_it_be(:hierarchy_restriction_new_type) do
+              create(:hierarchy_restriction, parent_type: new_type, child_type: child_type)
+            end
+
+            it 'allows to change types' do
+              expect(parent).to be_valid
+              expect(parent.errors).to be_empty
+            end
+          end
+
+          context 'when child items are not compatible with the new type' do
+            it 'does not allow to change types' do
+              expect(parent).not_to be_valid
+              expect(parent.errors[:work_item_type_id])
+                .to include("cannot be changed to #{new_type.name} with these child item types.")
+            end
+          end
+        end
+
+        context 'when the parent restricts the type change' do
+          before do
+            child.work_item_type = new_type
+          end
+
+          it 'does not allow to change types' do
+            expect(child.valid?).to eq(false)
+            expect(child.errors[:work_item_type_id]).to include(
+              format(
+                "cannot be changed to %{type_name} when linked to a parent %{parent_name}.",
+                type_name: new_type.name.downcase,
+                parent_name: parent.work_item_type.name.downcase
+              )
+            )
+          end
+        end
+      end
+
+      context 'with hierarchy depth restriction' do
+        let_it_be_with_reload(:item1) { create(:work_item, work_item_type: new_type, project: reusable_project) }
+        let_it_be_with_reload(:item2) { create(:work_item, work_item_type: new_type, project: reusable_project) }
+        let_it_be_with_reload(:item3) { create(:work_item, work_item_type: new_type, project: reusable_project) }
+        let_it_be_with_reload(:item4) { create(:work_item, work_item_type: new_type, project: reusable_project) }
+
+        let_it_be(:hierarchy_restriction1) do
+          create(:hierarchy_restriction, parent_type: old_type, child_type: new_type)
+        end
+
+        let_it_be(:hierarchy_restriction2) do
+          create(:hierarchy_restriction, parent_type: new_type, child_type: old_type)
+        end
+
+        let_it_be_with_reload(:hierarchy_restriction3) do
+          create(:hierarchy_restriction, parent_type: new_type, child_type: new_type, maximum_depth: 4)
+        end
+
+        let_it_be(:link1) { create(:parent_link, work_item_parent: item1, work_item: item2) }
+        let_it_be(:link2) { create(:parent_link, work_item_parent: item2, work_item: item3) }
+        let_it_be(:link3) { create(:parent_link, work_item_parent: item3, work_item: item4) }
+
+        before do
+          hierarchy_restriction3.update!(maximum_depth: maximum_depth)
+        end
+
+        shared_examples 'validates the depth correctly' do
+          before do
+            work_item.update!(work_item_type: old_type)
+          end
+
+          context 'when it is valid' do
+            let(:maximum_depth) { 4 }
+
+            it 'allows to change types' do
+              work_item.work_item_type = new_type
+
+              expect(work_item).to be_valid
+            end
+          end
+
+          context 'when it is not valid' do
+            let(:maximum_depth) { 3 }
+
+            it 'does not allow to change types' do
+              work_item.work_item_type = new_type
+
+              expect(work_item).not_to be_valid
+              expect(work_item.errors[:work_item_type_id]).to include("reached maximum depth")
+            end
+          end
+        end
+
+        context 'with the highest ancestor' do
+          let_it_be_with_reload(:work_item) { item1 }
+
+          it_behaves_like 'validates the depth correctly'
+        end
+
+        context 'with a child item' do
+          let_it_be_with_reload(:work_item) { item2 }
+
+          it_behaves_like 'validates the depth correctly'
+        end
+
+        context 'with the last child item' do
+          let_it_be_with_reload(:work_item) { item4 }
+
+          it_behaves_like 'validates the depth correctly'
+        end
+
+        context 'when ancestor is still the old type' do
+          let_it_be(:hierarchy_restriction4) do
+            create(:hierarchy_restriction, parent_type: old_type, child_type: old_type)
+          end
+
+          before do
+            item1.update!(work_item_type: old_type)
+            item2.update!(work_item_type: old_type)
+          end
+
+          context 'when it exceeds maximum depth' do
+            let(:maximum_depth) { 2 }
+
+            it 'does not allow to change types' do
+              item2.work_item_type = new_type
+
+              expect(item2).not_to be_valid
+              expect(item2.errors[:work_item_type_id]).to include("reached maximum depth")
+            end
+          end
+
+          context 'when it does not exceed maximum depth' do
+            let(:maximum_depth) { 3 }
+
+            it 'does allow to change types' do
+              item2.work_item_type = new_type
+
+              expect(item2).to be_valid
+            end
+          end
+        end
+      end
+    end
+  end
+
+  describe '#linked_work_items' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:authorized_project) { create(:project) }
+    let_it_be(:authorized_project2) { create(:project) }
+    let_it_be(:unauthorized_project) { create(:project, :private) }
+
+    let_it_be(:authorized_item_a) { create(:work_item, project: authorized_project) }
+    let_it_be(:authorized_item_b) { create(:work_item, project: authorized_project) }
+    let_it_be(:authorized_item_c) { create(:work_item, project: authorized_project2) }
+    let_it_be(:unauthorized_item) { create(:work_item, project: unauthorized_project) }
+
+    let_it_be(:work_item_link_a) { create(:work_item_link, source: authorized_item_a, target: authorized_item_b) }
+    let_it_be(:work_item_link_b) { create(:work_item_link, source: authorized_item_a, target: unauthorized_item) }
+    let_it_be(:work_item_link_c) { create(:work_item_link, source: authorized_item_a, target: authorized_item_c) }
+
+    before_all do
+      authorized_project.add_guest(user)
+      authorized_project2.add_guest(user)
+    end
+
+    it 'returns only authorized linked work items for given user' do
+      expect(authorized_item_a.linked_work_items(user)).to contain_exactly(authorized_item_b, authorized_item_c)
+    end
+
+    it 'returns work items with valid work_item_link_type' do
+      link_types = authorized_item_a.linked_work_items(user).map(&:issue_link_type)
+
+      expect(link_types).not_to be_empty
+      expect(link_types).not_to include(nil)
+    end
+
+    it 'returns work items including the link creation time' do
+      dates = authorized_item_a.linked_work_items(user).map(&:issue_link_created_at)
+
+      expect(dates).not_to be_empty
+      expect(dates).not_to include(nil)
+    end
+
+    it 'returns work items including the link update time' do
+      dates = authorized_item_a.linked_work_items(user).map(&:issue_link_updated_at)
+
+      expect(dates).not_to be_empty
+      expect(dates).not_to include(nil)
+    end
+
+    context 'when a user cannot read cross project' do
+      it 'only returns work items within the same project' do
+        allow(Ability).to receive(:allowed?).with(user, :read_all_resources, :global).and_call_original
+        expect(Ability).to receive(:allowed?).with(user, :read_cross_project).and_return(false)
+
+        expect(authorized_item_a.linked_work_items(user)).to contain_exactly(authorized_item_b)
+      end
+    end
+
+    context 'when filtering by link type' do
+      before do
+        work_item_link_c.update!(link_type: 'blocks')
+      end
+
+      it 'returns authorized work items with given link type' do
+        expect(authorized_item_a.linked_work_items(user, link_type: 'relates_to')).to contain_exactly(authorized_item_b)
+      end
+    end
+
+    context 'when authorize option is true and current_user is nil' do
+      it 'returns empty result' do
+        expect(authorized_item_a.linked_work_items).to be_empty
+      end
+    end
+
+    context 'when authorize option is false' do
+      it 'returns all work items linked to the work item' do
+        expect(authorized_item_a.linked_work_items(authorize: false))
+          .to contain_exactly(authorized_item_b, authorized_item_c, unauthorized_item)
+      end
+    end
+
+    context 'when work item is a new record' do
+      let(:new_work_item) { build(:work_item, project: authorized_project) }
+
+      it { expect(new_work_item.linked_work_items(user)).to be_empty }
+    end
+  end
+
+  describe '#linked_items_count' do
+    let_it_be(:item1) { create(:work_item, :issue, project: reusable_project) }
+    let_it_be(:item2) { create(:work_item, :issue, project: reusable_project) }
+    let_it_be(:item3) { create(:work_item, :issue, project: reusable_project) }
+    let_it_be(:item4) { build(:work_item, :issue, project: reusable_project) }
+
+    it 'returns number of items linked to the work item' do
+      create(:work_item_link, source: item1, target: item2)
+      create(:work_item_link, source: item1, target: item3)
+
+      expect(item1.linked_items_count).to eq(2)
+      expect(item2.linked_items_count).to eq(1)
+      expect(item3.linked_items_count).to eq(1)
+      expect(item4.linked_items_count).to eq(0)
     end
   end
 end

@@ -4,7 +4,7 @@ group: Package Registry
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Conan packages in the Package Registry **(FREE)**
+# Conan packages in the Package Registry **(FREE ALL EXPERIMENT)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/8248) in GitLab 12.6.
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/221259) from GitLab Premium to GitLab Free in 13.3.
@@ -295,7 +295,7 @@ There are two ways to remove a Conan package from the GitLab Package Registry.
 
 - From the GitLab user interface:
 
-  Go to your project's **Packages and registries > Package Registry**. Remove the
+  Go to your project's **Deploy > Package Registry**. Remove the
   package by selecting **Remove repository** (**{remove}**).
 
 ## Search for Conan packages in the Package Registry
@@ -315,8 +315,17 @@ To search by full or partial package name, or by exact recipe, run the
   conan search He* --remote=gitlab
   ```
 
-The scope of your search includes all projects you have permission to access.
-This includes your private projects as well as all public projects.
+The scope of your search depends on your Conan remote configuration:
+
+- If you have a remote configured for your [instance](#add-a-remote-for-your-instance), your search includes
+all projects you have permission to access. This includes your private projects
+ as well as all public projects.
+
+- If you have a remote configured for a [project](#add-a-remote-for-your-project), your search includes all
+packages in the target project, as long as you have permission to access it.
+
+NOTE:
+The limit of the search results is 500 packages, and the results are sorted by the most recently published packages.
 
 ## Fetch Conan package information from the Package Registry
 

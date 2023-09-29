@@ -4,7 +4,7 @@ group: Project Management
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Manage issues **(FREE)**
+# Manage issues **(FREE ALL)**
 
 After you create an issue, you can start working with it.
 
@@ -18,6 +18,8 @@ Prerequisites:
 
 To edit an issue:
 
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select the title of your issue to view it.
 1. To the right of the title, select **Edit title and description** (**{pencil}**).
 1. Edit the available fields.
 1. Select **Save changes**.
@@ -52,9 +54,9 @@ Prerequisites:
 
 To edit multiple issues at the same time:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Issues**.
-1. Select **Edit issues**. A sidebar on the right of your screen appears.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**.
+1. Select **Bulk edit**. A sidebar on the right of your screen appears.
 1. Select the checkboxes next to each issue you want to edit.
 1. From the sidebar, edit the available fields.
 1. Select **Update all**.
@@ -69,8 +71,9 @@ When bulk editing issues in a project, you can edit the following attributes:
 - [Health status](#health-status)
 - [Notification](../../profile/notifications.md) subscription
 - [Iteration](../../group/iterations/index.md)
+- [Confidentiality](confidential_issues.md)
 
-### Bulk edit issues from a group **(PREMIUM)**
+### Bulk edit issues from a group **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/7249) in GitLab 12.1.
 > - Assigning epic [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/210470) in GitLab 13.2.
@@ -85,9 +88,9 @@ Prerequisites:
 
 To edit multiple issues at the same time:
 
-1. On the top bar, select **Main menu > Groups** and find your group.
-1. On the left sidebar, select **Issues**.
-1. Select **Edit issues**. A sidebar on the right of your screen appears.
+1. On the left sidebar, select **Search or go to** and find your group.
+1. Select **Plan > Issues**.
+1. Select **Bulk edit**. A sidebar on the right of your screen appears.
 1. Select the checkboxes next to each issue you want to edit.
 1. From the sidebar, edit the available fields.
 1. Select **Update all**.
@@ -103,7 +106,7 @@ When bulk editing issues in a group, you can edit the following attributes:
 ## Move an issue
 
 When you move an issue, it's closed and copied to the target project.
-The original issue is not deleted. A system note, which indicates
+The original issue is not deleted. A [system note](../system_notes.md), which indicates
 where it came from and went to, is added to both issues.
 
 Be careful when moving an issue to a project with different access rules. Before moving the issue, make sure it does not contain sensitive data.
@@ -114,7 +117,8 @@ Prerequisites:
 
 To move an issue:
 
-1. Go to the issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, select **Move issue**.
 1. Search for a project to move the issue to.
 1. Select **Move**.
@@ -125,7 +129,7 @@ To move an issue:
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15991) in GitLab 15.6.
 
-You can move multiple issues at the same time when you’re in a project.
+You can move multiple issues at the same time when you're in a project.
 You can't move tasks or test cases.
 
 Prerequisite:
@@ -134,9 +138,9 @@ Prerequisite:
 
 To move multiple issues at the same time:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Issues**.
-1. Select **Edit issues**. A sidebar on the right of your screen appears.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**.
+1. Select **Bulk edit**. A sidebar on the right of your screen appears.
 1. Select the checkboxes next to each issue you want to move.
 1. From the right sidebar, select **Move selected**.
 1. From the dropdown list, select the destination project.
@@ -152,7 +156,7 @@ Prerequisites:
 
 To do it:
 
-1. Optional (but recommended). [Create a backup](../../../raketasks/backup_restore.md) before
+1. Optional (but recommended). [Create a backup](../../../administration/backup_restore/index.md) before
    attempting any changes in the console.
 1. Open the [Rails console](../../../administration/operations/rails_console.md).
 1. Run the following script. Make sure to change `project`, `admin_user`, and `target_project` to
@@ -204,10 +208,16 @@ Prerequisites:
 
 - You must have at least the Reporter role for the project, be the author of the issue, or be assigned to the issue.
 
-To close an issue, you can do the following:
+To close an issue, you can either:
 
-- At the top of the issue, select **Close issue**.
 - In an [issue board](../issue_board.md), drag an issue card from its list into the **Closed** list.
+- From any other page in the GitLab UI:
+  1. On the left sidebar, select **Search or go to** and find your project.
+  1. Select **Plan > Issues**, then select your issue to view it.
+  1. At the top of the issue, select **Close issue**.
+
+If you don't see this action at the top of an issue, your project or instance might have
+enabled a feature flag to [moved it in the actions menu](#move-the-close-button-into-the-actions-menu).
 
 ### Reopen a closed issue
 
@@ -217,6 +227,9 @@ Prerequisites:
 
 To reopen a closed issue, at the top of the issue, select **Reopen issue**.
 A reopened issue is no different from any other open issue.
+
+If you don't see this action at the top of an issue, your project or instance might have
+enabled a feature flag to [moved it in the actions menu](#move-the-close-button-into-the-actions-menu).
 
 ### Closing issues automatically
 
@@ -296,9 +309,9 @@ Prerequisites:
 
 To disable automatic issue closing:
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Repository**.
-1. Expand **Default branch**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Repository**.
+1. Expand **Branch defaults**.
 1. Clear the **Auto-close referenced issues on default branch** checkbox.
 1. Select **Save changes**.
 
@@ -318,6 +331,24 @@ Prerequisites:
 Learn how to change the default [issue closing pattern](../../../administration/issue_closing_pattern.md).
 of your installation.
 
+<!-- Delete when the `move_close_into_dropdown` feature flag is removed
+and update steps for closing and reopening issues, incidents, and epics -->
+### Move the close button into the actions menu
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/125173) in GitLab 16.2 [with a flag](../../../administration/feature_flags.md) named `move_close_into_dropdown`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, an administrator can [enable the feature flag](../../../administration/feature_flags.md) named `move_close_into_dropdown`.
+On GitLab.com, this feature is not available.
+
+When this feature flag is enabled, in the upper-right corner,
+**Issue actions** (**{ellipsis_v}**) contains the **Close issue** and **Reopen issue** actions.
+
+In GitLab 16.2 and later, similar action menus are also available on incidents and epics.
+
+When this feature flag is disabled, **Close issue** and **Reopen issue** are
+on the top bar, outside of the actions menu.
+
 ## Change the issue type
 
 Prerequisites:
@@ -326,6 +357,8 @@ Prerequisites:
 
 To change issue type:
 
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. To the right of the title, select **Edit title and description** (**{pencil}**).
 1. Edit the issue and select an issue type from the **Issue type** dropdown list:
 
@@ -344,15 +377,19 @@ Prerequisites:
 
 To delete an issue:
 
-1. In an issue, select the vertical ellipsis (**{ellipsis_v}**).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
+1. On the top right corner, select **Issue actions** (**{ellipsis_v}**).
 1. Select **Delete issue**.
 
 Alternatively:
 
-1. In an issue, select **Edit title and description** (**{pencil}**).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select the title of your issue to view it.
+1. Select **Edit title and description** (**{pencil}**).
 1. Select **Delete issue**.
 
-## Promote an issue to an epic **(PREMIUM)**
+## Promote an issue to an epic **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/3777) in GitLab 11.6.
 > - Moved from GitLab Ultimate to GitLab Premium in 12.8.
@@ -362,7 +399,9 @@ You can promote an issue to an [epic](../../group/epics/index.md) in the immedia
 
 To promote an issue to an epic:
 
-1. In an issue, select the vertical ellipsis (**{ellipsis_v}**).
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
+1. On the top right corner, select **Issue actions** (**{ellipsis_v}**).
 1. Select **Promote to epic**.
 
 Alternatively, you can use the `/promote` [quick action](../quick_actions.md#issues-merge-requests-and-epics).
@@ -376,14 +415,15 @@ Read more about [promoting an issues to epics](../../group/epics/manage_epics.md
 
 You can use the `/promote_to_incident` [quick action](../quick_actions.md) to promote the issue to an [incident](../../../operations/incident_management/incidents.md).
 
-## Add an issue to an iteration **(PREMIUM)**
+## Add an issue to an iteration **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216158) in GitLab 13.2.
 > - Moved to GitLab Premium in 13.9.
 
 To add an issue to an [iteration](../../group/iterations/index.md):
 
-1. Go to the issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, in the **Iteration** section, select **Edit**.
 1. From the dropdown list, select the iteration to associate this issue with.
 1. Select any area outside the dropdown list.
@@ -394,13 +434,13 @@ Alternatively, you can use the `/iteration` [quick action](../quick_actions.md#i
 
 To view all issues assigned to you:
 
-1. On the top bar, put your cursor in the **Search** box.
+1. On the left sidebar, select **Search or go to**.
 1. From the dropdown list, select **Issues assigned to me**.
 
 Or:
 
 - To use a [keyboard shortcut](../../shortcuts.md), press <kbd>Shift</kbd> + <kbd>i</kbd>.
-- On the top bar, in the upper-right corner, select **Issues** (**{issues}**).
+- On the left sidebar, at the top, select **Issues** (**{issues}**).
 
 ## Filter the list of issues
 
@@ -413,6 +453,8 @@ Or:
 
 To filter the list of issues:
 
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**.
 1. Above the list of issues, select **Search or filter results...**.
 1. In the dropdown list that appears, select the attribute you want to filter by.
 1. Select or type the operator to use for filtering the attribute. The following operators are
@@ -424,9 +466,6 @@ To filter the list of issues:
 1. Repeat this process to filter by multiple attributes. Multiple attributes are joined by a logical
    `AND`.
 
-GitLab displays the results on-screen, but you can also
-[retrieve them as an RSS feed](../../search/index.md#retrieve-search-results-as-feed).
-
 ### Filter with the OR operator
 
 > - OR filtering for author and assignee was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23532) in GitLab 15.6 [with a flag](../../../administration/feature_flags.md) named `or_issuable_queries`. Disabled by default.
@@ -435,7 +474,7 @@ GitLab displays the results on-screen, but you can also
 
 FLAG:
 On self-managed GitLab, by default this feature is available.
-To hide the feature, ask an administrator to [disable the feature flag](../../../administration/feature_flags.md) named `or_issuable_queries`.
+To hide the feature, an administrator can [disable the feature flag](../../../administration/feature_flags.md) named `or_issuable_queries`.
 On GitLab.com, this feature is available.
 
 When this feature is enabled, you can use the OR operator (**is one of: `||`**)
@@ -452,8 +491,8 @@ when you [filter the list of issues](#filter-the-list-of-issues) by:
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/39908) in GitLab 12.1.
 
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Issues > List**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**.
 1. In the **Search** box, type the issue ID. For example, enter filter `#10` to return only issue 10.
 
 ![filter issues by specific ID](img/issue_search_by_id_v15_0.png)
@@ -465,12 +504,17 @@ To refer to an issue elsewhere in GitLab, you can use its full URL or a short re
 
 To copy the issue reference to your clipboard:
 
-1. Go to the issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, next to **Reference**, select **Copy Reference** (**{copy-to-clipboard}**).
 
 You can now paste the reference into another description or comment.
 
 Read more about issue references in [GitLab-Flavored Markdown](../../markdown.md#gitlab-specific-references).
+
+<!-- Delete when the `moved_mr_sidebar` feature flag is removed -->
+If you don't see this action on the right sidebar, your project or instance might have
+enabled a feature flag for [moved actions](../merge_requests/index.md#move-sidebar-actions).
 
 ## Copy issue email address
 
@@ -484,7 +528,8 @@ For more information about creating comments by sending an email and the necessa
 
 To copy the issue's email address:
 
-1. Go to the issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, next to **Issue email**, select **Copy Reference** (**{copy-to-clipboard}**).
 
 ## Assignee
@@ -500,7 +545,8 @@ themselves or another project member assigns them.
 
 To change the assignee on an issue:
 
-1. Go to your issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, in the **Assignee** section, select **Edit**.
 1. From the dropdown list, select the user to add as an assignee.
 1. Select any area outside the dropdown list.
@@ -520,7 +566,7 @@ As you type in the title text box of the **New issue** page, GitLab searches tit
 across all issues in the current project. Only issues you have access to are returned.
 Up to five similar issues, sorted by most recently updated, are displayed below the title text box.
 
-## Health status **(ULTIMATE)**
+## Health status **(ULTIMATE ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/36427) in GitLab 12.10.
 > - Health status of closed issues [can't be edited](https://gitlab.com/gitlab-org/gitlab/-/issues/220867) in GitLab 13.4 and later.
@@ -540,7 +586,8 @@ Prerequisites:
 
 To edit health status of an issue:
 
-1. Go to the issue.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Plan > Issues**, then select your issue to view it.
 1. On the right sidebar, in the **Health status** section, select **Edit**.
 1. From the dropdown list, select the status to add to this issue:
 
@@ -548,7 +595,7 @@ To edit health status of an issue:
    - Needs attention (amber)
    - At risk (red)
 
-You can see the issue’s health status in:
+You can see the issue's health status in:
 
 - Issues list
 - Epic tree
@@ -560,7 +607,7 @@ until the issue is reopened.
 You can also set and clear health statuses using the `/health_status` and `/clear_health_status`
 [quick actions](../quick_actions.md#issues-merge-requests-and-epics).
 
-## Publish an issue **(ULTIMATE)**
+## Publish an issue **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/30906) in GitLab 13.1.
 

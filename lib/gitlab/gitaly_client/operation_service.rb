@@ -8,6 +8,8 @@ module Gitlab
 
       MAX_MSG_SIZE = 128.kilobytes.freeze
 
+      CUSTOM_HOOK_FALLBACK_MESSAGE = 'Prevented by server hooks'
+
       def initialize(repository)
         @gitaly_repo = repository.gitaly_repository
         @repository = repository
@@ -45,14 +47,14 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :access_check
           access_check_error = detailed_error.access_check
           # These messages were returned from internal/allowed API calls
           raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
         when :custom_hook
           raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
-                                                 fallback_message: e.details)
+                                                 fallback_message: CUSTOM_HOOK_FALLBACK_MESSAGE)
         when :reference_exists
           raise Gitlab::Git::Repository::TagExistsError
         else
@@ -82,10 +84,10 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :custom_hook
           raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
-                                                 fallback_message: e.details)
+                                                 fallback_message: CUSTOM_HOOK_FALLBACK_MESSAGE)
         else
           if e.code == GRPC::Core::StatusCodes::FAILED_PRECONDITION
             raise Gitlab::Git::Repository::InvalidRef, e
@@ -124,16 +126,16 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :custom_hook
           raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
-                                                 fallback_message: e.details)
+                                                 fallback_message: CUSTOM_HOOK_FALLBACK_MESSAGE)
         else
           raise
         end
       end
 
-      def user_merge_to_ref(user, source_sha:, branch:, target_ref:, message:, first_parent_ref:, allow_conflicts: false)
+      def user_merge_to_ref(user, source_sha:, branch:, target_ref:, message:, first_parent_ref:, expected_old_oid: "")
         request = Gitaly::UserMergeToRefRequest.new(
           repository: @gitaly_repo,
           source_sha: source_sha,
@@ -142,7 +144,7 @@ module Gitlab
           user: Gitlab::Git::User.from_gitlab(user).to_gitaly,
           message: encode_binary(message),
           first_parent_ref: encode_binary(first_parent_ref),
-          allow_conflicts: allow_conflicts,
+          expected_old_oid: expected_old_oid,
           timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
         )
 
@@ -188,14 +190,14 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :access_check
           access_check_error = detailed_error.access_check
           # These messages were returned from internal/allowed API calls
           raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
         when :custom_hook
           raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
-                                                 fallback_message: e.details)
+                                                 fallback_message: CUSTOM_HOOK_FALLBACK_MESSAGE)
         when :reference_update
           # We simply ignore any reference update errors which are typically an
           # indicator of multiple RPC calls trying to update the same reference
@@ -247,7 +249,7 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :access_check
           access_check_error = detailed_error.access_check
           # These messages were returned from internal/allowed API calls
@@ -329,7 +331,7 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :access_check
           access_check_error = detailed_error.access_check
           # These messages were returned from internal/allowed API calls
@@ -341,6 +343,23 @@ module Gitlab
         end
       ensure
         request_enum.close
+      end
+
+      def user_rebase_to_ref(user, source_sha:, target_ref:, first_parent_ref:, expected_old_oid: "")
+        request = Gitaly::UserRebaseToRefRequest.new(
+          user: Gitlab::Git::User.from_gitlab(user).to_gitaly,
+          repository: @gitaly_repo,
+          source_sha: source_sha,
+          target_ref: encode_binary(target_ref),
+          first_parent_ref: encode_binary(first_parent_ref),
+          expected_old_oid: expected_old_oid,
+          timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
+        )
+
+        response = gitaly_client_call(@repository.storage, :operation_service,
+                                     :user_rebase_to_ref, request, timeout: GitalyClient.long_timeout)
+
+        response.commit_id
       end
 
       def user_squash(user, start_sha, end_sha, author, message, time = Time.now.utc)
@@ -366,7 +385,7 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :resolve_revision, :rebase_conflict
           # Theoretically, we could now raise specific errors based on the type
           # of the detailed error. Most importantly, we get error details when
@@ -458,14 +477,14 @@ module Gitlab
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
-        case detailed_error&.error
+        case detailed_error.try(:error)
         when :access_check
           access_check_error = detailed_error.access_check
           # These messages were returned from internal/allowed API calls
           raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
         when :custom_hook
           raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
-                                                 fallback_message: e.details)
+                                                 fallback_message: CUSTOM_HOOK_FALLBACK_MESSAGE)
         when :index_update
           raise Gitlab::Git::Index::IndexError, index_error_message(detailed_error.index_update)
         else
@@ -534,7 +553,8 @@ module Gitlab
           message: encode_binary(message),
           start_branch_name: encode_binary(start_branch_name.to_s),
           start_repository: start_repository.gitaly_repository,
-          dry_run: dry_run
+          dry_run: dry_run,
+          timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
         )
 
         gitaly_client_call(
@@ -583,8 +603,7 @@ module Gitlab
 
       def custom_hook_error_message(custom_hook_error)
         # Custom hooks may return messages via either stdout or stderr which have a specific prefix. If
-        # that prefix is present we'll want to print the hook's output, otherwise we'll want to print the
-        # Gitaly error as a fallback.
+        # that prefix is present we'll want to print the hook's output.
         custom_hook_output = custom_hook_error.stderr.presence || custom_hook_error.stdout
         EncodingHelper.encode!(custom_hook_output)
       end

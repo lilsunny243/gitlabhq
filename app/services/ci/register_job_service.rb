@@ -6,11 +6,11 @@ module Ci
   class RegisterJobService
     include ::Gitlab::Ci::Artifacts::Logger
 
-    attr_reader :runner, :runner_machine, :metrics
+    attr_reader :runner, :runner_manager, :metrics
 
     TEMPORARY_LOCK_TIMEOUT = 3.seconds
 
-    Result = Struct.new(:build, :build_json, :valid?)
+    Result = Struct.new(:build, :build_json, :build_presented, :valid?)
 
     ##
     # The queue depth limit number has been determined by observing 95
@@ -18,15 +18,15 @@ module Ci
     # affect 5% of the worst case scenarios.
     MAX_QUEUE_DEPTH = 45
 
-    def initialize(runner, runner_machine)
+    def initialize(runner, runner_manager)
       @runner = runner
-      @runner_machine = runner_machine
+      @runner_manager = runner_manager
       @metrics = ::Gitlab::Ci::Queue::Metrics.new(runner)
     end
 
     def execute(params = {})
-      db_all_caught_up =
-        ::Ci::Runner.sticking.all_caught_up?(:runner, runner.id)
+      replica_caught_up =
+        ::Ci::Runner.sticking.find_caught_up_replica(:runner, runner.id, use_primary_on_failure: false)
 
       @metrics.increment_queue_operation(:queue_attempt)
 
@@ -40,10 +40,10 @@ module Ci
       # we might still have some CI builds to be picked. Instead we should say to runner:
       # "Hi, we don't have any more builds now,  but not everything is right anyway, so try again".
       # Runner will retry, but again, against replica, and again will check if replication lag did catch-up.
-      if !db_all_caught_up && !result.build
+      if !replica_caught_up && !result.build
         metrics.increment_queue_operation(:queue_replication_lag)
 
-        ::Ci::RegisterJobService::Result.new(nil, nil, false) # rubocop:disable Cop/AvoidReturnFromBlocks
+        ::Ci::RegisterJobService::Result.new(nil, nil, nil, false) # rubocop:disable Cop/AvoidReturnFromBlocks
       else
         result
       end
@@ -86,7 +86,7 @@ module Ci
         next unless result
 
         if result.valid?
-          @metrics.register_success(result.build)
+          @metrics.register_success(result.build_presented)
           @metrics.observe_queue_depth(:found, depth)
 
           return result # rubocop:disable Cop/AvoidReturnFromBlocks
@@ -102,7 +102,7 @@ module Ci
       @metrics.observe_queue_depth(:not_found, depth) if valid
       @metrics.register_failure
 
-      Result.new(nil, nil, valid)
+      Result.new(nil, nil, nil, valid)
     end
 
     # rubocop: disable CodeReuse/ActiveRecord
@@ -127,11 +127,6 @@ module Ci
       # pick builds that have at least one tag
       unless runner.run_untagged?
         builds = queue.builds_with_any_tags(builds)
-      end
-
-      # pick builds that older than specified age
-      if params.key?(:job_age)
-        builds = queue.builds_queued_before(builds, params[:job_age].seconds.ago)
       end
 
       build_ids = retrieve_queue(-> { queue.execute(builds) })
@@ -164,7 +159,7 @@ module Ci
         # this operation.
         #
         if ::Ci::UpdateBuildQueueService.new.remove!(build)
-          return Result.new(nil, nil, false)
+          return Result.new(nil, nil, nil, false)
         end
 
         return
@@ -195,11 +190,11 @@ module Ci
       # to make sure that this is properly handled by runner.
       @metrics.increment_queue_operation(:build_conflict_lock)
 
-      Result.new(nil, nil, false)
+      Result.new(nil, nil, nil, false)
     rescue StateMachines::InvalidTransition
       @metrics.increment_queue_operation(:build_conflict_transition)
 
-      Result.new(nil, nil, false)
+      Result.new(nil, nil, nil, false)
     rescue StandardError => ex
       @metrics.increment_queue_operation(:build_conflict_exception)
 
@@ -226,7 +221,7 @@ module Ci
       log_build_dependencies_size(presented_build)
 
       build_json = Gitlab::Json.dump(::API::Entities::Ci::JobRequest::Response.new(presented_build))
-      Result.new(build, build_json, true)
+      Result.new(build, build_json, presented_build, true)
     end
 
     def log_build_dependencies_size(presented_build)
@@ -244,7 +239,6 @@ module Ci
     def assign_runner!(build, params)
       build.runner_id = runner.id
       build.runner_session_attributes = params[:session] if params[:session].present?
-      build.runner_machine = runner_machine if runner_machine
 
       failure_reason, _ = pre_assign_runner_checks.find { |_, check| check.call(build, params) }
 
@@ -256,6 +250,7 @@ module Ci
         @metrics.increment_queue_operation(:runner_pre_assign_checks_success)
 
         build.run!
+        build.runner_manager = runner_manager if runner_manager
       end
 
       !failure_reason

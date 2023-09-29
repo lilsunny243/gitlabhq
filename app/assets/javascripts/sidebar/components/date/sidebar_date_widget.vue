@@ -1,10 +1,11 @@
 <script>
 import { GlIcon, GlDatepicker, GlTooltipDirective, GlLink, GlPopover } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPE_ISSUE } from '~/issues/constants';
 import { dateInWords, formatDate, parsePikadayDate } from '~/lib/utils/datetime_utility';
 import { __, sprintf } from '~/locale';
-import { dateFields, dateTypes, dueDateQueries, startDateQueries, Tracking } from '../../constants';
+import { dateFields, dateTypes, Tracking } from '../../constants';
+import { dueDateQueries, startDateQueries } from '../../queries/constants';
 import SidebarEditableItem from '../sidebar_editable_item.vue';
 import SidebarFormattedDate from './sidebar_formatted_date.vue';
 import SidebarInheritDate from './sidebar_inherit_date.vue';
@@ -54,6 +55,16 @@ export default {
       type: Boolean,
       default: false,
     },
+    minDate: {
+      required: false,
+      type: Date,
+      default: null,
+    },
+    maxDate: {
+      required: false,
+      type: Date,
+      default: null,
+    },
   },
   data() {
     return {
@@ -95,6 +106,19 @@ export default {
             },
           ),
         });
+      },
+      subscribeToMore: {
+        document() {
+          return this.dateQueries[this.issuableType].subscription;
+        },
+        variables() {
+          return {
+            issuableId: this.issuableId,
+          };
+        },
+        skip() {
+          return this.skipIssueDueDateSubscription;
+        },
       },
     },
   },
@@ -152,6 +176,12 @@ export default {
     },
     dataTestId() {
       return this.dateType === dateTypes.start ? 'sidebar-start-date' : 'sidebar-due-date';
+    },
+    issuableId() {
+      return this.issuable.id;
+    },
+    skipIssueDueDateSubscription() {
+      return this.issuableType !== TYPE_ISSUE || !this.issuableId || this.isLoading;
     },
   },
   methods: {
@@ -292,6 +322,9 @@ export default {
         v-if="!isLoading"
         ref="datePicker"
         class="gl-relative"
+        :value="parsedDate"
+        :min-date="minDate"
+        :max-date="maxDate"
         :default-date="parsedDate"
         :first-day="firstDay"
         show-clear-button

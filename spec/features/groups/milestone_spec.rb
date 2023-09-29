@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group milestones', feature_category: :subgroups do
+RSpec.describe 'Group milestones', feature_category: :groups_and_projects do
   let_it_be(:group) { create(:group) }
   let_it_be(:project) { create(:project_empty_repo, group: group) }
   let_it_be(:user) { create(:group_member, :maintainer, user: create(:user), group: group).user }
@@ -25,17 +25,17 @@ RSpec.describe 'Group milestones', feature_category: :subgroups do
 
       description.native.send_keys('')
 
-      click_button('Preview')
+      click_button("Preview")
 
-      preview = find('.js-md-preview')
+      preview = find('.js-vue-md-preview')
 
       expect(preview).to have_content('Nothing to preview.')
 
-      click_button('Write')
+      click_button("Continue editing")
 
       description.native.send_keys(':+1: Nice')
 
-      click_button('Preview')
+      click_button("Preview")
 
       expect(preview).to have_css('gl-emoji')
       expect(find('#milestone_description', visible: false)).not_to be_visible

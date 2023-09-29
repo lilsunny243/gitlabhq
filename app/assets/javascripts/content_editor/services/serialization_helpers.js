@@ -53,6 +53,16 @@ function getRowsAndCells(table) {
   return { rows, cells };
 }
 
+// Buffers the output of the given action (fn) and returns the output that was written
+// to the prosemirror-markdown serializer state output.
+function buffer(state, action = () => {}) {
+  const buf = state.out;
+  action();
+  const retval = state.out.substring(buf.length);
+  state.out = buf;
+  return retval;
+}
+
 function getChildren(node) {
   const children = [];
   for (let i = 0; i < node.childCount; i += 1) {
@@ -147,6 +157,11 @@ function setIsInBlockTable(table, value) {
   });
 }
 
+function ensureSpace(state) {
+  state.flushClose();
+  if (!state.atBlank() && !state.out.endsWith(' ')) state.write(' ');
+}
+
 function unsetIsInBlockTable(table) {
   tableMap.delete(table);
 
@@ -194,7 +209,8 @@ function renderTableRowAsMarkdown(state, node, isHeaderRow = false) {
     if (i) state.write(' | ');
 
     const { length } = state.out;
-    state.render(cell, node, i);
+    const cellContent = buffer(state, () => state.render(cell, node, i));
+    state.write(cellContent.replace(/\|/g, '\\|'));
     cellWidths.push(state.out.length - length);
   });
   state.write(' |');
@@ -212,13 +228,20 @@ function renderTableRowAsHTML(state, node) {
 
     renderTagOpen(state, tag, omit(cell.attrs, 'sourceMapKey', 'sourceMarkdown'));
 
-    if (!containsParagraphWithOnlyText(cell)) {
-      state.closeBlock(node);
-      state.flushClose();
-    }
+    const buffered = buffer(state, () => {
+      if (!containsParagraphWithOnlyText(cell)) {
+        state.closeBlock(node);
+        state.flushClose();
+      }
 
-    state.render(cell, node, i);
-    state.flushClose(1);
+      state.render(cell, node, i);
+      state.flushClose(1);
+    });
+    if (buffered.includes('\\') && !buffered.includes('\n')) {
+      state.out += `\n\n${buffered}\n`;
+    } else {
+      state.out += buffered;
+    }
 
     renderTagClose(state, tag);
   });
@@ -253,7 +276,14 @@ export function renderContent(state, node, forceRenderInline) {
 export function renderHTMLNode(tagName, forceRenderContentInline = false) {
   return (state, node) => {
     renderTagOpen(state, tagName, node.attrs);
-    renderContent(state, node, forceRenderContentInline);
+
+    const buffered = buffer(state, () => renderContent(state, node, forceRenderContentInline));
+    if (buffered.includes('\\') && !buffered.includes('\n')) {
+      state.out += `\n\n${buffered}\n`;
+    } else {
+      state.out += buffered;
+    }
+
     renderTagClose(state, tagName, false);
 
     if (forceRenderContentInline) {
@@ -309,12 +339,13 @@ export function renderHardBreak(state, node, parent, index) {
 
 export function renderImage(state, node) {
   const { alt, canonicalSrc, src, title, width, height, isReference } = node.attrs;
+  const realSrc = canonicalSrc || src || '';
+  // eslint-disable-next-line @gitlab/require-i18n-strings
+  if (realSrc.startsWith('data:') || realSrc.startsWith('blob:')) return;
 
   if (isString(src) || isString(canonicalSrc)) {
     const quotedTitle = title ? ` ${state.quote(title)}` : '';
-    const sourceExpression = isReference
-      ? `[${canonicalSrc}]`
-      : `(${state.esc(canonicalSrc || src)}${quotedTitle})`;
+    const sourceExpression = isReference ? `[${canonicalSrc}]` : `(${realSrc}${quotedTitle})`;
 
     const sizeAttributes = [];
     if (width) {
@@ -332,13 +363,6 @@ export function renderImage(state, node) {
 
 export function renderPlayable(state, node) {
   renderImage(state, node);
-}
-
-export function renderComment(state, node) {
-  state.text('<!--');
-  state.text(node.textContent);
-  state.text('-->');
-  state.closeBlock(node);
 }
 
 export function renderCodeBlock(state, node) {
@@ -445,7 +469,13 @@ export function renderOrderedList(state, node) {
 }
 
 export function renderReference(state, node) {
+  ensureSpace(state);
   state.write(node.attrs.originalText || node.attrs.text);
+}
+
+export function renderReferenceLabel(state, node) {
+  ensureSpace(state);
+  state.write(node.attrs.originalText || `~${state.quote(node.attrs.text)}`);
 }
 
 const generateBoldTags = (wrapTagName = openTag) => {
@@ -604,7 +634,7 @@ export const link = {
       return '[';
     }
 
-    const attrs = { href: state.esc(href || canonicalSrc) };
+    const attrs = { href: state.esc(href || canonicalSrc || '') };
 
     if (title) {
       attrs.title = title;
@@ -620,14 +650,14 @@ export const link = {
     const { canonicalSrc, href, title, sourceMarkdown, isReference } = mark.attrs;
 
     if (isReference) {
-      return `][${state.esc(canonicalSrc || href)}]`;
+      return `][${state.esc(canonicalSrc || href || '')}]`;
     }
 
     if (linkType(sourceMarkdown) === LINK_HTML) {
       return closeTag('a');
     }
 
-    return `](${state.esc(canonicalSrc || href)}${title ? ` ${state.quote(title)}` : ''})`;
+    return `](${state.esc(canonicalSrc || href || '')}${title ? ` ${state.quote(title)}` : ''})`;
   },
 };
 
@@ -638,9 +668,8 @@ const generateStrikeTag = (wrapTagName = openTag) => {
     switch (type) {
       case '~~':
         return type;
-      /* eslint-disable @gitlab/require-i18n-strings */
-      case '<del':
-      case '<strike':
+      case '<del': // eslint-disable-line @gitlab/require-i18n-strings
+      case '<strike': // eslint-disable-line @gitlab/require-i18n-strings
       case '<s':
         return wrapTagName(type.substring(1));
       default:

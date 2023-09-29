@@ -12,10 +12,10 @@ module RuboCop
         DOC_LINK = "https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning"
 
         MSG_INHERIT = "Don't inherit from ActiveRecord::Migration or old versions of Gitlab::Database::Migration. " \
-                      "Use Gitlab::Database::Migration[2.1] instead. See #{DOC_LINK}."
+                      "Use Gitlab::Database::Migration[2.1] instead. See #{DOC_LINK}.".freeze
 
         MSG_INCLUDE = "Don't include migration helper modules directly. " \
-                      "Inherit from Gitlab::Database::Migration[2.1] instead. See #{DOC_LINK}."
+                      "Inherit from Gitlab::Database::Migration[2.1] instead. See #{DOC_LINK}.".freeze
 
         GITLAB_MIGRATION_CLASS = 'Gitlab::Database::Migration'
         ACTIVERECORD_MIGRATION_CLASS = 'ActiveRecord::Migration'
@@ -60,6 +60,7 @@ module RuboCop
         # Returns true for any parent class of format Gitlab::Database::Migration[version] if version < current_version
         def old_version_migration_class?(class_node)
           parent_class_node = class_node.parent_class
+          return false if parent_class_node.nil?
           return false unless parent_class_node.send_type? && parent_class_node.arguments.last.float_type?
           return false unless parent_class_node.children[0].const_name == GITLAB_MIGRATION_CLASS
 

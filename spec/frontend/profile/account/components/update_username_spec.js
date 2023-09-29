@@ -1,15 +1,16 @@
 import { GlModal } from '@gitlab/ui';
 import MockAdapter from 'axios-mock-adapter';
-import Vue, { nextTick } from 'vue';
+import { nextTick } from 'vue';
 import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'helpers/test_constants';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import axios from '~/lib/utils/axios_utils';
 import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import UpdateUsername from '~/profile/account/components/update_username.vue';
+import { setVueErrorHandler, resetVueErrorHandler } from 'helpers/set_vue_error_handler';
 
-jest.mock('~/flash');
+jest.mock('~/alert');
 
 describe('UpdateUsername component', () => {
   const rootUrl = TEST_HOST;
@@ -42,9 +43,8 @@ describe('UpdateUsername component', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     axiosMock.restore();
-    Vue.config.errorHandler = null;
+    resetVueErrorHandler();
   });
 
   const findElements = () => {
@@ -61,7 +61,7 @@ describe('UpdateUsername component', () => {
   };
 
   const clickModalWithErrorResponse = () => {
-    Vue.config.errorHandler = jest.fn(); // silence thrown error
+    setVueErrorHandler({ instance: wrapper.vm, handler: jest.fn() }); // silence thrown error
     const { modal } = findElements();
     modal.vm.$emit('primary');
     return waitForPromises();
@@ -94,7 +94,7 @@ describe('UpdateUsername component', () => {
       await findNewUsernameInput().setValue(newUsername);
     });
 
-    it('confirmation modal contains proper header and body', async () => {
+    it('confirmation modal contains proper header and body', () => {
       const { modal } = findElements();
 
       expect(modal.props('title')).toBe('Change username?');
@@ -118,7 +118,7 @@ describe('UpdateUsername component', () => {
       const { input, openModalBtn, modal } = findElements();
 
       axiosMock.onPut(actionUrl).replyOnce(() => {
-        expect(input.attributes('disabled')).toBe('disabled');
+        expect(input.attributes('disabled')).toBeDefined();
         expect(openModalBtn.props('disabled')).toBe(false);
         expect(openModalBtn.props('loading')).toBe(true);
 
@@ -137,7 +137,7 @@ describe('UpdateUsername component', () => {
       const { input, openModalBtn } = findElements();
 
       axiosMock.onPut(actionUrl).replyOnce(() => {
-        expect(input.attributes('disabled')).toBe('disabled');
+        expect(input.attributes('disabled')).toBeDefined();
         expect(openModalBtn.props('disabled')).toBe(false);
         expect(openModalBtn.props('loading')).toBe(true);
 

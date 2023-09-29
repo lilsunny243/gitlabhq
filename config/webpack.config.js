@@ -1,38 +1,57 @@
 // eslint-disable-next-line import/order
 const crypto = require('./helpers/patched_crypto');
 
+const { VUE_VERSION: EXPLICIT_VUE_VERSION } = process.env;
+if (![undefined, '2', '3'].includes(EXPLICIT_VUE_VERSION)) {
+  throw new Error(
+    `Invalid VUE_VERSION value: ${EXPLICIT_VUE_VERSION}. Only '2' and '3' are supported`,
+  );
+}
+const USE_VUE3 = EXPLICIT_VUE_VERSION === '3';
+
+if (USE_VUE3) {
+  console.log('[V] Using Vue.js 3');
+}
+const VUE_LOADER_MODULE = USE_VUE3 ? 'vue-loader-vue3' : 'vue-loader';
+
 const fs = require('fs');
 const path = require('path');
 
 const BABEL_VERSION = require('@babel/core/package.json').version;
-const SOURCEGRAPH_VERSION = require('@sourcegraph/code-host-integration/package.json').version;
-const GITLAB_WEB_IDE_VERSION = require('@gitlab/web-ide/package.json').version;
 
 const BABEL_LOADER_VERSION = require('babel-loader/package.json').version;
 const CompressionPlugin = require('compression-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const glob = require('glob');
-const VueLoaderPlugin = require('vue-loader/lib/plugin');
-const VUE_LOADER_VERSION = require('vue-loader/package.json').version;
+// eslint-disable-next-line import/no-dynamic-require
+const { VueLoaderPlugin } = require(VUE_LOADER_MODULE);
+// eslint-disable-next-line import/no-dynamic-require
+const VUE_LOADER_VERSION = require(`${VUE_LOADER_MODULE}/package.json`).version;
 const VUE_VERSION = require('vue/package.json').version;
-
-const { ESBuildMinifyPlugin } = require('esbuild-loader');
 
 const webpack = require('webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const { StatsWriterPlugin } = require('webpack-stats-plugin');
 const WEBPACK_VERSION = require('webpack/package.json').version;
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
-const esbuildConfiguration = require('./esbuild.config');
+
+const {
+  IS_EE,
+  IS_JH,
+  ROOT_PATH,
+  WEBPACK_OUTPUT_PATH,
+  WEBPACK_PUBLIC_PATH,
+  SOURCEGRAPH_PUBLIC_PATH,
+  SOURCEGRAPH_OUTPUT_PATH,
+  GITLAB_WEB_IDE_OUTPUT_PATH,
+  GITLAB_WEB_IDE_PUBLIC_PATH,
+} = require('./webpack.constants');
 
 const createIncrementalWebpackCompiler = require('./helpers/incremental_webpack_compiler');
-const IS_EE = require('./helpers/is_ee_env');
-const IS_JH = require('./helpers/is_jh_env');
 const vendorDllHash = require('./helpers/vendor_dll_hash');
 
 const GraphqlKnownOperationsPlugin = require('./plugins/graphql_known_operations_plugin');
 
-const ROOT_PATH = path.resolve(__dirname, '..');
 const SUPPORTED_BROWSERS = fs.readFileSync(path.join(ROOT_PATH, '.browserslistrc'), 'utf-8');
 const SUPPORTED_BROWSERS_HASH = crypto
   .createHash('sha256')
@@ -43,8 +62,6 @@ const VENDOR_DLL = process.env.WEBPACK_VENDOR_DLL && process.env.WEBPACK_VENDOR_
 const CACHE_PATH = process.env.WEBPACK_CACHE_PATH || path.join(ROOT_PATH, 'tmp/cache');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_DEV_SERVER = process.env.WEBPACK_SERVE === 'true';
-const WEBPACK_USE_ESBUILD_LOADER =
-  process.env.WEBPACK_USE_ESBUILD_LOADER && process.env.WEBPACK_USE_ESBUILD_LOADER !== 'false';
 
 const { DEV_SERVER_HOST, DEV_SERVER_PUBLIC_ADDR } = process.env;
 const DEV_SERVER_PORT = parseInt(process.env.DEV_SERVER_PORT, 10);
@@ -54,11 +71,9 @@ const DEV_SERVER_LIVERELOAD = IS_DEV_SERVER && process.env.DEV_SERVER_LIVERELOAD
 const INCREMENTAL_COMPILER_ENABLED =
   IS_DEV_SERVER &&
   process.env.DEV_SERVER_INCREMENTAL &&
-  process.env.DEV_SERVER_INCREMENTAL !== 'false' &&
-  !WEBPACK_USE_ESBUILD_LOADER;
+  process.env.DEV_SERVER_INCREMENTAL !== 'false';
 const INCREMENTAL_COMPILER_TTL = Number(process.env.DEV_SERVER_INCREMENTAL_TTL) || Infinity;
-const INCREMENTAL_COMPILER_RECORD_HISTORY =
-  IS_DEV_SERVER && !process.env.CI && !WEBPACK_USE_ESBUILD_LOADER;
+const INCREMENTAL_COMPILER_RECORD_HISTORY = IS_DEV_SERVER && !process.env.CI;
 const WEBPACK_REPORT = process.env.WEBPACK_REPORT && process.env.WEBPACK_REPORT !== 'false';
 const WEBPACK_MEMORY_TEST =
   process.env.WEBPACK_MEMORY_TEST && process.env.WEBPACK_MEMORY_TEST !== 'false';
@@ -74,18 +89,8 @@ if (WEBPACK_REPORT) {
   NO_HASHED_CHUNKS = true;
 }
 
-const WEBPACK_OUTPUT_PATH = path.join(ROOT_PATH, 'public/assets/webpack');
-const WEBPACK_PUBLIC_PATH = '/assets/webpack/';
 const SOURCEGRAPH_PACKAGE = '@sourcegraph/code-host-integration';
 const GITLAB_WEB_IDE_PACKAGE = '@gitlab/web-ide';
-
-const SOURCEGRAPH_PATH = path.join('sourcegraph', SOURCEGRAPH_VERSION, '/');
-const SOURCEGRAPH_OUTPUT_PATH = path.join(WEBPACK_OUTPUT_PATH, SOURCEGRAPH_PATH);
-const SOURCEGRAPH_PUBLIC_PATH = path.join(WEBPACK_PUBLIC_PATH, SOURCEGRAPH_PATH);
-
-const GITLAB_WEB_IDE_PATH = path.join('gitlab-vscode', GITLAB_WEB_IDE_VERSION, '/');
-const GITLAB_WEB_IDE_OUTPUT_PATH = path.join(WEBPACK_OUTPUT_PATH, GITLAB_WEB_IDE_PATH);
-const GITLAB_WEB_IDE_PUBLIC_PATH = path.join(WEBPACK_PUBLIC_PATH, GITLAB_WEB_IDE_PATH);
 
 const devtool = IS_PRODUCTION ? 'source-map' : 'cheap-module-eval-source-map';
 
@@ -158,6 +163,7 @@ function generateEntries() {
   Note 2: If you are using web-workers, you might need to reset the public path, see:
   https://gitlab.com/gitlab-org/gitlab/-/issues/321656
    */
+
   const manualEntries = {
     default: defaultEntries,
     legacy_sentry: './sentry/legacy_index.js',
@@ -167,6 +173,9 @@ function generateEntries() {
     sandboxed_mermaid: './lib/mermaid.js',
     redirect_listbox: './entrypoints/behaviors/redirect_listbox.js',
     sandboxed_swagger: './lib/swagger.js',
+    super_sidebar: './entrypoints/super_sidebar.js',
+    tracker: './entrypoints/tracker.js',
+    analytics: './entrypoints/analytics.js',
   };
 
   return Object.assign(manualEntries, incrementalCompiler.filterEntryPoints(autoEntries));
@@ -180,13 +189,8 @@ const alias = {
     ROOT_PATH,
     'app/assets/javascripts/sentry/sentry_browser_wrapper.js',
   ),
-  // temporary alias until we replace all `flash` imports for `alert`
-  // https://gitlab.com/gitlab-org/gitlab/-/merge_requests/109449
-  '~/flash': path.join(ROOT_PATH, 'app/assets/javascripts/alert.js'),
   '~': path.join(ROOT_PATH, 'app/assets/javascripts'),
   emojis: path.join(ROOT_PATH, 'fixtures/emojis'),
-  empty_states: path.join(ROOT_PATH, 'app/views/shared/empty_states'),
-  icons: path.join(ROOT_PATH, 'app/views/shared/icons'),
   images: path.join(ROOT_PATH, 'app/assets/images'),
   vendor: path.join(ROOT_PATH, 'vendor/assets/javascripts'),
   jquery$: 'jquery/dist/jquery.slim.js',
@@ -216,14 +220,13 @@ const alias = {
   test_fixtures_static: path.join(ROOT_PATH, 'spec/frontend/fixtures/static'),
   test_helpers: path.join(ROOT_PATH, 'spec/frontend_integration/test_helpers'),
   public: path.join(ROOT_PATH, 'public'),
+  storybook_addons: path.resolve(ROOT_PATH, 'storybook/config/addons'),
 };
 
 if (IS_EE) {
   Object.assign(alias, {
     ee: path.join(ROOT_PATH, 'ee/app/assets/javascripts'),
     ee_component: path.join(ROOT_PATH, 'ee/app/assets/javascripts'),
-    ee_empty_states: path.join(ROOT_PATH, 'ee/app/views/shared/empty_states'),
-    ee_icons: path.join(ROOT_PATH, 'ee/app/views/shared/icons'),
     ee_images: path.join(ROOT_PATH, 'ee/app/assets/images'),
     ee_else_ce: path.join(ROOT_PATH, 'ee/app/assets/javascripts'),
     jh_else_ee: path.join(ROOT_PATH, 'ee/app/assets/javascripts'),
@@ -240,8 +243,6 @@ if (IS_JH) {
   Object.assign(alias, {
     jh: path.join(ROOT_PATH, 'jh/app/assets/javascripts'),
     jh_component: path.join(ROOT_PATH, 'jh/app/assets/javascripts'),
-    jh_empty_states: path.join(ROOT_PATH, 'jh/app/views/shared/empty_states'),
-    jh_icons: path.join(ROOT_PATH, 'jh/app/views/shared/icons'),
     jh_images: path.join(ROOT_PATH, 'jh/app/assets/images'),
     // jh path alias https://gitlab.com/gitlab-org/gitlab/-/merge_requests/74305#note_732793956
     jh_else_ce: path.join(ROOT_PATH, 'jh/app/assets/javascripts'),
@@ -281,8 +282,50 @@ const defaultJsOptions = {
   cacheCompression: false,
 };
 
-if (WEBPACK_USE_ESBUILD_LOADER) {
-  console.log('esbuild-loader is active');
+const vueLoaderOptions = {
+  ident: 'vue-loader-options',
+
+  cacheDirectory: path.join(CACHE_PATH, 'vue-loader'),
+  cacheIdentifier: [
+    process.env.NODE_ENV || 'development',
+    webpack.version,
+    VUE_VERSION,
+    VUE_LOADER_VERSION,
+    EXPLICIT_VUE_VERSION,
+  ].join('|'),
+};
+
+let shouldExcludeFromCompliling = (modulePath) =>
+  /node_modules|vendor[\\/]assets/.test(modulePath) && !/\.vue\.js/.test(modulePath);
+// We explicitly set VUE_VERSION
+// Use @gitlab-ui from source to allow us to dig differences
+// between Vue.js 2 and Vue.js 3 while using built gitlab-ui by default
+if (EXPLICIT_VUE_VERSION) {
+  Object.assign(alias, {
+    '@gitlab/ui/scss_to_js': path.join(ROOT_PATH, 'node_modules/@gitlab/ui/scss_to_js'),
+    '@gitlab/ui/dist/tokens/js': path.join(ROOT_PATH, 'node_modules/@gitlab/ui/dist/tokens/js'),
+    '@gitlab/ui/dist': '@gitlab/ui/src',
+    '@gitlab/ui': '@gitlab/ui/src',
+  });
+
+  const originalShouldExcludeFromCompliling = shouldExcludeFromCompliling;
+
+  shouldExcludeFromCompliling = (modulePath) =>
+    originalShouldExcludeFromCompliling(modulePath) &&
+    !/node_modules[\\/]@gitlab[\\/]ui/.test(modulePath) &&
+    !/node_modules[\\/]bootstrap-vue[\\/]src[\\/]vue\.js/.test(modulePath);
+}
+
+if (USE_VUE3) {
+  Object.assign(alias, {
+    // ensure we always use the same type of module for Vue
+    vue: '@vue/compat/dist/vue.runtime.esm-bundler.js',
+    vuex: path.join(ROOT_PATH, 'app/assets/javascripts/lib/utils/vue3compat/vuex.js'),
+    'vue-apollo': path.join(ROOT_PATH, 'app/assets/javascripts/lib/utils/vue3compat/vue_apollo.js'),
+    'vue-router': path.join(ROOT_PATH, 'app/assets/javascripts/lib/utils/vue3compat/vue_router.js'),
+  });
+
+  vueLoaderOptions.compiler = require.resolve('./vue3migration/compiler');
 }
 
 module.exports = {
@@ -316,91 +359,14 @@ module.exports = {
         use: [],
       },
       {
-        test: /(@cubejs-client\/vue).*\.(js)?$/,
+        test: /(@cubejs-client\/(vue|core)).*\.(js)?$/,
         include: /node_modules/,
         loader: 'babel-loader',
       },
-      WEBPACK_USE_ESBUILD_LOADER && {
-        test: /\.(js|cjs)$/,
-        exclude: (modulePath) =>
-          /node_modules|vendor[\\/]assets/.test(modulePath) && !/\.vue\.js/.test(modulePath),
-        loader: 'esbuild-loader',
-        options: esbuildConfiguration,
-      },
-      !WEBPACK_USE_ESBUILD_LOADER && {
-        test: /\.(js|cjs)$/,
-        exclude: (modulePath) =>
-          /node_modules|vendor[\\/]assets/.test(modulePath) && !/\.vue\.js/.test(modulePath),
+      {
+        test: /gridstack\/.*\.js$/,
+        include: /node_modules/,
         loader: 'babel-loader',
-        options: defaultJsOptions,
-      },
-      WEBPACK_USE_ESBUILD_LOADER && {
-        test: /\.(js|cjs)$/,
-        include: (modulePath) =>
-          /node_modules\/(monaco-worker-manager|monaco-marker-data-provider)\/index\.js/.test(
-            modulePath,
-          ) || /node_modules\/yaml/.test(modulePath),
-        loader: 'esbuild-loader',
-        options: esbuildConfiguration,
-      },
-      !WEBPACK_USE_ESBUILD_LOADER && {
-        test: /\.(js|cjs)$/,
-        include: (modulePath) =>
-          /node_modules\/(monaco-worker-manager|monaco-marker-data-provider)\/index\.js/.test(
-            modulePath,
-          ) || /node_modules\/yaml/.test(modulePath),
-        loader: 'babel-loader',
-        options: {
-          plugins: ['@babel/plugin-proposal-numeric-separator'],
-          ...defaultJsOptions,
-        },
-      },
-      {
-        test: /\.vue$/,
-        loader: 'vue-loader',
-        options: {
-          cacheDirectory: path.join(CACHE_PATH, 'vue-loader'),
-          cacheIdentifier: [
-            process.env.NODE_ENV || 'development',
-            webpack.version,
-            VUE_VERSION,
-            VUE_LOADER_VERSION,
-          ].join('|'),
-        },
-      },
-      {
-        test: /\.(graphql|gql)$/,
-        exclude: /node_modules/,
-        loader: 'graphql-tag/loader',
-      },
-      {
-        test: /icons\.svg$/,
-        loader: 'file-loader',
-        options: {
-          name: '[name].[contenthash:8].[ext]',
-        },
-      },
-      {
-        test: /\.svg$/,
-        exclude: /icons\.svg$/,
-        oneOf: [
-          {
-            resourceQuery: /url/,
-            loader: 'file-loader',
-            options: {
-              name: '[name].[contenthash:8].[ext]',
-              esModule: false,
-            },
-          },
-          {
-            loader: 'raw-loader',
-          },
-        ],
-      },
-      {
-        test: /\.(gif|png|mp4)$/,
-        loader: 'url-loader',
-        options: { limit: 2048 },
       },
       {
         test: /_worker\.js$/,
@@ -417,6 +383,74 @@ module.exports = {
         ],
       },
       {
+        test: /mermaid\/.*\.js?$/,
+        include: /node_modules/,
+        loader: 'babel-loader',
+      },
+      {
+        test: /\.(js|cjs)$/,
+        exclude: shouldExcludeFromCompliling,
+        use: [
+          {
+            loader: 'thread-loader',
+            options: {
+              workerParallelJobs: 20,
+              poolRespawn: false,
+              poolParallelJobs: 200,
+              poolTimeout: DEV_SERVER_LIVERELOAD ? Infinity : 5000,
+            },
+          },
+          {
+            loader: 'babel-loader',
+            options: defaultJsOptions,
+          },
+        ],
+      },
+      {
+        test: /\.(js|cjs)$/,
+        include: (modulePath) =>
+          /node_modules\/(monaco-worker-manager|monaco-marker-data-provider)\/index\.js/.test(
+            modulePath,
+          ) || /node_modules\/yaml/.test(modulePath),
+        loader: 'babel-loader',
+        options: {
+          plugins: ['@babel/plugin-proposal-numeric-separator'],
+          ...defaultJsOptions,
+        },
+      },
+      {
+        test: /\.vue$/,
+        loader: VUE_LOADER_MODULE,
+        options: vueLoaderOptions,
+      },
+      {
+        test: /\.(graphql|gql)$/,
+        exclude: /node_modules/,
+        loader: 'graphql-tag/loader',
+      },
+      {
+        test: /icons\.svg$/,
+        loader: 'file-loader',
+        options: {
+          name: '[name].[contenthash:8].[ext]',
+        },
+      },
+      {
+        test: /\.svg$/,
+        exclude: /icons\.svg$/,
+        resourceQuery: /url/,
+        loader: 'file-loader',
+        options: {
+          name: '[name].[contenthash:8].[ext]',
+          esModule: false,
+        },
+      },
+      {
+        test: /\.(gif|png|mp4)$/,
+        loader: 'url-loader',
+        options: { limit: 2048 },
+      },
+      {
         test: /\.(worker(\.min)?\.js|pdf)$/,
         exclude: /node_modules/,
         loader: 'file-loader',
@@ -427,7 +461,7 @@ module.exports = {
       {
         test: /.css$/,
         use: [
-          'vue-style-loader',
+          'style-loader',
           {
             loader: 'css-loader',
             options: {
@@ -455,7 +489,6 @@ module.exports = {
         },
       },
       {
-        test: /\.(yml|yaml)$/,
         resourceQuery: /raw/,
         loader: 'raw-loader',
       },
@@ -530,9 +563,6 @@ module.exports = {
         },
       },
     },
-    ...(WEBPACK_USE_ESBUILD_LOADER
-      ? { minimizer: [new ESBuildMinifyPlugin(esbuildConfiguration)] }
-      : {}),
   },
 
   plugins: [
@@ -853,6 +883,15 @@ module.exports = {
     ...(DEV_SERVER_ALLOWED_HOSTS ? { allowedHosts: DEV_SERVER_ALLOWED_HOSTS } : {}),
     client: {
       ...(DEV_SERVER_PUBLIC_ADDR ? { webSocketURL: DEV_SERVER_PUBLIC_ADDR } : {}),
+      overlay: {
+        runtimeErrors: (error) => {
+          if (error instanceof DOMException && error.message === 'The user aborted a request.') {
+            return false;
+          }
+
+          return true;
+        },
+      },
     },
   },
 

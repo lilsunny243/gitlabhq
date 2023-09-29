@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Groups > Members > Manage members', feature_category: :subgroups do
-  include Spec::Support::Helpers::Features::MembersHelpers
-  include Spec::Support::Helpers::Features::InviteMembersModalHelper
+RSpec.describe 'Groups > Members > Manage members', feature_category: :groups_and_projects do
+  include ListboxHelpers
+  include Features::MembersHelpers
+  include Features::InviteMembersModalHelpers
   include Spec::Support::Helpers::ModalHelpers
 
   let_it_be(:user1) { create(:user, name: 'John Doe') }
@@ -35,8 +36,7 @@ RSpec.describe 'Groups > Members > Manage members', feature_category: :subgroups
     visit group_group_members_path(group)
 
     page.within(second_row) do
-      click_button('Developer')
-      click_button('Owner')
+      select_from_listbox('Owner', from: 'Developer')
 
       expect(page).to have_button('Owner')
     end
@@ -85,7 +85,7 @@ RSpec.describe 'Groups > Members > Manage members', feature_category: :subgroups
       end
     end
 
-    it_behaves_like 'inviting members', 'group-members-page' do
+    it_behaves_like 'inviting members', 'group_members_page' do
       let_it_be(:entity) { group }
       let_it_be(:members_page_path) { group_group_members_path(entity) }
       let_it_be(:subentity) { create(:group, parent: group) }

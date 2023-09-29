@@ -32,14 +32,8 @@ class GroupsFinder < UnionFinder
   end
 
   def execute
-    items = all_groups.map do |item|
-      item = by_parent(item)
-      item = by_custom_attributes(item)
-      item = filter_group_ids(item)
-      item = exclude_group_ids(item)
-      item = by_search(item)
-
-      item
+    items = all_groups.map do |groups|
+      filter_groups(groups)
     end
 
     find_union(items, Group).with_route.order_id_desc
@@ -48,6 +42,14 @@ class GroupsFinder < UnionFinder
   private
 
   attr_reader :current_user, :params
+
+  def filter_groups(groups)
+    groups = by_parent(groups)
+    groups = by_custom_attributes(groups)
+    groups = filter_group_ids(groups)
+    groups = exclude_group_ids(groups)
+    by_search(groups)
+  end
 
   def all_groups
     return [owned_groups] if params[:owned]
@@ -72,17 +74,10 @@ class GroupsFinder < UnionFinder
 
   # rubocop: disable CodeReuse/ActiveRecord
   def groups_with_min_access_level
-    groups = current_user
+    current_user
       .groups
       .where('members.access_level >= ?', params[:min_access_level])
-
-    if Feature.enabled?(:use_traversal_ids_groups_finder, current_user)
-      groups.self_and_descendants
-    else
-      Gitlab::ObjectHierarchy
-        .new(groups)
-        .base_and_descendants
-    end
+      .self_and_descendants
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
@@ -110,13 +105,11 @@ class GroupsFinder < UnionFinder
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
-  # rubocop: disable CodeReuse/ActiveRecord
   def by_search(groups)
     return groups unless params[:search].present?
 
     groups.search(params[:search], include_parents: params[:parent].blank?)
   end
-  # rubocop: enable CodeReuse/ActiveRecord
 
   def owned_groups
     current_user&.owned_groups || Group.none
@@ -145,21 +138,16 @@ class GroupsFinder < UnionFinder
   def get_groups_for_user
     groups = []
 
-    if Feature.enabled?(:use_traversal_ids_groups_finder, current_user)
-      groups << if include_ancestors?
-                  current_user.authorized_groups.self_and_ancestors
-                else
-                  current_user.authorized_groups
-                end
+    groups << if include_ancestors?
+                current_user.authorized_groups.self_and_ancestors
+              else
+                current_user.authorized_groups
+              end
 
-      groups << current_user.groups.self_and_descendants
-    elsif include_ancestors?
-      groups << Gitlab::ObjectHierarchy.new(groups_for_ancestors, groups_for_descendants).all_objects
-    else
-      groups << current_user.authorized_groups
-      groups << Gitlab::ObjectHierarchy.new(groups_for_descendants).base_and_descendants
-    end
+    groups << current_user.groups.self_and_descendants
 
     groups
   end
 end
+
+GroupsFinder.prepend_mod_with('GroupsFinder')

@@ -1,15 +1,14 @@
 <script>
-import { GlDropdownForm, GlDropdownItem, GlLoadingIcon, GlIntersectionObserver } from '@gitlab/ui';
+import { GlDropdownItem, GlLoadingIcon, GlIntersectionObserver } from '@gitlab/ui';
 import fuzzaldrinPlus from 'fuzzaldrin-plus';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { __ } from '~/locale';
-import { workspaceLabelsQueries } from '../../../constants';
+import { workspaceLabelsQueries } from '../../../queries/constants';
 import LabelItem from './label_item.vue';
 
 export default {
   components: {
-    GlDropdownForm,
     GlDropdownItem,
     GlLoadingIcon,
     GlIntersectionObserver,
@@ -136,29 +135,39 @@ export default {
         this.handleLabelClick(this.visibleLabels[0]);
       }
     },
+    handleFocus(event, index) {
+      if (index === 0 && event.target.classList.contains('is-focused')) {
+        event.target.classList.remove('is-focused');
+
+        // Focus next element (if available) as the first item was already focused.
+        if (event.target.parentNode?.nextElementSibling?.querySelector('button')) {
+          event.target.parentNode.nextElementSibling.querySelector('button').focus();
+        }
+      }
+    },
   },
 };
 </script>
 
 <template>
   <gl-intersection-observer @appear="onDropdownAppear">
-    <gl-dropdown-form class="labels-select-contents-list js-labels-list">
+    <div class="js-labels-list">
       <div ref="labelsListContainer" data-testid="dropdown-content">
         <gl-loading-icon
           v-if="labelsFetchInProgress"
           class="labels-fetch-loading gl-align-items-center gl-w-full gl-h-full gl-mb-3"
-          size="lg"
+          size="sm"
         />
         <template v-else>
           <gl-dropdown-item
             v-for="(label, index) in visibleLabels"
             :key="label.id"
             :is-checked="isLabelSelected(label)"
-            is-check-centered
             is-check-item
             :active="shouldHighlightFirstItem && index === 0"
             active-class="is-focused"
             data-testid="labels-list"
+            @focus.native.capture="handleFocus($event, index)"
             @click.native.capture.stop="handleLabelClick(label)"
           >
             <label-item :label="label" />
@@ -172,6 +181,6 @@ export default {
           </gl-dropdown-item>
         </template>
       </div>
-    </gl-dropdown-form>
+    </div>
   </gl-intersection-observer>
 </template>

@@ -12,6 +12,11 @@ module Projects
       before_action :check_builds_available!
       before_action :define_variables
 
+      before_action do
+        push_frontend_feature_flag(:ci_variables_pages, current_user)
+        push_frontend_feature_flag(:ci_variable_drawer, current_user)
+      end
+
       helper_method :highlight_badge
 
       feature_category :continuous_integration
@@ -84,7 +89,7 @@ module Projects
           :build_timeout_human_readable, :public_builds, :ci_separated_caches,
           :auto_cancel_pending_pipelines, :ci_config_path, :auto_rollback_enabled,
           auto_devops_attributes: [:id, :domain, :enabled, :deploy_strategy],
-          ci_cd_settings_attributes: [:default_git_depth, :forward_deployment_enabled]
+          ci_cd_settings_attributes: [:default_git_depth, :forward_deployment_enabled, :forward_deployment_rollback_allowed]
         ].tap do |list|
           list << :max_artifacts_size if can?(current_user, :update_max_artifacts_size, project)
         end
@@ -127,7 +132,7 @@ module Projects
         @shared_runners_count = active_shared_runners.count
         @shared_runners = active_shared_runners.page(params[:shared_runners_page]).per(NUMBER_OF_RUNNERS_PER_PAGE).with_tags
 
-        parent_group_runners = ::Ci::Runner.belonging_to_parent_group_of_project(@project.id)
+        parent_group_runners = ::Ci::Runner.belonging_to_parent_groups_of_project(@project.id)
         @group_runners_count = parent_group_runners.count
         @group_runners = parent_group_runners.page(params[:group_runners_page]).per(NUMBER_OF_RUNNERS_PER_PAGE).with_tags
       end

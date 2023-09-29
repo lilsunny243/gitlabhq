@@ -63,9 +63,12 @@ export const diffHasAllCollapsedDiscussions = (state, getters) => (diff) => {
  * @returns {Boolean}
  */
 export const diffHasExpandedDiscussions = () => (diff) => {
-  return diff[INLINE_DIFF_LINES_KEY].filter((l) => l.discussions.length >= 1).some(
-    (l) => l.discussionsExpanded,
-  );
+  const diffLineDiscussionsExpanded = diff[INLINE_DIFF_LINES_KEY].filter(
+    (l) => l.discussions.length >= 1,
+  ).some((l) => l.discussionsExpanded);
+  const diffFileDiscussionsExpanded = diff.discussions?.some((d) => d.expanded);
+
+  return diffFileDiscussionsExpanded || diffLineDiscussionsExpanded;
 };
 
 /**
@@ -74,7 +77,10 @@ export const diffHasExpandedDiscussions = () => (diff) => {
  * @returns {Boolean}
  */
 export const diffHasDiscussions = () => (diff) => {
-  return diff[INLINE_DIFF_LINES_KEY].some((l) => l.discussions.length >= 1);
+  return (
+    diff.discussions?.length >= 1 ||
+    diff[INLINE_DIFF_LINES_KEY].some((l) => l.discussions.length >= 1)
+  );
 };
 
 /**
@@ -89,6 +95,12 @@ export const getDiffFileDiscussions = (state, getters, rootState, rootGetters) =
 
 export const getDiffFileByHash = (state) => (fileHash) =>
   state.diffFiles.find((file) => file.file_hash === fileHash);
+
+export function isTreePathLoaded(state) {
+  return (path) => {
+    return Boolean(state.treeEntries[path]?.diffLoaded);
+  };
+}
 
 export const flatBlobsList = (state) =>
   Object.values(state.treeEntries).filter((f) => f.type === 'blob');
@@ -127,7 +139,8 @@ export const fileLineCoverage = (state) => (file, line) => {
 
   if (lineCoverage === 0) {
     return { text: __('No test coverage'), class: 'no-coverage' };
-  } else if (lineCoverage >= 0) {
+  }
+  if (lineCoverage >= 0) {
     return {
       text: n__('Test coverage: %d hit', 'Test coverage: %d hits', lineCoverage),
       class: 'coverage',
@@ -138,6 +151,11 @@ export const fileLineCoverage = (state) => (file, line) => {
 
 // This function is overwritten for the inline codequality feature in EE
 export const fileLineCodequality = () => () => {
+  return null;
+};
+
+// This function is overwritten for the inline SAST feature in EE
+export const fileLineSast = () => () => {
   return null;
 };
 

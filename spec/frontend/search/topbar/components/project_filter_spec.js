@@ -1,7 +1,8 @@
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
-import { MOCK_PROJECT, MOCK_QUERY } from 'jest/search/mock_data';
+import { MOCK_PROJECT, MOCK_QUERY, CURRENT_SCOPE } from 'jest/search/mock_data';
 import { visitUrl, setUrlParams } from '~/lib/utils/url_utility';
 import { PROJECTS_LOCAL_STORAGE_KEY } from '~/search/store/constants';
 import ProjectFilter from '~/search/topbar/components/project_filter.vue';
@@ -37,6 +38,7 @@ describe('ProjectFilter', () => {
       actions: actionSpies,
       getters: {
         frequentProjects: () => [],
+        currentScope: () => CURRENT_SCOPE,
       },
     });
 
@@ -48,10 +50,6 @@ describe('ProjectFilter', () => {
       },
     });
   };
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   const findSearchableDropdown = () => wrapper.findComponent(SearchableDropdown);
 
@@ -92,6 +90,7 @@ describe('ProjectFilter', () => {
           expect(setUrlParams).toHaveBeenCalledWith({
             [PROJECT_DATA.queryParam]: null,
             nav_source: null,
+            scope: CURRENT_SCOPE,
           });
           expect(visitUrl).toHaveBeenCalled();
         });
@@ -111,6 +110,7 @@ describe('ProjectFilter', () => {
             [GROUP_DATA.queryParam]: MOCK_PROJECT.namespace.id,
             [PROJECT_DATA.queryParam]: MOCK_PROJECT.id,
             nav_source: null,
+            scope: CURRENT_SCOPE,
           });
           expect(visitUrl).toHaveBeenCalled();
         });

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User changes public project visibility', :js, feature_category: :projects do
+RSpec.describe 'User changes public project visibility', :js, feature_category: :groups_and_projects do
   include ProjectForksHelper
 
   shared_examples 'changing visibility to private' do
@@ -66,8 +66,8 @@ RSpec.describe 'User changes public project visibility', :js, feature_category: 
       let(:project) { create(:project, :empty_repo, :public) }
 
       it 'saves without confirmation' do
-        expect(page).to have_selector('.js-emails-disabled', visible: true)
-        find('.js-emails-disabled input[type="checkbox"]').click
+        expect(page).to have_selector('.js-emails-enabled', visible: true)
+        find('.js-emails-enabled input[type="checkbox"]').click
 
         page.within('#js-shared-permissions') do
           click_button 'Save changes'

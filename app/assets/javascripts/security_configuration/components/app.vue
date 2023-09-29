@@ -1,19 +1,22 @@
 <script>
 import { GlTab, GlTabs, GlSprintf, GlLink, GlAlert } from '@gitlab/ui';
+import Api from '~/api';
 import { __, s__ } from '~/locale';
 import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
 import UserCalloutDismisser from '~/vue_shared/components/user_callout_dismisser.vue';
 import SectionLayout from '~/vue_shared/security_configuration/components/section_layout.vue';
 import SafeHtml from '~/vue_shared/directives/safe_html';
+import { SERVICE_PING_SECURITY_CONFIGURATION_THREAT_MANAGEMENT_VISIT } from '~/tracking/constants';
 import AutoDevOpsAlert from './auto_dev_ops_alert.vue';
 import AutoDevOpsEnabledAlert from './auto_dev_ops_enabled_alert.vue';
-import { AUTO_DEVOPS_ENABLED_ALERT_DISMISSED_STORAGE_KEY } from './constants';
+import {
+  AUTO_DEVOPS_ENABLED_ALERT_DISMISSED_STORAGE_KEY,
+  TAB_VULNERABILITY_MANAGEMENT_INDEX,
+} from './constants';
 import FeatureCard from './feature_card.vue';
 import TrainingProviderList from './training_provider_list.vue';
-import UpgradeBanner from './upgrade_banner.vue';
 
 export const i18n = {
-  compliance: s__('SecurityConfiguration|Compliance'),
   configurationHistory: s__('SecurityConfiguration|Configuration history'),
   securityTesting: s__('SecurityConfiguration|Security testing'),
   latestPipelineDescription: s__(
@@ -26,7 +29,7 @@ export const i18n = {
      scanner will not be reflected as such until the pipeline has been
      successfully executed and it has generated valid artifacts.`,
   ),
-  securityConfiguration: __('Security Configuration'),
+  securityConfiguration: __('Security configuration'),
   vulnerabilityManagement: s__('SecurityConfiguration|Vulnerability Management'),
   securityTraining: s__('SecurityConfiguration|Security training'),
   securityTrainingDescription: s__(
@@ -48,7 +51,8 @@ export default {
     GlTabs,
     LocalStorageSync,
     SectionLayout,
-    UpgradeBanner,
+    UpgradeBanner: () =>
+      import('ee_component/security_configuration/components/upgrade_banner.vue'),
     UserCalloutDismisser,
     TrainingProviderList,
   },
@@ -56,10 +60,6 @@ export default {
   inject: ['projectFullPath', 'vulnerabilityTrainingDocsPath'],
   props: {
     augmentedSecurityFeatures: {
-      type: Array,
-      required: true,
-    },
-    augmentedComplianceFeatures: {
       type: Array,
       required: true,
     },
@@ -101,9 +101,7 @@ export default {
   },
   computed: {
     canUpgrade() {
-      return [...this.augmentedSecurityFeatures, ...this.augmentedComplianceFeatures].some(
-        ({ available }) => !available,
-      );
+      return [...this.augmentedSecurityFeatures].some(({ available }) => !available);
     },
     canViewCiHistory() {
       return Boolean(this.gitlabCiPresent && this.gitlabCiHistoryPath);
@@ -129,6 +127,11 @@ export default {
     },
     dismissAlert() {
       this.errorMessage = '';
+    },
+    tabChange(value) {
+      if (value === TAB_VULNERABILITY_MANAGEMENT_INDEX) {
+        Api.trackRedisHllUserEvent(SERVICE_PING_SECURITY_CONFIGURATION_THREAT_MANAGEMENT_VISIT);
+      }
     },
   },
   autoDevopsEnabledAlertStorageKey: AUTO_DEVOPS_ENABLED_ALERT_DISMISSED_STORAGE_KEY,
@@ -171,9 +174,10 @@ export default {
 
     <gl-tabs
       content-class="gl-pt-0"
-      data-qa-selector="security_configuration_container"
+      data-testid="security-configuration-container"
       sync-active-tab-with-query-params
       lazy
+      @input="tabChange"
     >
       <gl-tab
         data-testid="security-testing-tab"
@@ -189,7 +193,7 @@ export default {
         <section-layout class="gl-border-b-0" :heading="$options.i18n.securityTesting">
           <template #description>
             <p>
-              <span data-testid="latest-pipeline-info-security">
+              <span>
                 <gl-sprintf
                   v-if="latestPipelinePath"
                   :message="$options.i18n.latestPipelineDescription"
@@ -203,12 +207,9 @@ export default {
               {{ $options.i18n.description }}
             </p>
             <p v-if="canViewCiHistory">
-              <gl-link
-                data-testid="security-view-history-link"
-                data-qa-selector="security_configuration_history_link"
-                :href="gitlabCiHistoryPath"
-                >{{ $options.i18n.configurationHistory }}</gl-link
-              >
+              <gl-link data-testid="security-view-history-link" :href="gitlabCiHistoryPath">{{
+                $options.i18n.configurationHistory
+              }}</gl-link>
             </p>
           </template>
 
@@ -218,44 +219,6 @@ export default {
               :id="feature.anchor"
               :key="feature.type"
               data-testid="security-testing-card"
-              :feature="feature"
-              class="gl-mb-6"
-              @error="onError"
-            />
-          </template>
-        </section-layout>
-      </gl-tab>
-      <gl-tab
-        data-testid="compliance-testing-tab"
-        :title="$options.i18n.compliance"
-        query-param-value="compliance-testing"
-      >
-        <section-layout :heading="$options.i18n.compliance">
-          <template #description>
-            <p>
-              <span data-testid="latest-pipeline-info-compliance">
-                <gl-sprintf
-                  v-if="latestPipelinePath"
-                  :message="$options.i18n.latestPipelineDescription"
-                >
-                  <template #link="{ content }">
-                    <gl-link :href="latestPipelinePath">{{ content }}</gl-link>
-                  </template>
-                </gl-sprintf>
-              </span>
-
-              {{ $options.i18n.description }}
-            </p>
-            <p v-if="canViewCiHistory">
-              <gl-link data-testid="compliance-view-history-link" :href="gitlabCiHistoryPath">{{
-                $options.i18n.configurationHistory
-              }}</gl-link>
-            </p>
-          </template>
-          <template #features>
-            <feature-card
-              v-for="feature in augmentedComplianceFeatures"
-              :key="feature.type"
               :feature="feature"
               class="gl-mb-6"
               @error="onError"

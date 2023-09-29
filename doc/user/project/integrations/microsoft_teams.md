@@ -1,10 +1,10 @@
 ---
 stage: Manage
-group: Integrations
+group: Import and Integrate
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Microsoft Teams notifications **(FREE)**
+# Microsoft Teams notifications **(FREE ALL)**
 
 You can integrate Microsoft Teams notifications with GitLab and display notifications about GitLab projects
 in Microsoft Teams. To integrate the services, you must:
@@ -35,8 +35,8 @@ After you configure Microsoft Teams to receive notifications, you must configure
 GitLab to send the notifications:
 
 1. Sign in to GitLab as an administrator.
-1. On the top bar, select **Main menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > Integrations**.
+1. On the left sidebar, select **Search or go to** and find your project.
+1. Select **Settings > Integrations**.
 1. Select **Microsoft Teams notifications**.
 1. To enable the integration, select **Active**.
 1. In the **Trigger** section, select the checkbox next to each event to enable it:
@@ -58,4 +58,4 @@ GitLab to send the notifications:
 
 ## Related topics
 
-- [Setting up an incoming webhook on Microsoft Teams](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using#setting-up-a-custom-incoming-webhook).
+- [Setting up an incoming webhook on Microsoft Teams](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using#setting-up-a-custom-incoming-webhook)

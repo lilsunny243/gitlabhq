@@ -54,7 +54,7 @@ module Gitlab
         return "" unless decoded
 
         # Certain trigger phrases that means we didn't parse correctly
-        if decoded =~ %r{(Content\-Type\:|multipart/alternative|text/plain)}
+        if %r{(Content\-Type\:|multipart/alternative|text/plain)}.match?(decoded)
           return ""
         end
 
@@ -80,9 +80,7 @@ module Gitlab
           #
           # Plain email.
           # ```
-          # So, we had to force its part to corresponding encoding before able
-          # to convert it to UTF-8
-          force_utf8(object.body.decoded.force_encoding(object.charset.gsub(/utf8/i, "UTF-8")))
+          object.body.decoded.force_encoding(object.charset.gsub(/utf8/i, "UTF-8")).encode("UTF-8").to_s
         else
           object.body.to_s
         end

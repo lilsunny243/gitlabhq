@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe CustomerRelations::Contact, type: :model do
+RSpec.describe CustomerRelations::Contact, type: :model, feature_category: :team_planning do
   let_it_be(:group) { create(:group) }
 
   describe 'associations' do
@@ -127,7 +127,7 @@ RSpec.describe CustomerRelations::Contact, type: :model do
 
     before do
       old_root_group.update!(parent: new_root_group)
-      CustomerRelations::Contact.move_to_root_group(old_root_group)
+      described_class.move_to_root_group(old_root_group)
     end
 
     it 'moves contacts with unique emails and deletes the rest' do
@@ -241,8 +241,8 @@ RSpec.describe CustomerRelations::Contact, type: :model do
   end
 
   describe 'sorting' do
-    let_it_be(:organization_a) { create(:organization, name: 'a') }
-    let_it_be(:organization_b) { create(:organization, name: 'b') }
+    let_it_be(:crm_organization_a) { create(:crm_organization, name: 'a') }
+    let_it_be(:crm_organization_b) { create(:crm_organization, name: 'b') }
     let_it_be(:contact_a) { create(:contact, group: group, first_name: "c", last_name: "d") }
     let_it_be(:contact_b) do
       create(:contact,
@@ -250,7 +250,7 @@ RSpec.describe CustomerRelations::Contact, type: :model do
         first_name: "a",
         last_name: "b",
         phone: "123",
-        organization: organization_a)
+        organization: crm_organization_a)
     end
 
     let_it_be(:contact_c) do
@@ -259,7 +259,7 @@ RSpec.describe CustomerRelations::Contact, type: :model do
         first_name: "e",
         last_name: "d",
         phone: "456",
-        organization: organization_b)
+        organization: crm_organization_b)
     end
 
     describe '.sort_by_name' do
@@ -278,6 +278,27 @@ RSpec.describe CustomerRelations::Contact, type: :model do
       it 'sorts them by phone in ascending order' do
         expect(group.contacts.sort_by_field('phone', :asc)).to eq([contact_b, contact_c, contact_a])
       end
+    end
+  end
+
+  describe '#hook_attrs' do
+    let_it_be(:contact) { create(:contact, group: group) }
+
+    it 'includes the expected attributes' do
+      expect(contact.hook_attrs).to match a_hash_including(
+        {
+          'created_at' => contact.created_at,
+          'description' => contact.description,
+          'first_name' => contact.first_name,
+          'group_id' => group.id,
+          'id' => contact.id,
+          'last_name' => contact.last_name,
+          'organization_id' => contact.organization_id,
+          'state' => contact.state,
+          'updated_at' => contact.updated_at
+        }
+      )
+      expect(contact.hook_attrs.keys).to match_array(described_class::SAFE_ATTRIBUTES)
     end
   end
 end

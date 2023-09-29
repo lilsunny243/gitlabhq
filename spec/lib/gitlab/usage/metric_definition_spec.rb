@@ -2,12 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Usage::MetricDefinition do
+RSpec.describe Gitlab::Usage::MetricDefinition, feature_category: :service_ping do
   let(:attributes) do
     {
       description: 'GitLab instance unique identifier',
       value_type: 'string',
-      product_category: 'collection',
       product_stage: 'growth',
       product_section: 'devops',
       status: 'active',
@@ -19,7 +18,6 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
       data_source: 'database',
       distribution: %w(ee ce),
       tier: %w(free starter premium ultimate bronze silver gold),
-      name: 'uuid',
       data_category: 'standard',
       removed_by_url: 'http://gdk.test'
     }
@@ -111,6 +109,44 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
     end
   end
 
+  describe '#to_context' do
+    subject { definition.to_context }
+
+    context 'with data_source redis_hll metric' do
+      before do
+        attributes[:data_source] = 'redis_hll'
+        attributes[:options] = { events: %w[some_event_1 some_event_2] }
+      end
+
+      it 'returns a ServicePingContext with first event as event_name' do
+        expect(subject.to_h[:data][:event_name]).to eq('some_event_1')
+      end
+    end
+
+    context 'with data_source redis metric' do
+      before do
+        attributes[:data_source] = 'redis'
+        attributes[:events] = [
+          { name: 'web_ide_viewed' }
+        ]
+      end
+
+      it 'returns a ServicePingContext with first event as event_name' do
+        expect(subject.to_h[:data][:event_name]).to eq('web_ide_viewed')
+      end
+    end
+
+    context 'with data_source database metric' do
+      before do
+        attributes[:data_source] = 'database'
+      end
+
+      it 'returns nil' do
+        is_expected.to be_nil
+      end
+    end
+  end
+
   describe '#validate' do
     using RSpec::Parameterized::TableSyntax
 
@@ -119,7 +155,7 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
       :value_type         | nil
       :value_type         | 'test'
       :status             | nil
-      :milestone          | nil
+      :milestone          | 10.0
       :data_category      | nil
       :key_path           | nil
       :product_group      | nil
@@ -130,7 +166,6 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
       :distribution       | nil
       :distribution       | 'test'
       :tier               | %w(test ee)
-      :name               | 'count_<adjective_describing>_boards'
       :repair_issue_url   | nil
       :removed_by_url     | 1
 
@@ -179,6 +214,45 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
     end
   end
 
+  describe '#events' do
+    context 'when metric is not event based' do
+      it 'returns empty hash' do
+        expect(definition.events).to eq({})
+      end
+    end
+
+    context 'when metric is using old format' do
+      let(:attributes) { { options: { events: ['my_event'] } } }
+
+      it 'returns a correct hash' do
+        expect(definition.events).to eq({ 'my_event' => nil })
+      end
+    end
+
+    context 'when metric is using new format' do
+      let(:attributes) { { events: [{ name: 'my_event', unique: 'user_id' }] } }
+
+      it 'returns a correct hash' do
+        expect(definition.events).to eq({ 'my_event' => :user_id })
+      end
+    end
+
+    context 'when metric is using both formats' do
+      let(:attributes) do
+        {
+          options: {
+            events: ['a_event']
+          },
+          events: [{ name: 'my_event', unique: 'project_id' }]
+        }
+      end
+
+      it 'uses the new format' do
+        expect(definition.events).to eq({ 'my_event' => :project_id })
+      end
+    end
+  end
+
   describe '#valid_service_ping_status?' do
     context 'when metric has active status' do
       it 'has to return true' do
@@ -193,26 +267,6 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
         attributes[:status] = 'removed'
 
         expect(described_class.new(path, attributes).valid_service_ping_status?).to be_falsey
-      end
-    end
-  end
-
-  describe 'statuses' do
-    using RSpec::Parameterized::TableSyntax
-
-    where(:status, :skip_validation?) do
-      'active'         | false
-      'broken'         | false
-      'removed'        | true
-    end
-
-    with_them do
-      subject(:validation) do
-        described_class.new(path, attributes.merge( { status: status } )).send(:skip_validation?)
-      end
-
-      it 'returns true/false for skip_validation' do
-        expect(validation).to eq(skip_validation?)
       end
     end
   end
@@ -263,7 +317,6 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
       {
         description: 'Test metric definition',
         value_type: 'string',
-        product_category: 'collection',
         product_stage: 'growth',
         product_section: 'devops',
         status: 'active',
@@ -305,6 +358,73 @@ RSpec.describe Gitlab::Usage::MetricDefinition do
       write_metric(metric2, other_path, other_yaml_content)
 
       is_expected.to eq([attributes, other_attributes].map(&:deep_stringify_keys).to_yaml)
+    end
+  end
+
+  describe '.metric_definitions_changed?', :freeze_time do
+    let(:metric1) { Dir.mktmpdir('metric1') }
+    let(:metric2) { Dir.mktmpdir('metric2') }
+
+    before do
+      allow(Rails).to receive_message_chain(:env, :development?).and_return(is_dev)
+      allow(described_class).to receive(:paths).and_return(
+        [
+          File.join(metric1, '**', '*.yml'),
+          File.join(metric2, '**', '*.yml')
+        ]
+      )
+
+      write_metric(metric1, path, yaml_content)
+      write_metric(metric2, path, yaml_content)
+    end
+
+    after do
+      FileUtils.rm_rf(metric1)
+      FileUtils.rm_rf(metric2)
+    end
+
+    context 'in development', :freeze_time do
+      let(:is_dev) { true }
+
+      it 'has changes on the first invocation' do
+        expect(described_class.metric_definitions_changed?).to be_truthy
+      end
+
+      context 'when no files are changed' do
+        it 'does not have changes on the second invocation' do
+          described_class.metric_definitions_changed?
+
+          expect(described_class.metric_definitions_changed?).to be_falsy
+        end
+      end
+
+      context 'when file is changed' do
+        it 'has changes on the next invocation when more than 3 seconds have passed' do
+          described_class.metric_definitions_changed?
+
+          write_metric(metric1, path, yaml_content)
+          travel_to 10.seconds.from_now
+
+          expect(described_class.metric_definitions_changed?).to be_truthy
+        end
+
+        it 'does not have changes on the next invocation when less than 3 seconds have passed' do
+          described_class.metric_definitions_changed?
+
+          write_metric(metric1, path, yaml_content)
+          travel_to 1.second.from_now
+
+          expect(described_class.metric_definitions_changed?).to be_falsy
+        end
+      end
+
+      context 'in production' do
+        let(:is_dev) { false }
+
+        it 'does not detect changes' do
+          expect(described_class.metric_definitions_changed?).to be_falsy
+        end
+      end
     end
   end
 end

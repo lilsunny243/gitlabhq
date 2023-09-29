@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe DeploymentsFinder do
+RSpec.describe DeploymentsFinder, feature_category: :deployment_management do
   subject { described_class.new(params).execute }
 
   describe "validation" do
@@ -13,16 +13,6 @@ RSpec.describe DeploymentsFinder do
         expect { subject }.to raise_error(
           described_class::InefficientQueryError,
           'Both `updated_at` filter and `finished_at` filter can not be specified')
-      end
-    end
-
-    context 'when updated_at filter and id sorting' do
-      let(:params) { { updated_before: 1.day.ago, order_by: :id } }
-
-      it 'raises an error' do
-        expect { subject }.to raise_error(
-          described_class::InefficientQueryError,
-          '`updated_at` filter and `updated_at` sorting must be paired')
       end
     end
 
@@ -176,10 +166,10 @@ RSpec.describe DeploymentsFinder do
           'id'          | 'desc' | [:deployment_3, :deployment_2, :deployment_1]
           'iid'         | 'asc'  | [:deployment_1, :deployment_2, :deployment_3]
           'iid'         | 'desc' | [:deployment_3, :deployment_2, :deployment_1]
-          'ref'         | 'asc'  | [:deployment_2, :deployment_1, :deployment_3]
-          'ref'         | 'desc' | [:deployment_3, :deployment_1, :deployment_2]
-          'updated_at'  | 'asc'  | described_class::InefficientQueryError
-          'updated_at'  | 'desc' | described_class::InefficientQueryError
+          'ref'         | 'asc'  | [:deployment_1, :deployment_2, :deployment_3] # ref acts like id because of remove_deployments_api_ref_sort feature flag
+          'ref'         | 'desc' | [:deployment_3, :deployment_2, :deployment_1] # ref acts like id because of remove_deployments_api_ref_sort feature flag
+          'updated_at'  | 'asc'  | [:deployment_2, :deployment_3, :deployment_1]
+          'updated_at'  | 'desc' | [:deployment_1, :deployment_3, :deployment_2]
           'finished_at' | 'asc'  | described_class::InefficientQueryError
           'finished_at' | 'desc' | described_class::InefficientQueryError
           'invalid'     | 'asc'  | [:deployment_1, :deployment_2, :deployment_3]
@@ -259,16 +249,11 @@ RSpec.describe DeploymentsFinder do
         end
       end
 
-      describe 'enforce sorting to `updated_at` sorting' do
-        let(:params) { { **base_params, updated_before: 1.day.ago, order_by: 'id', sort: 'asc', raise_for_inefficient_updated_at_query: false } }
+      context 'when `updated_at` is used for filtering without sorting by `updated_at`' do
+        let(:params) { { **base_params, updated_before: 1.day.ago, order_by: 'id', sort: 'asc' } }
 
-        it 'sorts by only one column' do
-          expect(subject.order_values.size).to eq(2)
-        end
-
-        it 'sorts by `updated_at`' do
-          expect(subject.order_values.first.to_sql).to eq(Deployment.arel_table[:updated_at].asc.to_sql)
-          expect(subject.order_values.second.to_sql).to eq(Deployment.arel_table[:id].asc.to_sql)
+        it 'raises an error' do
+          expect { subject }.to raise_error(DeploymentsFinder::InefficientQueryError)
         end
       end
 
@@ -293,6 +278,22 @@ RSpec.describe DeploymentsFinder do
           let(:params) { { **base_params, finished_before: 3.days.ago, status: :success, order_by: :finished_at } }
 
           it { is_expected.to match_array([deployment_2]) }
+        end
+      end
+
+      context 'with mixed deployable types' do
+        let!(:deployment_1) do
+          create(:deployment, :success, project: project, deployable: create(:ci_build))
+        end
+
+        let!(:deployment_2) do
+          create(:deployment, :success, project: project, deployable: create(:ci_bridge))
+        end
+
+        let(:params) { { **base_params, status: 'success' } }
+
+        it 'successfuly fetches deployments' do
+          is_expected.to contain_exactly(deployment_1, deployment_2)
         end
       end
     end
@@ -331,9 +332,11 @@ RSpec.describe DeploymentsFinder do
 
         with_them do
           it 'returns the deployments unordered' do
-            expect(subject.to_a).to contain_exactly(group_project_1_deployment,
-                                                    group_project_2_deployment,
-                                                    subgroup_project_1_deployment)
+            expect(subject.to_a).to contain_exactly(
+              group_project_1_deployment,
+              group_project_2_deployment,
+              subgroup_project_1_deployment
+            )
           end
         end
       end

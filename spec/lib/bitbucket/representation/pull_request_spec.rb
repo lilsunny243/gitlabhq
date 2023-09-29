@@ -2,7 +2,7 @@
 
 require 'fast_spec_helper'
 
-RSpec.describe Bitbucket::Representation::PullRequest do
+RSpec.describe Bitbucket::Representation::PullRequest, feature_category: :importers do
   describe '#iid' do
     it { expect(described_class.new('id' => 1).iid).to eq(1) }
   end
@@ -10,6 +10,7 @@ RSpec.describe Bitbucket::Representation::PullRequest do
   describe '#author' do
     it { expect(described_class.new({ 'author' => { 'nickname' => 'Ben' } }).author).to eq('Ben') }
     it { expect(described_class.new({}).author).to be_nil }
+    it { expect(described_class.new({ 'author' => nil }).author).to be_nil }
   end
 
   describe '#description' do
@@ -46,5 +47,64 @@ RSpec.describe Bitbucket::Representation::PullRequest do
   describe '#target_branch_sha' do
     it { expect(described_class.new({ destination: { commit: { hash: 'abcd123' } } }.with_indifferent_access).target_branch_sha).to eq('abcd123') }
     it { expect(described_class.new({ destination: {} }.with_indifferent_access).target_branch_sha).to be_nil }
+  end
+
+  describe '#created_at' do
+    it { expect(described_class.new('created_on' => '2023-01-01').created_at).to eq('2023-01-01') }
+  end
+
+  describe '#updated_at' do
+    it { expect(described_class.new('updated_on' => '2023-01-01').updated_at).to eq('2023-01-01') }
+  end
+
+  describe '#merge_commit_sha' do
+    it { expect(described_class.new('merge_commit' => { 'hash' => 'SHA' }).merge_commit_sha).to eq('SHA') }
+    it { expect(described_class.new({}).merge_commit_sha).to be_nil }
+  end
+
+  describe '#to_hash' do
+    it do
+      raw = {
+        'id' => 11,
+        'description' => 'description',
+        'author' => { 'nickname' => 'user-1' },
+        'state' => 'MERGED',
+        'created_on' => 'created-at',
+        'updated_on' => 'updated-at',
+        'title' => 'title',
+        'source' => {
+          'branch' => { 'name' => 'source-branch-name' },
+          'commit' => { 'hash' => 'source-commit-hash' }
+        },
+        'destination' => {
+          'branch' => { 'name' => 'destination-branch-name' },
+          'commit' => { 'hash' => 'destination-commit-hash' }
+        },
+        'merge_commit' => { 'hash' => 'merge-commit-hash' },
+        'reviewers' => [
+          {
+            'username' => 'user-2'
+          }
+        ]
+      }
+
+      expected_hash = {
+        author: 'user-1',
+        created_at: 'created-at',
+        description: 'description',
+        iid: 11,
+        source_branch_name: 'source-branch-name',
+        source_branch_sha: 'source-commit-hash',
+        merge_commit_sha: 'merge-commit-hash',
+        state: 'merged',
+        target_branch_name: 'destination-branch-name',
+        target_branch_sha: 'destination-commit-hash',
+        title: 'title',
+        updated_at: 'updated-at',
+        reviewers: ['user-2']
+      }
+
+      expect(described_class.new(raw).to_hash).to eq(expected_hash)
+    end
   end
 end

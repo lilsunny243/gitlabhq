@@ -9,7 +9,7 @@ class EventPresenter < Gitlab::View::Presenter::Delegated
     @visible_to_user_cache = ActiveSupport::Cache::MemoryStore.new
   end
 
-  # Caching `visible_to_user?` method in the presenter beause it might be called multiple times.
+  # Caching `visible_to_user?` method in the presenter because it might be called multiple times.
   delegator_override :visible_to_user?
   def visible_to_user?(user = nil)
     @visible_to_user_cache.fetch(user&.id) { super(user) }
@@ -53,5 +53,30 @@ class EventPresenter < Gitlab::View::Presenter::Delegated
     else
       target.noteable_type.titleize
     end.downcase
+  end
+
+  def push_activity_description
+    return unless push_action?
+
+    if batch_push?
+      "#{action_name} #{ref_count} #{ref_type.pluralize(ref_count)}"
+    else
+      "#{action_name} #{ref_type}"
+    end
+  end
+
+  def batch_push?
+    push_action? && ref_count.to_i > 0
+  end
+
+  def linked_to_reference?
+    return false unless push_action?
+    return false if event.project.nil?
+
+    if tag?
+      project.repository.tag_exists?(ref_name)
+    else
+      project.repository.branch_exists?(ref_name)
+    end
   end
 end

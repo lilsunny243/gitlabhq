@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab CI/CD artifacts reports types **(FREE)**
+# GitLab CI/CD artifacts reports types **(FREE ALL)**
 
 Use [`artifacts:reports`](index.md#artifactsreports) to:
 
@@ -40,7 +40,56 @@ GitLab can display the results of one or more reports in the merge request
 
 For more information, see [Accessibility testing](../testing/accessibility_testing.md).
 
-## `artifacts:reports:api_fuzzing` **(ULTIMATE)**
+## `artifacts:reports:annotations`
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/38337) in GitLab 16.3.
+
+The `annotations` report is used to attach auxiliary data to a job.
+
+An annotations report is a JSON file with annotation sections. Each annotation
+section can have any desired name and can have any number of annotations of the
+same or differing types.
+
+Each annotation is a single key (the annotation type), containing the subkeys with
+the data for that annotation.
+
+### Annotation types
+
+#### `external_link`
+
+An `external_link` annotation can be attached to a job to add a link to the job
+output page. The value of an `external_link` annotation is an object with the
+following keys:
+
+| Key     | Description                                        |
+|---------|----------------------------------------------------|
+| `label` | The human-readable label associated with the link. |
+| `url`   | The URL pointed to by the link.                    |
+
+### Example report
+
+The following is an example of what a job annotations report might look like:
+
+```json
+{
+  "my_annotation_section_1": [
+    {
+      "external_link": {
+        "label": "URL 1",
+        "url": "https://url1.example.com/"
+      }
+    },
+    {
+      "external_link": {
+        "label": "URL 2",
+        "url": "https://url2.example.com/"
+      }
+    }
+  ]
+}
+```
+
+## `artifacts:reports:api_fuzzing` **(ULTIMATE ALL)**
 
 > - Introduced in GitLab 13.4.
 > - Requires GitLab Runner 13.4 or later.
@@ -55,7 +104,7 @@ GitLab can display the results of one or more reports in:
 - The pipeline [**Security** tab](../../user/application_security/vulnerability_report/pipeline.md#view-vulnerabilities-in-a-pipeline).
 - The [security dashboard](../../user/application_security/api_fuzzing/index.md#security-dashboard).
 
-## `artifacts:reports:browser_performance` **(PREMIUM)**
+## `artifacts:reports:browser_performance` **(PREMIUM ALL)**
 
 > [Name changed](https://gitlab.com/gitlab-org/gitlab/-/issues/225914) from `artifacts:reports:performance` in GitLab 14.0.
 
@@ -95,7 +144,7 @@ GitLab can display the results of coverage report in the merge request
 ## `artifacts:reports:codequality`
 
 > - [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/212499) to GitLab Free in 13.2.
-> - [Added support for multiple reports in diff annotations and full pipeline report](https://gitlab.com/gitlab-org/gitlab/-/issues/9014) in 15.7.
+> - Support for multiple reports in diff annotations and full pipeline report [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/9014) in 15.7.
 
 The `codequality` report collects [code quality issues](../testing/code_quality.md). The
 collected code quality report uploads to GitLab as an artifact.
@@ -106,7 +155,7 @@ GitLab can display the results of one or more reports in:
 - The merge request [diff annotations](../testing/code_quality.md#merge-request-changes-view).
 - The [full report](../testing/metrics_reports.md).
 
-## `artifacts:reports:container_scanning` **(ULTIMATE)**
+## `artifacts:reports:container_scanning` **(ULTIMATE ALL)**
 
 The `container_scanning` report collects [Container Scanning vulnerabilities](../../user/application_security/container_scanning/index.md).
 The collected Container Scanning report uploads to GitLab as an artifact.
@@ -118,7 +167,7 @@ GitLab can display the results of one or more reports in:
 - The [security dashboard](../../user/application_security/security_dashboard/index.md).
 - The [Project Vulnerability report](../../user/application_security/vulnerability_report/index.md).
 
-## `artifacts:reports:coverage_fuzzing` **(ULTIMATE)**
+## `artifacts:reports:coverage_fuzzing` **(ULTIMATE ALL)**
 
 > - Introduced in GitLab 13.4.
 > - Requires GitLab Runner 13.4 or later.
@@ -142,9 +191,10 @@ following the [CycloneDX](https://cyclonedx.org/docs/1.4) protocol format.
 You can specify multiple CycloneDX reports per job. These can be either supplied
 as a list of filenames, a filename pattern, or both:
 
-- List of filenames: `cyclonedx: [gl-sbom-npm-npm.cdx.json, gl-sbom-bundler-gem.cdx.json]`.
-- A filename pattern: `cyclonedx: gl-sbom-*.json`.
-- Combination of both of the above: `cyclonedx: [gl-sbom-*.json, my-cyclonedx.json]`.
+- A filename pattern (`cyclonedx: gl-sbom-*.json`, `junit: test-results/**/*.json`).
+- An array of filenames (`cyclonedx: [gl-sbom-npm-npm.cdx.json, gl-sbom-bundler-gem.cdx.json]`).
+- A combination of both (`cyclonedx: [gl-sbom-*.json, my-cyclonedx.json]`).
+- Directories are not supported(`cyclonedx: test-results`, `cyclonedx: test-results/**`).
 
 Below is an example of a job exposing CycloneDX artifacts:
 
@@ -156,7 +206,7 @@ artifacts:
       - gl-sbom-bundler-gem.cdx.json
 ```
 
-## `artifacts:reports:dast` **(ULTIMATE)**
+## `artifacts:reports:dast` **(ULTIMATE ALL)**
 
 The `dast` report collects [DAST vulnerabilities](../../user/application_security/dast/index.md). The collected DAST
 report uploads to GitLab as an artifact.
@@ -168,7 +218,7 @@ GitLab can display the results of one or more reports in:
 - The [Project Vulnerability report](../../user/application_security/vulnerability_report/index.md).
 - The [security dashboard](../../user/application_security/security_dashboard/index.md).
 
-## `artifacts:reports:dependency_scanning` **(ULTIMATE)**
+## `artifacts:reports:dependency_scanning` **(ULTIMATE ALL)**
 
 The `dependency_scanning` report collects [Dependency Scanning vulnerabilities](../../user/application_security/dependency_scanning/index.md).
 The collected Dependency Scanning report uploads to GitLab as an artifact.
@@ -188,7 +238,7 @@ GitLab can display the results of one or more reports in:
 The `dotenv` report collects a set of environment variables as artifacts.
 
 The collected variables are registered as runtime-created variables of the job,
-which you can use to [set dynamic environment URLs after a job finishes](../environments/index.md#set-dynamic-environment-urls-after-a-job-finishes).
+which you can use to [set dynamic environment URLs after a job finishes](../environments/index.md#set-a-dynamic-environment-url).
 
 If duplicate environment variables are present in a `dotenv` report:
 
@@ -209,7 +259,7 @@ The exceptions to the [original dotenv rules](https://github.com/motdotla/dotenv
 - The `.env` file can't have empty lines or comments (starting with `#`).
 - Key values in the `env` file cannot have spaces or newline characters (`\n`), including when using single or double quotes.
 - Quote escaping during parsing (`key = 'value'` -> `{key: "value"}`) is not supported.
-- Only UTF-8 encoding is [supported](../pipelines/job_artifacts.md#error-message-fatal-invalid-argument-when-uploading-a-dotenv-artifact-on-a-windows-runner).
+- Only UTF-8 encoding is [supported](../jobs/job_artifacts_troubleshooting.md#error-message-fatal-invalid-argument-when-uploading-a-dotenv-artifact-on-a-windows-runner).
 
 ## `artifacts:reports:junit`
 
@@ -239,23 +289,25 @@ GitLab can display the results of one or more reports in:
 Some JUnit tools export to multiple XML files. You can specify multiple test report paths in a single job to
 concatenate them into a single file. Use either:
 
-- A filename pattern (`junit: rspec-*.xml`).
-- an array of filenames (`junit: [rspec-1.xml, rspec-2.xml, rspec-3.xml]`).
-- A Combination of both (`junit: [rspec.xml, test-results/TEST-*.xml]`).
+- A filename pattern (`junit: rspec-*.xml`, `junit: test-results/**/*.xml`).
+- An array of filenames (`junit: [rspec-1.xml, rspec-2.xml, rspec-3.xml]`).
+- A combination of both (`junit: [rspec.xml, test-results/TEST-*.xml]`).
+- Directories are not supported(`junit: test-results`, `junit: test-results/**`).
 
-## `artifacts:reports:license_scanning` **(ULTIMATE)**
+<!--- start_remove The following content will be removed on remove_date: '2023-11-22' -->
+
+## `artifacts:reports:license_scanning` **(ULTIMATE ALL)**
 
 > Introduced in GitLab 12.8.
 
-The License Compliance report collects [Licenses](../../user/compliance/license_compliance/index.md). The License
-Compliance report uploads to GitLab as an artifact.
+The license scanning report was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387561)
+in GitLab 15.9 and [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/421363) in GitLab 16.3.
+You should instead migrate to use [License approval policies](../../user/compliance/license_approval_policies.md) and
+the [new method of license scanning](../../user/compliance/license_scanning_of_cyclonedx_files/index.md).
 
-GitLab can display the results of one or more reports in:
+<!--- end_remove -->
 
-- The merge request [license compliance widget](../../user/compliance/license_compliance/index.md).
-- The [license list](../../user/compliance/license_list.md).
-
-## `artifacts:reports:load_performance` **(PREMIUM)**
+## `artifacts:reports:load_performance` **(PREMIUM ALL)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/35260) in GitLab 13.2.
 > - Requires GitLab Runner 11.5 and above.
@@ -268,7 +320,7 @@ GitLab can display the results of only one report in the merge request
 
 GitLab cannot display the combined results of multiple `load_performance` reports.
 
-## `artifacts:reports:metrics` **(PREMIUM)**
+## `artifacts:reports:metrics` **(PREMIUM ALL)**
 
 The `metrics` report collects [Metrics](../testing/metrics_reports.md). The collected Metrics report uploads to GitLab as an
 artifact.
@@ -276,7 +328,7 @@ artifact.
 GitLab can display the results of one or more reports in the merge request
 [metrics reports widget](../testing/metrics_reports.md#metrics-reports).
 
-## `artifacts:reports:requirements` **(ULTIMATE)**
+## `artifacts:reports:requirements` **(ULTIMATE ALL)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2859) in GitLab 13.1.
 
@@ -295,7 +347,7 @@ report uploads to GitLab as an artifact.
 
 GitLab can display the results of one or more reports in:
 
-- The merge request [SAST widget](../../user/application_security/sast/index.md#static-application-security-testing-sast).
+- The merge request [SAST widget](../../user/application_security/sast/index.md).
 - The [security dashboard](../../user/application_security/security_dashboard/index.md).
 
 ## `artifacts:reports:secret_detection`
@@ -310,7 +362,7 @@ The collected Secret Detection report is uploaded to GitLab.
 GitLab can display the results of one or more reports in:
 
 - The merge request [secret scanning widget](../../user/application_security/secret_detection/index.md).
-- The [pipeline **Security** tab](../../user/application_security/index.md#view-security-scan-information-in-the-pipeline-security-tab).
+- The [pipeline security tab](../../user/application_security/index.md#pipeline-security-tab).
 - The [security dashboard](../../user/application_security/security_dashboard/index.md).
 
 ## `artifacts:reports:terraform`
@@ -322,6 +374,6 @@ The `terraform` report obtains a Terraform `tfplan.json` file. [JQ processing re
 The collected Terraform plan report uploads to GitLab as an artifact.
 
 GitLab can display the results of one or more reports in the merge request
-[terraform widget](../../user/infrastructure/iac/mr_integration.md#output-terraform-plan-information-into-a-merge-request).
+[Terraform widget](../../user/infrastructure/iac/mr_integration.md#output-terraform-plan-information-into-a-merge-request).
 
 For more information, see [Output `terraform plan` information into a merge request](../../user/infrastructure/iac/mr_integration.md).

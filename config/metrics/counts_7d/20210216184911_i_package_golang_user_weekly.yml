@@ -5,7 +5,6 @@ description: A weekly count of users that have published a Go module to the regi
 product_section: ops
 product_stage: package
 product_group: package
-product_category: package registry
 value_type: number
 status: removed
 time_frame: 7d
@@ -22,3 +21,5 @@ tier:
 - premium
 - ultimate
 milestone: "<13.9"
+removed_by_url:
+milestone_removed: "<16.4"

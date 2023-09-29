@@ -46,6 +46,7 @@ export default {
     GlDropdownText,
   },
   mixins: [Tracking.mixin()],
+  inject: ['fullPath'],
   props: {
     workItemId: {
       type: String,
@@ -65,19 +66,6 @@ export default {
       type: Boolean,
       required: false,
       default: false,
-    },
-    fullPath: {
-      type: String,
-      required: true,
-    },
-    fetchByIid: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    queryVariables: {
-      type: Object,
-      required: true,
     },
   },
   data() {
@@ -220,13 +208,13 @@ export default {
     class="work-item-dropdown gl-flex-nowrap"
     :label="$options.i18n.MILESTONE"
     label-for="milestone-value"
-    label-class="gl-pb-0! gl-mt-3 gl-overflow-wrap-break"
+    label-class="gl-pb-0! gl-mt-3 gl-overflow-wrap-break work-item-field-label"
     label-cols="3"
     label-cols-lg="2"
   >
     <span
       v-if="!canUpdate"
-      class="gl-text-secondary gl-ml-4 gl-mt-3 gl-display-inline-block gl-line-height-normal"
+      class="gl-text-secondary gl-ml-4 gl-mt-3 gl-display-inline-block gl-line-height-normal work-item-field-value"
       data-testid="disabled-text"
     >
       {{ dropdownText }}
@@ -234,7 +222,8 @@ export default {
     <gl-dropdown
       v-else
       id="milestone-value"
-      class="gl-pl-0 gl-max-w-full"
+      data-testid="work-item-milestone-dropdown"
+      class="gl-pl-0 gl-max-w-full work-item-field-value"
       :toggle-class="dropdownClasses"
       :text="dropdownText"
       :loading="updateInProgress"

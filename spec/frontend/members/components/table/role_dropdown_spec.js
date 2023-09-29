@@ -1,8 +1,9 @@
-import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import { GlCollapsibleListbox, GlListboxItem } from '@gitlab/ui';
 import { GlBreakpointInstance as bp } from '@gitlab/ui/dist/utils';
-import { within } from '@testing-library/dom';
-import { mount, createWrapper } from '@vue/test-utils';
+import * as Sentry from '@sentry/browser';
+import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
+// eslint-disable-next-line no-restricted-imports
 import Vuex from 'vuex';
 import waitForPromises from 'helpers/wait_for_promises';
 import RoleDropdown from '~/members/components/table/role_dropdown.vue';
@@ -12,6 +13,7 @@ import { member } from '../../mock_data';
 
 Vue.use(Vuex);
 jest.mock('ee_else_ce/members/guest_overage_confirm_action');
+jest.mock('@sentry/browser');
 
 describe('RoleDropdown', () => {
   let wrapper;
@@ -20,9 +22,9 @@ describe('RoleDropdown', () => {
     show: jest.fn(),
   };
 
-  const createStore = () => {
+  const createStore = ({ updateMemberRoleReturn = Promise.resolve() } = {}) => {
     actions = {
-      updateMemberRole: jest.fn(() => Promise.resolve()),
+      updateMemberRole: jest.fn(() => updateMemberRoleReturn),
     };
 
     return new Vuex.Store({
@@ -32,7 +34,7 @@ describe('RoleDropdown', () => {
     });
   };
 
-  const createComponent = (propsData = {}) => {
+  const createComponent = (propsData = {}, store = createStore()) => {
     wrapper = mount(RoleDropdown, {
       provide: {
         namespace: MEMBER_TYPES.user,
@@ -46,74 +48,57 @@ describe('RoleDropdown', () => {
         permissions: {},
         ...propsData,
       },
-      store: createStore(),
+      store,
       mocks: {
         $toast,
       },
     });
   };
 
-  const getDropdownMenu = () => within(wrapper.element).getByRole('menu');
-  const getByTextInDropdownMenu = (text, options = {}) =>
-    createWrapper(within(getDropdownMenu()).getByText(text, options));
-  const getDropdownItemByText = (text) =>
-    createWrapper(
-      within(getDropdownMenu())
-        .getByText(text, { selector: '[role="menuitem"] p' })
-        .closest('[role="menuitem"]'),
-    );
-  const getCheckedDropdownItem = () =>
-    wrapper
-      .findAllComponents(GlDropdownItem)
-      .wrappers.find((dropdownItemWrapper) => dropdownItemWrapper.props('isChecked'));
-
-  const findDropdownToggle = () => wrapper.find('button[aria-haspopup="true"]');
-  const findDropdown = () => wrapper.findComponent(GlDropdown);
-
-  let originalGon;
+  const findListbox = () => wrapper.findComponent(GlCollapsibleListbox);
+  const findListboxItems = () => wrapper.findAllComponents(GlListboxItem);
+  const findListboxItemByText = (text) =>
+    findListboxItems().wrappers.find((item) => item.text() === text);
 
   beforeEach(() => {
-    originalGon = window.gon;
     gon.features = { showOverageOnRolePromotion: true };
   });
 
-  afterEach(() => {
-    window.gon = originalGon;
-    wrapper.destroy();
+  it('has correct header text props', () => {
+    createComponent();
+    expect(findListbox().props('headerText')).toBe('Change role');
   });
 
-  describe('when dropdown is open', () => {
-    beforeEach(() => {
+  it('has items prop with all valid roles', () => {
+    createComponent();
+    const roles = findListbox()
+      .props('items')
+      .map((item) => item.text);
+    expect(roles).toEqual(Object.keys(member.validRoles));
+  });
+
+  describe('when listbox is open', () => {
+    beforeEach(async () => {
       guestOverageConfirmAction.mockReturnValue(true);
       createComponent();
 
-      return findDropdownToggle().trigger('click');
-    });
-
-    it('renders all valid roles', () => {
-      Object.keys(member.validRoles).forEach((role) => {
-        expect(getDropdownItemByText(role).exists()).toBe(true);
-      });
-    });
-
-    it('renders dropdown header', () => {
-      expect(getByTextInDropdownMenu('Change role').exists()).toBe(true);
+      await findListbox().vm.$emit('click');
     });
 
     it('sets dropdown toggle and checks selected role', () => {
-      expect(findDropdownToggle().text()).toBe('Owner');
-      expect(getCheckedDropdownItem().text()).toBe('Owner');
+      expect(findListbox().props('toggleText')).toBe('Owner');
+      expect(findListbox().find('[aria-selected=true]').text()).toBe('Owner');
     });
 
     describe('when dropdown item is selected', () => {
       it('does nothing if the item selected was already selected', async () => {
-        await getDropdownItemByText('Owner').trigger('click');
+        await findListboxItemByText('Owner').trigger('click');
 
         expect(actions.updateMemberRole).not.toHaveBeenCalled();
       });
 
       it('calls `updateMemberRole` Vuex action', async () => {
-        await getDropdownItemByText('Developer').trigger('click');
+        await findListboxItemByText('Developer').trigger('click');
 
         expect(actions.updateMemberRole).toHaveBeenCalledWith(expect.any(Object), {
           memberId: member.id,
@@ -121,26 +106,74 @@ describe('RoleDropdown', () => {
         });
       });
 
-      it('displays toast when successful', async () => {
-        await getDropdownItemByText('Developer').trigger('click');
+      describe('when updateMemberRole is successful', () => {
+        it('displays toast', async () => {
+          await findListboxItemByText('Developer').trigger('click');
 
-        await nextTick();
+          await nextTick();
 
-        expect($toast.show).toHaveBeenCalledWith('Role updated successfully.');
+          expect($toast.show).toHaveBeenCalledWith('Role updated successfully.');
+        });
+
+        it('puts dropdown in loading state while waiting for `updateMemberRole` to resolve', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          expect(findListbox().props('loading')).toBe(true);
+        });
+
+        it('enables dropdown after `updateMemberRole` resolves', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          await waitForPromises();
+
+          expect(findListbox().props('disabled')).toBe(false);
+        });
+
+        it('does not log error to Sentry', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          await waitForPromises();
+
+          expect(Sentry.captureException).not.toHaveBeenCalled();
+        });
       });
 
-      it('puts dropdown in loading state while waiting for `updateMemberRole` to resolve', async () => {
-        await getDropdownItemByText('Developer').trigger('click');
+      describe('when updateMemberRole is not successful', () => {
+        const reason = 'Rejected ☹️';
 
-        expect(findDropdown().props('loading')).toBe(true);
-      });
+        beforeEach(() => {
+          createComponent({}, createStore({ updateMemberRoleReturn: Promise.reject(reason) }));
+        });
 
-      it('enables dropdown after `updateMemberRole` resolves', async () => {
-        await getDropdownItemByText('Developer').trigger('click');
+        it('does not display toast', async () => {
+          await findListboxItemByText('Developer').trigger('click');
 
-        await waitForPromises();
+          await nextTick();
 
-        expect(findDropdown().props('disabled')).toBe(false);
+          expect($toast.show).not.toHaveBeenCalled();
+        });
+
+        it('puts dropdown in loading state while waiting for `updateMemberRole` to resolve', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          expect(findListbox().props('loading')).toBe(true);
+        });
+
+        it('enables dropdown after `updateMemberRole` resolves', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          await waitForPromises();
+
+          expect(findListbox().props('disabled')).toBe(false);
+        });
+
+        it('logs error to Sentry', async () => {
+          await findListboxItemByText('Developer').trigger('click');
+
+          await waitForPromises();
+
+          expect(Sentry.captureException).toHaveBeenCalledWith(reason);
+        });
       });
     });
   });
@@ -148,7 +181,7 @@ describe('RoleDropdown', () => {
   it("sets initial dropdown toggle value to member's role", () => {
     createComponent();
 
-    expect(findDropdownToggle().text()).toBe('Owner');
+    expect(findListbox().props('toggleText')).toBe('Owner');
   });
 
   it('sets the dropdown alignment to right on mobile', async () => {
@@ -157,7 +190,7 @@ describe('RoleDropdown', () => {
 
     await nextTick();
 
-    expect(findDropdown().props('right')).toBe(true);
+    expect(findListbox().props('placement')).toBe('right');
   });
 
   it('sets the dropdown alignment to left on desktop', async () => {
@@ -166,7 +199,7 @@ describe('RoleDropdown', () => {
 
     await nextTick();
 
-    expect(findDropdown().props('right')).toBe(false);
+    expect(findListbox().props('placement')).toBe('left');
   });
 
   describe('guestOverageConfirmAction', () => {
@@ -177,7 +210,7 @@ describe('RoleDropdown', () => {
     beforeEach(() => {
       createComponent();
 
-      findDropdownToggle().trigger('click');
+      findListbox().vm.$emit('click');
     });
 
     afterEach(() => {
@@ -188,7 +221,7 @@ describe('RoleDropdown', () => {
       beforeEach(() => {
         mockConfirmAction({ confirmed: true });
 
-        getDropdownItemByText('Reporter').trigger('click');
+        findListboxItemByText('Reporter').trigger('click');
       });
 
       it('calls updateMemberRole', () => {
@@ -200,11 +233,21 @@ describe('RoleDropdown', () => {
       beforeEach(() => {
         mockConfirmAction({ confirmed: false });
 
-        getDropdownItemByText('Reporter').trigger('click');
+        findListboxItemByText('Reporter').trigger('click');
       });
 
       it('does not call updateMemberRole', () => {
         expect(actions.updateMemberRole).not.toHaveBeenCalled();
+      });
+
+      it('re-enables dropdown', async () => {
+        await waitForPromises();
+
+        expect(findListbox().props('disabled')).toBe(false);
+      });
+
+      it('resets selected dropdown item', () => {
+        expect(findListbox().props('selected')).toBe(member.validRoles.Owner);
       });
     });
   });

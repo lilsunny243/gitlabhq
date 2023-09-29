@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::LegacyGithubImport::Client do
+RSpec.describe Gitlab::LegacyGithubImport::Client, feature_category: :importers do
   let(:token) { '123456' }
-  let(:github_provider) { Settingslogic.new('app_id' => 'asd123', 'app_secret' => 'asd123', 'name' => 'github', 'args' => { 'client_options' => {} }) }
+  let(:github_provider) { GitlabSettings::Options.build('app_id' => 'asd123', 'app_secret' => 'asd123', 'name' => 'github', 'args' => { 'client_options' => client_options }) }
+  let(:client_options) { {} }
   let(:wait_for_rate_limit_reset) { true }
 
   subject(:client) { described_class.new(token, wait_for_rate_limit_reset: wait_for_rate_limit_reset) }
@@ -13,11 +14,22 @@ RSpec.describe Gitlab::LegacyGithubImport::Client do
     allow(Gitlab.config.omniauth).to receive(:providers).and_return([github_provider])
   end
 
-  it 'convert OAuth2 client options to symbols' do
-    expect(client.client.options.keys).to all(be_kind_of(Symbol))
+  context 'with client options' do
+    let(:client_options) do
+      {
+        'authorize_url' => 'https://github.com/login/oauth/authorize',
+        'token_url' => 'https://github.com/login/oauth/access_token'
+      }
+    end
+
+    it 'convert OAuth2 client options to symbols' do
+      expect(client.client.options.keys).to all(be_kind_of(Symbol))
+      expect(client.client.options[:authorize_url]).to eq(client_options['authorize_url'])
+      expect(client.client.options[:token_url]).to eq(client_options['token_url'])
+    end
   end
 
-  it 'does not crash (e.g. Settingslogic::MissingSetting) when verify_ssl config is not present' do
+  it 'does not crash (e.g. GitlabSettings::MissingSetting) when verify_ssl config is not present' do
     expect { client.api }.not_to raise_error
   end
 
@@ -47,7 +59,7 @@ RSpec.describe Gitlab::LegacyGithubImport::Client do
   end
 
   describe '#api_endpoint' do
-    context 'when provider does not specity an API endpoint' do
+    context 'when provider does not specify an API endpoint' do
       it 'uses GitHub root API endpoint' do
         expect(client.api.api_endpoint).to eq 'https://api.github.com/'
       end

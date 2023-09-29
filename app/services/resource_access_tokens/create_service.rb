@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require 'securerandom'
-
 module ResourceAccessTokens
   class CreateService < BaseService
+    include Gitlab::Utils::StrongMemoize
+
     def initialize(current_user, resource, params = {})
       @resource_type = resource.class.name.downcase
       @resource = resource
@@ -17,6 +17,8 @@ module ResourceAccessTokens
       access_level = params[:access_level] || Gitlab::Access::MAINTAINER
       return error("Could not provision owner access to project access token") if do_not_allow_owner_access_level_for_project_bot?(access_level)
 
+      return error(s_('AccessTokens|Access token limit reached')) if reached_access_token_limit?
+
       user = create_user
 
       return error(user.errors.full_messages.to_sentence) unless user.persisted?
@@ -27,7 +29,7 @@ module ResourceAccessTokens
 
       unless member.persisted?
         delete_failed_user(user)
-        return error("Could not provision #{Gitlab::Access.human_access(access_level).downcase} access to project access token")
+        return error("Could not provision #{Gitlab::Access.human_access(access_level.to_i).downcase} access to the access token. ERROR: #{member.errors.full_messages.to_sentence}")
       end
 
       token_response = create_personal_access_token(user)
@@ -45,8 +47,20 @@ module ResourceAccessTokens
 
     attr_reader :resource_type, :resource
 
+    def reached_access_token_limit?
+      false
+    end
+
+    def username_and_email_generator
+      Gitlab::Utils::UsernameAndEmailGenerator.new(
+        username_prefix: "#{resource_type}_#{resource.id}_bot",
+        email_domain: "noreply.#{Gitlab.config.gitlab.host}"
+      )
+    end
+    strong_memoize_attr :username_and_email_generator
+
     def has_permission_to_create?
-      %w(project group).include?(resource_type) && can?(current_user, :create_resource_access_tokens, resource)
+      %w[project group].include?(resource_type) && can?(current_user, :create_resource_access_tokens, resource)
     end
 
     def create_user
@@ -65,23 +79,11 @@ module ResourceAccessTokens
     def default_user_params
       {
         name: params[:name] || "#{resource.name.to_s.humanize} bot",
-        email: generate_email,
-        username: generate_username,
+        email: username_and_email_generator.email,
+        username: username_and_email_generator.username,
         user_type: :project_bot,
         skip_confirmation: true # Bot users should always have their emails confirmed.
       }
-    end
-
-    def generate_username
-      username
-    end
-
-    def generate_email
-      "#{username}@noreply.#{Gitlab.config.gitlab.host}"
-    end
-
-    def username
-      @username ||= "#{resource_type}_#{resource.id}_bot_#{SecureRandom.hex(8)}"
     end
 
     def create_personal_access_token(user)
@@ -95,7 +97,7 @@ module ResourceAccessTokens
         name: params[:name] || "#{resource_type}_bot",
         impersonation: false,
         scopes: params[:scopes] || default_scopes,
-        expires_at: params[:expires_at] || nil
+        expires_at: pat_expiration
       }
     end
 
@@ -104,7 +106,11 @@ module ResourceAccessTokens
     end
 
     def create_membership(resource, user, access_level)
-      resource.add_member(user, access_level, expires_at: params[:expires_at])
+      resource.add_member(user, access_level, expires_at: pat_expiration)
+    end
+
+    def pat_expiration
+      params[:expires_at].presence || PersonalAccessToken::MAX_PERSONAL_ACCESS_TOKEN_LIFETIME_IN_DAYS.days.from_now
     end
 
     def log_event(token)
@@ -121,7 +127,7 @@ module ResourceAccessTokens
 
     def do_not_allow_owner_access_level_for_project_bot?(access_level)
       resource.is_a?(Project) &&
-        access_level == Gitlab::Access::OWNER &&
+        access_level.to_i == Gitlab::Access::OWNER &&
         !current_user.can?(:manage_owners, resource)
     end
   end

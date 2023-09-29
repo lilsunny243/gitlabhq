@@ -16,8 +16,9 @@ RSpec.describe 'Sandboxed Mermaid rendering', :js, feature_category: :team_plann
     MERMAID
   end
 
-  let_it_be(:expected) do
-    %(<iframe src="/-/sandbox/mermaid" sandbox="allow-scripts allow-popups" frameborder="0" scrolling="no")
+  let(:expected) do
+    src = "http://#{Capybara.current_session.server.host}:#{Capybara.current_session.server.port}/-/sandbox/mermaid"
+    %(<iframe src="#{src}" sandbox="allow-scripts allow-popups" frameborder="0" scrolling="no")
   end
 
   context 'in an issue' do
@@ -51,6 +52,30 @@ RSpec.describe 'Sandboxed Mermaid rendering', :js, feature_category: :team_plann
       page.within('.merge-request') do
         expect(page.html).to include(expected)
       end
+    end
+  end
+
+  context 'in a project milestone' do
+    let(:milestone) { create(:project_milestone, project: project, description: description) }
+
+    it 'includes mermaid frame correctly', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/408560' do
+      visit(project_milestone_path(project, milestone))
+
+      wait_for_requests
+
+      expect(page.html).to include(expected)
+    end
+  end
+
+  context 'in a group milestone' do
+    let(:group_milestone) { create(:group_milestone, description: description) }
+
+    it 'includes mermaid frame correctly' do
+      visit(group_milestone_path(group_milestone.group, group_milestone))
+
+      wait_for_requests
+
+      expect(page.html).to include(expected)
     end
   end
 end

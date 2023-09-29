@@ -2,16 +2,15 @@
 stage: Systems
 group: Distribution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
-comments: false
 ---
 
-# Upgrading Community Edition and Enterprise Edition from source **(FREE SELF)**
+# Upgrading self-compiled installations **(FREE SELF)**
 
-Make sure you view this update guide from the branch (version) of GitLab you
-would like to install (for example, `11.8`). You can select the required version of documentation in the dropdown list in the upper-right corner of GitLab documentation page.
+Make sure you view this upgrade guide from the branch (version) of GitLab you
+would like to install (for example, `16.0`). You can select the required version of documentation in the dropdown list in the upper-right corner of GitLab documentation page.
 
-In each of the following examples, replace `BRANCH` with the branch of the version you upgrading to (for example, `11-8-stable` for `11.8`). Replace `PREVIOUS_BRANCH` with the
-branch for the version you are upgrading from (for example, `11-7-stable` for `11.7`).
+In each of the following examples, replace `BRANCH` with the branch of the version you upgrading to (for example, `16-0-stable` for `16.0`). Replace `PREVIOUS_BRANCH` with the
+branch for the version you are upgrading from (for example, `15-11-stable` for `15.11`).
 
 If the highest number stable branch is unclear check the
 [GitLab Blog](https://about.gitlab.com/blog/archives.html) for installation
@@ -22,8 +21,7 @@ the [Upgrading from CE to EE](upgrading_from_ce_to_ee.md) documentation.
 
 ## Upgrading to a new major version
 
-Major versions are reserved for backwards incompatible changes. We recommend that
-you first upgrade to the latest available minor version of your current major version.
+Major versions are reserved for backwards incompatible changes. You should first upgrade to the latest available minor version of your current major version.
 Follow the [Upgrade Recommendations](../policy/maintenance.md#upgrade-recommendations)
 to identify the ideal upgrade path.
 
@@ -39,7 +37,11 @@ specific guidelines (should there be any) are covered separately.
 
 ### 1. Backup
 
-If you installed GitLab from source, make sure `rsync` is installed.
+Prerequisites:
+
+- Make sure `rsync` is installed.
+
+Perform the backup:
 
 ```shell
 cd /home/git/gitlab
@@ -59,24 +61,10 @@ sudo service gitlab stop
 
 ### 3. Update Ruby
 
-NOTE:
-Beginning in GitLab 13.6, we only support Ruby 2.7 or higher, and dropped
-support for Ruby 2.6. Be sure to upgrade if necessary.
-
+From GitLab 15.10, we only support Ruby 3.0.x and dropped support for Ruby 2.7. Be sure to upgrade if necessary.
 You can check which version you are running with `ruby -v`.
 
-Download Ruby and compile it:
-
-```shell
-mkdir /tmp/ruby && cd /tmp/ruby
-curl --remote-name --location --progress-bar "https://cache.ruby-lang.org/pub/ruby/2.7/ruby-2.7.6.tar.gz"
-echo 'e7203b0cc09442ed2c08936d483f8ac140ec1c72e37bb5c401646b7866cb5d10 ruby-2.7.6.tar.gz' | sha256sum -c - && tar xzf ruby-2.7.6.tar.gz
-cd ruby-2.7.6
-
-./configure --disable-install-rdoc --enable-shared
-make
-sudo make install
-```
+[Install Ruby](https://www.ruby-lang.org/en/documentation/installation/).
 
 ### 4. Update Node.js
 
@@ -107,11 +95,11 @@ Download and install Go (for Linux, 64-bit):
 # Remove former Go installation folder
 sudo rm -rf /usr/local/go
 
-curl --remote-name --location --progress-bar "https://go.dev/dl/go1.18.8.linux-amd64.tar.gz"
-echo '4d854c7bad52d53470cf32f1b287a5c0c441dc6b98306dea27358e099698142a  go1.18.8.linux-amd64.tar.gz' | shasum -a256 -c - && \
-  sudo tar -C /usr/local -xzf go1.18.8.linux-amd64.tar.gz
+curl --remote-name --location --progress-bar "https://go.dev/dl/go1.20.8.linux-amd64.tar.gz"
+echo 'cc97c28d9c252fbf28f91950d830201aa403836cbed702a05932e63f7f0c7bc4  go1.20.8.linux-amd64.tar.gz' | shasum -a256 -c - && \
+  sudo tar -C /usr/local -xzf go1.20.8.linux-amd64.tar.gz
 sudo ln -sf /usr/local/go/bin/{go,gofmt} /usr/local/bin/
-rm go1.18.8.linux-amd64.tar.gz
+rm go1.20.8.linux-amd64.tar.gz
 ```
 
 ### 6. Update Git
@@ -119,7 +107,7 @@ rm go1.18.8.linux-amd64.tar.gz
 To check you are running the minimum required Git version, see
 [Git versions](../install/installation.md#software-requirements).
 
-From GitLab 13.6, we recommend you use the
+From GitLab 13.6, you should use the
 [Git version provided by Gitaly](https://gitlab.com/gitlab-org/gitaly/-/issues/2729)
 that:
 
@@ -146,7 +134,7 @@ Remember to set `git -> bin_path` to `/usr/local/bin/git` in `config/gitlab.yml`
 ### 7. Update PostgreSQL
 
 WARNING:
-GitLab 14.0 requires at least PostgreSQL 12.
+GitLab 16.0 requires at least PostgreSQL 13.
 
 The latest version of GitLab might depend on a more recent PostgreSQL version
 than what you are running. You may also have to enable some
@@ -197,6 +185,8 @@ git diff origin/PREVIOUS_BRANCH:config/gitlab.yml.example origin/BRANCH:config/g
 
 #### New configuration options for `database.yml`
 
+> [Changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/119139) in GitLab 16.0 to have `ci:` section in `config/database.yml.postgresql`.
+
 There might be configuration options available for [`database.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/config/database.yml.postgresql).
 View them with the command below and apply them manually to your current `database.yml`:
 
@@ -231,7 +221,7 @@ via [`/etc/default/gitlab`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/l
 
 #### SMTP configuration
 
-If you're installing from source and use SMTP to deliver mail, you must
+If you use SMTP to deliver mail, you must
 add the following line to `config/initializers/smtp_settings.rb`:
 
 ```ruby
@@ -337,10 +327,6 @@ cd /home/git/gitlab
 sudo -u git -H bundle exec rake "gitlab:workhorse:install[/home/git/gitlab-workhorse]" RAILS_ENV=production
 ```
 
-NOTE:
-If you get any errors concerning Rack attack, see the [13.0](#1301) specific
-upgrade instructions.
-
 ### 13. Update Gitaly
 
 If Gitaly is located on its own server, or you use Gitaly Cluster, see [Gitaly or Gitaly Cluster](zero_downtime.md#gitaly-or-gitaly-cluster)
@@ -403,82 +389,12 @@ sudo -u git -H bundle exec rake gitlab:check RAILS_ENV=production
 
 If all items are green, then congratulations, the upgrade is complete!
 
-### 17. Upgrade the product documentation
+## Version specific changes
 
-This is an optional step. If you [installed the product documentation](../install/installation.md#install-the-product-documentation),
-see how to [upgrade to a later version](../administration/docs_self_host.md#upgrade-the-product-documentation-to-a-later-version).
-
-## Version specific upgrading instructions
-
-This section contains upgrading instructions for specific versions. When
-present, first follow the upgrading guidelines for all versions. If the version
-you are upgrading to is not listed here, then no additional steps are required.
-
-<!--
-Example:
-
-### 11.8.0
-
-Additional instructions here.
--->
-
-### 15.0.0
-
-Support for more than one database has been added to GitLab. [As part of this](https://gitlab.com/gitlab-org/gitlab/-/issues/338182),
-`config/database.yml` must include a database name in the database configuration.
-The `main: database` must be first. If an invalid or deprecated syntax is used, an error is generated
-during application start:
-
-```plaintext
-ERROR: This installation of GitLab uses unsupported 'config/database.yml'.
-The main: database needs to be defined as a first configuration item instead of primary. (RuntimeError)
-```
-
-Previously, the `config/database.yml` file looked like the following:
-
-```yaml
-production:
-  adapter: postgresql
-  encoding: unicode
-  database: gitlabhq_production
-  ...
-```
-
-Starting with GitLab 15.0, it must define a `main` database first:
-
-```yaml
-production:
-  main:
-    adapter: postgresql
-    encoding: unicode
-    database: gitlabhq_production
-    ...
-```
-
-### 14.5.0
-
-As part of [enabling real-time issue assignees](https://gitlab.com/gitlab-org/gitlab/-/issues/330117), Action Cable is now enabled by default, and requires `config/cable.yml` to be present.
-You can configure this by running:
-
-```shell
-cd /home/git/gitlab
-
-sudo -u git -H cp config/cable.yml.example config/cable.yml
-
-# Change the Redis socket path if you are not using the default Debian / Ubuntu configuration
-sudo -u git -H editor config/cable.yml
-```
-
-### 13.0.1
-
-As part of [deprecating Rack Attack throttles on Omnibus GitLab](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/4750), the Rack Attack initializer on GitLab
-was renamed from [`config/initializers/rack_attack_new.rb` to `config/initializers/rack_attack.rb`](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/33072).
-If this file exists on your installation, consider creating a backup before updating:
-
-```shell
-cd /home/git/gitlab
-cp config/initializers/rack_attack.rb ~/config/initializers/rack_attack_backup.rb
-```
+Upgrading versions might need some manual intervention. For more information,
+[check the version you are upgrading to](index.md#version-specific-upgrading-instructions)
+for additional steps required for all GitLab installations, and for
+steps that apply to self-compiled installations.
 
 ## Troubleshooting
 

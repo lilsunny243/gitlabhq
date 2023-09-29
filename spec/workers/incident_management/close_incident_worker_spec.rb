@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe IncidentManagement::CloseIncidentWorker do
+RSpec.describe IncidentManagement::CloseIncidentWorker, feature_category: :incident_management do
   subject(:worker) { described_class.new }
 
   describe '#perform' do
-    let_it_be(:user) { User.alert_bot }
+    let_it_be(:user) { Users::Internal.alert_bot }
     let_it_be(:project) { create(:project) }
     let_it_be(:issue, reload: true) { create(:incident, project: project) }
 
@@ -36,7 +36,7 @@ RSpec.describe IncidentManagement::CloseIncidentWorker do
 
     context 'when issue type is not incident' do
       before do
-        issue.update!(issue_type: :issue)
+        issue.update!(work_item_type: WorkItems::Type.default_by_type(:issue))
       end
 
       it_behaves_like 'does not call the close issue service'

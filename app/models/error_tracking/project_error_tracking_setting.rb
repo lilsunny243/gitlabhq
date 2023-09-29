@@ -19,7 +19,7 @@ module ErrorTracking
           (?<project>[^/]+)/*
         )?
       \z
-    }x.freeze
+    }x
 
     self.reactive_cache_key = ->(setting) { [setting.class.model_name.singular, setting.project_id] }
     self.reactive_cache_work_type = :external_dependency
@@ -145,7 +145,7 @@ module ErrorTracking
       ensure_issue_belongs_to_project!(issue_to_be_updated.project_id)
 
       handle_exceptions do
-        { updated: sentry_client.update_issue(opts) }
+        { updated: sentry_client.update_issue(**opts) }
       end
     end
 

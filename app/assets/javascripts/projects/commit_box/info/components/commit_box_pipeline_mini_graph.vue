@@ -1,16 +1,15 @@
 <script>
 import { GlLoadingIcon } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { __ } from '~/locale';
-import {
-  getQueryHeaders,
-  toggleQueryPollingByVisibility,
-} from '~/pipelines/components/graph/utils';
-import { keepLatestDownstreamPipelines } from '~/pipelines/components/parsing_utils';
-import PipelineMiniGraph from '~/pipelines/components/pipeline_mini_graph/pipeline_mini_graph.vue';
+import { getQueryHeaders, toggleQueryPollingByVisibility } from '~/ci/pipeline_details/graph/utils';
+import { keepLatestDownstreamPipelines } from '~/ci/pipeline_details/utils/parsing_utils';
+import LegacyPipelineMiniGraph from '~/ci/pipeline_mini_graph/legacy_pipeline_mini_graph.vue';
+import PipelineMiniGraph from '~/ci/pipeline_mini_graph/pipeline_mini_graph.vue';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import getLinkedPipelinesQuery from '~/ci/pipeline_details/graphql/queries/get_linked_pipelines.query.graphql';
+import getPipelineStagesQuery from '~/ci/pipeline_mini_graph/graphql/queries/get_pipeline_stages.query.graphql';
 import { formatStages } from '../utils';
-import getLinkedPipelinesQuery from '../graphql/queries/get_linked_pipelines.query.graphql';
-import getPipelineStagesQuery from '../graphql/queries/get_pipeline_stages.query.graphql';
 import { COMMIT_BOX_POLL_INTERVAL } from '../constants';
 
 export default {
@@ -21,8 +20,10 @@ export default {
   },
   components: {
     GlLoadingIcon,
+    LegacyPipelineMiniGraph,
     PipelineMiniGraph,
   },
+  mixins: [glFeatureFlagsMixin()],
   inject: {
     fullPath: {
       default: '',
@@ -47,14 +48,14 @@ export default {
       },
       query: getLinkedPipelinesQuery,
       pollInterval: COMMIT_BOX_POLL_INTERVAL,
+      skip() {
+        return !this.fullPath || !this.iid || this.isUsingPipelineMiniGraphQueries;
+      },
       variables() {
         return {
           fullPath: this.fullPath,
           iid: this.iid,
         };
-      },
-      skip() {
-        return !this.fullPath || !this.iid;
       },
       update({ project }) {
         return project?.pipeline;
@@ -69,6 +70,9 @@ export default {
       },
       query: getPipelineStagesQuery,
       pollInterval: COMMIT_BOX_POLL_INTERVAL,
+      skip() {
+        return this.isUsingPipelineMiniGraphQueries;
+      },
       variables() {
         return {
           fullPath: this.fullPath,
@@ -94,6 +98,9 @@ export default {
     downstreamPipelines() {
       const downstream = this.pipeline?.downstream?.nodes;
       return keepLatestDownstreamPipelines(downstream);
+    },
+    isUsingPipelineMiniGraphQueries() {
+      return this.glFeatures.ciGraphqlPipelineMiniGraph;
     },
     pipelinePath() {
       return this.pipeline?.path ?? '';
@@ -128,13 +135,22 @@ export default {
 <template>
   <div>
     <gl-loading-icon v-if="$apollo.queries.pipeline.loading" />
-    <pipeline-mini-graph
-      v-else
-      data-testid="commit-box-pipeline-mini-graph"
-      :downstream-pipelines="downstreamPipelines"
-      :pipeline-path="pipelinePath"
-      :stages="formattedStages"
-      :upstream-pipeline="upstreamPipeline"
-    />
+    <template v-else>
+      <pipeline-mini-graph
+        v-if="isUsingPipelineMiniGraphQueries"
+        data-testid="commit-box-pipeline-mini-graph"
+        :pipeline-etag="graphqlResourceEtag"
+        :full-path="fullPath"
+        :iid="iid"
+      />
+      <legacy-pipeline-mini-graph
+        v-else
+        data-testid="commit-box-pipeline-mini-graph"
+        :downstream-pipelines="downstreamPipelines"
+        :pipeline-path="pipelinePath"
+        :stages="formattedStages"
+        :upstream-pipeline="upstreamPipeline"
+      />
+    </template>
   </div>
 </template>

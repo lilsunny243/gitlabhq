@@ -748,131 +748,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
       end
     end
 
-    context 'with environment' do
-      before do
-        config = YAML.dump(
-          deploy: {
-            environment: { name: "review/$CI_COMMIT_REF_NAME" },
-            script: 'ls',
-            tags: ['hello']
-          })
-
-        stub_ci_pipeline_yaml_file(config)
-      end
-
-      it 'creates the environment with tags', :sidekiq_inline do
-        result = execute_service.payload
-
-        expect(result).to be_persisted
-        expect(Environment.find_by(name: "review/master")).to be_present
-        expect(result.builds.first.tag_list).to contain_exactly('hello')
-        expect(result.builds.first.deployment).to be_persisted
-        expect(result.builds.first.deployment.deployable).to be_a(Ci::Build)
-      end
-    end
-
-    context 'with environment with auto_stop_in' do
-      before do
-        config = YAML.dump(
-          deploy: {
-            environment: { name: "review/$CI_COMMIT_REF_NAME", auto_stop_in: '1 day' },
-            script: 'ls'
-          })
-
-        stub_ci_pipeline_yaml_file(config)
-      end
-
-      it 'creates the environment with auto stop in' do
-        result = execute_service.payload
-
-        expect(result).to be_persisted
-        expect(result.builds.first.options[:environment][:auto_stop_in]).to eq('1 day')
-      end
-    end
-
-    context 'with environment name including persisted variables' do
-      before do
-        config = YAML.dump(
-          deploy: {
-            environment: { name: "review/id1$CI_PIPELINE_ID/id2$CI_BUILD_ID" },
-            script: 'ls'
-          }
-        )
-
-        stub_ci_pipeline_yaml_file(config)
-      end
-
-      it 'skipps persisted variables in environment name' do
-        result = execute_service.payload
-
-        expect(result).to be_persisted
-        expect(Environment.find_by(name: "review/id1/id2")).to be_present
-      end
-    end
-
-    context 'environment with Kubernetes configuration' do
-      let(:kubernetes_namespace) { 'custom-namespace' }
-
-      before do
-        config = YAML.dump(
-          deploy: {
-            environment: {
-              name: "environment-name",
-              kubernetes: { namespace: kubernetes_namespace }
-            },
-            script: 'ls'
-          }
-        )
-
-        stub_ci_pipeline_yaml_file(config)
-      end
-
-      it 'stores the requested namespace' do
-        result = execute_service.payload
-        build = result.builds.first
-
-        expect(result).to be_persisted
-        expect(build.options.dig(:environment, :kubernetes, :namespace)).to eq(kubernetes_namespace)
-      end
-    end
-
-    context 'when environment with invalid name' do
-      before do
-        config = YAML.dump(deploy: { environment: { name: 'name,with,commas' }, script: 'ls' })
-        stub_ci_pipeline_yaml_file(config)
-      end
-
-      it 'does not create an environment' do
-        expect do
-          result = execute_service.payload
-
-          expect(result).to be_persisted
-        end.not_to change { Environment.count }
-      end
-    end
-
-    context 'when environment with duplicate names' do
-      let(:ci_yaml) do
-        {
-          deploy: { environment: { name: 'production' }, script: 'ls' },
-          deploy_2: { environment: { name: 'production' }, script: 'ls' }
-        }
-      end
-
-      before do
-        stub_ci_pipeline_yaml_file(YAML.dump(ci_yaml))
-      end
-
-      it 'creates a pipeline with the environment', :sidekiq_inline do
-        result = execute_service.payload
-
-        expect(result).to be_persisted
-        expect(Environment.find_by(name: 'production')).to be_present
-        expect(result.builds.first.deployment).to be_persisted
-        expect(result.builds.first.deployment.deployable).to be_a(Ci::Build)
-      end
-    end
-
     context 'when builds with auto-retries are configured' do
       let(:pipeline)  { execute_service.payload }
       let(:rspec_job) { pipeline.builds.find_by(name: 'rspec') }
@@ -1167,8 +1042,10 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
     context 'when pipeline is running for a tag' do
       before do
-        config = YAML.dump(test: { script: 'test', only: ['branches'] },
-                           deploy: { script: 'deploy', only: ['tags'] })
+        config = YAML.dump(
+          test: { script: 'test', only: ['branches'] },
+          deploy: { script: 'deploy', only: ['tags'] }
+        )
 
         stub_ci_pipeline_yaml_file(config)
       end
@@ -1292,62 +1169,15 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
       end
     end
 
-    context 'when pipeline has a job with environment' do
-      let(:pipeline) { execute_service.payload }
-
-      before do
-        stub_ci_pipeline_yaml_file(YAML.dump(config))
-      end
-
-      context 'when environment name is valid' do
-        let(:config) do
-          {
-            review_app: {
-              script: 'deploy',
-              environment: {
-                name: 'review/${CI_COMMIT_REF_NAME}',
-                url: 'http://${CI_COMMIT_REF_SLUG}-staging.example.com'
-              }
-            }
-          }
-        end
-
-        it 'has a job with environment', :sidekiq_inline do
-          expect(pipeline.builds.count).to eq(1)
-          expect(pipeline.builds.first.persisted_environment.name).to eq('review/master')
-          expect(pipeline.builds.first.persisted_environment.name).to eq('review/master')
-          expect(pipeline.builds.first.deployment).to be_created
-        end
-      end
-
-      context 'when environment name is invalid' do
-        let(:config) do
-          {
-            'job:deploy-to-test-site': {
-              script: 'deploy',
-              environment: {
-                name: '${CI_JOB_NAME}',
-                url: 'https://$APP_URL'
-              }
-            }
-          }
-        end
-
-        it 'has a job without environment' do
-          expect(pipeline.builds.count).to eq(1)
-          expect(pipeline.builds.first.persisted_environment).to be_nil
-          expect(pipeline.builds.first.deployment).to be_nil
-        end
-      end
-    end
-
     describe 'Pipeline for external pull requests' do
       let(:response) do
-        execute_service(source: source,
-                        external_pull_request: pull_request,
-                        ref: ref_name,
-                        source_sha: source_sha,
-                        target_sha: target_sha)
+        execute_service(
+          source: source,
+          external_pull_request: pull_request,
+          ref: ref_name,
+          source_sha: source_sha,
+          target_sha: target_sha
+        )
       end
 
       let(:pipeline) { response.payload }
@@ -1499,11 +1329,13 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
     describe 'Pipelines for merge requests' do
       let(:response) do
-        execute_service(source: source,
-                        merge_request: merge_request,
-                        ref: ref_name,
-                        source_sha: source_sha,
-                        target_sha: target_sha)
+        execute_service(
+          source: source,
+          merge_request: merge_request,
+          ref: ref_name,
+          source_sha: source_sha,
+          target_sha: target_sha
+        )
       end
 
       let(:pipeline) { response.payload }
@@ -1895,6 +1727,305 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         it 'does create a pipeline only with deploy' do
           expect(pipeline).to be_persisted
           expect(pipeline.builds.pluck(:name)).to contain_exactly("deploy")
+        end
+      end
+    end
+
+    describe 'pipeline components' do
+      let(:components_project) do
+        create(:project, :repository, creator: user, namespace: user.namespace)
+      end
+
+      let(:component_path) do
+        "#{Gitlab.config.gitlab.host}/#{components_project.full_path}/my-component@v0.1"
+      end
+
+      let(:template) do
+        <<~YAML
+          spec:
+            inputs:
+              stage:
+              suffix:
+                default: my-job
+          ---
+          test-$[[ inputs.suffix ]]:
+            stage: $[[ inputs.stage ]]
+            script: run tests
+        YAML
+      end
+
+      let(:sha) do
+        components_project.repository.create_file(
+          user,
+          'my-component/template.yml',
+          template,
+          message: 'Add my first CI component',
+          branch_name: 'master'
+        )
+      end
+
+      let(:config) do
+        <<~YAML
+          include:
+            - component: #{component_path}
+              inputs:
+                stage: my-stage
+
+          stages:
+            - my-stage
+
+          test-1:
+            stage: my-stage
+            script: run test-1
+        YAML
+      end
+
+      before do
+        stub_ci_pipeline_yaml_file(config)
+      end
+
+      context 'when there is no version with specified tag' do
+        before do
+          components_project.repository.add_tag(user, 'v0.01', sha)
+        end
+
+        it 'does not create a pipeline' do
+          response = execute_service(save_on_errors: true)
+
+          pipeline = response.payload
+
+          expect(pipeline).to be_persisted
+          expect(pipeline.yaml_errors)
+            .to include "my-component@v0.1' - content not found"
+        end
+      end
+
+      context 'when there is a proper revision available' do
+        before do
+          components_project.repository.add_tag(user, 'v0.1', sha)
+        end
+
+        context 'when component is valid' do
+          it 'creates a pipeline using a pipeline component' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors).to be_blank
+            expect(pipeline.statuses.count).to eq 2
+            expect(pipeline.statuses.map(&:name)).to match_array %w[test-1 test-my-job]
+          end
+        end
+
+        context 'when interpolation is invalid' do
+          let(:template) do
+            <<~YAML
+              spec:
+                inputs:
+                  stage:
+              ---
+              test:
+                stage: $[[ inputs.stage ]]
+                script: rspec --suite $[[ inputs.suite ]]
+            YAML
+          end
+
+          it 'does not create a pipeline' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors)
+              .to include 'interpolation interrupted by errors, unknown interpolation key: `suite`'
+          end
+        end
+
+        context 'when there is a syntax error in the template' do
+          let(:template) do
+            <<~YAML
+              spec:
+                inputs:
+                  stage:
+              ---
+              :test
+                stage: $[[ inputs.stage ]]
+            YAML
+          end
+
+          it 'does not create a pipeline' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors)
+              .to include 'mapping values are not allowed'
+          end
+        end
+      end
+    end
+
+    # TODO: Remove this test section when include:with is removed as part of https://gitlab.com/gitlab-org/gitlab/-/issues/408369
+    describe 'pipeline components using include:with instead of include:inputs' do
+      let(:components_project) do
+        create(:project, :repository, creator: user, namespace: user.namespace)
+      end
+
+      let(:component_path) do
+        "#{Gitlab.config.gitlab.host}/#{components_project.full_path}/my-component@v0.1"
+      end
+
+      let(:template) do
+        <<~YAML
+          spec:
+            inputs:
+              stage:
+              suffix:
+                default: my-job
+          ---
+          test-$[[ inputs.suffix ]]:
+            stage: $[[ inputs.stage ]]
+            script: run tests
+        YAML
+      end
+
+      let(:sha) do
+        components_project.repository.create_file(
+          user,
+          'my-component/template.yml',
+          template,
+          message: 'Add my first CI component',
+          branch_name: 'master'
+        )
+      end
+
+      let(:config) do
+        <<~YAML
+          include:
+            - component: #{component_path}
+              with:
+                stage: my-stage
+
+          stages:
+            - my-stage
+
+          test-1:
+            stage: my-stage
+            script: run test-1
+        YAML
+      end
+
+      before do
+        stub_ci_pipeline_yaml_file(config)
+      end
+
+      context 'when there is no version with specified tag' do
+        before do
+          components_project.repository.add_tag(user, 'v0.01', sha)
+        end
+
+        it 'does not create a pipeline' do
+          response = execute_service(save_on_errors: true)
+
+          pipeline = response.payload
+
+          expect(pipeline).to be_persisted
+          expect(pipeline.yaml_errors)
+            .to include "my-component@v0.1' - content not found"
+        end
+      end
+
+      context 'when there is a proper revision available' do
+        before do
+          components_project.repository.add_tag(user, 'v0.1', sha)
+        end
+
+        context 'when component is valid' do
+          it 'creates a pipeline using a pipeline component' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors).to be_blank
+            expect(pipeline.statuses.count).to eq 2
+            expect(pipeline.statuses.map(&:name)).to match_array %w[test-1 test-my-job]
+          end
+
+          context 'when inputs have a description' do
+            let(:template) do
+              <<~YAML
+                spec:
+                  inputs:
+                    stage:
+                    suffix:
+                      default: my-job
+                      description: description
+                ---
+                test-$[[ inputs.suffix ]]:
+                  stage: $[[ inputs.stage ]]
+                  script: run tests
+              YAML
+            end
+
+            it 'creates a pipeline' do
+              response = execute_service(save_on_errors: true)
+
+              pipeline = response.payload
+
+              expect(pipeline).to be_persisted
+              expect(pipeline.yaml_errors).to be_blank
+            end
+          end
+        end
+
+        context 'when interpolation is invalid' do
+          let(:template) do
+            <<~YAML
+              spec:
+                inputs:
+                  stage:
+              ---
+              test:
+                stage: $[[ inputs.stage ]]
+                script: rspec --suite $[[ inputs.suite ]]
+            YAML
+          end
+
+          it 'does not create a pipeline' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors)
+              .to include 'interpolation interrupted by errors, unknown interpolation key: `suite`'
+          end
+        end
+
+        context 'when there is a syntax error in the template' do
+          let(:template) do
+            <<~YAML
+              spec:
+                inputs:
+                  stage:
+              ---
+              :test
+                stage: $[[ inputs.stage ]]
+            YAML
+          end
+
+          it 'does not create a pipeline' do
+            response = execute_service(save_on_errors: true)
+
+            pipeline = response.payload
+
+            expect(pipeline).to be_persisted
+            expect(pipeline.yaml_errors)
+              .to include 'mapping values are not allowed'
+          end
         end
       end
     end

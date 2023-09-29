@@ -5,7 +5,6 @@ exports[`Registry Breadcrumb when is not rootRoute renders 1`] = `
   aria-label="Breadcrumb"
   class="gl-breadcrumbs"
 >
-   
   <ol
     class="breadcrumb gl-breadcrumb-list"
   >
@@ -13,54 +12,22 @@ exports[`Registry Breadcrumb when is not rootRoute renders 1`] = `
       class="gl-breadcrumb-item"
     >
       <a
-        class=""
         target="_self"
       >
-        <span>
-          
-        </span>
-         
-        <span
-          class="gl-breadcrumb-separator"
-          data-testid="separator"
-        >
-          <span
-            class="gl-mx-n5"
-          >
-            <svg
-              aria-hidden="true"
-              class="gl-icon s8"
-              data-testid="chevron-lg-right-icon"
-              role="img"
-            >
-              <use
-                href="#chevron-lg-right"
-              />
-            </svg>
-          </span>
-        </span>
+        <span />
       </a>
     </li>
-     
-    <!---->
     <li
       class="gl-breadcrumb-item"
     >
       <a
         aria-current="page"
-        class=""
         href="#"
         target="_self"
       >
-        <span>
-          
-        </span>
-         
-        <!---->
+        <span />
       </a>
     </li>
-     
-    <!---->
   </ol>
 </nav>
 `;
@@ -70,7 +37,6 @@ exports[`Registry Breadcrumb when is rootRoute renders 1`] = `
   aria-label="Breadcrumb"
   class="gl-breadcrumbs"
 >
-   
   <ol
     class="breadcrumb gl-breadcrumb-list"
   >
@@ -79,18 +45,11 @@ exports[`Registry Breadcrumb when is rootRoute renders 1`] = `
     >
       <a
         aria-current="page"
-        class=""
         target="_self"
       >
-        <span>
-          
-        </span>
-         
-        <!---->
+        <span />
       </a>
     </li>
-     
-    <!---->
   </ol>
 </nav>
 `;

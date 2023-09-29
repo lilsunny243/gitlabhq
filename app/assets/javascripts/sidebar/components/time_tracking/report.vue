@@ -1,12 +1,13 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import { GlLoadingIcon, GlTableLite, GlButton, GlTooltipDirective } from '@gitlab/ui';
-import { createAlert } from '~/flash';
+import { createAlert } from '~/alert';
 import { TYPENAME_ISSUE, TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { TYPE_ISSUE } from '~/issues/constants';
 import { formatDate, parseSeconds, stringifyTime } from '~/lib/utils/datetime_utility';
 import { __, s__ } from '~/locale';
-import { timelogQueries } from '../../constants';
+import { timelogQueries } from '../../queries/constants';
 import deleteTimelogMutation from '../../queries/delete_timelog.mutation.graphql';
 
 const TIME_DATE_FORMAT = 'mmmm d, yyyy, HH:MM ("UTC:" o)';

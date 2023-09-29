@@ -8,7 +8,7 @@ module API
 
     helpers ::API::Helpers::BadgesHelpers
 
-    feature_category :projects
+    feature_category :groups_and_projects
 
     helpers do
       def find_source_if_admin(source_type)
@@ -22,7 +22,9 @@ module API
 
     %w[group project].each do |source_type|
       params do
-        requires :id, type: String, desc: "The ID of a #{source_type}"
+        requires :id,
+          type: String,
+          desc: "The ID or URL-encoded path of the #{source_type} owned by the authenticated user."
       end
       resource source_type.pluralize, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
         desc "Gets a list of #{source_type} badges viewable by the authenticated user." do

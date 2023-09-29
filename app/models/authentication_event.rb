@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class AuthenticationEvent < ApplicationRecord
+class AuthenticationEvent < MainClusterwide::ApplicationRecord
   include UsageStatistics
 
   TWO_FACTOR = 'two-factor'
@@ -29,5 +29,9 @@ class AuthenticationEvent < ApplicationRecord
   def self.initial_login_or_known_ip_address?(user, ip_address)
     !where(user_id: user).exists? ||
       where(user_id: user, ip_address: ip_address).success.exists?
+  end
+
+  def self.most_used_ip_address_for_user(user)
+    select('mode() within group (order by ip_address) as ip_address').find_by(user: user).ip_address
   end
 end

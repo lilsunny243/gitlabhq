@@ -1,7 +1,6 @@
 ---
 # Cop supports --autocorrect.
 Layout/LineContinuationLeadingSpace:
-  Details: grace period
   Exclude:
     - 'app/graphql/resolvers/issues/base_resolver.rb'
     - 'app/graphql/resolvers/work_items/types_resolver.rb'
@@ -20,7 +19,6 @@ Layout/LineContinuationLeadingSpace:
     - 'ee/app/services/system_notes/epics_service.rb'
     - 'ee/lib/ee/gitlab/ci/pipeline/quota/size.rb'
     - 'ee/lib/ee/gitlab/git_access.rb'
-    - 'ee/lib/slack/block_kit/app_home_opened.rb'
     - 'ee/lib/tasks/gitlab/geo.rake'
     - 'ee/spec/features/epic_boards/epic_boards_sidebar_spec.rb'
     - 'ee/spec/features/gitlab_subscriptions/seat_count_alert_spec.rb'
@@ -49,7 +47,6 @@ Layout/LineContinuationLeadingSpace:
     - 'rubocop/cop/graphql/descriptions.rb'
     - 'rubocop/cop/migration/add_columns_to_wide_tables.rb'
     - 'rubocop/cop/migration/background_migrations.rb'
-    - 'rubocop/cop/migration/update_column_in_batches.rb'
     - 'scripts/lib/glfm/parse_examples.rb'
     - 'scripts/qa/testcases-check'
     - 'spec/features/issues/create_issue_for_single_discussion_in_merge_request_spec.rb'
@@ -63,8 +60,6 @@ Layout/LineContinuationLeadingSpace:
     - 'spec/lib/gitlab/usage/metrics/instrumentations/count_imported_projects_total_metric_spec.rb'
     - 'spec/lib/gitlab/usage/metrics/instrumentations/gitlab_for_jira_app_direct_installations_count_metric_spec.rb'
     - 'spec/lib/gitlab/usage/metrics/instrumentations/gitlab_for_jira_app_proxy_installations_count_metric_spec.rb'
-    - 'spec/lib/gitlab/usage/metrics/instrumentations/in_product_marketing_email_cta_clicked_metric_spec.rb'
-    - 'spec/lib/gitlab/usage/metrics/instrumentations/in_product_marketing_email_sent_metric_spec.rb'
     - 'spec/lib/system_check/incoming_email/imap_authentication_check_spec.rb'
     - 'spec/models/integrations/chat_message/pipeline_message_spec.rb'
     - 'spec/services/feature_flags/update_service_spec.rb'

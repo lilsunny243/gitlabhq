@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, feature_category: :pipeline_composition do
+RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, feature_category: :secrets_management do
   include Ci::TemplateHelpers
   let_it_be(:group) { create(:group) }
   let_it_be(:project) { create(:project, :repository, namespace: group) }
@@ -10,18 +10,27 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
   let_it_be(:user) { create(:user) }
   let_it_be_with_reload(:job) do
     create(:ci_build,
+      :with_deployment,
       name: 'rspec:test 1',
       pipeline: pipeline,
       user: user,
       yaml_variables: [{ key: 'YAML_VARIABLE', value: 'value' }],
-      environment: 'test'
+      environment: 'review/$CI_COMMIT_REF_NAME',
+      options: {
+        environment: {
+          name: 'review/$CI_COMMIT_REF_NAME',
+          action: 'prepare',
+          deployment_tier: 'testing',
+          url: 'https://gitlab.com'
+        }
+      }
     )
   end
 
   let(:builder) { described_class.new(pipeline) }
 
   describe '#scoped_variables' do
-    let(:environment) { job.expanded_environment_name }
+    let(:environment_name) { job.expanded_environment_name }
     let(:dependencies) { true }
     let(:predefined_variables) do
       [
@@ -34,11 +43,13 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
         { key: 'CI_NODE_TOTAL',
           value: '1' },
         { key: 'CI_ENVIRONMENT_NAME',
-          value: 'test' },
-        { key: 'CI_BUILD_NAME',
-          value: 'rspec:test 1' },
-        { key: 'CI_BUILD_STAGE',
-          value: job.stage_name },
+          value: 'review/master' },
+        { key: 'CI_ENVIRONMENT_ACTION',
+          value: 'prepare' },
+        { key: 'CI_ENVIRONMENT_TIER',
+          value: 'testing' },
+        { key: 'CI_ENVIRONMENT_URL',
+          value: 'https://gitlab.com' },
         { key: 'CI',
           value: 'true' },
         { key: 'GITLAB_CI',
@@ -51,6 +62,10 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
           value: Gitlab.config.gitlab.port.to_s },
         { key: 'CI_SERVER_PROTOCOL',
           value: Gitlab.config.gitlab.protocol },
+        { key: 'CI_SERVER_SHELL_SSH_HOST',
+          value: Gitlab.config.gitlab_shell.ssh_host.to_s },
+        { key: 'CI_SERVER_SHELL_SSH_PORT',
+          value: Gitlab.config.gitlab_shell.ssh_port.to_s },
         { key: 'CI_SERVER_NAME',
           value: 'GitLab' },
         { key: 'CI_SERVER_VERSION',
@@ -98,9 +113,11 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
         { key: 'CI_PAGES_DOMAIN',
           value: Gitlab.config.pages.host },
         { key: 'CI_PAGES_URL',
-          value: project.pages_url },
+          value: Gitlab::Pages::UrlBuilder.new(project).pages_url },
         { key: 'CI_API_V4_URL',
           value: API::Helpers::Version.new('v4').root_url },
+        { key: 'CI_API_GRAPHQL_URL',
+          value: Gitlab::Routing.url_helpers.api_graphql_url },
         { key: 'CI_TEMPLATE_REGISTRY_HOST',
           value: template_registry_host },
         { key: 'CI_PIPELINE_IID',
@@ -109,6 +126,8 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
           value: pipeline.source },
         { key: 'CI_PIPELINE_CREATED_AT',
           value: pipeline.created_at.iso8601 },
+        { key: 'CI_PIPELINE_NAME',
+          value: pipeline.name },
         { key: 'CI_COMMIT_SHA',
           value: job.sha },
         { key: 'CI_COMMIT_SHORT_SHA',
@@ -133,14 +152,6 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
           value: pipeline.git_commit_timestamp },
         { key: 'CI_COMMIT_AUTHOR',
           value: pipeline.git_author_full_text },
-        { key: 'CI_BUILD_REF',
-          value: job.sha },
-        { key: 'CI_BUILD_BEFORE_SHA',
-          value: job.before_sha },
-        { key: 'CI_BUILD_REF_NAME',
-          value: job.ref },
-        { key: 'CI_BUILD_REF_SLUG',
-          value: job.ref_slug },
         { key: 'YAML_VARIABLE',
           value: 'value' },
         { key: 'GITLAB_USER_ID',
@@ -154,7 +165,7 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, featur
       ].map { |var| var.merge(public: true, masked: false) }
     end
 
-    subject { builder.scoped_variables(job, environment: environment, dependencies: dependencies) }
+    subject { builder.scoped_variables(job, environment: environment_name, dependencies: dependencies) }
 
     it { is_expected.to be_instance_of(Gitlab::Ci::Variables::Collection) }
 

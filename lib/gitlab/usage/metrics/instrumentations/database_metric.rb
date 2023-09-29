@@ -18,7 +18,7 @@ module Gitlab
           UnimplementedOperationError = Class.new(StandardError) # rubocop:disable UsageData/InstrumentationSuperclass
 
           class << self
-            IMPLEMENTED_OPERATIONS = %i(count distinct_count estimate_batch_distinct_count sum average).freeze
+            IMPLEMENTED_OPERATIONS = %i[count distinct_count estimate_batch_distinct_count sum average].freeze
 
             private_constant :IMPLEMENTED_OPERATIONS
 
@@ -85,14 +85,6 @@ module Gitlab
 
           def instrumentation
             to_sql
-          end
-
-          def suggested_name
-            Gitlab::Usage::Metrics::NameSuggestion.for(
-              self.class.metric_operation,
-              relation: relation,
-              column: self.class.column
-            )
           end
 
           private

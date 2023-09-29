@@ -4,13 +4,12 @@
 - opened_issues_count = issuables_count_for_state(:issues, :opened)
 - is_opened_state = params[:state] == 'opened'
 - is_closed_state = params[:state] == 'closed'
-- issuable_type = 'issues'
 - can_edit = can?(current_user, :admin_project, @project)
 
 .row.empty-state
   .col-12
-    .svg-content
-      = image_tag 'illustrations/issues.svg'
+    .svg-content.svg-150
+      = image_tag 'illustrations/empty-state/empty-issues-md.svg'
   .col-12
     .text-content
       - if has_filter_bar_param?
@@ -20,7 +19,7 @@
           = _("To widen your search, change or remove filters above")
         - if show_new_issue_link?(@project)
           .text-center
-            = link_to _("New issue"), new_project_issue_path(@project), class: "gl-button btn btn-confirm"
+            = link_button_to _("New issue"), new_project_issue_path(@project), variant: :confirm
       - elsif is_opened_state && opened_issues_count == 0 && closed_issues_count > 0
         %h4.text-center
           = _("There are no open issues")
@@ -28,7 +27,7 @@
           = _("To keep this project going, create a new issue")
         - if show_new_issue_link?(@project)
           .text-center
-            = link_to _("New issue"), new_project_issue_path(@project), class: "gl-button btn btn-confirm"
+            = link_button_to _("New issue"), new_project_issue_path(@project), variant: :confirm
       - elsif is_closed_state && opened_issues_count > 0 && closed_issues_count == 0
         %h4.text-center
           = _("There are no closed issues")
@@ -40,10 +39,10 @@
         - if button_path
           .text-center
             - if show_new_issue_link?(@project)
-              = link_to _('New issue'), button_path, class: 'gl-button btn btn-confirm', id: 'new_issue_link'
+              = link_button_to _('New issue'), button_path, id: 'new_issue_link', variant: :confirm
 
             - if show_import_button
-              .js-csv-import-export-buttons{ data: { show_import_button: 'true', issuable_type: issuable_type, import_csv_issues_path: import_csv_namespace_project_issues_path, can_edit: can_edit.to_s, project_import_jira_path: project_import_jira_path(@project), max_attachment_size: number_to_human_size(Gitlab::CurrentSettings.max_attachment_size.megabytes), container_class: 'gl-w-full gl-sm-w-auto gl-sm-mr-3 gl-display-inline-flex gl-vertical-align-middle', show_label: 'true' } }
+              .js-csv-import-export-buttons{ data: { show_import_button: 'true', issuable_type: 'issue', import_csv_issues_path: import_csv_namespace_project_issues_path, can_edit: can_edit.to_s, project_import_jira_path: project_import_jira_path(@project), max_attachment_size: number_to_human_size(Gitlab::CurrentSettings.max_attachment_size.megabytes) } }
         %hr
         %p.gl-text-center.gl-mb-0
           %strong
@@ -60,4 +59,4 @@
         %p
           = _("The Issue Tracker is the place to add things that need to be improved or solved in a project. You can register or sign in to create issues for this project.")
         .text-center
-          = link_to _('Register / Sign In'), new_user_session_path, class: 'gl-button btn btn-confirm'
+          = link_button_to _('Register / Sign In'), new_user_session_path, variant: :confirm

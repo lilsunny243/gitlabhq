@@ -12,17 +12,17 @@ module Noteable
   class_methods do
     # `Noteable` class names that support replying to individual notes.
     def replyable_types
-      %w(Issue MergeRequest)
+      %w[Issue MergeRequest]
     end
 
     # `Noteable` class names that support resolvable notes.
     def resolvable_types
-      %w(MergeRequest DesignManagement::Design)
+      %w[Issue MergeRequest DesignManagement::Design]
     end
 
     # `Noteable` class names that support creating/forwarding individual notes.
     def email_creatable_types
-      %w(Issue)
+      %w[Issue]
     end
   end
 
@@ -49,6 +49,8 @@ module Noteable
   end
 
   def supports_resolvable_notes?
+    return false if is_a?(Issue) && Feature.disabled?(:resolvable_issue_threads, project)
+
     self.class.resolvable_types.include?(base_class_name)
   end
 
@@ -162,25 +164,15 @@ module Noteable
     [MergeRequest, Issue].include?(self.class)
   end
 
-  def etag_caching_enabled?
+  def real_time_notes_enabled?
     false
   end
 
-  def expire_note_etag_cache
+  def broadcast_notes_changed
     return unless discussions_rendered_on_frontend?
-    return unless etag_caching_enabled?
+    return unless real_time_notes_enabled?
 
-    Gitlab::EtagCaching::Store.new.touch(note_etag_key)
-  end
-
-  def note_etag_key
-    return Gitlab::Routing.url_helpers.designs_project_issue_path(project, issue, { vueroute: filename }) if self.is_a?(DesignManagement::Design)
-
-    Gitlab::Routing.url_helpers.project_noteable_notes_path(
-      project,
-      target_type: noteable_target_type_name,
-      target_id: id
-    )
+    Noteable::NotesChannel.broadcast_to(self, event: 'updated')
   end
 
   def after_note_created(_note)
@@ -197,7 +189,7 @@ module Noteable
   def creatable_note_email_address(author)
     return unless supports_creating_notes_by_email?
 
-    project_email = project.new_issuable_address(author, self.class.name.underscore)
+    project_email = project&.new_issuable_address(author, base_class_name.underscore)
     return unless project_email
 
     project_email.sub('@', "-#{iid}@")

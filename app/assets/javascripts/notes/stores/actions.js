@@ -1,10 +1,10 @@
 import $ from 'jquery';
-import Visibility from 'visibilityjs';
 import Vue from 'vue';
+import actionCable from '~/actioncable_consumer';
 import Api from '~/api';
-import { createAlert, VARIANT_INFO } from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/alert';
 import { EVENT_ISSUABLE_VUE_APP_CHANGE } from '~/issuable/constants';
-import { TYPE_ISSUE } from '~/issues/constants';
+import { STATUS_CLOSED, STATUS_REOPENED, TYPE_ISSUE } from '~/issues/constants';
 import axios from '~/lib/utils/axios_utils';
 import { __, sprintf } from '~/locale';
 import toast from '~/vue_shared/plugins/global_toast';
@@ -13,13 +13,10 @@ import updateIssueLockMutation from '~/sidebar/queries/update_issue_lock.mutatio
 import updateMergeRequestLockMutation from '~/sidebar/queries/update_merge_request_lock.mutation.graphql';
 import loadAwardsHandler from '~/awards_handler';
 import { isInViewport, scrollToElement, isInMRPage } from '~/lib/utils/common_utils';
-import Poll from '~/lib/utils/poll';
-import { create } from '~/lib/utils/recurrence';
 import { mergeUrlParams } from '~/lib/utils/url_utility';
 import sidebarTimeTrackingEventHub from '~/sidebar/event_hub';
 import TaskList from '~/task_list';
 import mrWidgetEventHub from '~/vue_merge_request_widget/event_hub';
-import SidebarStore from '~/sidebar/stores/sidebar_store';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { TYPENAME_NOTE } from '~/graphql_shared/constants';
 import notesEventHub from '../event_hub';
@@ -29,9 +26,6 @@ import promoteTimelineEvent from '../graphql/promote_timeline_event.mutation.gra
 import * as constants from '../constants';
 import * as types from './mutation_types';
 import * as utils from './utils';
-
-const NOTES_POLLING_INTERVAL = 6000;
-let eTagPoll;
 
 export const updateLockedAttribute = ({ commit, getters }, { locked, fullPath }) => {
   const { iid, targetType } = getters.getNoteableData;
@@ -96,10 +90,14 @@ export const fetchDiscussions = (
   { commit, dispatch, getters },
   { path, filter, persistFilter },
 ) => {
-  const config =
+  let config =
     filter !== undefined
       ? { params: { notes_filter: filter, persist_filter: persistFilter } }
       : null;
+
+  if (getters.noteableType === constants.MERGE_REQUEST_NOTEABLE_TYPE) {
+    config = { params: { notes_filter: 0, persist_filter: false } };
+  }
 
   if (
     getters.noteableType === constants.ISSUE_NOTEABLE_TYPE ||
@@ -145,7 +143,26 @@ export const initPolling = ({ state, dispatch, getters, commit }) => {
 
   dispatch('setLastFetchedAt', getters.getNotesDataByProp('lastFetchedAt'));
 
-  dispatch('poll');
+  actionCable.subscriptions.create(
+    {
+      channel: 'Noteable::NotesChannel',
+      project_id: state.notesData.projectId,
+      group_id: state.notesData.groupId,
+      noteable_type: state.notesData.noteableType,
+      noteable_id: state.notesData.noteableId,
+    },
+    {
+      connected() {
+        dispatch('fetchUpdatedNotes');
+      },
+      received(data) {
+        if (data.event === 'updated') {
+          dispatch('fetchUpdatedNotes');
+        }
+      },
+    },
+  );
+
   commit(types.SET_IS_POLLING_INITIALIZED, true);
 };
 
@@ -356,7 +373,8 @@ export const resolveDiscussion = ({ state, dispatch, getters }, { discussionId }
 
   if (!discussion) {
     return Promise.reject();
-  } else if (isResolved) {
+  }
+  if (isResolved) {
     return Promise.resolve();
   }
 
@@ -407,7 +425,7 @@ export const emitStateChangedEvent = ({ getters }, data) => {
   const event = new CustomEvent(EVENT_ISSUABLE_VUE_APP_CHANGE, {
     detail: {
       data,
-      isClosed: getters.openState === constants.CLOSED,
+      isClosed: getters.openState === STATUS_CLOSED,
     },
   });
 
@@ -415,9 +433,9 @@ export const emitStateChangedEvent = ({ getters }, data) => {
 };
 
 export const toggleIssueLocalState = ({ commit }, newState) => {
-  if (newState === constants.CLOSED) {
+  if (newState === STATUS_CLOSED) {
     commit(types.CLOSE_ISSUE);
-  } else if (newState === constants.REOPENED) {
+  } else if (newState === STATUS_REOPENED) {
     commit(types.REOPEN_ISSUE);
   }
 };
@@ -467,12 +485,17 @@ export const saveNote = ({ commit, dispatch }, noteData) => {
 
   const processQuickActions = (res) => {
     const {
-      errors: { commands_only: commandsOnly, command_names: commandNames } = {
+      errors: { commands_only: commandsOnly } = {
         commands_only: null,
         command_names: [],
       },
+      command_names: commandNames,
     } = res;
-    let message = commandsOnly;
+    const message = commandsOnly;
+
+    if (commandNames?.indexOf('submit_review') >= 0) {
+      dispatch('batchComments/clearDrafts');
+    }
 
     /*
      The following reply means that quick actions have been successfully applied:
@@ -480,8 +503,6 @@ export const saveNote = ({ commit, dispatch }, noteData) => {
      {"commands_changes":{},"valid":false,"errors":{"commands_only":["Commands applied"]}}
      */
     if (hasQuickActions && message) {
-      eTagPoll.makeRequest();
-
       // synchronizing the quick action with the sidebar widget
       // this is a temporary solution until we have confidentiality real-time updates
       if (
@@ -489,13 +510,6 @@ export const saveNote = ({ commit, dispatch }, noteData) => {
         message.some((m) => m.includes('Made this issue confidential'))
       ) {
         confidentialWidget.setConfidentiality();
-      }
-
-      const commands = ['approve', 'merge', 'assign_reviewer', 'assign'];
-      const commandUpdatesAttentionRequest = commandNames[0].some((c) => commands.includes(c));
-
-      if (commandUpdatesAttentionRequest && SidebarStore.singleton.currentUserHasAttention) {
-        message = sprintf(__('%{message}. Your attention request was removed.'), { message });
       }
 
       $('.js-gfm-input').trigger('clear-commands-cache.atwho');
@@ -551,36 +565,11 @@ export const saveNote = ({ commit, dispatch }, noteData) => {
     return res;
   };
 
-  const processErrors = (error) => {
-    if (error.response) {
-      const {
-        response: { data = {} },
-      } = error;
-      const { errors = {} } = data;
-      const { base = [] } = errors;
-
-      // we handle only errors.base for now
-      if (base.length > 0) {
-        const errorMsg = sprintf(__('Your comment could not be submitted because %{error}'), {
-          error: base[0].toLowerCase(),
-        });
-        createAlert({
-          message: errorMsg,
-          parent: noteData.flashContainer,
-        });
-        return { ...data, hasAlert: true };
-      }
-    }
-
-    throw error;
-  };
-
   return dispatch(methodToDispatch, postData, { root: true })
     .then(processQuickActions)
     .then(processEmojiAward)
     .then(processTimeTracking)
-    .then(removePlaceholder)
-    .catch(processErrors);
+    .then(removePlaceholder);
 };
 
 export const setFetchingState = ({ commit }, fetchingState) =>
@@ -613,62 +602,15 @@ const getFetchDataParams = (state) => {
   return { endpoint, options };
 };
 
-export const poll = ({ commit, state, getters, dispatch }) => {
-  const notePollOccurrenceTracking = create();
-  let alert;
+export const fetchUpdatedNotes = ({ commit, state, getters, dispatch }) => {
+  const { endpoint, options } = getFetchDataParams(state);
 
-  notePollOccurrenceTracking.handle(1, () => {
-    // Since polling halts internally after 1 failure, we manually try one more time
-    setTimeout(() => eTagPoll.restart(), NOTES_POLLING_INTERVAL);
-  });
-  notePollOccurrenceTracking.handle(2, () => {
-    // On the second failure in a row, show the alert and try one more time (hoping to succeed and clear the error)
-    alert = createAlert({
-      message: __('Something went wrong while fetching latest comments.'),
-    });
-    setTimeout(() => eTagPoll.restart(), NOTES_POLLING_INTERVAL);
-  });
-
-  eTagPoll = new Poll({
-    resource: {
-      poll: () => {
-        const { endpoint, options } = getFetchDataParams(state);
-        return axios.get(endpoint, options);
-      },
-    },
-    method: 'poll',
-    successCallback: ({ data }) => {
+  return axios
+    .get(endpoint, options)
+    .then(({ data }) => {
       pollSuccessCallBack(data, commit, state, getters, dispatch);
-
-      if (notePollOccurrenceTracking.count) {
-        notePollOccurrenceTracking.reset();
-      }
-      alert?.dismiss();
-    },
-    errorCallback: () => notePollOccurrenceTracking.occur(),
-  });
-
-  if (!Visibility.hidden()) {
-    eTagPoll.makeDelayedRequest(2500);
-  } else {
-    eTagPoll.makeRequest();
-  }
-
-  Visibility.change(() => {
-    if (!Visibility.hidden()) {
-      eTagPoll.restart();
-    } else {
-      eTagPoll.stop();
-    }
-  });
-};
-
-export const stopPolling = () => {
-  if (eTagPoll) eTagPoll.stop();
-};
-
-export const restartPolling = () => {
-  if (eTagPoll) eTagPoll.restart();
+    })
+    .catch(() => {});
 };
 
 export const toggleAward = ({ commit, getters }, { awardName, noteId }) => {
@@ -748,7 +690,6 @@ export const submitSuggestion = (
     dispatch('resolveDiscussion', { discussionId }).catch(() => {});
 
   commit(types.SET_RESOLVING_DISCUSSION, true);
-  dispatch('stopPolling');
 
   return Api.applySuggestion(suggestionId, message)
     .then(dispatchResolveDiscussion)
@@ -759,16 +700,15 @@ export const submitSuggestion = (
 
       const errorMessage = err.response.data?.message;
 
-      const flashMessage = errorMessage || defaultMessage;
+      const alertMessage = errorMessage || defaultMessage;
 
       createAlert({
-        message: flashMessage,
+        message: alertMessage,
         parent: flashContainer,
       });
     })
     .finally(() => {
       commit(types.SET_RESOLVING_DISCUSSION, false);
-      dispatch('restartPolling');
     });
 };
 
@@ -783,7 +723,6 @@ export const submitSuggestionBatch = ({ commit, dispatch, state }, { message, fl
 
   commit(types.SET_APPLYING_BATCH_STATE, true);
   commit(types.SET_RESOLVING_DISCUSSION, true);
-  dispatch('stopPolling');
 
   return Api.applySuggestionBatch(suggestionIds, message)
     .then(() => Promise.all(resolveAllDiscussions()))
@@ -795,17 +734,16 @@ export const submitSuggestionBatch = ({ commit, dispatch, state }, { message, fl
 
       const errorMessage = err.response.data?.message;
 
-      const flashMessage = errorMessage || defaultMessage;
+      const alertMessage = errorMessage || defaultMessage;
 
       createAlert({
-        message: flashMessage,
+        message: alertMessage,
         parent: flashContainer,
       });
     })
     .finally(() => {
       commit(types.SET_APPLYING_BATCH_STATE, false);
       commit(types.SET_RESOLVING_DISCUSSION, false);
-      dispatch('restartPolling');
     });
 };
 
@@ -900,3 +838,6 @@ export const updateAssignees = ({ commit }, assignees) => {
 export const updateDiscussionPosition = ({ commit }, updatedPosition) => {
   commit(types.UPDATE_DISCUSSION_POSITION, updatedPosition);
 };
+
+export const updateMergeRequestFilters = ({ commit }, newFilters) =>
+  commit(types.SET_MERGE_REQUEST_FILTERS, newFilters);

@@ -4,9 +4,9 @@ group: Compliance
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Personal access tokens API **(FREE)**
+# Personal access tokens API **(FREE ALL)**
 
-You can read more about [personal access tokens](../user/profile/personal_access_tokens.md#personal-access-tokens).
+You can read more about [personal access tokens](../user/profile/personal_access_tokens.md).
 
 ## List personal access tokens
 
@@ -45,14 +45,14 @@ Supported attributes:
 
 | Attribute           | Type           | Required | Description         |
 |---------------------|----------------|----------|---------------------|
-| `created_after`     | datetime (ISO 8601) | **{dotted-circle}** No | Limit results to PATs created after specified time. |
-| `created_before`    | datetime (ISO 8601) | **{dotted-circle}** No | Limit results to PATs created before specified time. |
-| `last_used_after`   | datetime (ISO 8601) | **{dotted-circle}** No | Limit results to PATs last used after specified time. |
-| `last_used_before`  | datetime (ISO 8601) | **{dotted-circle}** No | Limit results to PATs last used before specified time. |
-| `revoked`           | boolean             | **{dotted-circle}** No | Limit results to PATs with specified revoked state. Valid values are `true` and `false`. |
-| `search`            | string              | **{dotted-circle}** No | Limit results to PATs with name containing search string. |
-| `state`             | string              | **{dotted-circle}** No | Limit results to PATs with specified state. Valid values are `active` and `inactive`. |
-| `user_id`           | integer or string   | **{dotted-circle}** No | Limit results to PATs owned by specified user. |
+| `created_after`     | datetime (ISO 8601) | No | Limit results to PATs created after specified time. |
+| `created_before`    | datetime (ISO 8601) | No | Limit results to PATs created before specified time. |
+| `last_used_after`   | datetime (ISO 8601) | No | Limit results to PATs last used after specified time. |
+| `last_used_before`  | datetime (ISO 8601) | No | Limit results to PATs last used before specified time. |
+| `revoked`           | boolean             | No | Limit results to PATs with specified revoked state. Valid values are `true` and `false`. |
+| `search`            | string              | No | Limit results to PATs with name containing search string. |
+| `state`             | string              | No | Limit results to PATs with specified state. Valid values are `active` and `inactive`. |
+| `user_id`           | integer or string   | No | Limit results to PATs owned by specified user. |
 
 Example request:
 
@@ -177,7 +177,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/373999) in GitLab 15.5
 
-Get a single personal access token by using passing the token in a header.
+Get a single personal access token and information about that token by passing the token in a header.
 
 ```plaintext
 GET /personal_access_tokens/self
@@ -204,6 +204,69 @@ Example response:
     "expires_at": null
 }
 ```
+
+## Rotate a personal access token
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/403042) in GitLab 16.0
+
+Rotate a personal access token. Revokes the previous token and creates a new token that expires in one week.
+
+```plaintext
+POST /personal_access_tokens/:id/rotate
+```
+
+| Attribute | Type    | Required | Description         |
+|-----------|---------|----------|---------------------|
+| `id` | integer/string | yes | ID of personal access token |
+
+NOTE:
+Non-administrators can rotate their own tokens. Administrators can rotate tokens of any user.
+
+```shell
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/personal_access_tokens/<personal_access_token_id>/rotate"
+```
+
+Example response:
+
+```json
+{
+    "id": 42,
+    "name": "Rotated Token",
+    "revoked": false,
+    "created_at": "2023-08-01T15:00:00.000Z",
+    "scopes": ["api"],
+    "user_id": 1337,
+    "last_used_at": null,
+    "active": true,
+    "expires_at": "2023-08-15",
+    "token": "s3cr3t"
+}
+```
+
+### Responses
+
+- `200: OK` if the existing token is successfully revoked and the new token successfully created.
+- `400: Bad Request` if not rotated successfully.
+- `401: Unauthorized` if either the:
+  - User does not have access to the token with the specified ID.
+  - Token with the specified ID does not exist.
+- `404: Not Found` if the user is an administrator but the token with the specified ID does not exist.
+
+### Automatic reuse detection
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/395352) in GitLab 16.3
+
+For each rotated token, the previous and now revoked token is referenced. This
+chain of references defines a token family. In a token family, only the latest
+token is active, and all other tokens in that family are revoked.
+
+When a revoked token from a token family is used in an authentication attempt
+for the token rotation endpoint, that attempt fails and the active token from
+the token family gets revoked.
+This mechanism helps to prevent compromise when a personal access token is
+leaked.
+
+Automatic reuse detection is enabled for token rotation API requests.
 
 ## Revoke a personal access token
 

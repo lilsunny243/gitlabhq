@@ -2,10 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > For a forked project', :js, feature_category: :projects do
-  let_it_be(:project) { create(:project, :repository, create_templates: :issue) }
+RSpec.describe 'Projects > Settings > For a forked project', :js, feature_category: :groups_and_projects do
+  include ListboxHelpers
 
-  let(:user) { project.first_owner }
+  let_it_be(:user) { create(:user, :no_super_sidebar) }
+  let_it_be(:project) { create(:project, :repository, create_templates: :issue, namespace: user.namespace) }
 
   before do
     sign_in(user)
@@ -16,8 +17,11 @@ RSpec.describe 'Projects > Settings > For a forked project', :js, feature_catego
       visit project_path(project)
       wait_for_requests
 
-      expect(page).to have_selector('.sidebar-sub-level-items a[aria-label="Monitor"]',
-                                    text: 'Monitor', visible: :hidden)
+      expect(page).to have_selector(
+        '.sidebar-sub-level-items a[aria-label="Error Tracking"]',
+        text: 'Error Tracking',
+        visible: :hidden
+      )
     end
   end
 
@@ -47,7 +51,7 @@ RSpec.describe 'Projects > Settings > For a forked project', :js, feature_catego
         check(create_issue)
         uncheck(send_email)
         click_on('No template selected')
-        click_on('bug')
+        select_listbox_item('bug')
 
         save_form
         click_settings_tab
@@ -187,31 +191,6 @@ RSpec.describe 'Projects > Settings > For a forked project', :js, feature_catego
 
           expect(page).to have_content('Paste this DSN into your Sentry SDK')
         end
-      end
-    end
-
-    describe 'grafana integration settings form' do
-      it 'successfully fills and completes the form' do
-        visit project_settings_operations_path(project)
-
-        wait_for_requests
-
-        within '.js-grafana-integration' do
-          click_button('Expand')
-        end
-
-        expect(page).to have_content('Grafana URL')
-        expect(page).to have_content('API token')
-        expect(page).to have_button('Save changes')
-
-        fill_in('grafana-url', with: 'http://gitlab-test.grafana.net')
-        fill_in('grafana-token', with: 'token')
-
-        click_button('Save changes')
-
-        wait_for_requests
-
-        assert_text('Your changes have been saved')
       end
     end
   end

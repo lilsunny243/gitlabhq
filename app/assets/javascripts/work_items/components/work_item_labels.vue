@@ -7,16 +7,10 @@ import labelSearchQuery from '~/sidebar/components/labels/labels_select_widget/g
 import LabelItem from '~/sidebar/components/labels/labels_select_widget/label_item.vue';
 import { DEFAULT_DEBOUNCE_AND_THROTTLE_MS } from '~/lib/utils/constants';
 import { isScopedLabel } from '~/lib/utils/common_utils';
-import workItemLabelsSubscription from 'ee_else_ce/work_items/graphql/work_item_labels.subscription.graphql';
-import { getWorkItemQuery } from '../utils';
 import updateWorkItemMutation from '../graphql/update_work_item.mutation.graphql';
-
-import {
-  i18n,
-  I18N_WORK_ITEM_ERROR_FETCHING_LABELS,
-  TRACKING_CATEGORY_SHOW,
-  WIDGET_TYPE_LABELS,
-} from '../constants';
+import workItemByIidQuery from '../graphql/work_item_by_iid.query.graphql';
+import { i18n, I18N_WORK_ITEM_ERROR_FETCHING_LABELS, TRACKING_CATEGORY_SHOW } from '../constants';
+import { isLabelsWidget } from '../utils';
 
 function isTokenSelectorElement(el) {
   return (
@@ -43,26 +37,18 @@ export default {
     LabelItem,
   },
   mixins: [Tracking.mixin()],
+  inject: ['fullPath'],
   props: {
     workItemId: {
       type: String,
       required: true,
     },
-    canUpdate: {
-      type: Boolean,
-      required: true,
-    },
-    fullPath: {
+    workItemIid: {
       type: String,
       required: true,
     },
-    fetchByIid: {
+    canUpdate: {
       type: Boolean,
-      required: false,
-      default: false,
-    },
-    queryVariables: {
-      type: Object,
       required: true,
     },
   },
@@ -79,28 +65,21 @@ export default {
   },
   apollo: {
     workItem: {
-      query() {
-        return getWorkItemQuery(this.fetchByIid);
-      },
+      query: workItemByIidQuery,
       variables() {
-        return this.queryVariables;
+        return {
+          fullPath: this.fullPath,
+          iid: this.workItemIid,
+        };
       },
       update(data) {
-        return this.fetchByIid ? data.workspace.workItems.nodes[0] : data.workItem;
+        return data.workspace.workItems.nodes[0];
       },
       skip() {
-        return !this.queryVariables.id && !this.queryVariables.iid;
+        return !this.workItemIid;
       },
       error() {
         this.$emit('error', i18n.fetchError);
-      },
-      subscribeToMore: {
-        document: workItemLabelsSubscription,
-        variables() {
-          return {
-            issuableId: this.workItemId,
-          };
-        },
       },
     },
     searchLabels: {
@@ -137,13 +116,13 @@ export default {
       return this.labelsWidget?.allowsScopedLabels;
     },
     containerClass() {
-      return !this.isEditing ? 'gl-shadow-none!' : '';
+      return !this.isEditing ? 'gl-shadow-none! hide-unfocused-input-decoration' : '';
     },
     isLoading() {
       return this.$apollo.queries.searchLabels.loading;
     },
     labelsWidget() {
-      return this.workItem?.widgets?.find((widget) => widget.type === WIDGET_TYPE_LABELS);
+      return this.workItem?.widgets?.find(isLabelsWidget);
     },
     labels() {
       return this.labelsWidget?.labels?.nodes || [];
@@ -275,7 +254,7 @@ export default {
   <div class="form-row gl-mb-5 work-item-labels gl-relative gl-flex-nowrap">
     <span
       :id="labelsTitleId"
-      class="gl-font-weight-bold gl-mt-2 col-lg-2 col-3 gl-pt-2 min-w-fit-content gl-overflow-wrap-break"
+      class="gl-font-weight-bold gl-mt-2 col-lg-2 col-3 gl-pt-2 min-w-fit-content gl-overflow-wrap-break work-item-field-label"
       data-testid="labels-title"
       >{{ __('Labels') }}</span
     >
@@ -288,7 +267,8 @@ export default {
       :loading="isLoading"
       :view-only="!canUpdate"
       :allow-clear-all="isEditing"
-      class="gl-flex-grow-1 gl-border gl-border-white gl-rounded-base col-9 gl-align-self-start gl-px-0! gl-mx-2!"
+      class="hide-unfocused-input-decoration work-item-field-value gl-flex-grow-1 gl-border gl-rounded-base col-9 gl-align-self-start gl-px-0! gl-mx-2!"
+      menu-class="token-selector-menu-class"
       data-testid="work-item-labels-input"
       :class="{ 'gl-hover-border-gray-200': canUpdate }"
       @input="focusTokenSelector"

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ::Import::GitlabProjects::CreateProjectService, :aggregate_failures do
+RSpec.describe ::Import::GitlabProjects::CreateProjectService, :aggregate_failures, feature_category: :importers do
   let(:fake_file_acquisition_strategy) do
     Class.new do
       attr_reader :errors
@@ -35,6 +35,7 @@ RSpec.describe ::Import::GitlabProjects::CreateProjectService, :aggregate_failur
 
   before do
     stub_const('FakeStrategy', fake_file_acquisition_strategy)
+    stub_application_setting(import_sources: ['gitlab_project'])
   end
 
   describe 'validation' do

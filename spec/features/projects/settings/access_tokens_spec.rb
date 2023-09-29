@@ -49,6 +49,7 @@ RSpec.describe 'Project > Settings > Access Tokens', :js, feature_category: :use
       it 'shows Owner option' do
         visit resource_settings_access_tokens_path
 
+        click_button 'Add new token'
         expect(role_dropdown_options).to include('Owner')
       end
     end
@@ -63,13 +64,14 @@ RSpec.describe 'Project > Settings > Access Tokens', :js, feature_category: :use
       it 'does not show Owner option for a maintainer' do
         visit resource_settings_access_tokens_path
 
+        click_button 'Add new token'
         expect(role_dropdown_options).not_to include('Owner')
       end
     end
   end
 
   context 'when token creation is not allowed' do
-    it_behaves_like 'resource access tokens creation disallowed', 'Project access token creation is disabled in this group. You can still use and manage existing tokens.'
+    it_behaves_like 'resource access tokens creation disallowed', 'Project access token creation is disabled in this group.'
 
     context 'with a project in a personal namespace' do
       let(:personal_project) { create(:project) }
@@ -81,6 +83,7 @@ RSpec.describe 'Project > Settings > Access Tokens', :js, feature_category: :use
       it 'shows access token creation form and text' do
         visit project_settings_access_tokens_path(personal_project)
 
+        click_button 'Add new token'
         expect(page).to have_selector('#js-new-access-token-form')
       end
     end

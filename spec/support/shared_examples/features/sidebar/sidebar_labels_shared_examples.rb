@@ -47,7 +47,8 @@ RSpec.shared_examples 'labels sidebar widget' do
       end
     end
 
-    it 'adds first label by pressing enter when search' do
+    it 'adds first label by pressing enter when search',
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/414877' do
       within(labels_widget) do
         page.within('[data-testid="value-wrapper"]') do
           expect(page).not_to have_content(development.name)
@@ -85,7 +86,7 @@ RSpec.shared_examples 'labels sidebar widget' do
     context 'creating a label', :js do
       before do
         page.within(labels_widget) do
-          page.find('[data-testid="create-label-button"]').click
+          click_button 'Create project label'
         end
       end
 
@@ -95,12 +96,11 @@ RSpec.shared_examples 'labels sidebar widget' do
         end
       end
 
-      it 'creates new label', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391240' do
+      it 'creates new label' do
         page.within(labels_widget) do
           fill_in 'Name new label', with: 'wontfix'
-          page.find('.suggest-colors a', match: :first).click
-          page.find('button', text: 'Create').click
-          wait_for_requests
+          click_link 'Magenta-pink'
+          click_button 'Create'
 
           expect(page).to have_content 'wontfix'
         end

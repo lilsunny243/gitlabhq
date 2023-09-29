@@ -39,11 +39,17 @@ GitLab package.
 Upgrading versions might need some manual intervention. For more information,
 check the version your are upgrading to:
 
+- [GitLab 16](https://docs.gitlab.com/omnibus/update/gitlab_16_changes.html)
 - [GitLab 15](https://docs.gitlab.com/omnibus/update/gitlab_15_changes.html)
 - [GitLab 14](https://docs.gitlab.com/omnibus/update/gitlab_14_changes.html)
-- [GitLab 13](https://docs.gitlab.com/omnibus/update/gitlab_13_changes.html)
-- [GitLab 12](https://docs.gitlab.com/omnibus/update/gitlab_12_changes.html)
-- [GitLab 11](https://docs.gitlab.com/omnibus/update/gitlab_11_changes.html)
+
+### Earlier GitLab versions
+
+For version-specific information for earlier GitLab versions, see the [documentation archives](https://archives.docs.gitlab.com).
+The versions of the documentation in the archives contain version-specific information for even earlier versions of GitLab.
+
+For example, the [documentation for GitLab 15.11](https://archives.docs.gitlab.com/15.11/ee/update/package/#version-specific-changes)
+contains information on versions back to GitLab 11.
 
 ## Back up before upgrading
 
@@ -56,7 +62,7 @@ sudo touch /etc/gitlab/skip-auto-backup
 ```
 
 Nevertheless, it is highly recommended to maintain a full up-to-date
-[backup](../../raketasks/backup_restore.md) on your own.
+[backup](../../administration/backup_restore/index.md) on your own.
 
 ## Upgrade using the official repositories
 
@@ -159,7 +165,7 @@ a manual installation.
 
 If for some reason you don't use the official repositories, you can
 download the package and install it manually. This method can be used to either
-install GitLab for the first time or update it.
+install GitLab for the first time or upgrade it.
 
 To download and install GitLab:
 
@@ -178,7 +184,7 @@ To download and install GitLab:
    # Debian/Ubuntu
    dpkg -i <package_name>
 
-   # RHEL/CentOS 6 and 7 
+   # RHEL/CentOS 6 and 7
    rpm -Uvh <package_name>
 
    # RHEL/CentOS 8
@@ -294,7 +300,7 @@ To fix this issue:
 
 ### Error `Failed to connect to the internal GitLab API` on a separate GitLab Pages server
 
-See [GitLab Pages troubleshooting](../../administration/pages/index.md#failed-to-connect-to-the-internal-gitlab-api).
+See [GitLab Pages administration troubleshooting](../../administration/pages/troubleshooting.md#failed-to-connect-to-the-internal-gitlab-api).
 
 ### Error `An error occurred during the signature verification` when running `apt-get update`
 

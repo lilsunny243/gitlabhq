@@ -8,6 +8,7 @@ module Packages
       included do
         include Sortable
         include FileStoreMounter
+        include IgnorableColumns
 
         def self.container_foreign_key
           "#{container_type}_id".to_sym
@@ -30,7 +31,6 @@ module Packages
         validates :file, length: { minimum: 0, allow_nil: false }
         validates :size, presence: true
         validates :file_store, presence: true
-        validates :file_md5, presence: true
         validates :file_sha256, presence: true
 
         scope :with_container, ->(container) do
@@ -86,6 +86,10 @@ module Packages
           when 'di_packages'
             "#{component.name}/debian-installer/binary-#{architecture.name}/#{file_name}#{extension}"
           end
+        end
+
+        def empty?
+          size == 0
         end
 
         private

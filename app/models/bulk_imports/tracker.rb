@@ -11,6 +11,8 @@ class BulkImports::Tracker < ApplicationRecord
     foreign_key: :bulk_import_entity_id,
     optional: false
 
+  has_many :batches, class_name: 'BulkImports::BatchTracker', inverse_of: :tracker
+
   validates :relation,
     presence: true,
     uniqueness: { scope: :bulk_import_entity_id }
@@ -22,6 +24,7 @@ class BulkImports::Tracker < ApplicationRecord
   delegate :file_extraction_pipeline?, to: :pipeline_class
 
   DEFAULT_PAGE_SIZE = 500
+  STALE_AFTER = 4.hours
 
   scope :next_pipeline_trackers_for, -> (entity_id) {
     entity_scope = where(bulk_import_entity_id: entity_id)
@@ -30,11 +33,9 @@ class BulkImports::Tracker < ApplicationRecord
     entity_scope.where(stage: next_stage_scope).with_status(:created)
   }
 
-  def self.stage_running?(entity_id, stage)
-    where(stage: stage, bulk_import_entity_id: entity_id)
-      .with_status(:created, :enqueued, :started)
-      .exists?
-  end
+  scope :running_trackers, -> (entity_id) {
+    where(bulk_import_entity_id: entity_id).with_status(:enqueued, :started)
+  }
 
   def pipeline_class
     unless entity.pipeline_exists?(pipeline_name)
@@ -86,5 +87,9 @@ class BulkImports::Tracker < ApplicationRecord
     event :cleanup_stale do
       transition [:created, :started] => :timeout
     end
+  end
+
+  def stale?
+    created_at < STALE_AFTER.ago
   end
 end

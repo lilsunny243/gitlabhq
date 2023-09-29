@@ -4,7 +4,7 @@ group: Pipeline Execution
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Unit test report examples **(FREE)**
+# Unit test report examples **(FREE ALL)**
 
 [Unit test reports](unit_test_reports.md) can be generated for many languages and packages.
 Use these examples as guidelines for configuring your pipeline to generate unit test reports
@@ -260,7 +260,7 @@ test:
 
 This example uses [PHPUnit](https://phpunit.de/) with the `--log-junit` flag.
 You can also add this option using
-[XML](https://phpunit.readthedocs.io/en/9.5/configuration.html#the-junit-element)
+[XML](https://docs.phpunit.de/en/10.2/configuration.html#the-junit-element)
 in the `phpunit.xml` configuration file.
 
 ```yaml
@@ -274,3 +274,44 @@ phpunit:
     reports:
       junit: report.xml
 ```
+
+## Rust
+
+This example uses [cargo2junit](https://crates.io/crates/cargo2junit),
+which is installed in the current directory.
+To retrieve JSON output from `cargo test`, you must enable the nightly compiler.
+
+```yaml
+run unittests:
+  image: rust:latest
+  stage: test
+  before_script:
+    - cargo install --root . cargo2junit
+  script:
+    - cargo test -- -Z unstable-options --format json --report-time | bin/cargo2junit > report.xml
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - report.xml
+```
+
+## Helm
+
+This example uses [Helm Unittest](https://github.com/helm-unittest/helm-unittest#docker-usage) plugin, with the `-t junit` flag to format the output to a JUnit report in XML format.
+
+```yaml
+helm:
+  image: helmunittest/helm-unittest:latest
+  stage: test
+  script:
+    - '-t JUnit -o report.xml -f tests/*[._]test.yaml .'
+  artifacts:
+    reports:
+      junit: report.xml
+```
+
+The `-f tests/*[._]test.yaml` flag configures `helm-unittest` to look for files in the `tests/` directory that end in either:
+
+- `.test.yaml`
+- `_test.yaml`

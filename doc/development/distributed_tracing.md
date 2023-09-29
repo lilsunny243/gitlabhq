@@ -4,7 +4,7 @@ group: Respond
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Distributed Tracing - development guidelines
+# Distributed tracing development guidelines
 
 GitLab is instrumented for distributed tracing. Distributed Tracing in GitLab is currently considered **experimental**, as it has not yet been tested at scale on GitLab.com.
 
@@ -22,6 +22,14 @@ Distributed tracing adds minimal overhead when disabled, but imposes only small 
 enabled and is therefore capable in any environment, including production. For this reason, it can
 be useful in diagnosing production issues, particularly performance problems.
 
+Services have different levels of support for distributed tracing. Custom
+instrumentation code must be added to the application layer in addition to
+pre-built instrumentation for the most common libraries.
+
+For service-specific information, see:
+
+- [Using Jaeger for Gitaly local development](https://gitlab.com/gitlab-org/gitaly/-/blob/master/doc/jaeger_for_local_development.md)
+
 ## Using Correlation IDs to investigate distributed requests
 
 The GitLab application passes correlation IDs between the various components in a request. A
@@ -32,7 +40,7 @@ better understand the end-to-end path of a request through the system. When a re
 process boundaries, the correlation ID is injected into the outgoing request. This enables
 the propagation of the correlation ID to each downstream subsystem.
 
-Correlation IDs are normally generated in the Rails application in response to
+Correlation IDs are usually generated in the Rails application in response to
 certain web requests. Some user facing systems don't generate correlation IDs in
 response to user requests (for example, Git pushes over SSH).
 
@@ -77,21 +85,62 @@ In this example, we have the following hypothetical values:
   they should be URL encoded.
   Multiple values should be separated by `&` characters like a URL.
 
+GitLab Rails provides pre-implemented instrumentations for common types of
+operations that offer a detailed view of the requests. However, the detailed
+information comes at a cost. The resulting traces are long and can be difficult
+to process, making it hard to identify bigger underlying issues. To address this
+concern, some instrumentations are disabled by default. To enable those disabled
+instrumentations, set the following environment variables:
+
+- `GITLAB_TRACING_TRACK_CACHES`: enable tracking cache operations, such as cache
+read, write, or delete.
+- `GITLAB_TRACING_TRACK_REDIS`: enable tracking Redis operations. Most Redis
+operations are for caching, though.
+
 ## Using Jaeger in the GitLab Development Kit
 
 The first tracing implementation that GitLab supports is Jaeger, and the
-[GitLab Development Kit](https://gitlab.com/gitlab-org/gitlab-development-kit/) supports distributed tracing with
-Jaeger out-of-the-box.
+[GitLab Development Kit](https://gitlab.com/gitlab-org/gitlab-development-kit/)
+supports distributed tracing with Jaeger out-of-the-box. GDK automatically adds
+`GITLAB_TRACING` environment variables to add services.
 
-The easiest way to access tracing from a GDK environment is through the
-[performance-bar](../administration/monitoring/performance/performance_bar.md). This can be shown
-by typing `p` `b` in the browser window.
+Configure GDK for Jaeger by editing the `gdk.yml` file and adding the following
+settings:
+
+```yaml
+tracer:
+  build_tags: tracer_static tracer_static_jaeger
+  jaeger:
+    enabled: true
+    listen_address: 127.0.0.1
+    version: 1.43.0
+```
+
+After modifying the `gdk.yml` file, reconfigure your GDK by running
+the `gdk reconfigure` command. This ensures that your GDK is properly configured
+and ready to use.
+
+The above configuration sets the `tracer_static` and `tracer_static_jaeger`
+build tags when rebuilding services written in Go for the first time. Any
+changes made afterward require rebuilding them with those build tags. You can
+either:
+
+- Add those build tags to the default set of build tags.
+- Manually attach them to the build command. For example, Gitaly supports adding
+  build tag out of the box. You can run
+  `make all WITH_BUNDLED_GIT=YesPlease BUILD_TAGS="tracer_static tracer_static_jaeger"`.
+
+After reconfiguration, Jaeger dashboard is available at
+`http://localhost:16686`. Another way to access tracing from a GDK environment
+is through the
+[performance-bar](../administration/monitoring/performance/performance_bar.md).
+This can be shown by typing `p` `b` in the browser window.
 
 Once the performance bar is enabled, select **Trace** in the performance bar to go to
 the Jaeger UI.
 
-The Jaeger search UI returns a query for the `Correlation-ID` of the current request. Normally,
-this search should return a single trace result. Selecting this result shows the detail of the
+The Jaeger search UI returns a query for the `Correlation-ID` of the current request.
+This search should return a single trace result. Selecting this result shows the detail of the
 trace in a hierarchical time-line.
 
 ![Jaeger Search UI](img/distributed_tracing_jaeger_ui.png)

@@ -36,8 +36,8 @@ The following table describes the version types and their release cadence:
 
 | Version type | Description | Cadence |
 |:-------------|:------------|:--------|
-| Major        | For significant changes, or when any backward-incompatible changes are introduced to the public API. | Yearly. The next major release is GitLab 16.0 on May 22, 2023. GitLab schedules major releases on May 22 each year, by default. |
-| Minor        | For when new backward-compatible functionality is introduced to the public API, a minor feature is introduced, or when a set of smaller features is rolled out. | Monthly on the 22nd. |
+| Major        | For significant changes, or when any backward-incompatible changes are introduced to the public API. | Yearly. The next major release is GitLab 17.0, scheduled for May 16th, 2024. GitLab [schedules major releases](https://about.gitlab.com/releases/) for May each year, by default. |
+| Minor        | For when new backward-compatible functionality is introduced to the public API, a minor feature is introduced, or when a set of smaller features is rolled out. | Monthly. |
 | Patch        | For backward-compatible bug fixes that fix incorrect behavior. See [Patch releases](#patch-releases). | As needed. |
 
 ## Upgrade recommendations
@@ -53,13 +53,13 @@ cases you must consider. Follow the
 between versions.
 
 NOTE:
-Version specific changes in Omnibus GitLab Linux packages can be found in [the Omnibus GitLab documentation](../update/package/index.md#version-specific-changes).
+Version specific changes in Linux packages can be found in [the Linux package documentation](../update/package/index.md#version-specific-changes).
 
 NOTE:
-Instructions are available for downloading an Omnibus GitLab Linux package locally and [manually installing](../update/package/index.md#upgrade-using-a-manually-downloaded-package) it.
+Instructions are available for downloading the Linux package locally and [manually installing](../update/package/index.md#upgrade-using-a-manually-downloaded-package) it.
 
 NOTE:
-A step-by-step guide to [upgrading the Omnibus-bundled PostgreSQL is documented separately](https://docs.gitlab.com/omnibus/settings/database.html#upgrade-packaged-postgresql-server).
+A step-by-step guide to [upgrading the Linux package-bundled PostgreSQL is documented separately](https://docs.gitlab.com/omnibus/settings/database.html#upgrade-packaged-postgresql-server).
 
 ## Upgrading major versions
 
@@ -102,7 +102,7 @@ accessible.
 
 ### Backporting to older releases
 
-Backporting to more than one stable release is normally reserved for [security releases](#security-releases).
+Backporting to more than one stable release is usually reserved for [security releases](#security-releases).
 In some cases, however, we may need to backport *a bug fix* to more than one stable
 release, depending on the severity of the bug.
 
@@ -110,9 +110,9 @@ The decision on whether backporting a change is performed is done at the discret
 [current release managers](https://about.gitlab.com/community/release-managers/),
 based on *all* of the following:
 
-1. Estimated [severity](../development/contributing/issue_workflow.md#severity-labels) of the bug:
+1. Estimated [severity](../development/labels/index.md#severity-labels) of the bug:
    Highest possible impact to users based on the current definition of severity.
-1. Estimated [priority](../development/contributing/issue_workflow.md#priority-labels) of the bug:
+1. Estimated [priority](../development/labels/index.md#priority-labels) of the bug:
    Immediate impact on all impacted users based on the above estimated severity.
 1. Potentially incurring data loss and/or security breach.
 1. Potentially affecting one or more strategic accounts due to a proven inability by the user to upgrade to the current stable version.
@@ -122,7 +122,7 @@ the current stable release, and two previous monthly releases. In rare cases a r
 For instance, if we release `13.2.1` with a fix for a severe bug introduced in
 `13.0.0`, we could backport the fix to a new `13.0.x`, and `13.1.x` patch release.
 
-Note that [severity](../development/contributing/issue_workflow.md#severity-labels) 3 and lower
+Note that [severity](../development/labels/index.md#severity-labels) 3 and lower
 requests are automatically turned down.
 
 To request backporting to more than one stable release for consideration, raise an issue in the

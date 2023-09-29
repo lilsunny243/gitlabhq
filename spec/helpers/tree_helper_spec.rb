@@ -3,6 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe TreeHelper do
+  include Devise::Test::ControllerHelpers
   let_it_be(:project) { create(:project, :repository) }
   let(:repository) { project.repository }
   let(:sha) { 'c1c67abbaf91f624347bb3ae96eabe3a1b742478' }
@@ -20,12 +21,14 @@ RSpec.describe TreeHelper do
 
   describe '#vue_file_list_data' do
     it 'returns a list of attributes related to the project' do
+      helper.instance_variable_set(:@ref_type, 'heads')
       expect(helper.vue_file_list_data(project, sha)).to include(
         project_path: project.full_path,
         project_short_path: project.path,
         ref: sha,
         escaped_ref: sha,
-        full_name: project.name_with_namespace
+        full_name: project.name_with_namespace,
+        ref_type: 'heads'
       )
     end
   end
@@ -267,6 +270,45 @@ RSpec.describe TreeHelper do
 
       it 'returns nil' do
         expect(subject).to be nil
+      end
+    end
+  end
+
+  describe '.fork_modal_options' do
+    let_it_be(:blob) { project.repository.blob_at('refs/heads/master', @path) }
+    let(:fork_path)  { "/#{project.path_with_namespace}/-/forks/new" }
+
+    before do
+      allow(helper).to receive(:current_user).and_return(user)
+    end
+
+    subject { helper.fork_modal_options(project, blob) }
+
+    it 'returns correct fork path' do
+      expect(subject).to match a_hash_including(fork_path: fork_path, fork_modal_id: nil)
+    end
+
+    context 'when show_edit_button true' do
+      before do
+        allow(helper).to receive(:show_edit_button?).and_return(true)
+      end
+
+      it 'returns correct fork path and modal id' do
+        expect(subject).to match a_hash_including(
+          fork_path: fork_path,
+          fork_modal_id: 'modal-confirm-fork-edit')
+      end
+    end
+
+    context 'when show_web_ide_button true' do
+      before do
+        allow(helper).to receive(:show_web_ide_button?).and_return(true)
+      end
+
+      it 'returns correct fork path and modal id' do
+        expect(subject).to match a_hash_including(
+          fork_path: fork_path,
+          fork_modal_id: 'modal-confirm-fork-webide')
       end
     end
   end

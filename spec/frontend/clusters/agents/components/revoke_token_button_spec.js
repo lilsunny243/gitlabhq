@@ -2,13 +2,14 @@ import { GlButton, GlModal, GlFormInput, GlTooltip } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
+import { stubComponent } from 'helpers/stub_component';
 import waitForPromises from 'helpers/wait_for_promises';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { ENTER_KEY } from '~/lib/utils/keys';
 import RevokeTokenButton from '~/clusters/agents/components/revoke_token_button.vue';
 import getClusterAgentQuery from '~/clusters/agents/graphql/queries/get_cluster_agent.query.graphql';
 import revokeTokenMutation from '~/clusters/agents/graphql/mutations/revoke_token.mutation.graphql';
-import { TOKEN_STATUS_ACTIVE, MAX_LIST_COUNT } from '~/clusters/agents/constants';
+import { MAX_LIST_COUNT } from '~/clusters/agents/constants';
 import { getTokenResponse, mockRevokeResponse, mockErrorRevokeResponse } from '../../mock_data';
 
 Vue.use(VueApollo);
@@ -45,7 +46,7 @@ describe('RevokeTokenButton', () => {
   const findInput = () => wrapper.findComponent(GlFormInput);
   const findTooltip = () => wrapper.findComponent(GlTooltip);
   const findPrimaryAction = () => findModal().props('actionPrimary');
-  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[0][attr];
+  const findPrimaryActionAttributes = (attr) => findPrimaryAction().attributes[attr];
 
   const createMockApolloProvider = ({ mutationResponse }) => {
     revokeSpy = jest.fn().mockResolvedValue(mutationResponse);
@@ -59,7 +60,6 @@ describe('RevokeTokenButton', () => {
       variables: {
         agentName,
         projectPath,
-        tokenStatus: TOKEN_STATUS_ACTIVE,
         ...cursor,
       },
       data: getTokenResponse.data,
@@ -82,12 +82,15 @@ describe('RevokeTokenButton', () => {
       },
       propsData,
       stubs: {
-        GlModal,
+        GlModal: stubComponent(GlModal, {
+          methods: {
+            hide: jest.fn(),
+          },
+        }),
         GlTooltip,
       },
       mocks: { $toast: { show: toast } },
     });
-    wrapper.vm.$refs.modal.hide = jest.fn();
 
     writeQuery();
     await nextTick();
@@ -105,7 +108,6 @@ describe('RevokeTokenButton', () => {
   });
 
   afterEach(() => {
-    wrapper.destroy();
     apolloProvider = null;
     revokeSpy = null;
   });
@@ -121,7 +123,7 @@ describe('RevokeTokenButton', () => {
       });
 
       it('disabled the button', () => {
-        expect(findRevokeBtn().attributes('disabled')).toBe('true');
+        expect(findRevokeBtn().attributes('disabled')).toBeDefined();
       });
 
       it('shows a disabled tooltip', () => {
@@ -219,7 +221,7 @@ describe('RevokeTokenButton', () => {
 
       it('reenables the button', async () => {
         expect(findPrimaryActionAttributes('loading')).toBe(true);
-        expect(findRevokeBtn().attributes('disabled')).toBe('true');
+        expect(findRevokeBtn().attributes('disabled')).toBeDefined();
 
         await findModal().vm.$emit('hide');
 

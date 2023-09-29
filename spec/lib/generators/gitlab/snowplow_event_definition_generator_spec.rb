@@ -2,11 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::SnowplowEventDefinitionGenerator, :silence_stdout, feature_category: :product_analytics do
+RSpec.describe Gitlab::SnowplowEventDefinitionGenerator, :silence_stdout, feature_category: :product_analytics_data_management do
   let(:ce_temp_dir) { Dir.mktmpdir }
   let(:ee_temp_dir) { Dir.mktmpdir }
-  let(:timestamp) { Time.current.to_i }
-  let(:generator_options) { { 'category' => 'Groups::EmailCampaignsController', 'action' => 'click' } }
+  let(:timestamp) { Time.now.utc.strftime('%Y%m%d%H%M%S') }
+
+  let(:generator_options) do
+    { 'category' => 'Projects::Pipelines::EmailCampaignsController', 'action' => 'click' }
+  end
 
   before do
     stub_const("#{described_class}::CE_DIR", ce_temp_dir)

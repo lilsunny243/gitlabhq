@@ -1,10 +1,10 @@
 ---
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# DingTalk OAuth 2.0 OmniAuth provider **(FREE SELF)**
+# Use DingTalk as an OAuth 2.0 authentication provider **(FREE SELF)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/341898) in GitLab 14.5.
 > - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/390855) in GitLab 15.10.
@@ -38,13 +38,13 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
 
 1. On your GitLab server, open the configuration file.
 
-   For Omnibus package:
+   For Linux package installations:
 
    ```shell
    sudo editor /etc/gitlab/gitlab.rb
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```shell
    cd /home/git/gitlab
@@ -52,13 +52,13 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+1. Configure the [common settings](omniauth.md#configure-common-settings)
    to add `dingtalk` as a single sign-on provider. This enables Just-In-Time
    account provisioning for users who do not have an existing GitLab account.
 
-1. Add the provider configuration:
+1. Add the provider configuration.
 
-   For Omnibus package:
+   For Linux package installations:
 
    ```ruby
      gitlab_rails['omniauth_providers'] = [
@@ -71,7 +71,7 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
      ]
    ```
 
-   For installations from source:
+   For self-compiled installations:
 
    ```yaml
    - { name: 'dingtalk',
@@ -86,6 +86,6 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
 
 1. Save the configuration file.
 
-1. For the changes to take effect, if you installed:
-   - Using Omnibus, [reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - From source, [restart GitLab](../administration/restart_gitlab.md#installations-from-source).
+1. For the changes to take effect, if you:
+   - Installed using the Linux package, [reconfigure GitLab](../administration/restart_gitlab.md#reconfigure-a-linux-package-installation).
+   - Self-compiled your installation, [restart GitLab](../administration/restart_gitlab.md#self-compiled-installations).

@@ -1,4 +1,5 @@
 <script>
+// eslint-disable-next-line no-restricted-imports
 import { mapActions, mapState } from 'vuex';
 import {
   OPERATORS_IS,
@@ -22,6 +23,7 @@ import UserToken from '~/vue_shared/components/filtered_search_bar/tokens/user_t
 import LabelToken from '~/vue_shared/components/filtered_search_bar/tokens/label_token.vue';
 import MilestoneToken from '~/vue_shared/components/filtered_search_bar/tokens/milestone_token.vue';
 import UrlSync from '~/vue_shared/components/url_sync.vue';
+import { MAX_LABELS } from '../constants';
 
 export default {
   name: 'FilterBar',
@@ -30,7 +32,7 @@ export default {
     UrlSync,
   },
   props: {
-    groupPath: {
+    namespacePath: {
       type: String,
       required: true,
     },
@@ -70,12 +72,14 @@ export default {
           symbol: '~',
           operators: OPERATORS_IS,
           fetchLabels: this.fetchLabels,
+          maxSuggestions: MAX_LABELS,
         },
         {
           icon: 'pencil',
           title: TOKEN_TITLE_AUTHOR,
           type: TOKEN_TYPE_AUTHOR,
           token: UserToken,
+          dataType: 'user',
           initialUsers: this.authorsData,
           unique: true,
           operators: OPERATORS_IS,
@@ -86,6 +90,7 @@ export default {
           title: TOKEN_TITLE_ASSIGNEE,
           type: TOKEN_TYPE_ASSIGNEE,
           token: UserToken,
+          dataType: 'user',
           initialUsers: this.assigneesData,
           unique: false,
           operators: OPERATORS_IS,
@@ -141,11 +146,12 @@ export default {
   <div>
     <filtered-search-bar
       class="gl-flex-grow-1"
-      :namespace="groupPath"
+      :namespace="namespacePath"
       recent-searches-storage-key="value-stream-analytics"
       :search-input-placeholder="__('Filter results')"
       :tokens="tokens"
       :initial-filter-value="initialFilterValue()"
+      terms-as-tokens
       @onFilter="handleFilter"
     />
     <url-sync :query="query" />

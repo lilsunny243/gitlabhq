@@ -13,7 +13,8 @@ module Gitlab
         create_protected_branch: 'You are not allowed to create protected branches on this project.',
         invalid_commit_create_protected_branch: 'You can only use an existing protected branch ref as the basis of a new protected branch.',
         non_web_create_protected_branch: 'You can only create protected branches using the web interface and API.',
-        prohibited_hex_branch_name: 'You cannot create a branch with a 40-character hexadecimal branch name.'
+        prohibited_hex_branch_name: 'You cannot create a branch with a 40-character hexadecimal branch name.',
+        invalid_branch_name: 'You cannot create a branch with an invalid name.'
       }.freeze
 
       LOG_MESSAGES = {
@@ -42,8 +43,12 @@ module Gitlab
       def prohibited_branch_checks
         return if deletion?
 
-        if branch_name =~ /\A\h{40}\z/
+        if %r{\A#{Gitlab::Git::Commit::RAW_FULL_SHA_PATTERN}(-/|/|\z)}o.match?(branch_name)
           raise GitAccess::ForbiddenError, ERROR_MESSAGES[:prohibited_hex_branch_name]
+        end
+
+        unless Gitlab::GitRefValidator.validate(branch_name)
+          raise GitAccess::ForbiddenError, ERROR_MESSAGES[:invalid_branch_name]
         end
       end
 

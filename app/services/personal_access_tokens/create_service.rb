@@ -2,24 +2,28 @@
 
 module PersonalAccessTokens
   class CreateService < BaseService
-    def initialize(current_user:, target_user:, params: {})
+    def initialize(current_user:, target_user:, params: {}, concatenate_errors: true)
       @current_user = current_user
       @target_user = target_user
       @params = params.dup
       @ip_address = @params.delete(:ip_address)
+      @concatenate_errors = concatenate_errors
     end
 
     def execute
       return ServiceResponse.error(message: 'Not permitted to create') unless creation_permitted?
 
-      token = target_user.personal_access_tokens.create(params.slice(*allowed_params))
+      token = target_user.personal_access_tokens.create(personal_access_token_params)
 
       if token.persisted?
         log_event(token)
         notification_service.access_token_created(target_user, token.name)
         ServiceResponse.success(payload: { personal_access_token: token })
       else
-        ServiceResponse.error(message: token.errors.full_messages.to_sentence, payload: { personal_access_token: token })
+        message = token.errors.full_messages
+        message = message.to_sentence if @concatenate_errors
+
+        ServiceResponse.error(message: message, payload: { personal_access_token: token })
       end
     end
 
@@ -27,13 +31,17 @@ module PersonalAccessTokens
 
     attr_reader :target_user, :ip_address
 
-    def allowed_params
-      [
-        :name,
-        :impersonation,
-        :scopes,
-        :expires_at
-      ]
+    def personal_access_token_params
+      {
+        name: params[:name],
+        impersonation: params[:impersonation] || false,
+        scopes: params[:scopes],
+        expires_at: pat_expiration
+      }
+    end
+
+    def pat_expiration
+      params[:expires_at].presence || PersonalAccessToken::MAX_PERSONAL_ACCESS_TOKEN_LIFETIME_IN_DAYS.days.from_now
     end
 
     def creation_permitted?

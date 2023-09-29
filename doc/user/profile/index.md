@@ -1,11 +1,11 @@
 ---
 type: index, howto
-stage: Manage
+stage: Govern
 group: Authentication and Authorization
 info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# User account **(FREE)**
+# User account **(FREE ALL)**
 
 Each GitLab account has a user profile, which contains information about you and your GitLab activity.
 
@@ -15,14 +15,14 @@ Your profile also includes settings, which you use to customize your GitLab expe
 
 To access your profile:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select your name or username.
 
 ## Access your user settings
 
 To access your user settings:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 
 ## Change your username
@@ -34,13 +34,17 @@ If you do not want to update the namespace, you can create a new user or group a
 
 Prerequisites:
 
-- Your namespace cannot contain a project with [Container Registry](../packages/container_registry/index.md) tags.
-- Your namespace cannot have a project that hosts [GitLab Pages](../project/pages/index.md). For more information,
-  see [this procedure in the GitLab Team Handbook](https://about.gitlab.com/handbook/tools-and-tips/#change-your-username-at-gitlabcom).
+- Your namespace must not:
+  - Contain a project with [Container Registry](../packages/container_registry/index.md) tags.
+  - Have a project that hosts [GitLab Pages](../project/pages/index.md). For more information,
+  see [changing your username in the GitLab Team Handbook](https://about.gitlab.com/handbook/tools-and-tips/#change-your-username-at-gitlabcom).
+- Your username must be between 2 and 255 characters in length, and must not:
+  - Contain special characters or emoji.
+  - End with `.<reserved file extension>`, for example `jon.png`. However, `jonpng` is valid.
 
 To change your username:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Account**.
 1. In the **Change username** section, enter a new username as the path.
@@ -50,9 +54,10 @@ To change your username:
 
 To add new email to your account:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Emails**.
+1. Select **Add new email**.
 1. In the **Email** text box, enter the new email.
 1. Select **Add email address**.
 1. Verify your email address with the verification email received.
@@ -63,7 +68,7 @@ You can make your user profile visible to only you and GitLab administrators.
 
 To make your profile private:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. Select the **Private profile** checkbox.
 1. Select **Update profile settings**.
@@ -86,7 +91,7 @@ not.
 
 When visiting the public page of a user, you can only see the projects which you have privileges to.
 
-If the [public level is restricted](../admin_area/settings/visibility_and_access_controls.md#restrict-visibility-levels),
+If the [public level is restricted](../../administration/settings/visibility_and_access_controls.md#restrict-visibility-levels),
 user profiles are only visible to authenticated users.
 
 ## Add details to your profile with a README
@@ -100,8 +105,7 @@ the README file with information, it's included on your profile page.
 
 To create a new project and add its README to your profile:
 
-1. On the top bar, select **Main menu > Projects > View all projects**.
-1. On the right of the page, select **New project**.
+1. On the left sidebar, at the top, select **Create new** (**{plus}**) and **New project/repository**.
 1. Select **Create blank project**.
 1. Enter the project details:
    - In the **Project name** field, enter the name for your new project.
@@ -129,13 +133,15 @@ They can help other users connect with you on other platforms.
 
 To add links to other accounts:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
-1. In the **Main settings** section, add your information from:
-   - Discord ([User ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-))
-   - LinkedIn
-   - Skype
-   - Twitter
+1. In the **Main settings** section, add your:
+   - Discord [user ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-).
+   - LinkedIn profile name.
+   - Skype username.
+   - Twitter @username.
+
+   Your user ID or username must be 500 characters or less.
 1. Select **Update profile settings**.
 
 ## Show private contributions on your user profile page
@@ -144,7 +150,7 @@ In the user contribution calendar graph and recent activity list, you can see yo
 
 To show private contributions:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Main settings** section, select the **Include private contributions on my profile** checkbox.
 1. Select **Update profile settings**.
@@ -158,9 +164,9 @@ your name in your profile.
 
 To specify your pronouns:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
-1. In the **Pronouns** text box, enter your pronouns.
+1. In the **Pronouns** text box, enter your pronouns. The text must be 50 characters or less.
 1. Select **Update profile settings**.
 
 ## Add your name pronunciation
@@ -172,9 +178,9 @@ your name.
 
 To add your name pronunciation:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
-1. In the **Pronunciation** text box, enter how your name is pronounced.
+1. In the **Pronunciation** text box, enter how your name is pronounced. The pronunciation must be plain text and 255 characters or less.
 1. Select **Update profile settings**.
 
 ## Set your current status
@@ -188,7 +194,7 @@ Your status is publicly visible even if your [profile is private](#make-your-use
 
 To set your current status:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Set status** or, if you have already set a status, **Edit status**.
 1. Set the desired emoji and status message. Status messages must be plain text and 100 characters or less.
    They can also contain emoji codes like, `I'm on vacation :palm_tree:`.
@@ -211,34 +217,16 @@ To indicate to others that you are busy, you can set an indicator.
 To set the busy status indicator, either:
 
 - Set it directly:
-  1. On the top bar, in the upper-right corner, select your avatar.
+  1. On the left sidebar, select your avatar.
   1. Select **Set status** or, if you have already set a status, **Edit status**.
   1. Select the **Set yourself as busy** checkbox.
 
 - Set it on your profile:
-  1. On the top bar, in the upper-right corner, select your avatar.
+  1. On the left sidebar, select your avatar.
   1. Select **Edit profile**.
   1. In the **Current status** section, select the **Set yourself as busy** checkbox.
 
-  The busy status is displayed in the user interface.
-
-  Username:
-
-  | Profile page | Settings menu | User popovers |
-  | --- | --- | --- |
-  | ![Busy status - profile page](img/busy_indicator_profile_page_v13_6.png) | ![Busy status - settings menu](img/busy_indicator_settings_menu_v13_6.png) | ![Busy status - user popovers](img/busy_indicator_user_popovers_v13_6.png) |
-
-  Issue and merge request sidebar:
-
-  | Sidebar| Collapsed sidebar |
-  | --- | --- |
-  | ![Busy status - sidebar](img/busy_indicator_sidebar_v13_9.png) | ![Busy status - sidebar collapsed](img/busy_indicator_sidebar_collapsed_v13_9.png) |
-
-  Notes:
-
-  | Notes | Note headers |
-  | --- | --- |
-  | ![Busy status - notes](img/busy_indicator_notes_v13_9.png) | ![Busy status - note header](img/busy_indicator_note_header_v13_9.png) |
+  The busy status is displayed next to your name, every time your name is shown in the user interface.
 
 ## Set your time zone
 
@@ -250,7 +238,7 @@ You can set your local time zone to:
 
 To set your time zone:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Time settings** section, select your time zone from the dropdown list.
 
@@ -263,7 +251,7 @@ Your primary email is used by default.
 
 To change your commit email:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Commit email** dropdown list, select an email address.
 1. Select **Update profile settings**.
@@ -274,7 +262,7 @@ Your primary email is the default email address for your login, commit email, an
 
 To change your primary email:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Email** field, enter your new email address.
 1. Select **Update profile settings**.
@@ -284,7 +272,7 @@ To change your primary email:
 
 You can select one of your [configured email addresses](#add-emails-to-your-user-profile) to be displayed on your public profile:
 
-1. In the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Public email** field, select one of the available email addresses.
 1. Select **Update profile settings**.
@@ -296,7 +284,7 @@ so you can keep your email information private.
 
 To use a private commit email:
 
-1. On the top bar, in the upper-right corner, select your avatar.
+1. On the left sidebar, select your avatar.
 1. Select **Edit profile**.
 1. In the **Commit email** dropdown list, select **Use a private email**.
 1. Select **Update profile settings**.
@@ -321,50 +309,105 @@ You can follow or unfollow users from either:
 In [GitLab 15.5 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/360755),
 the maximum number of users you can follow is 300.
 
-## View your activity
+### Disable following and being followed by other users
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325558) in GitLab 16.0 [with a flag](../feature_flags.md) named `disable_follow_users`.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/420620) in GitLab 16.3.
+
+You can disable following and being followed by other users.
+
+1. On the left sidebar, select your avatar.
+1. Select **Edit profile**.
+1. Select **Preferences**.
+1. Clear the **Enable follow users** checkbox.
+1. Select **Save changes**.
+
+NOTE:
+When this feature is being disabled, all current followed/following connections are deleted.
+
+## Advanced code search with zoekt
+
+### Disable searching code with zoekt
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/388519) as a beta feature [with a flag](../feature_flags.md) named `search_code_with_zoekt`. Enabled by default.
+
+You can disable searching with Zoekt and use Elasticsearch instead.
+
+1. On the left sidebar, select your avatar.
+1. Select **Edit profile**.
+1. Select **Preferences**.
+1. Clear the **Enable advanced code search** checkbox.
+1. Select **Save changes**.
+
+## View a user's activity
 
 GitLab tracks [user contribution activity](contributions_calendar.md).
-To view a summary of your activity, or the activity of other users:
+To view a user's activity:
 
-1. From a user's profile, select **Follow**.
+1. Go to the user's profile.
 1. In the GitLab menu, select **Activity**.
-1. Select the **Followed users** tab.
 
-## Stay signed in for two weeks
+A list of **Most Recent Activity** contributions is displayed.
 
-By default, you are signed out of GitLab every seven days, or 10080 minutes.
+## View your activity
+
+To view your activity:
+
+1. On the left sidebar, select **Search or go to**.
+1. Select **Your work**.
+1. Select **Activity**.
+1. Optional. To filter your activity by contribution type, in the **Your Activity** tab, select a tab:
+
+   - **All**: All contributions you made in your groups and projects.
+   - **Push events**: Push events you made in your projects.
+   - **Merge events**: Merge requests you accepted in your projects.
+   - **Issue events**: Issues you opened and closed in your projects.
+   - **Comments**: Comments you posted in your projects.
+   - **Wiki**: Wiki pages you created and updated in your projects.
+   - **Designs**: Designs you added, updated, and removed in your projects.
+   - **Team**: Projects you joined and left.
+
+## Session duration
+
+### Stay signed in for two weeks
+
+By default, you are signed out of GitLab after seven days (10080 minutes) of inactivity or until you close your browser
+window, whichever comes first.
+
 GitLab administrators can
-[change this default](../admin_area/settings/account_and_limit_settings.md#customize-the-default-session-duration).
+[change this default](../../administration/settings/account_and_limit_settings.md#customize-the-default-session-duration).
 
-To extend the duration to two weeks:
+### Stay signed in indefinitely
 
-- On the GitLab sign-in page, select the **Remember me** checkbox.
+> Ability to turn the **Remember me** setting on and off [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/369133) in GitLab 16.0.
 
-## Stay signed in indefinitely
+To remain signed in indefinitely, select the **Remember me** checkbox on the GitLab sign-in page.
 
-To remain signed in indefinitely:
+You remain signed in because, although the server sets a session time of one week, your browser stores a secure token
+that enables automatic reauthentication.
 
-1. On the GitLab sign-in page, select the **Remember me** checkbox.
-1. Access GitLab at least once every two weeks, and leave your browser open.
-
-You remain signed in because, although the server sets a time-to-live (TTL) of one week on your browser session,
-the server continues to reset the TTL, regardless of whether 2FA is installed.
+GitLab administrators can [turn off the **Remember me** setting](../../administration/settings/account_and_limit_settings.md#session-duration) for environments
+that require sessions to expire periodically for security or compliance purposes.
 
 ### Cookies used for sign-in
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/20340) in GitLab 13.1.
 
-When you sign in, two cookies are set:
+When you sign in, three cookies are set:
 
 - A session cookie called `_gitlab_session`.
   This cookie has no set expiration date. However, it expires based on its `session_expire_delay`.
+- A session cookie called `gitlab_user`.
+  This cookie is used by the [marketing site](https://about.gitlab.com/) to determine if a user has an active GitLab session. No user information is passed to the cookie and it expires two weeks from login.
 - A persistent cookie called `remember_user_token`, which is set only if you selected **Remember me** on the sign-in page.
 
-When you close your browser, the `_gitlab_session` cookie is usually cleared client-side.
-When it expires or isn't available, GitLab uses the `remember_user_token`cookie to get you
-a new `_gitlab_session` cookie and keep you signed in, even if you close your browser.
+When you close your browser, the `_gitlab_session` and `gitlab_user` cookies are usually cleared client-side.
+When it expires or isn't available, GitLab:
 
-When both cookies are gone or expired, you must sign in again.
+- Uses the `remember_user_token`cookie to get you a new `_gitlab_session` cookie and keep you signed in, even if you close your browser.
+- Sets the `gitlab_user` to `true`.
+
+When both the `remember_user_token` and `_gitlab_session` cookies are gone or expired, you must sign in again.
 
 NOTE:
 When any session is signed out, or when a session is revoked
@@ -383,5 +426,5 @@ a session if the browser is closed or the existing session expires.
 - Manage applications that can [use GitLab as an OAuth provider](../../integration/oauth_provider.md)
 - Manage [personal access tokens](personal_access_tokens.md) to access your account via API and authorized applications
 - Manage [SSH keys](../ssh.md) to access your account via SSH
-- Change your [syntax highlighting theme](preferences.md#syntax-highlighting-theme)
+- [Change the syntax highlighting theme](preferences.md#change-the-syntax-highlighting-theme)
 - [View your active sessions](active_sessions.md) and revoke any of them if necessary
