@@ -116,7 +116,7 @@
     "apollo-upload-client": "15.0.0",
     "apollo3-cache-persist": "^0.14.1",
     "autosize": "^5.0.1",
-    "axios": "^0.24.0",
+    "axios": "^1.6.0",
     "babel-loader": "^8.3.0",
     "babel-plugin-lodash": "^3.3.4",
     "bootstrap": "4.6.2",
