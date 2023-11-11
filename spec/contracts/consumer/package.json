@@ -6,7 +6,7 @@
   "repository": "https://gitlab.com/gitlab-org/gitlab.git",
   "dependencies": {
     "@pact-foundation/pact": "^9.17.2",
-    "axios": "^0.26.0",
+    "axios": "^1.6.0",
     "jest": "^27.5.1",
     "jest-pact": "^0.9.1",
     "prettier": "^2.5.1"
